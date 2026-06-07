@@ -5,12 +5,12 @@ using MoneyMentor.Infrastructure.Identity;
 
 namespace MoneyMentor.Infrastructure.Persistence;
 
-public sealed class MoneyMentorDbContext
+public sealed class MoneyMentorAuthDbContext
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>
 {
     public const string AuthSchema = "auth";
 
-    public MoneyMentorDbContext(DbContextOptions<MoneyMentorDbContext> options)
+    public MoneyMentorAuthDbContext(DbContextOptions<MoneyMentorAuthDbContext> options)
         : base(options)
     {
     }

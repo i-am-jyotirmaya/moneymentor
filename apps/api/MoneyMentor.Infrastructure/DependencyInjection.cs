@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using MoneyMentor.Infrastructure.Auth;
 using MoneyMentor.Infrastructure.Identity;
 using MoneyMentor.Infrastructure.Persistence;
 
@@ -23,15 +24,17 @@ public static class DependencyInjection
                 $"Connection string '{ConnectionStringName}' is not configured.");
         }
 
-        services.AddDbContext<MoneyMentorDbContext>(options =>
+        services.AddDbContext<MoneyMentorAuthDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
-                npgsqlOptions => npgsqlOptions.MigrationsAssembly(typeof(MoneyMentorDbContext).Assembly.FullName)));
+                npgsqlOptions => npgsqlOptions.MigrationsAssembly(typeof(MoneyMentorAuthDbContext).Assembly.FullName)));
 
         services
             .AddIdentityCore<ApplicationUser>(ConfigureIdentityOptions)
             .AddRoles<ApplicationRole>()
-            .AddEntityFrameworkStores<MoneyMentorDbContext>();
+            .AddEntityFrameworkStores<MoneyMentorAuthDbContext>();
+
+        services.AddScoped<IAuthRepository, PostgresAuthRepository>();
 
         return services;
     }
