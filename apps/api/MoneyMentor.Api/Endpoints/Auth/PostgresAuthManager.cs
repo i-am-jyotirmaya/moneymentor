@@ -7,7 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using MoneyMentor.Infrastructure.Auth;
 using MoneyMentor.Infrastructure.Identity;
 
-namespace MoneyMentor.Api.Auth;
+namespace MoneyMentor.Api.Endpoints.Auth;
 
 internal sealed class PostgresAuthManager : IAuthManager
 {

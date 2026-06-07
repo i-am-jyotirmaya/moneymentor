@@ -3,7 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
-namespace MoneyMentor.Api.Auth;
+namespace MoneyMentor.Api.Endpoints.Auth;
 
 public static class AuthServiceCollectionExtensions
 {

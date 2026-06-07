@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\MoneyMentor.Application\MoneyMentor.Application.csproj" />
     <ProjectReference Include="..\MoneyMentor.Infrastructure\MoneyMentor.Infrastructure.csproj" />
   </ItemGroup>
 

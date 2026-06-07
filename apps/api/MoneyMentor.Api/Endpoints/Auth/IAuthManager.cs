@@ -1,6 +1,6 @@
 using System.Security.Claims;
 
-namespace MoneyMentor.Api.Auth;
+namespace MoneyMentor.Api.Endpoints.Auth;
 
 public interface IAuthManager
 {

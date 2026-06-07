@@ -1,6 +1,28 @@
 @MoneyMentor.Api_HostAddress = http://localhost:5267
 
-GET {{MoneyMentor.Api_HostAddress}}/weatherforecast/
+POST {{MoneyMentor.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "demo@example.com",
+  "password": "ChangeMe123"
+}
+
+###
+
+GET {{MoneyMentor.Api_HostAddress}}/api/auth/me
+Authorization: Bearer {{accessToken}}
 Accept: application/json
+
+###
+
+POST {{MoneyMentor.Api_HostAddress}}/api/expenses/input
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "text": "paid rent 18000",
+  "inputMode": "Text"
+}
 
 ###

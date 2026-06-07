@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MoneyMentor.Api.Auth;
+namespace MoneyMentor.Api.Endpoints.Auth;
 
 public sealed class CreateUserRequest
 {

@@ -1,4 +1,4 @@
-namespace MoneyMentor.Api.Auth;
+namespace MoneyMentor.Api.Endpoints.Auth;
 
 public enum AuthFailureKind
 {
