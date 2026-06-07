@@ -1,0 +1,23 @@
+{
+  "name": "moneymentor",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "dev": "turbo dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:mobile": "pnpm --filter mobile start",
+    "dev:api": "dotnet run --project apps/api",
+    "build": "turbo build && dotnet build MoneyMentor.sln",
+    "build:api": "dotnet build MoneyMentor.sln",
+    "test": "turbo test && dotnet test MoneyMentor.sln",
+    "lint": "turbo lint"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.33.0",
+  "devDependencies": {
+    "turbo": "^2.9.16"
+  }
+}

@@ -1,0 +1,71 @@
+# =========================
+# .NET build outputs
+# =========================
+bin/
+obj/
+
+# =========================
+# User-specific files
+# =========================
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# =========================
+# Visual Studio / Rider
+# =========================
+.vs/
+.idea/
+_ReSharper*/
+*.DotSettings.user
+
+# =========================
+# Test outputs
+# =========================
+TestResults/
+coverage/
+*.trx
+*.coverage
+*.coveragexml
+
+# =========================
+# NuGet
+# =========================
+*.nupkg
+*.snupkg
+packages/
+
+# =========================
+# Local config / secrets
+# =========================
+appsettings.Local.json
+appsettings.Development.local.json
+appsettings.*.local.json
+
+.env
+.env.*
+!.env.example
+
+# =========================
+# Certificates / keys
+# =========================
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+
+# =========================
+# Local database files
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
