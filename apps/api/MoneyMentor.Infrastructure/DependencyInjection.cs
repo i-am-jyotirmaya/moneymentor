@@ -29,6 +29,11 @@ public static class DependencyInjection
                 connectionString,
                 npgsqlOptions => npgsqlOptions.MigrationsAssembly(typeof(MoneyMentorAuthDbContext).Assembly.FullName)));
 
+        services.AddDbContext<MoneyMentorDbContext>(options =>
+            options.UseNpgsql(
+                connectionString,
+                npgsqlOptions => npgsqlOptions.MigrationsAssembly(typeof(MoneyMentorDbContext).Assembly.FullName)));
+
         services
             .AddIdentityCore<ApplicationUser>(ConfigureIdentityOptions)
             .AddRoles<ApplicationRole>()
