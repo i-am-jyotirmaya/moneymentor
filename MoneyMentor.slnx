@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="apps/api/MoneyMentor.Application/MoneyMentor.Application.csproj" />
+  <Project Path="apps/api/MoneyMentor.Application.Tests/MoneyMentor.Application.Tests.csproj" />
   <Project Path="apps/api/MoneyMentor.Api/MoneyMentor.Api.csproj" />
   <Project Path="apps/api/MoneyMentor.Domain/MoneyMentor.Domain.csproj" />
   <Project Path="apps/api/MoneyMentor.Infrastructure/MoneyMentor.Infrastructure.csproj" Id="69694875-7245-464f-8675-b67c09cf3347" />
