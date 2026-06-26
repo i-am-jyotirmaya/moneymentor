@@ -190,7 +190,21 @@ internal static class ExpenseCategoryKeywordCatalog
             70),
         new(
             "Household",
-            ExpenseInputKeywordSets.CreateKeywordSet("cleaning", "detergent", "maid", "furniture", "appliance", "repair", "plumber", "electrician"),
+            ExpenseInputKeywordSets.CreateKeywordSet(
+                "cleaning",
+                "detergent",
+                "maid",
+                "furniture",
+                "appliance",
+                "repair",
+                "plumber",
+                "electrician",
+                "cable management",
+                "cable management tray",
+                "cable tray",
+                "desk organizer",
+                "under desk",
+                "under desk tray"),
             65),
         new(
             "Bills",

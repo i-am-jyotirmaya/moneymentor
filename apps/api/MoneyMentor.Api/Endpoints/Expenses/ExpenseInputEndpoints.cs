@@ -65,12 +65,12 @@ public static class ExpenseInputEndpoints
             return Results.Unauthorized();
         }
 
-        var parser = serviceProvider.GetService<IExpenseInputParser>();
-        if (parser is null)
+        var processor = serviceProvider.GetService<IExpenseInputProcessor>();
+        if (processor is null)
         {
             return Results.Problem(
-                title: "Expense input parser is not configured.",
-                detail: "The endpoint contract is ready, but an IExpenseInputParser implementation has not been registered yet.",
+                title: "Expense input processor is not configured.",
+                detail: "The endpoint contract is ready, but an IExpenseInputProcessor implementation has not been registered yet.",
                 statusCode: StatusCodes.Status501NotImplemented);
         }
 
@@ -84,7 +84,7 @@ public static class ExpenseInputEndpoints
             request.CurrencyCode,
             request.Locale);
 
-        var result = await parser.ParseAsync(parseRequest, cancellationToken);
+        var result = await processor.ProcessAsync(parseRequest, cancellationToken);
 
         return Results.Ok(
             new ExpenseInputResponse(

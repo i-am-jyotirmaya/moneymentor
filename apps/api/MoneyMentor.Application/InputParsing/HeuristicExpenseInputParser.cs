@@ -29,7 +29,7 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly Regex DescriptionCleanupRegex = new(
-        @"(?<![\p{L}\p{N}])(?:i|we|my|paid|pay|spend|spent|spending|buy|bought|purchase|purchased|for|on|at|from|via|through|to|rs|inr|rupee|rupees|rupaye|kharch|kharcha|kharche|kiya|kara|diya|liya|liye|mein|me|pe|par|ka|ke|ki|ko)(?![\p{L}\p{N}])",
+        @"(?<![\p{L}\p{N}])(?:i|we|my|a|an|the|got|get|grabbed|ordered|order|paid|pay|spend|spent|spending|buy|bought|purchase|purchased|for|on|at|from|via|through|to|rs|inr|rupee|rupees|rupaye|kharch|kharcha|kharche|kiya|kara|diya|liya|liye|mein|me|pe|par|ka|ke|ki|ko)(?![\p{L}\p{N}])",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static readonly Regex TrimPunctuationRegex = new(
@@ -111,7 +111,7 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
             return Task.FromResult(
                 ExpenseInputParseResult.NeedsClarification(
                     draft,
-                    BuildMissingAmountMessage(category, merchant, description)));
+                    ExpenseInputAssistantMessages.BuildMissingAmountMessage(draft)));
         }
 
         if (amount is not null && !HasAnyExpenseEvidence(category, merchant, description))
@@ -128,7 +128,10 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
                 ExpenseInputParseResult.Unsupported("I could not identify an expense amount or expense details in that input."));
         }
 
-        return Task.FromResult(ExpenseInputParseResult.Parsed(draft));
+        return Task.FromResult(
+            ExpenseInputParseResult.Parsed(
+                draft,
+                ExpenseInputAssistantMessages.BuildParsedExpenseMessage(draft)));
     }
 
     private static bool LooksLikeFinanceQuestion(IReadOnlySet<string> searchTerms) =>
@@ -663,19 +666,6 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
         MerchantMatch? merchant,
         string? description) =>
         category is not null || merchant is not null || !string.IsNullOrWhiteSpace(description);
-
-    private static string BuildMissingAmountMessage(
-        CategoryMatch? category,
-        MerchantMatch? merchant,
-        string? description)
-    {
-        var subject = description
-            ?? category?.Category
-            ?? merchant?.Name
-            ?? "this expense";
-
-        return $"How much did you spend on {subject}?";
-    }
 
     private static bool TryFindTermSpan(
         string sourceText,

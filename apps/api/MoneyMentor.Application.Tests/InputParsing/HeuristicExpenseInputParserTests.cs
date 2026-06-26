@@ -22,6 +22,8 @@ public sealed class HeuristicExpenseInputParserTests
     [InlineData("swiggy dinner 540", "540", "Food Delivery", "Swiggy", "dinner")]
     [InlineData("zepto ice cream 180", "180", "Snacks", "Zepto", "ice cream")]
     [InlineData("paid rent 18k", "18000", "Rent", null, "rent")]
+    [InlineData("I got a under desk cable management tray 900", "900", "Household", null, "under desk cable management tray")]
+    [InlineData("Order food from Zomato 100", "100", "Food Delivery", "Zomato", "food")]
     public async Task ParseAsync_ParsesCommonExpenseInputs(
         string sourceText,
         string expectedAmount,
@@ -34,7 +36,11 @@ public sealed class HeuristicExpenseInputParserTests
         Assert.Equal(ExpenseInputParseStatus.Parsed, result.Status);
         Assert.Equal(FinanceInputIntent.CreateExpense, result.Intent);
         Assert.Empty(result.Errors);
-        Assert.Null(result.AssistantMessage);
+        Assert.Equal(
+            $"I parsed INR {expectedAmount} for {expectedDescription}" +
+            (expectedMerchant is null ? string.Empty : $" from {expectedMerchant}") +
+            $" under {expectedCategory}. This is only a draft for now, not saved yet.",
+            result.AssistantMessage);
 
         Assert.NotNull(result.Draft);
         var draft = result.Draft!;
