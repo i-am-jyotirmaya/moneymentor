@@ -2,9 +2,15 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using MoneyMentor.Application.AppUsers;
+using MoneyMentor.Application.Households;
+using MoneyMentor.Application.Transactions;
+using MoneyMentor.Infrastructure.AppUsers;
 using MoneyMentor.Infrastructure.Auth;
+using MoneyMentor.Infrastructure.Households;
 using MoneyMentor.Infrastructure.Identity;
 using MoneyMentor.Infrastructure.Persistence;
+using MoneyMentor.Infrastructure.Transactions;
 
 namespace MoneyMentor.Infrastructure;
 
@@ -40,6 +46,9 @@ public static class DependencyInjection
             .AddEntityFrameworkStores<MoneyMentorAuthDbContext>();
 
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
+        services.AddScoped<IAppUserProfileService, PostgresAppUserProfileService>();
+        services.AddScoped<ITransactionService, PostgresTransactionService>();
+        services.AddScoped<IHouseholdService, PostgresHouseholdService>();
 
         return services;
     }

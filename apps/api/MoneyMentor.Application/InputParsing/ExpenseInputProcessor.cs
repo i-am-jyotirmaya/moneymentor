@@ -1,63 +1,117 @@
-using MoneyMentor.Domain.Enums;
+using System.Globalization;
+using MoneyMentor.Application.AppUsers;
+using MoneyMentor.Application.Transactions;
 
 namespace MoneyMentor.Application.InputParsing;
 
 public sealed class ExpenseInputProcessor(
     IExpenseInputParser parser,
-    IExpenseInputDraftStore draftStore) : IExpenseInputProcessor
+    IAppUserProfileService appUserProfileService,
+    IExpenseInputDraftStore draftStore,
+    ITransactionService transactionService) : IExpenseInputProcessor
 {
-    public async Task<ExpenseInputParseResult> ProcessAsync(
+    public async Task<ExpenseInputProcessResult> ProcessAsync(
         ExpenseInputParseRequest request,
         CancellationToken cancellationToken)
     {
-        var currentResult = await parser.ParseAsync(request, cancellationToken);
+        var parseResult = await parser.ParseAsync(request, cancellationToken);
 
-        if (currentResult.Status is ExpenseInputParseStatus.Failed or ExpenseInputParseStatus.Unsupported)
+        if (parseResult.Status is ExpenseInputParseStatus.Failed or ExpenseInputParseStatus.Unsupported)
         {
-            return currentResult;
+            return ExpenseInputProcessResult.FromParseResult(parseResult);
         }
 
-        if (currentResult.Draft is null)
+        if (parseResult.Draft is null)
         {
-            return currentResult;
+            return ExpenseInputProcessResult.FromParseResult(parseResult);
         }
 
         var pendingDraft = draftStore.Get(request);
-        if (pendingDraft is null)
-        {
-            StoreIfNeedsClarification(request, currentResult);
-            return currentResult;
-        }
+        var userContext = await appUserProfileService.ResolveAsync(
+            new AppUserIdentity(
+                request.AuthProvider,
+                request.AuthSubject,
+                request.Email,
+                request.DisplayName),
+            cancellationToken);
 
-        if (currentResult.Status == ExpenseInputParseStatus.Parsed)
+        if (pendingDraft is not null && parseResult.Status == ExpenseInputParseStatus.Parsed)
         {
+            if (ShouldMergeParsedResponse(pendingDraft, parseResult.Draft))
+            {
+                return await SaveParsedExpenseAsync(
+                    request,
+                    userContext,
+                    MergeDrafts(pendingDraft, parseResult.Draft, request),
+                    cancellationToken);
+            }
+
             draftStore.Clear(request);
-            return currentResult;
+            return await SaveParsedExpenseAsync(
+                request,
+                userContext,
+                parseResult.Draft,
+                cancellationToken);
         }
 
-        var mergedDraft = MergeDrafts(pendingDraft, currentResult.Draft, request);
-        var mergedResult = BuildResultFromMergedDraft(mergedDraft);
+        if (pendingDraft is not null)
+        {
+            var mergedDraft = MergeDrafts(pendingDraft, parseResult.Draft, request);
+            var mergedResult = BuildResultFromMergedDraft(mergedDraft);
 
-        if (mergedResult.Status == ExpenseInputParseStatus.Parsed)
-        {
-            draftStore.Clear(request);
-        }
-        else
-        {
+            if (mergedResult.Status == ExpenseInputParseStatus.Parsed)
+            {
+                return await SaveParsedExpenseAsync(
+                    request,
+                    userContext,
+                    mergedDraft,
+                    cancellationToken);
+            }
+
             draftStore.Save(request, mergedDraft);
+            return ExpenseInputProcessResult.FromParseResult(mergedResult);
         }
 
-        return mergedResult;
+        if (parseResult.Status == ExpenseInputParseStatus.NeedsClarification)
+        {
+            draftStore.Save(request, parseResult.Draft);
+            return ExpenseInputProcessResult.FromParseResult(parseResult);
+        }
+
+        return await SaveParsedExpenseAsync(
+            request,
+            userContext,
+            parseResult.Draft,
+            cancellationToken);
     }
 
-    private void StoreIfNeedsClarification(
+    private async Task<ExpenseInputProcessResult> SaveParsedExpenseAsync(
         ExpenseInputParseRequest request,
-        ExpenseInputParseResult result)
+        AppUserContext userContext,
+        ExpenseDraft draft,
+        CancellationToken cancellationToken)
     {
-        if (result.Status == ExpenseInputParseStatus.NeedsClarification && result.Draft is not null)
+        if (userContext.RequireMerchantForExpenses
+            && string.IsNullOrWhiteSpace(draft.MerchantName))
         {
-            draftStore.Save(request, result.Draft);
+            draftStore.Save(request, draft);
+            return ExpenseInputProcessResult.NeedsClarification(
+                draft,
+                "Which merchant was this from?");
         }
+
+        var transaction = await transactionService.SaveExpenseAsync(
+            new SaveExpenseCommand(
+                userContext,
+                draft,
+                request.HouseholdId),
+            cancellationToken);
+
+        draftStore.Clear(request);
+        return ExpenseInputProcessResult.Saved(
+            draft,
+            transaction,
+            BuildSavedExpenseMessage(transaction));
     }
 
     private static ExpenseDraft MergeDrafts(
@@ -70,7 +124,13 @@ public sealed class ExpenseInputProcessor(
         var merchantName = ChooseText(currentDraft.MerchantName, pendingDraft.MerchantName);
         var description = ChooseText(currentDraft.Description, pendingDraft.Description);
         var transactionDate = currentDraft.TransactionDate ?? pendingDraft.TransactionDate ?? request.TransactionDate;
-        var confidence = CalculateMergedConfidence(pendingDraft, currentDraft, amount, categoryGuess, merchantName, description);
+        var confidence = CalculateMergedConfidence(
+            pendingDraft,
+            currentDraft,
+            amount,
+            categoryGuess,
+            merchantName,
+            description);
 
         return new ExpenseDraft(
             amount,
@@ -81,7 +141,24 @@ public sealed class ExpenseInputProcessor(
             CombineSourceText(pendingDraft.SourceText, currentDraft.SourceText),
             currentDraft.InputMode,
             confidence,
-            GetMissingFields(amount, categoryGuess, merchantName, description, transactionDate, request.HouseholdId));
+            GetMissingFields(amount, categoryGuess, merchantName, description, transactionDate));
+    }
+
+    private static bool ShouldMergeParsedResponse(ExpenseDraft pendingDraft, ExpenseDraft currentDraft)
+    {
+        if (pendingDraft.Amount is not null || currentDraft.Amount is null)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(currentDraft.Description)
+            && !string.IsNullOrWhiteSpace(pendingDraft.Description))
+        {
+            return true;
+        }
+
+        return TextMatches(currentDraft.Description, pendingDraft.Description)
+            || TextMatches(currentDraft.MerchantName, pendingDraft.MerchantName);
     }
 
     private static ExpenseInputParseResult BuildResultFromMergedDraft(ExpenseDraft draft)
@@ -102,7 +179,8 @@ public sealed class ExpenseInputProcessor(
 
         if (draft.Amount is null)
         {
-            return ExpenseInputParseResult.Unsupported("I could not identify an expense amount or expense details in that input.");
+            return ExpenseInputParseResult.Unsupported(
+                "I could not identify an expense amount or expense details in that input.");
         }
 
         return ExpenseInputParseResult.Parsed(
@@ -124,6 +202,14 @@ public sealed class ExpenseInputProcessor(
 
         return currentValue;
     }
+
+    private static bool TextMatches(string? currentValue, string? pendingValue) =>
+        !string.IsNullOrWhiteSpace(currentValue)
+        && !string.IsNullOrWhiteSpace(pendingValue)
+        && string.Equals(
+            currentValue.Trim(),
+            pendingValue.Trim(),
+            StringComparison.OrdinalIgnoreCase);
 
     private static string CombineSourceText(string pendingSourceText, string currentSourceText)
     {
@@ -173,8 +259,7 @@ public sealed class ExpenseInputProcessor(
         string? categoryGuess,
         string? merchantName,
         string? description,
-        DateOnly? transactionDate,
-        Guid? householdId)
+        DateOnly? transactionDate)
     {
         var missingFields = new List<ExpenseDraftMissingField>();
 
@@ -203,11 +288,30 @@ public sealed class ExpenseInputProcessor(
             missingFields.Add(ExpenseDraftMissingField.TransactionDate);
         }
 
-        if (householdId is null)
-        {
-            missingFields.Add(ExpenseDraftMissingField.Household);
-        }
-
         return missingFields;
+    }
+
+    private static string BuildSavedExpenseMessage(TransactionModel transaction)
+    {
+        var amount = FormatAmount(transaction.Amount, transaction.CurrencyCode);
+        var description = string.IsNullOrWhiteSpace(transaction.Description)
+            ? "this expense"
+            : transaction.Description;
+        var merchant = string.IsNullOrWhiteSpace(transaction.MerchantName)
+            ? string.Empty
+            : $" from {transaction.MerchantName}";
+        var category = string.IsNullOrWhiteSpace(transaction.CategoryName)
+            ? "Uncategorized"
+            : transaction.CategoryName;
+
+        return $"Tracked {amount} for {description}{merchant} under {category}.";
+    }
+
+    private static string FormatAmount(decimal amount, string currencyCode)
+    {
+        var formattedAmount = amount.ToString("0.##", CultureInfo.InvariantCulture);
+        return string.Equals(currencyCode, "INR", StringComparison.OrdinalIgnoreCase)
+            ? $"₹{formattedAmount}"
+            : $"{currencyCode.ToUpperInvariant()} {formattedAmount}";
     }
 }

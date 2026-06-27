@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using MoneyMentor.Application.InputParsing;
+using MoneyMentor.Application.Transactions;
 
 namespace MoneyMentor.Api.Endpoints.Expenses;
 
@@ -27,6 +28,7 @@ public sealed class ExpenseInputRequest
 public sealed record ExpenseInputResponse(
     ExpenseInputParseStatus Status,
     FinanceInputIntent Intent,
-    ExpenseDraft? Draft,
+    TransactionModel? Transaction,
+    ExpenseDraft? ParsedDebug,
     string? AssistantMessage,
     IReadOnlyCollection<string> Errors);

@@ -10,4 +10,6 @@ public sealed record ExpenseInputParseRequest(
     InputMode InputMode,
     DateOnly? TransactionDate,
     string? CurrencyCode,
-    string? Locale);
+    string? Locale,
+    string? Email = null,
+    string? DisplayName = null);

@@ -39,6 +39,16 @@ internal sealed class UserProfileConfiguration : IEntityTypeConfiguration<UserPr
             .HasMaxLength(128)
             .IsRequired();
 
+        builder.Property(userProfile => userProfile.Plan)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .IsRequired();
+
+        builder.Property(userProfile => userProfile.DefaultTransactionVisibility)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .IsRequired();
+
         builder.Property(userProfile => userProfile.CreatedAt)
             .HasDefaultValueSql("now()");
 

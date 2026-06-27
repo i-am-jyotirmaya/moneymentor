@@ -48,6 +48,8 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
             .HasMaxLength(32)
             .IsRequired();
 
+        builder.Property(transaction => transaction.UpdatedByUserProfileId);
+
         builder.Property(transaction => transaction.CreatedAt)
             .HasDefaultValueSql("now()");
 
@@ -71,8 +73,14 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
             .HasForeignKey(transaction => transaction.CategoryId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.HasOne<UserProfile>()
+            .WithMany()
+            .HasForeignKey(transaction => transaction.UpdatedByUserProfileId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(transaction => transaction.HouseholdId);
         builder.HasIndex(transaction => transaction.UserProfileId);
+        builder.HasIndex(transaction => transaction.UpdatedByUserProfileId);
         builder.HasIndex(transaction => transaction.TransactionDate);
         builder.HasIndex(transaction => transaction.CategoryId);
     }

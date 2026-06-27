@@ -1,3 +1,5 @@
+using MoneyMentor.Domain.Enums;
+
 namespace MoneyMentor.Domain.Entities;
 
 public sealed class UserProfile
@@ -15,6 +17,12 @@ public sealed class UserProfile
     public string CurrencyCode { get; set; } = string.Empty;
 
     public string TimeZone { get; set; } = string.Empty;
+
+    public UserPlan Plan { get; set; } = UserPlan.Free;
+
+    public bool RequireMerchantForExpenses { get; set; }
+
+    public TransactionVisibility DefaultTransactionVisibility { get; set; } = TransactionVisibility.Private;
 
     public bool IsOnboardingCompleted { get; set; }
 

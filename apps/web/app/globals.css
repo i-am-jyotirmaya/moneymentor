@@ -1,21 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6faf7;
+  --background: #f4f7f6;
   --foreground: #102b26;
   --ink: #102b26;
-  --muted: #5f716c;
-  --muted-2: #9aaba6;
-  --surface: #f1f6f3;
-  --border: #dce8e2;
-  --accent: #0f8f7b;
-  --accent-soft: #e4f6f1;
-  --accent-ring: rgba(15, 143, 123, 0.14);
+  --muted: #61736e;
+  --muted-2: #98a8a4;
+  --surface: #f7faf9;
+  --border: #dce6e2;
+  --accent: #0e8878;
+  --accent-soft: #e3f4ef;
+  --accent-ring: rgba(14, 136, 120, 0.14);
   --mint: #dff4ec;
-  --chat-panel: #fbf8f0;
-  --chat-user: #d9fdd3;
+  --chat-panel: #f8fbfa;
+  --chat-user: #dff5e9;
   --chat-assistant: #ffffff;
-  --amber: #b77816;
+  --amber: #af7716;
   --sidebar: #102b26;
   --danger: #9b1c1c;
   --danger-bg: #fff1f0;
@@ -67,6 +67,74 @@ button:disabled {
 
 textarea {
   scrollbar-width: thin;
+}
+
+.form-control {
+  height: 2.75rem;
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  padding: 0 0.875rem;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  outline: none;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.form-control:focus {
+  border-color: rgba(14, 136, 120, 0.55);
+  box-shadow: 0 0 0 4px var(--accent-ring);
+}
+
+.form-control::placeholder {
+  color: var(--muted-2);
+}
+
+.toggle-control {
+  position: relative;
+  width: 2.75rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  appearance: none;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #d8e2de;
+  outline: none;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.toggle-control::after {
+  content: "";
+  position: absolute;
+  top: 0.1875rem;
+  left: 0.1875rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 43, 38, 0.16);
+  transition: transform 180ms ease;
+}
+
+.toggle-control:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.toggle-control:checked::after {
+  transform: translateX(1.25rem);
+}
+
+.toggle-control:focus-visible {
+  box-shadow: 0 0 0 4px var(--accent-ring);
 }
 
 .chat-panel {

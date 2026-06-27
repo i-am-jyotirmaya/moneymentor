@@ -1,5 +1,3 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
 using MoneyMentor.Api.Endpoints;
 using MoneyMentor.Application.InputParsing;
@@ -59,8 +57,8 @@ public static class ExpenseInputEndpoints
                 "InputMode must be Text, Voice, or System.");
         }
 
-        var authSubject = GetAuthSubject(httpContext.User);
-        if (string.IsNullOrWhiteSpace(authSubject))
+        var identity = AppUserIdentityFactory.FromPrincipal(httpContext.User);
+        if (identity is null)
         {
             return Results.Unauthorized();
         }
@@ -76,26 +74,36 @@ public static class ExpenseInputEndpoints
 
         var parseRequest = new ExpenseInputParseRequest(
             request.Text.Trim(),
-            "local",
-            authSubject,
+            identity.AuthProvider,
+            identity.AuthSubject,
             request.HouseholdId,
             inputMode,
             request.TransactionDate,
             request.CurrencyCode,
-            request.Locale);
+            request.Locale,
+            identity.Email,
+            identity.DisplayName);
 
-        var result = await processor.ProcessAsync(parseRequest, cancellationToken);
+        ExpenseInputProcessResult result;
+        try
+        {
+            result = await processor.ProcessAsync(parseRequest, cancellationToken);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Results.Problem(
+                title: "Expense could not be tracked.",
+                detail: exception.Message,
+                statusCode: StatusCodes.Status403Forbidden);
+        }
 
         return Results.Ok(
             new ExpenseInputResponse(
                 result.Status,
                 result.Intent,
-                result.Draft,
+                result.Transaction,
+                result.ParsedDebug,
                 result.AssistantMessage,
                 result.Errors));
     }
-
-    private static string? GetAuthSubject(ClaimsPrincipal principal) =>
-        principal.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
 }

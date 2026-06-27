@@ -30,6 +30,8 @@ public sealed class Transaction
 
     public TransactionVisibility Visibility { get; set; }
 
+    public Guid? UpdatedByUserProfileId { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

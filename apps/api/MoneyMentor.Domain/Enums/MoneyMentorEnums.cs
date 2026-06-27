@@ -8,11 +8,23 @@ public enum HouseholdRole
     Viewer
 }
 
+public enum HouseholdKind
+{
+    Personal,
+    Family
+}
+
 public enum HouseholdMemberStatus
 {
     Pending,
     Active,
     Removed
+}
+
+public enum UserPlan
+{
+    Free,
+    Premium
 }
 
 public enum CategoryType

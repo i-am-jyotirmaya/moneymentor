@@ -19,6 +19,11 @@ internal sealed class HouseholdConfiguration : IEntityTypeConfiguration<Househol
             .HasMaxLength(128)
             .IsRequired();
 
+        builder.Property(household => household.Kind)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .IsRequired();
+
         builder.Property(household => household.CreatedAt)
             .HasDefaultValueSql("now()");
 

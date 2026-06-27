@@ -2,7 +2,7 @@ namespace MoneyMentor.Application.InputParsing;
 
 public interface IExpenseInputProcessor
 {
-    Task<ExpenseInputParseResult> ProcessAsync(
+    Task<ExpenseInputProcessResult> ProcessAsync(
         ExpenseInputParseRequest request,
         CancellationToken cancellationToken);
 }

@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\MoneyMentor.Application\MoneyMentor.Application.csproj" />
     <ProjectReference Include="..\MoneyMentor.Domain\MoneyMentor.Domain.csproj" />
   </ItemGroup>
 

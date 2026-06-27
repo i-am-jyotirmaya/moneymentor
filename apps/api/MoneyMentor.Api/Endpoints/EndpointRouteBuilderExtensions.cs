@@ -1,5 +1,8 @@
 using MoneyMentor.Api.Endpoints.Auth;
 using MoneyMentor.Api.Endpoints.Expenses;
+using MoneyMentor.Api.Endpoints.Households;
+using MoneyMentor.Api.Endpoints.Settings;
+using MoneyMentor.Api.Endpoints.Transactions;
 
 namespace MoneyMentor.Api.Endpoints;
 
@@ -9,6 +12,9 @@ public static class EndpointRouteBuilderExtensions
     {
         endpoints.MapAuthEndpoints();
         endpoints.MapExpenseInputEndpoints();
+        endpoints.MapTransactionEndpoints();
+        endpoints.MapUserSettingsEndpoints();
+        endpoints.MapHouseholdEndpoints();
 
         return endpoints;
     }
