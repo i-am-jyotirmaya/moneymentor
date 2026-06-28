@@ -3,10 +3,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MoneyMentor.Application.AppUsers;
+using MoneyMentor.Application.Dashboard;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Transactions;
 using MoneyMentor.Infrastructure.AppUsers;
 using MoneyMentor.Infrastructure.Auth;
+using MoneyMentor.Infrastructure.Dashboard;
 using MoneyMentor.Infrastructure.Households;
 using MoneyMentor.Infrastructure.Identity;
 using MoneyMentor.Infrastructure.Persistence;
@@ -49,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IAppUserProfileService, PostgresAppUserProfileService>();
         services.AddScoped<ITransactionService, PostgresTransactionService>();
         services.AddScoped<IHouseholdService, PostgresHouseholdService>();
+        services.AddScoped<IFinanceTransactionReader, PostgresFinanceTransactionReader>();
 
         return services;
     }

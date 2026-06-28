@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, MouseEvent, useState } from "react";
 import { ApiError, createUser, login } from "@/lib/api";
 import { saveAuthSession } from "@/lib/auth-session";
 import { ArrowRightIcon, BrandMarkIcon } from "./icons";
@@ -23,8 +23,11 @@ export function AuthForm({ mode }: AuthFormProps) {
 
   const isSignup = mode === "signup";
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitCredentials() {
+    if (isSubmitting) {
+      return;
+    }
+
     setError(null);
     setIsSubmitting(true);
 
@@ -51,6 +54,20 @@ export function AuthForm({ mode }: AuthFormProps) {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void submitCredentials();
+  }
+
+  function handleSubmitClick(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    if (!event.currentTarget.form?.reportValidity()) {
+      return;
+    }
+
+    void submitCredentials();
   }
 
   return (
@@ -118,12 +135,11 @@ export function AuthForm({ mode }: AuthFormProps) {
             </p>
           </div>
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <form className="space-y-4" method="post" onSubmit={handleSubmit}>
             {isSignup ? (
               <Field
                 autoComplete="name"
                 label="Display name"
-                name="displayName"
                 onChange={setDisplayName}
                 placeholder="Aarav Shah"
                 value={displayName}
@@ -133,7 +149,6 @@ export function AuthForm({ mode }: AuthFormProps) {
             <Field
               autoComplete="email"
               label="Email"
-              name="email"
               onChange={setEmail}
               placeholder="name@example.com"
               type="email"
@@ -143,7 +158,6 @@ export function AuthForm({ mode }: AuthFormProps) {
             <Field
               autoComplete={isSignup ? "new-password" : "current-password"}
               label="Password"
-              name="password"
               onChange={setPassword}
               placeholder="At least 8 characters"
               type="password"
@@ -159,7 +173,8 @@ export function AuthForm({ mode }: AuthFormProps) {
             <button
               className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-5 text-sm font-bold text-white shadow-[0_14px_35px_rgba(16,43,38,0.22)] transition hover:-translate-y-0.5 hover:bg-[#173d36] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
               disabled={isSubmitting}
-              type="submit"
+              onClick={handleSubmitClick}
+              type="button"
             >
               <span>{isSubmitting ? "Working..." : isSignup ? "Create account" : "Sign in"}</span>
               <ArrowRightIcon className="h-4 w-4" />
@@ -192,7 +207,6 @@ export function AuthForm({ mode }: AuthFormProps) {
 type FieldProps = {
   autoComplete: string;
   label: string;
-  name: string;
   onChange: (value: string) => void;
   placeholder: string;
   type?: string;
@@ -202,7 +216,6 @@ type FieldProps = {
 function Field({
   autoComplete,
   label,
-  name,
   onChange,
   placeholder,
   type = "text",
@@ -214,7 +227,6 @@ function Field({
       <input
         autoComplete={autoComplete}
         className="h-13 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 text-base font-medium text-[var(--ink)] outline-none transition placeholder:text-[var(--muted-2)] focus:border-[var(--accent)] focus:bg-white focus:ring-4 focus:ring-[var(--accent-ring)]"
-        name={name}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         required

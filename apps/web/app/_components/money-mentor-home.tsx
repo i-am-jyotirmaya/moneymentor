@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  BarChart3,
   Bot,
   CheckCircle2,
-  Crown,
+  CircleDollarSign,
+  LayoutDashboard,
   LogOut,
+  Menu,
   Mic,
   Pencil,
   Plus,
@@ -14,8 +17,6 @@ import {
   Save,
   Send,
   Settings,
-  ShieldCheck,
-  SlidersHorizontal,
   UserPlus,
   Users,
   Wallet,
@@ -23,8 +24,8 @@ import {
 } from "lucide-react";
 import {
   FormEvent,
-  ReactNode,
   RefObject,
+  ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -33,9 +34,13 @@ import {
   useSyncExternalStore,
 } from "react";
 import type {
-  ExpenseInputResponse,
+  AssistantMessageResponse,
+  CategorySpendSummary,
+  DashboardInsight,
+  DashboardJudgement,
   HouseholdDashboard,
   HouseholdRole,
+  MonthlyDashboardResponse,
   TransactionListItem,
   TransactionVisibility,
   UpdateUserSettingsRequest,
@@ -46,10 +51,11 @@ import {
   addHouseholdMember,
   ApiError,
   createHousehold,
+  getMonthlyDashboard,
   getUserSettings,
   listHouseholds,
   listTransactions,
-  submitExpenseInput,
+  submitAssistantMessage as sendAssistantMessage,
   updateTransaction,
   updateUserSettings,
 } from "@/lib/api";
@@ -61,7 +67,7 @@ import {
 import { BrandMarkIcon } from "./icons";
 
 type InputMode = "Text" | "Voice";
-export type AppSection = "assistant" | "transactions" | "household" | "settings";
+export type AppSection = "home" | "dashboard" | "assistant" | "transactions" | "household" | "settings";
 
 type MoneyMentorHomeProps = {
   initialSection?: AppSection;
@@ -71,6 +77,23 @@ type Message = {
   id: string;
   role: "user" | "assistant";
   text: string;
+};
+
+type TransactionEditForm = {
+  amount: string;
+  categoryName: string;
+  merchantName: string;
+  description: string;
+  transactionDate: string;
+  visibility: TransactionVisibility;
+};
+
+type SettingsForm = {
+  currencyCode: string;
+  timeZone: string;
+  plan: UserPlan;
+  requireMerchantForExpenses: boolean;
+  defaultTransactionVisibility: TransactionVisibility;
 };
 
 type SpeechRecognitionEventLike = {
@@ -94,48 +117,34 @@ type SpeechRecognitionLike = {
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
-type TransactionEditForm = {
-  amount: string;
-  categoryName: string;
-  merchantName: string;
-  description: string;
-  transactionDate: string;
-  visibility: TransactionVisibility;
-};
-
-type SettingsForm = {
-  currencyCode: string;
-  timeZone: string;
-  plan: UserPlan;
-  requireMerchantForExpenses: boolean;
-  defaultTransactionVisibility: TransactionVisibility;
-};
-
 const promptIdeas = [
   "groceries for 110 from local market",
-  "paid rent 18000",
-  "ice cream from zepto",
+  "swiggy dinner 540",
+  "where did I spend most this month?",
 ];
 
 const navItems: Array<{
-  section: AppSection;
+  section: Exclude<AppSection, "home">;
   label: string;
-  href: string;
   icon: typeof Bot;
 }> = [
-  { section: "assistant", label: "Assistant", href: "/", icon: Bot },
-  { section: "transactions", label: "Transactions", href: "/transactions", icon: ReceiptText },
-  { section: "household", label: "Household", href: "/household", icon: Users },
-  { section: "settings", label: "Settings", href: "/settings", icon: Settings },
+  { section: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { section: "assistant", label: "Assistant", icon: Bot },
+  { section: "transactions", label: "Transactions", icon: ReceiptText },
+  { section: "household", label: "Household", icon: Users },
+  { section: "settings", label: "Settings", icon: Settings },
 ];
 
-export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHomeProps) {
+export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProps) {
   const router = useRouter();
   const session = useSyncExternalStore(
     subscribeToAuthSession,
     getAuthSessionSnapshot,
     () => null,
   );
+  const [activeSection, setActiveSection] = useState<AppSection>(initialSection);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [desktopAssistantOpen, setDesktopAssistantOpen] = useState(false);
   const [text, setText] = useState("");
   const [inputMode, setInputMode] = useState<InputMode>("Text");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -144,19 +153,20 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
     {
       id: "seed-assistant",
       role: "assistant",
-      text: "Tell me what you spent. I will save complete expenses and ask when something important is missing.",
+      text: "Tell me what you spent, or ask where your money went this month.",
     },
   ]);
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [settings, setSettings] = useState<UserSettingsResponse | null>(null);
   const [settingsForm, setSettingsForm] = useState<SettingsForm | null>(null);
   const [households, setHouseholds] = useState<HouseholdDashboard | null>(null);
+  const [dashboard, setDashboard] = useState<MonthlyDashboardResponse | null>(null);
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<TransactionEditForm | null>(null);
+  const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
   const [householdName, setHouseholdName] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<HouseholdRole>("Member");
-  const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
@@ -165,18 +175,16 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
+  const desktopSection = activeSection === "home" ? "dashboard" : activeSection;
+  const mobileSection = activeSection === "home" ? "assistant" : activeSection;
   const selectedTransaction = useMemo(
     () => transactions.find((transaction) => transaction.id === selectedTransactionId) ?? null,
     [selectedTransactionId, transactions],
   );
-
-  const recentTransactions = useMemo(() => transactions.slice(0, 6), [transactions]);
-
-  const trackedTotal = useMemo(
-    () => transactions.reduce((total, transaction) => total + transaction.amount, 0),
-    [transactions],
-  );
-
+  const income = dashboard?.income ?? 0;
+  const spends = dashboard?.spends ?? 0;
+  const saved = dashboard?.saved ?? income - spends;
+  const currencyCode = settings?.currencyCode ?? dashboard?.currencyCode ?? "INR";
   const greetingName = useMemo(() => {
     const name = session?.user.displayName?.trim();
     return name ? name.split(/\s+/)[0] : "there";
@@ -206,16 +214,18 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
       setError(null);
 
       try {
-        const [settingsResult, transactionResult, householdResult] = await Promise.all([
+        const [settingsResult, transactionResult, householdResult, dashboardResult] = await Promise.all([
           getUserSettings(accessToken),
           listTransactions(accessToken, 50),
           listHouseholds(accessToken),
+          getMonthlyDashboard(accessToken, { month: getCurrentMonthKey() }),
         ]);
 
         setSettings(settingsResult);
         setSettingsForm(toSettingsForm(settingsResult));
         setTransactions(transactionResult);
         setHouseholds(householdResult);
+        setDashboard(dashboardResult);
         setSelectedHouseholdId((current) => current ?? householdResult.households[0]?.id ?? null);
       } catch (caughtError) {
         handleApiError(caughtError, "Could not load your MoneyMentor workspace.");
@@ -242,9 +252,20 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
     return () => window.clearTimeout(timeoutId);
   }, [refreshAppData, session]);
 
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
+
   function signOut() {
     clearAuthSession();
     router.push("/login");
+  }
+
+  function selectSection(section: Exclude<AppSection, "home">) {
+    setActiveSection(section);
+    setMobileMenuOpen(false);
   }
 
   function appendMessage(role: Message["role"], messageText: string) {
@@ -268,22 +289,6 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
     setEditForm(null);
   }
 
-  function logParserDebug(
-    sourceText: string,
-    submittedInputMode: InputMode,
-    result: ExpenseInputResponse,
-  ) {
-    console.groupCollapsed("[MoneyMentor] Expense input processed");
-    console.info("Submitted input", {
-      inputMode: submittedInputMode,
-      sourceText,
-    });
-    console.info("Parsed debug", result.parsedDebug);
-    console.info("Saved transaction", result.transaction);
-    console.info("Full response", result);
-    console.groupEnd();
-  }
-
   function getSpeechRecognition() {
     const speechWindow = window as typeof window & {
       SpeechRecognition?: SpeechRecognitionConstructor;
@@ -293,28 +298,22 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
     return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
   }
 
-  function toggleVoiceInput() {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+  function startVoiceInput() {
+    if (isSubmitting) {
       return;
     }
 
-    startVoiceInput();
-  }
-
-  function startVoiceInput() {
     setError(null);
+    setInputMode("Voice");
 
     const Recognition = getSpeechRecognition();
     if (!Recognition) {
       setInputMode("Text");
-      setError("Voice input is not available in this browser. You can still type your expense.");
+      setError("Voice input is not available in this browser. You can still type your message.");
       return;
     }
 
     recognitionRef.current?.stop();
-
     const recognition = new Recognition();
     recognition.continuous = false;
     recognition.interimResults = false;
@@ -327,36 +326,42 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
 
       if (transcript) {
         setText(transcript);
-        setInputMode("Voice");
+        void submitChatMessage(transcript, "Voice");
       }
     };
     recognition.onerror = () => {
       setIsListening(false);
+      setInputMode("Text");
       setError("I could not catch that clearly. Try typing it instead.");
     };
     recognition.onend = () => {
       setIsListening(false);
     };
-
     recognitionRef.current = recognition;
-    setInputMode("Voice");
     setIsListening(true);
 
     try {
       recognition.start();
     } catch {
-      setInputMode("Text");
       setIsListening(false);
+      setInputMode("Text");
       setError("Voice input could not start. You can still type your message.");
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const sourceText = text.trim();
+  function toggleVoiceInput() {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
 
-    if (!sourceText) {
-      setError("Type or speak an expense first.");
+    startVoiceInput();
+  }
+
+  async function submitChatMessage(sourceText: string, mode: InputMode) {
+    const normalizedText = sourceText.trim();
+    if (!normalizedText || isSubmitting) {
       return;
     }
 
@@ -367,37 +372,52 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
 
     setError(null);
     setIsSubmitting(true);
-    appendMessage("user", sourceText);
+    setText("");
+    setInputMode(mode);
+    appendMessage("user", normalizedText);
 
     try {
-      const submittedInputMode = inputMode;
-      const result = await submitExpenseInput(session.accessToken, {
-        text: sourceText,
-        inputMode: submittedInputMode,
+      const result = await sendAssistantMessage(session.accessToken, {
+        text: normalizedText,
+        inputMode: mode,
         transactionDate: new Date().toISOString().slice(0, 10),
-        currencyCode: settings?.currencyCode ?? "INR",
+        currencyCode,
         locale: "en-IN",
       });
 
-      logParserDebug(sourceText, submittedInputMode, result);
-
       appendMessage(
         "assistant",
-        result.assistantMessage ??
-          (result.transaction ? "Tracked that expense." : "I need a little more detail before saving."),
+        result.assistantMessage ?? getFallbackAssistantMessage(result),
       );
 
       if (result.transaction) {
-        setTransactions((current) => [result.transaction!, ...current.filter((item) => item.id !== result.transaction!.id)]);
+        setTransactions((current) => [
+          result.transaction!,
+          ...current.filter((transaction) => transaction.id !== result.transaction!.id),
+        ]);
+        await refreshDashboardAndTransactions(session.accessToken);
       }
-
-      setText("");
-      setInputMode("Text");
     } catch (caughtError) {
       handleApiError(caughtError, "Could not reach MoneyMentor API. Check that the backend is running.");
     } finally {
       setIsSubmitting(false);
+      setInputMode("Text");
     }
+  }
+
+  async function refreshDashboardAndTransactions(accessToken: string) {
+    const [transactionResult, dashboardResult] = await Promise.all([
+      listTransactions(accessToken, 50),
+      getMonthlyDashboard(accessToken, { month: getCurrentMonthKey() }),
+    ]);
+
+    setTransactions(transactionResult);
+    setDashboard(dashboardResult);
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void submitChatMessage(text, inputMode);
   }
 
   async function handleSaveTransaction(event: FormEvent<HTMLFormElement>) {
@@ -431,6 +451,7 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
       );
       setEditForm(toTransactionEditForm(updated));
       appendMessage("assistant", `Updated ${updated.description ?? "that transaction"}.`);
+      await refreshDashboardAndTransactions(session.accessToken);
     } catch (caughtError) {
       handleApiError(caughtError, "Could not update the transaction.");
     } finally {
@@ -459,8 +480,8 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
       const updated = await updateUserSettings(session.accessToken, payload);
       setSettings(updated);
       setSettingsForm(toSettingsForm(updated));
-      const householdResult = await listHouseholds(session.accessToken);
-      setHouseholds(householdResult);
+      setHouseholds(await listHouseholds(session.accessToken));
+      setDashboard(await getMonthlyDashboard(session.accessToken, { month: getCurrentMonthKey() }));
     } catch (caughtError) {
       handleApiError(caughtError, "Could not save settings.");
     } finally {
@@ -506,8 +527,7 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
         email: memberEmail.trim(),
         role: memberRole,
       });
-      const householdResult = await listHouseholds(session.accessToken);
-      setHouseholds(householdResult);
+      setHouseholds(await listHouseholds(session.accessToken));
       setMemberEmail("");
     } catch (caughtError) {
       handleApiError(caughtError, "Could not add that household member.");
@@ -540,169 +560,683 @@ export function MoneyMentorHome({ initialSection = "assistant" }: MoneyMentorHom
     return <SignedOutHome />;
   }
 
-  const sectionTitle = navItems.find((item) => item.section === initialSection)?.label ?? "Assistant";
-
   return (
     <main className="h-dvh overflow-hidden bg-[var(--background)] text-[var(--ink)]">
-      <div className="grid h-full w-full overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-[var(--border)] bg-[var(--sidebar)] px-5 py-6 text-white lg:flex lg:min-h-0 lg:flex-col">
-          <Link className="flex items-center gap-3" href="/">
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-white text-[var(--sidebar)]">
-              <BrandMarkIcon className="h-6 w-6" />
-            </span>
-            <span className="text-lg font-semibold">MoneyMentor</span>
-          </Link>
+      <div className="flex h-full min-h-0">
+        <DesktopSidebar
+          activeSection={desktopSection}
+          income={income}
+          onSelectSection={selectSection}
+          onSignOut={signOut}
+          plan={settings?.plan ?? "Free"}
+          saved={saved}
+          sessionEmail={session.user.email}
+          sessionName={session.user.displayName}
+          spends={spends}
+          currencyCode={currencyCode}
+        />
 
-          <nav className="mt-9 space-y-1">
-            {navItems.map((item) => (
-              <SidebarLink
-                active={item.section === initialSection}
-                href={item.href}
-                icon={item.icon}
-                key={item.section}
-                label={item.label}
-              />
-            ))}
-          </nav>
+        <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <MobileHeader
+            activeSection={mobileSection}
+            greetingName={greetingName}
+            onMenuOpen={() => setMobileMenuOpen(true)}
+          />
 
-          <div className="mt-8 rounded-lg border border-white/12 bg-white/[0.06] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/50">
-              This workspace
-            </p>
-            <div className="mt-4 space-y-3">
-              <DashboardStat label="Tracked" value={formatMoney(trackedTotal, settings?.currencyCode ?? "INR")} />
-              <DashboardStat label="Transactions" value={transactions.length.toString()} />
-              <DashboardStat label="Plan" value={settings?.plan ?? "Free"} />
-            </div>
+          <div className="hidden min-h-0 flex-1 overflow-y-auto px-6 py-5 lg:block xl:px-8">
+            <WorkspaceError error={error} isLoading={isLoadingData} />
+            {renderSection(desktopSection, {
+              chatEndRef,
+              dashboard,
+              editForm,
+              households,
+              inputMode,
+              isListening,
+              isSavingHousehold,
+              isSavingSettings,
+              isSavingTransaction,
+              isSubmitting,
+              memberEmail,
+              memberRole,
+              messages,
+              onAddMember: handleAddMember,
+              onCloseEdit: closeTransactionEditor,
+              onCreateHousehold: handleCreateHousehold,
+              onEditFormChange: setEditForm,
+              onHouseholdNameChange: setHouseholdName,
+              onMemberEmailChange: setMemberEmail,
+              onMemberRoleChange: setMemberRole,
+              onFormChange: setSettingsForm,
+              onPromptClick: (idea) => {
+                setText(idea);
+                setInputMode("Text");
+              },
+              onSaveSettings: handleSaveSettings,
+              onSaveTransaction: handleSaveTransaction,
+              onSelectTransaction: selectTransaction,
+              onSelectedHouseholdChange: setSelectedHouseholdId,
+              onSubmit: handleSubmit,
+              onTextChange: (value) => {
+                setText(value);
+                setInputMode("Text");
+              },
+              onToggleVoice: toggleVoiceInput,
+              onUpgrade: upgradeToPremium,
+              selectedHouseholdId,
+              selectedTransaction,
+              settingsForm,
+              text,
+              transactions,
+              householdName,
+            })}
           </div>
 
-          <div className="mt-auto rounded-lg border border-white/12 bg-white/[0.06] p-4">
-            <p className="text-sm font-semibold">{session.user.displayName}</p>
-            <p className="mt-1 break-words text-xs font-medium text-white/54">
-              {session.user.email}
-            </p>
-            <button
-              className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-white px-3 text-sm font-bold text-[var(--sidebar)] transition hover:bg-[var(--mint)]"
-              onClick={signOut}
-              type="button"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </button>
-          </div>
-        </aside>
-
-        <section className="flex min-h-0 flex-col overflow-hidden">
-          <header className="shrink-0 border-b border-[var(--border)] bg-white/82 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <Link
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[var(--ink)] text-white lg:hidden"
-                  href="/"
-                >
-                  <BrandMarkIcon className="h-6 w-6" />
-                </Link>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[var(--muted)]">
-                    Welcome, {greetingName}
-                  </p>
-                  <h1 className="truncate text-2xl font-semibold tracking-normal text-[var(--ink)]">
-                    {sectionTitle}
-                  </h1>
-                </div>
-              </div>
-
-              <div className="hidden items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--muted)] shadow-sm sm:flex">
-                <CheckCircle2 className="h-4 w-4 text-[var(--accent)]" />
-                {isLoadingData ? "Syncing" : "Workspace ready"}
-              </div>
-            </div>
-
-            <nav className="mt-4 flex gap-2 overflow-x-auto lg:hidden">
-              {navItems.map((item) => (
-                <MobileNavLink
-                  active={item.section === initialSection}
-                  href={item.href}
-                  icon={item.icon}
-                  key={item.section}
-                  label={item.label}
-                />
-              ))}
-            </nav>
-          </header>
-
-          {error ? (
-            <div className="mx-4 mt-3 shrink-0 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm font-medium text-[var(--danger)] sm:mx-6 lg:mx-8">
-              {error}
-            </div>
-          ) : null}
-
-          <div className="min-h-0 flex-1 overflow-hidden px-4 py-4 sm:px-6 lg:px-8">
-            {initialSection === "assistant" ? (
-              <AssistantSection
-                chatEndRef={chatEndRef}
-                inputMode={inputMode}
-                isListening={isListening}
-                isSubmitting={isSubmitting}
-                messages={messages}
-                onPromptClick={(idea) => {
-                  setText(idea);
-                  setInputMode("Text");
-                }}
-                onSubmit={handleSubmit}
-                onTextChange={(value) => {
-                  setText(value);
-                  setInputMode("Text");
-                }}
-                onToggleVoice={toggleVoiceInput}
-                recentTransactions={recentTransactions}
-                text={text}
-              />
-            ) : null}
-
-            {initialSection === "transactions" ? (
-              <TransactionsSection
-                editForm={editForm}
-                isSaving={isSavingTransaction}
-                onCloseEdit={closeTransactionEditor}
-                onEditFormChange={setEditForm}
-                onSave={handleSaveTransaction}
-                onSelectTransaction={selectTransaction}
-                selectedTransaction={selectedTransaction}
-                transactions={transactions}
-              />
-            ) : null}
-
-            {initialSection === "household" ? (
-              <HouseholdSection
-                householdName={householdName}
-                households={households}
-                isSaving={isSavingHousehold || isSavingSettings}
-                memberEmail={memberEmail}
-                memberRole={memberRole}
-                onAddMember={handleAddMember}
-                onCreateHousehold={handleCreateHousehold}
-                onHouseholdNameChange={setHouseholdName}
-                onMemberEmailChange={setMemberEmail}
-                onMemberRoleChange={setMemberRole}
-                onSelectedHouseholdChange={setSelectedHouseholdId}
-                onUpgrade={upgradeToPremium}
-                selectedHouseholdId={selectedHouseholdId}
-              />
-            ) : null}
-
-            {initialSection === "settings" ? (
-              <SettingsSection
-                form={settingsForm}
-                isSaving={isSavingSettings}
-                onFormChange={setSettingsForm}
-                onSave={handleSaveSettings}
-              />
-            ) : null}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:hidden">
+            <WorkspaceError error={error} isLoading={isLoadingData} />
+            {renderSection(mobileSection, {
+              chatEndRef,
+              dashboard,
+              editForm,
+              households,
+              inputMode,
+              isListening,
+              isSavingHousehold,
+              isSavingSettings,
+              isSavingTransaction,
+              isSubmitting,
+              memberEmail,
+              memberRole,
+              messages,
+              onAddMember: handleAddMember,
+              onCloseEdit: closeTransactionEditor,
+              onCreateHousehold: handleCreateHousehold,
+              onEditFormChange: setEditForm,
+              onHouseholdNameChange: setHouseholdName,
+              onMemberEmailChange: setMemberEmail,
+              onMemberRoleChange: setMemberRole,
+              onFormChange: setSettingsForm,
+              onPromptClick: (idea) => {
+                setText(idea);
+                setInputMode("Text");
+              },
+              onSaveSettings: handleSaveSettings,
+              onSaveTransaction: handleSaveTransaction,
+              onSelectTransaction: selectTransaction,
+              onSelectedHouseholdChange: setSelectedHouseholdId,
+              onSubmit: handleSubmit,
+              onTextChange: (value) => {
+                setText(value);
+                setInputMode("Text");
+              },
+              onToggleVoice: toggleVoiceInput,
+              onUpgrade: upgradeToPremium,
+              selectedHouseholdId,
+              selectedTransaction,
+              settingsForm,
+              text,
+              transactions,
+              householdName,
+            })}
           </div>
         </section>
       </div>
+
+      <MobileMenu
+        activeSection={mobileSection}
+        onClose={() => setMobileMenuOpen(false)}
+        onSelectSection={selectSection}
+        onSignOut={signOut}
+        open={mobileMenuOpen}
+        sessionEmail={session.user.email}
+        sessionName={session.user.displayName}
+      />
+
+      {desktopSection !== "assistant" ? (
+        <DesktopAssistantDock
+          chatEndRef={chatEndRef}
+          inputMode={inputMode}
+          isListening={isListening}
+          isOpen={desktopAssistantOpen}
+          isSubmitting={isSubmitting}
+          messages={messages}
+          onClose={() => setDesktopAssistantOpen(false)}
+          onOpen={() => setDesktopAssistantOpen(true)}
+          onSubmit={handleSubmit}
+          onTextChange={(value) => {
+            setText(value);
+            setInputMode("Text");
+          }}
+          onToggleVoice={toggleVoiceInput}
+          text={text}
+        />
+      ) : null}
     </main>
+  );
+}
+
+type SectionRenderProps = {
+  chatEndRef: RefObject<HTMLDivElement | null>;
+  dashboard: MonthlyDashboardResponse | null;
+  editForm: TransactionEditForm | null;
+  householdName: string;
+  households: HouseholdDashboard | null;
+  inputMode: InputMode;
+  isListening: boolean;
+  isSavingHousehold: boolean;
+  isSavingSettings: boolean;
+  isSavingTransaction: boolean;
+  isSubmitting: boolean;
+  memberEmail: string;
+  memberRole: HouseholdRole;
+  messages: Message[];
+  onAddMember: (event: FormEvent<HTMLFormElement>) => void;
+  onCloseEdit: () => void;
+  onCreateHousehold: (event: FormEvent<HTMLFormElement>) => void;
+  onEditFormChange: (form: TransactionEditForm) => void;
+  onFormChange: (form: SettingsForm) => void;
+  onHouseholdNameChange: (value: string) => void;
+  onMemberEmailChange: (value: string) => void;
+  onMemberRoleChange: (role: HouseholdRole) => void;
+  onPromptClick: (idea: string) => void;
+  onSaveSettings: (event: FormEvent<HTMLFormElement>) => void;
+  onSaveTransaction: (event: FormEvent<HTMLFormElement>) => void;
+  onSelectTransaction: (transaction: TransactionListItem) => void;
+  onSelectedHouseholdChange: (householdId: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onTextChange: (value: string) => void;
+  onToggleVoice: () => void;
+  onUpgrade: () => void;
+  selectedHouseholdId: string | null;
+  selectedTransaction: TransactionListItem | null;
+  settingsForm: SettingsForm | null;
+  text: string;
+  transactions: TransactionListItem[];
+};
+
+function renderSection(section: Exclude<AppSection, "home">, props: SectionRenderProps) {
+  if (section === "dashboard") {
+    return <DashboardSection dashboard={props.dashboard} transactions={props.transactions} />;
+  }
+
+  if (section === "assistant") {
+    return (
+      <AssistantSection
+        chatEndRef={props.chatEndRef}
+        inputMode={props.inputMode}
+        isListening={props.isListening}
+        isSubmitting={props.isSubmitting}
+        messages={props.messages}
+        onPromptClick={props.onPromptClick}
+        onSubmit={props.onSubmit}
+        onTextChange={props.onTextChange}
+        onToggleVoice={props.onToggleVoice}
+        text={props.text}
+        transactions={props.transactions}
+      />
+    );
+  }
+
+  if (section === "transactions") {
+    return (
+      <TransactionsSection
+        editForm={props.editForm}
+        isSaving={props.isSavingTransaction}
+        onCloseEdit={props.onCloseEdit}
+        onEditFormChange={props.onEditFormChange}
+        onSave={props.onSaveTransaction}
+        onSelectTransaction={props.onSelectTransaction}
+        selectedTransaction={props.selectedTransaction}
+        transactions={props.transactions}
+      />
+    );
+  }
+
+  if (section === "household") {
+    return (
+      <HouseholdSection
+        householdName={props.householdName}
+        households={props.households}
+        isSaving={props.isSavingHousehold || props.isSavingSettings}
+        memberEmail={props.memberEmail}
+        memberRole={props.memberRole}
+        onAddMember={props.onAddMember}
+        onCreateHousehold={props.onCreateHousehold}
+        onHouseholdNameChange={props.onHouseholdNameChange}
+        onMemberEmailChange={props.onMemberEmailChange}
+        onMemberRoleChange={props.onMemberRoleChange}
+        onSelectedHouseholdChange={props.onSelectedHouseholdChange}
+        onUpgrade={props.onUpgrade}
+        selectedHouseholdId={props.selectedHouseholdId}
+      />
+    );
+  }
+
+  return (
+    <SettingsSection
+      form={props.settingsForm}
+      isSaving={props.isSavingSettings}
+      onFormChange={props.onFormChange}
+      onSave={props.onSaveSettings}
+    />
+  );
+}
+
+function DesktopSidebar({
+  activeSection,
+  currencyCode,
+  income,
+  onSelectSection,
+  onSignOut,
+  plan,
+  saved,
+  sessionEmail,
+  sessionName,
+  spends,
+}: {
+  activeSection: Exclude<AppSection, "home">;
+  currencyCode: string;
+  income: number;
+  onSelectSection: (section: Exclude<AppSection, "home">) => void;
+  onSignOut: () => void;
+  plan: UserPlan;
+  saved: number;
+  sessionEmail: string;
+  sessionName: string;
+  spends: number;
+}) {
+  return (
+    <aside className="hidden w-[272px] shrink-0 border-r border-white/10 bg-[var(--sidebar)] px-5 py-6 text-white lg:flex lg:min-h-0 lg:flex-col">
+      <Link className="flex items-center gap-3" href="/">
+        <span className="grid h-10 w-10 place-items-center rounded-lg bg-white text-[var(--sidebar)]">
+          <BrandMarkIcon className="h-6 w-6" />
+        </span>
+        <span className="text-lg font-semibold">MoneyMentor</span>
+      </Link>
+
+      <nav className="mt-9 space-y-1" aria-label="Desktop navigation">
+        {navItems.map((item) => (
+          <SidebarButton
+            active={activeSection === item.section}
+            icon={item.icon}
+            key={item.section}
+            label={item.label}
+            onClick={() => onSelectSection(item.section)}
+          />
+        ))}
+      </nav>
+
+      <div className="mt-8 rounded-lg border border-white/12 bg-white/[0.06] p-4">
+        <p className="text-xs font-semibold uppercase text-white/50">This month</p>
+        <div className="mt-4 space-y-3">
+          <SidebarStat label="Income" value={formatMoney(income, currencyCode)} />
+          <SidebarStat label="Spends" value={formatMoney(spends, currencyCode)} />
+          <SidebarStat label="Saved" value={formatMoney(saved, currencyCode)} />
+          <SidebarStat label="Plan" value={plan} />
+        </div>
+      </div>
+
+      <div className="mt-auto rounded-lg border border-white/12 bg-white/[0.06] p-4">
+        <p className="text-sm font-semibold">{sessionName}</p>
+        <p className="mt-1 break-words text-xs font-medium text-white/54">{sessionEmail}</p>
+        <button
+          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-white px-3 text-sm font-bold text-[var(--sidebar)] transition hover:bg-[var(--mint)]"
+          onClick={onSignOut}
+          type="button"
+        >
+          <LogOut className="h-4 w-4" />
+          Sign out
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function SidebarButton({
+  active,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: typeof Bot;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold transition ${
+        active ? "bg-white text-[var(--sidebar)]" : "text-white/72 hover:bg-white/10 hover:text-white"
+      }`}
+      onClick={onClick}
+      type="button"
+    >
+      <Icon className="h-5 w-5" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function MobileHeader({
+  activeSection,
+  greetingName,
+  onMenuOpen,
+}: {
+  activeSection: Exclude<AppSection, "home">;
+  greetingName: string;
+  onMenuOpen: () => void;
+}) {
+  return (
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--border)] bg-white/88 px-4 backdrop-blur lg:hidden">
+      <button
+        aria-label="Open menu"
+        className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)]"
+        onClick={onMenuOpen}
+        type="button"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+      <div className="min-w-0 text-center">
+        <p className="text-xs font-semibold text-[var(--muted)]">Welcome, {greetingName}</p>
+        <h1 className="truncate text-lg font-semibold tracking-normal">{sectionLabel(activeSection)}</h1>
+      </div>
+      <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
+        <BrandMarkIcon className="h-6 w-6" />
+      </span>
+    </header>
+  );
+}
+
+function MobileMenu({
+  activeSection,
+  onClose,
+  onSelectSection,
+  onSignOut,
+  open,
+  sessionEmail,
+  sessionName,
+}: {
+  activeSection: Exclude<AppSection, "home">;
+  onClose: () => void;
+  onSelectSection: (section: Exclude<AppSection, "home">) => void;
+  onSignOut: () => void;
+  open: boolean;
+  sessionEmail: string;
+  sessionName: string;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/28 lg:hidden" role="presentation">
+      <aside
+        aria-label="Mobile menu"
+        className="flex h-full w-[min(84vw,340px)] flex-col bg-white p-5 shadow-2xl"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
+              <BrandMarkIcon className="h-6 w-6" />
+            </span>
+            <span className="text-base font-semibold">MoneyMentor</span>
+          </div>
+          <button
+            aria-label="Close menu"
+            className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--border)]"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <nav className="mt-8 space-y-2" aria-label="Mobile navigation">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <button
+                className={`flex h-12 w-full items-center gap-3 rounded-lg border px-3 text-sm font-bold transition ${
+                  activeSection === item.section
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "border-[var(--border)] bg-white text-[var(--ink)]"
+                }`}
+                key={item.section}
+                onClick={() => onSelectSection(item.section)}
+                type="button"
+              >
+                <Icon className="h-5 w-5" />
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <p className="text-sm font-semibold">{sessionName}</p>
+          <p className="mt-1 break-words text-xs font-medium text-[var(--muted)]">{sessionEmail}</p>
+          <button
+            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-3 text-sm font-bold text-white"
+            onClick={onSignOut}
+            type="button"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign out
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function WorkspaceError({ error, isLoading }: { error: string | null; isLoading: boolean }) {
+  if (error) {
+    return (
+      <p className="mb-4 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-4 py-3 text-sm font-semibold text-[var(--danger)]">
+        {error}
+      </p>
+    );
+  }
+
+  if (!isLoading) {
+    return null;
+  }
+
+  return (
+    <p className="mb-4 rounded-lg border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--muted)]">
+      Syncing your MoneyMentor workspace...
+    </p>
+  );
+}
+
+function DashboardSection({
+  dashboard,
+  transactions,
+}: {
+  dashboard: MonthlyDashboardResponse | null;
+  transactions: TransactionListItem[];
+}) {
+  if (!dashboard) {
+    return <EmptyState icon={BarChart3} title="Loading dashboard" text="Your real money snapshot is being synced." />;
+  }
+
+  return (
+    <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-[var(--muted)]">{dashboard.monthLabel}</p>
+          <h2 className="text-3xl font-semibold tracking-normal">Dashboard</h2>
+          <p className="mt-1 text-sm font-medium text-[var(--muted)]">
+            Based on your stored MoneyMentor transactions.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent-soft)] px-3 py-2 text-xs font-bold text-[var(--accent)]">
+          <CheckCircle2 className="h-4 w-4" />
+          Backend data
+        </span>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard icon={CircleDollarSign} label="Income" value={formatMoney(dashboard.income, dashboard.currencyCode)} detail="Tracked income" tone="income" />
+        <MetricCard icon={ReceiptText} label="Spends" value={formatMoney(dashboard.spends, dashboard.currencyCode)} detail="Tracked expenses" tone="spend" />
+        <MetricCard icon={Wallet} label="Saved" value={formatMoney(dashboard.saved, dashboard.currencyCode)} detail={dashboard.savingsRate === null ? "Income not tracked" : `${dashboard.savingsRate}% savings rate`} tone="saved" />
+        <MetricCard icon={BarChart3} label="Categories" value={dashboard.categories.length.toString()} detail="With deterministic judgements" tone="neutral" />
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
+        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold">Category spending</h3>
+              <p className="mt-1 text-sm font-medium text-[var(--muted)]">Calculated from stored expenses.</p>
+            </div>
+            <BarChart3 className="h-5 w-5 text-[var(--accent)]" />
+          </div>
+          <div className="mt-5 space-y-3">
+            {dashboard.categories.length > 0 ? (
+              dashboard.categories.map((category) => (
+                <CategoryRow category={category} currencyCode={dashboard.currencyCode} key={category.name} total={dashboard.spends} />
+              ))
+            ) : (
+              <EmptyInline text="No expenses are tracked for this month yet." />
+            )}
+          </div>
+        </article>
+
+        <div className="grid gap-5">
+          <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+            <h3 className="text-lg font-semibold">Judgements</h3>
+            <div className="mt-4 grid gap-3">
+              {dashboard.judgements.map((judgement) => (
+                <JudgementCard judgement={judgement} key={`${judgement.title}-${judgement.value}`} />
+              ))}
+            </div>
+          </article>
+
+          <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+            <h3 className="text-lg font-semibold">Insights</h3>
+            <div className="mt-4 grid gap-3">
+              {dashboard.insights.map((insight) => (
+                <InsightCard insight={insight} key={insight.title} />
+              ))}
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <TransactionsPanel transactions={transactions.slice(0, 6)} />
+    </section>
+  );
+}
+
+function MetricCard({
+  detail,
+  icon: Icon,
+  label,
+  tone,
+  value,
+}: {
+  detail: string;
+  icon: typeof Bot;
+  label: string;
+  tone: "income" | "spend" | "saved" | "neutral";
+  value: string;
+}) {
+  const toneClassName = {
+    income: "bg-emerald-50 text-emerald-700",
+    neutral: "bg-slate-100 text-slate-700",
+    saved: "bg-[var(--accent-soft)] text-[var(--accent)]",
+    spend: "bg-rose-50 text-rose-700",
+  }[tone];
+
+  return (
+    <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <span className={`grid h-10 w-10 place-items-center rounded-lg ${toneClassName}`}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <span className="text-xs font-semibold uppercase text-[var(--muted)]">{label}</span>
+      </div>
+      <p className="mt-5 text-2xl font-semibold tracking-normal">{value}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--muted)]">{detail}</p>
+    </article>
+  );
+}
+
+function CategoryRow({
+  category,
+  currencyCode,
+  total,
+}: {
+  category: CategorySpendSummary;
+  currencyCode: string;
+  total: number;
+}) {
+  const percent = total > 0 ? Math.round((category.amount / total) * 100) : 0;
+
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{category.name}</p>
+          <p className="mt-1 text-xs font-medium text-[var(--muted)]">{category.note}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-bold">{formatMoney(category.amount, currencyCode)}</p>
+          <p className="mt-1 text-xs font-semibold text-[var(--muted)]">{percent}%</p>
+        </div>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+        <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(percent, 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function JudgementCard({ judgement }: { judgement: DashboardJudgement }) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className={`rounded-md px-2 py-1 text-xs font-bold ${toneClass(judgement.tone)}`}>
+          {formatTone(judgement.tone)}
+        </span>
+        <span className="text-sm font-bold">{judgement.value}</span>
+      </div>
+      <p className="mt-3 text-sm font-semibold">{judgement.title}</p>
+      <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted)]">{judgement.text}</p>
+    </div>
+  );
+}
+
+function InsightCard({ insight }: { insight: DashboardInsight }) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+      <p className="text-sm font-semibold">{insight.title}</p>
+      <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted)]">{insight.text}</p>
+    </div>
+  );
+}
+
+function TransactionsPanel({ transactions }: { transactions: TransactionListItem[] }) {
+  return (
+    <article className="mt-5 rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold">Recent transactions</h3>
+          <p className="mt-1 text-sm font-medium text-[var(--muted)]">Latest visible records from the backend.</p>
+        </div>
+        <ReceiptText className="h-5 w-5 text-[var(--accent)]" />
+      </div>
+      <div className="mt-4 divide-y divide-[var(--border)]">
+        {transactions.length > 0 ? (
+          transactions.map((transaction) => (
+            <TransactionRow key={transaction.id} transaction={transaction} />
+          ))
+        ) : (
+          <EmptyInline text="No transactions yet. Try typing an expense in the assistant." />
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -716,8 +1250,8 @@ function AssistantSection({
   onSubmit,
   onTextChange,
   onToggleVoice,
-  recentTransactions,
   text,
+  transactions,
 }: {
   chatEndRef: RefObject<HTMLDivElement | null>;
   inputMode: InputMode;
@@ -728,34 +1262,94 @@ function AssistantSection({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onTextChange: (value: string) => void;
   onToggleVoice: () => void;
-  recentTransactions: TransactionListItem[];
   text: string;
+  transactions: TransactionListItem[];
 }) {
   return (
-    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <section className="chat-panel flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] shadow-[0_18px_55px_rgba(16,43,38,0.08)]">
-        <div className="flex items-center justify-between border-b border-[var(--border)] bg-white/76 px-4 py-3">
-          <div>
-            <h2 className="text-base font-semibold">What did you spend on?</h2>
-            <p className="text-sm font-medium text-[var(--muted)]">
-              Complete expenses are saved immediately.
-            </p>
-          </div>
-          <span className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent-soft)] px-3 py-2 text-xs font-bold text-[var(--accent)]">
-            <Bot className="h-4 w-4" />
-            {inputMode}
-          </span>
-        </div>
-
-        <div className="chat-scroll min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-5 sm:px-5 lg:px-6">
-          {messages.map((message) => (
-            <ChatMessageBubble key={message.id} message={message} />
+    <section className="flex min-h-full flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5">
+      <ChatSurface
+        chatEndRef={chatEndRef}
+        inputMode={inputMode}
+        isListening={isListening}
+        isSubmitting={isSubmitting}
+        messages={messages}
+        onPromptClick={onPromptClick}
+        onSubmit={onSubmit}
+        onTextChange={onTextChange}
+        onToggleVoice={onToggleVoice}
+        showPromptIdeas
+        text={text}
+        title="What did you spend on?"
+      />
+      <div className="hidden min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm lg:block">
+        <h3 className="text-base font-semibold">Recent tracked</h3>
+        <div className="mt-3 divide-y divide-[var(--border)]">
+          {transactions.slice(0, 5).map((transaction) => (
+            <TransactionRow key={transaction.id} transaction={transaction} compact />
           ))}
-          {isSubmitting ? <TypingBubble /> : null}
-          <div ref={chatEndRef} />
+          {transactions.length === 0 ? <EmptyInline text="Tracked expenses will appear here." /> : null}
         </div>
+      </div>
+    </section>
+  );
+}
 
-        <div className="shrink-0 border-t border-[var(--border)] bg-white/88 p-3 backdrop-blur sm:p-4">
+function ChatSurface({
+  chatEndRef,
+  compact = false,
+  inputMode,
+  isListening,
+  isSubmitting,
+  messages,
+  onPromptClick,
+  onSubmit,
+  onTextChange,
+  onToggleVoice,
+  showPromptIdeas,
+  text,
+  title,
+}: {
+  chatEndRef: RefObject<HTMLDivElement | null>;
+  compact?: boolean;
+  inputMode: InputMode;
+  isListening: boolean;
+  isSubmitting: boolean;
+  messages: Message[];
+  onPromptClick?: (idea: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onTextChange: (value: string) => void;
+  onToggleVoice: () => void;
+  showPromptIdeas?: boolean;
+  text: string;
+  title: string;
+}) {
+  return (
+    <div className={`chat-panel flex min-h-0 flex-1 flex-col overflow-hidden ${compact ? "rounded-lg" : ""}`}>
+      <div className="flex items-center justify-between border-b border-[var(--border)] bg-white/78 px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="truncate text-base font-semibold">{title}</h2>
+          <p className="text-sm font-medium text-[var(--muted)]">
+            {compact ? "Ask, track, or clarify." : "Type or speak naturally."}
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent-soft)] px-3 py-2 text-xs font-bold text-[var(--accent)]">
+          <Bot className="h-4 w-4" />
+          {inputMode}
+        </span>
+      </div>
+
+      <div className="chat-scroll min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-5 sm:px-5">
+        {messages.map((message) => (
+          <ChatMessageBubble key={message.id} message={message} />
+        ))}
+        {isSubmitting ? <TypingBubble /> : null}
+        <div ref={chatEndRef} />
+      </div>
+
+      {isListening ? <VoiceWavePanel /> : null}
+
+      <div className="shrink-0 border-t border-[var(--border)] bg-white/90 p-3 backdrop-blur">
+        {showPromptIdeas && onPromptClick ? (
           <div className="mb-3 hidden flex-wrap gap-2 sm:flex">
             {promptIdeas.map((idea) => (
               <button
@@ -768,72 +1362,124 @@ function AssistantSection({
               </button>
             ))}
           </div>
+        ) : null}
 
-          <form className="flex items-end gap-2" onSubmit={onSubmit}>
-            <div className="chat-text-bar flex min-h-14 flex-1 items-end gap-2 rounded-full border border-[var(--border)] bg-white px-2 py-2 shadow-inner transition">
-              <textarea
-                aria-label="Message MoneyMentor"
-                className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-3 py-2 text-base font-medium leading-6 text-[var(--ink)] outline-none placeholder:text-[var(--muted-2)]"
-                onChange={(event) => onTextChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    event.currentTarget.form?.requestSubmit();
-                  }
-                }}
-                placeholder="spent 500 on groceries"
-                rows={1}
-                value={text}
-              />
-              <VoiceAiButton
-                disabled={isSubmitting}
-                isListening={isListening}
-                onClick={onToggleVoice}
-              />
-            </div>
-
-            <button
-              aria-label={isSubmitting ? "Saving message" : "Send message"}
-              className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_12px_30px_rgba(15,143,123,0.24)] transition hover:-translate-y-0.5 hover:bg-[#0b7d6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
+        <form className="flex items-end gap-2" onSubmit={onSubmit}>
+          <div className="chat-text-bar flex min-h-14 flex-1 items-end gap-2 rounded-full border border-[var(--border)] bg-white px-2 py-2 shadow-inner transition">
+            <textarea
+              aria-label="Message MoneyMentor"
+              className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-3 py-2 text-base font-medium leading-6 text-[var(--ink)] outline-none placeholder:text-[var(--muted-2)]"
+              onChange={(event) => onTextChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+              placeholder="spent 500 on groceries"
+              rows={1}
+              value={text}
+            />
+            <VoiceAiButton
               disabled={isSubmitting}
-              type="submit"
-            >
-              <Send className="h-5 w-5" />
-            </button>
-          </form>
-        </div>
-      </section>
+              isListening={isListening}
+              onClick={onToggleVoice}
+            />
+          </div>
 
-      <RecentTransactionsPanel transactions={recentTransactions} />
+          <button
+            aria-label={isSubmitting ? "Sending message" : "Send message"}
+            className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_12px_30px_rgba(15,143,123,0.24)] transition hover:-translate-y-0.5 hover:bg-[#0b7d6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
+            disabled={isSubmitting}
+            type="submit"
+          >
+            <Send className="h-5 w-5" />
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
 
-function RecentTransactionsPanel({ transactions }: { transactions: TransactionListItem[] }) {
+function DesktopAssistantDock({
+  chatEndRef,
+  inputMode,
+  isListening,
+  isOpen,
+  isSubmitting,
+  messages,
+  onClose,
+  onOpen,
+  onSubmit,
+  onTextChange,
+  onToggleVoice,
+  text,
+}: {
+  chatEndRef: RefObject<HTMLDivElement | null>;
+  inputMode: InputMode;
+  isListening: boolean;
+  isOpen: boolean;
+  isSubmitting: boolean;
+  messages: Message[];
+  onClose: () => void;
+  onOpen: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onTextChange: (value: string) => void;
+  onToggleVoice: () => void;
+  text: string;
+}) {
   return (
-    <aside className="hidden min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm xl:block">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold">Recent tracked</h2>
-          <p className="text-sm font-medium text-[var(--muted)]">Saved expenses appear here.</p>
-        </div>
-        <Wallet className="h-5 w-5 text-[var(--accent)]" />
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {transactions.length === 0 ? (
-          <EmptyState
-            icon={ReceiptText}
-            title="No transactions yet"
-            text="Send a complete expense and it will be saved here."
+    <div className="fixed bottom-6 right-6 z-40 hidden lg:block">
+      {isOpen ? (
+        <section
+          aria-label="Assistant chat"
+          className="mb-4 h-[560px] w-[420px] overflow-hidden rounded-lg border border-[var(--border)] bg-white shadow-[0_28px_90px_rgba(16,43,38,0.22)]"
+          role="dialog"
+        >
+          <div className="flex items-center justify-between border-b border-[var(--border)] bg-white px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--ink)] text-white">
+                <Bot className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">Assistant</p>
+                <p className="text-xs font-medium text-[var(--muted)]">Floating workspace</p>
+              </div>
+            </div>
+            <button
+              aria-label="Close assistant chat"
+              className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)]"
+              onClick={onClose}
+              type="button"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <ChatSurface
+            chatEndRef={chatEndRef}
+            compact
+            inputMode={inputMode}
+            isListening={isListening}
+            isSubmitting={isSubmitting}
+            messages={messages}
+            onSubmit={onSubmit}
+            onTextChange={onTextChange}
+            onToggleVoice={onToggleVoice}
+            text={text}
+            title="What did you spend on?"
           />
-        ) : (
-          transactions.map((transaction) => (
-            <TransactionRow compact key={transaction.id} transaction={transaction} />
-          ))
-        )}
-      </div>
-    </aside>
+        </section>
+      ) : null}
+
+      <button
+        aria-label="Open assistant chat"
+        className="ai-voice-button grid h-16 w-16 place-items-center rounded-full text-[var(--accent)] transition hover:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]"
+        onClick={isOpen ? onClose : onOpen}
+        type="button"
+      >
+        <Bot className="h-7 w-7" />
+      </button>
+    </div>
   );
 }
 
@@ -857,260 +1503,129 @@ function TransactionsSection({
   transactions: TransactionListItem[];
 }) {
   return (
-    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
-      <section className="min-h-0 overflow-hidden rounded-lg border border-[var(--border)] bg-white shadow-sm">
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
-          <div>
-            <h2 className="text-base font-semibold">Tracked transactions</h2>
-            <p className="text-sm font-medium text-[var(--muted)]">
-              Review and correct saved expenses.
-            </p>
+    <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-normal">Transactions</h2>
+              <p className="mt-1 text-sm font-medium text-[var(--muted)]">
+                Backend records with categories, visibility, and audit-friendly edits.
+              </p>
+            </div>
+            <ReceiptText className="h-5 w-5 text-[var(--accent)]" />
           </div>
-          <SlidersHorizontal className="h-5 w-5 text-[var(--muted)]" />
-        </div>
-
-        <div className="h-full min-h-0 overflow-y-auto p-3 sm:p-4">
-          {transactions.length === 0 ? (
-            <EmptyState
-              icon={ReceiptText}
-              title="Nothing tracked yet"
-              text="Use the assistant to save the first expense."
-            />
-          ) : (
-            <div className="space-y-2">
-              {transactions.map((transaction) => (
+          <div className="mt-5 divide-y divide-[var(--border)]">
+            {transactions.length > 0 ? (
+              transactions.map((transaction) => (
                 <button
-                  className={`w-full rounded-lg border p-0 text-left transition hover:-translate-y-0.5 hover:border-[var(--accent)] ${
-                    selectedTransaction?.id === transaction.id
-                      ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                      : "border-[var(--border)] bg-white"
-                  }`}
+                  className="block w-full text-left"
                   key={transaction.id}
                   onClick={() => onSelectTransaction(transaction)}
                   type="button"
                 >
                   <TransactionRow transaction={transaction} />
                 </button>
-              ))}
-            </div>
+              ))
+            ) : (
+              <EmptyInline text="No transactions yet. Add an expense from the assistant." />
+            )}
+          </div>
+        </article>
+
+        <aside className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+          {selectedTransaction && editForm ? (
+            <form className="space-y-4" onSubmit={onSave}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold">Edit transaction</h3>
+                  <p className="mt-1 text-sm font-medium text-[var(--muted)]">
+                    Last edited by {selectedTransaction.updatedByDisplayName ?? "MoneyMentor"}
+                  </p>
+                </div>
+                <button
+                  aria-label="Close transaction editor"
+                  className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--border)]"
+                  onClick={onCloseEdit}
+                  type="button"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <Field label="Amount">
+                <input
+                  className="form-control"
+                  min="0.01"
+                  onChange={(event) => onEditFormChange({ ...editForm, amount: event.target.value })}
+                  step="0.01"
+                  type="number"
+                  value={editForm.amount}
+                />
+              </Field>
+              <Field label="Category">
+                <input
+                  className="form-control"
+                  onChange={(event) => onEditFormChange({ ...editForm, categoryName: event.target.value })}
+                  value={editForm.categoryName}
+                />
+              </Field>
+              <Field label="Merchant">
+                <input
+                  className="form-control"
+                  onChange={(event) => onEditFormChange({ ...editForm, merchantName: event.target.value })}
+                  value={editForm.merchantName}
+                />
+              </Field>
+              <Field label="Description">
+                <input
+                  className="form-control"
+                  onChange={(event) => onEditFormChange({ ...editForm, description: event.target.value })}
+                  value={editForm.description}
+                />
+              </Field>
+              <Field label="Transaction date">
+                <input
+                  className="form-control"
+                  onChange={(event) => onEditFormChange({ ...editForm, transactionDate: event.target.value })}
+                  type="date"
+                  value={editForm.transactionDate}
+                />
+              </Field>
+              <Field label="Visibility">
+                <select
+                  className="form-control"
+                  onChange={(event) =>
+                    onEditFormChange({
+                      ...editForm,
+                      visibility: event.target.value as TransactionVisibility,
+                    })
+                  }
+                  value={editForm.visibility}
+                >
+                  <option value="Private">Private</option>
+                  <option value="Household">Household</option>
+                </select>
+              </Field>
+
+              <button
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
+                disabled={isSaving}
+                type="submit"
+              >
+                <Save className="h-4 w-4" />
+                {isSaving ? "Saving..." : "Save transaction"}
+              </button>
+            </form>
+          ) : (
+            <EmptyState
+              icon={Pencil}
+              title="Select a transaction"
+              text="Choose a row to review and update the backend record."
+            />
           )}
-        </div>
-      </section>
-
-      <TransactionEditPanel
-        editForm={editForm}
-        isSaving={isSaving}
-        onClose={onCloseEdit}
-        onEditFormChange={onEditFormChange}
-        onSave={onSave}
-        transaction={selectedTransaction}
-      />
-    </div>
-  );
-}
-
-function TransactionEditPanel({
-  editForm,
-  isSaving,
-  onClose,
-  onEditFormChange,
-  onSave,
-  transaction,
-}: {
-  editForm: TransactionEditForm | null;
-  isSaving: boolean;
-  onClose: () => void;
-  onEditFormChange: (form: TransactionEditForm) => void;
-  onSave: (event: FormEvent<HTMLFormElement>) => void;
-  transaction: TransactionListItem | null;
-}) {
-  if (!transaction || !editForm) {
-    return (
-      <aside className="hidden rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm xl:block">
-        <EmptyState
-          icon={Pencil}
-          title="Select a transaction"
-          text="Choose a row to edit amount, category, merchant, visibility, or date."
-        />
-      </aside>
-    );
-  }
-
-  return (
-    <aside className="min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold">Edit transaction</h2>
-          <p className="text-sm font-medium text-[var(--muted)]">
-            Changes are audit logged.
-          </p>
-        </div>
-        <button
-          aria-label="Close transaction editor"
-          className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--ink)]"
-          onClick={onClose}
-          type="button"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        </aside>
       </div>
-
-      <form className="mt-5 space-y-4" onSubmit={onSave}>
-        <Field label="Amount">
-          <input
-            className="form-control"
-            min="0.01"
-            onChange={(event) => onEditFormChange({ ...editForm, amount: event.target.value })}
-            step="0.01"
-            type="number"
-            value={editForm.amount}
-          />
-        </Field>
-        <Field label="Category">
-          <input
-            className="form-control"
-            onChange={(event) => onEditFormChange({ ...editForm, categoryName: event.target.value })}
-            value={editForm.categoryName}
-          />
-        </Field>
-        <Field label="Merchant">
-          <input
-            className="form-control"
-            onChange={(event) => onEditFormChange({ ...editForm, merchantName: event.target.value })}
-            value={editForm.merchantName}
-          />
-        </Field>
-        <Field label="Description">
-          <textarea
-            className="form-control min-h-24 resize-none py-3"
-            onChange={(event) => onEditFormChange({ ...editForm, description: event.target.value })}
-            value={editForm.description}
-          />
-        </Field>
-        <Field label="Date">
-          <input
-            className="form-control"
-            onChange={(event) => onEditFormChange({ ...editForm, transactionDate: event.target.value })}
-            type="date"
-            value={editForm.transactionDate}
-          />
-        </Field>
-        <Field label="Visibility">
-          <select
-            className="form-control"
-            onChange={(event) =>
-              onEditFormChange({
-                ...editForm,
-                visibility: event.target.value as TransactionVisibility,
-              })
-            }
-            value={editForm.visibility}
-          >
-            <option value="Private">Private</option>
-            <option value="Household">Household</option>
-          </select>
-        </Field>
-
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--muted)]">
-          Last edited by {transaction.updatedByDisplayName ?? "this user"} on {formatDate(transaction.updatedAt)}.
-        </div>
-
-        <button
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white transition hover:bg-[#173d36] disabled:cursor-not-allowed disabled:opacity-65"
-          disabled={isSaving}
-          type="submit"
-        >
-          <Save className="h-4 w-4" />
-          {isSaving ? "Saving" : "Save changes"}
-        </button>
-      </form>
-    </aside>
-  );
-}
-
-function SettingsSection({
-  form,
-  isSaving,
-  onFormChange,
-  onSave,
-}: {
-  form: SettingsForm | null;
-  isSaving: boolean;
-  onFormChange: (form: SettingsForm) => void;
-  onSave: (event: FormEvent<HTMLFormElement>) => void;
-}) {
-  if (!form) {
-    return <EmptyState icon={Settings} title="Loading settings" text="Preferences are being synced." />;
-  }
-
-  return (
-    <section className="h-full min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
-        <div>
-          <h2 className="text-base font-semibold">Preferences</h2>
-          <p className="text-sm font-medium text-[var(--muted)]">
-            Tune how MoneyMentor captures expenses.
-          </p>
-        </div>
-        <Settings className="h-5 w-5 text-[var(--accent)]" />
-      </div>
-
-      <form className="mt-5 grid gap-4 lg:grid-cols-2" onSubmit={onSave}>
-        <PreferenceToggle
-          checked={form.requireMerchantForExpenses}
-          description="When enabled, expenses without a merchant ask a follow-up before saving."
-          label="Reprompt for missing merchant"
-          onChange={(checked) => onFormChange({ ...form, requireMerchantForExpenses: checked })}
-        />
-        <PreferenceToggle
-          checked={form.defaultTransactionVisibility === "Household"}
-          description="New tracked expenses can default to household-visible when you choose."
-          label="Default to household visibility"
-          onChange={(checked) =>
-            onFormChange({
-              ...form,
-              defaultTransactionVisibility: checked ? "Household" : "Private",
-            })
-          }
-        />
-
-        <Field label="Currency">
-          <input
-            className="form-control"
-            maxLength={3}
-            onChange={(event) => onFormChange({ ...form, currencyCode: event.target.value.toUpperCase() })}
-            value={form.currencyCode}
-          />
-        </Field>
-        <Field label="Timezone">
-          <input
-            className="form-control"
-            onChange={(event) => onFormChange({ ...form, timeZone: event.target.value })}
-            value={form.timeZone}
-          />
-        </Field>
-        <Field label="Plan">
-          <select
-            className="form-control"
-            onChange={(event) => onFormChange({ ...form, plan: event.target.value as UserPlan })}
-            value={form.plan}
-          >
-            <option value="Free">Free</option>
-            <option value="Premium">Premium</option>
-          </select>
-        </Field>
-
-        <div className="flex items-end">
-          <button
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white transition hover:bg-[#173d36] disabled:cursor-not-allowed disabled:opacity-65"
-            disabled={isSaving}
-            type="submit"
-          >
-            <Save className="h-4 w-4" />
-            {isSaving ? "Saving" : "Save preferences"}
-          </button>
-        </div>
-      </form>
     </section>
   );
 }
@@ -1139,135 +1654,225 @@ function HouseholdSection({
   onCreateHousehold: (event: FormEvent<HTMLFormElement>) => void;
   onHouseholdNameChange: (value: string) => void;
   onMemberEmailChange: (value: string) => void;
-  onMemberRoleChange: (value: HouseholdRole) => void;
-  onSelectedHouseholdChange: (value: string) => void;
+  onMemberRoleChange: (role: HouseholdRole) => void;
+  onSelectedHouseholdChange: (householdId: string) => void;
   onUpgrade: () => void;
   selectedHouseholdId: string | null;
 }) {
   if (!households) {
-    return <EmptyState icon={Users} title="Loading households" text="Household status is being synced." />;
-  }
-
-  if (!households.canUseHouseholds) {
-    return (
-      <section className="grid h-full place-items-center rounded-lg border border-[var(--border)] bg-white p-5 shadow-sm">
-        <div className="max-w-md text-center">
-          <div className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
-            <Crown className="h-6 w-6" />
-          </div>
-          <h2 className="mt-5 text-2xl font-semibold tracking-normal">Households require Premium</h2>
-          <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted)]">
-            Free users can keep tracking expenses in a private personal workspace. Premium unlocks shared household tracking.
-          </p>
-          <button
-            className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-5 text-sm font-bold text-white transition hover:bg-[#173d36] disabled:cursor-not-allowed disabled:opacity-65"
-            disabled={isSaving}
-            onClick={onUpgrade}
-            type="button"
-          >
-            <Crown className="h-4 w-4" />
-            {isSaving ? "Updating" : "Switch to Premium"}
-          </button>
-        </div>
-      </section>
-    );
+    return <EmptyState icon={Users} title="Loading households" text="Household access is being synced." />;
   }
 
   return (
-    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
-      <section className="min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
-          <div>
-            <h2 className="text-base font-semibold">Family households</h2>
-            <p className="text-sm font-medium text-[var(--muted)]">Premium workspace sharing.</p>
+    <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-normal">Household</h2>
+              <p className="mt-1 text-sm font-medium text-[var(--muted)]">
+                Family households are available to Premium profiles.
+              </p>
+            </div>
+            <span className="rounded-lg bg-[var(--accent-soft)] px-3 py-2 text-xs font-bold text-[var(--accent)]">
+              {households.plan}
+            </span>
           </div>
-          <ShieldCheck className="h-5 w-5 text-[var(--accent)]" />
-        </div>
 
-        <div className="mt-4 space-y-2">
-          {households.households.length === 0 ? (
-            <EmptyState icon={Users} title="No family household yet" text="Create one to start shared tracking." />
+          {households.canUseHouseholds ? (
+            <div className="mt-5 grid gap-3">
+              {households.households.length > 0 ? (
+                households.households.map((household) => (
+                  <button
+                    className={`rounded-lg border p-4 text-left transition ${
+                      selectedHouseholdId === household.id
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                        : "border-[var(--border)] bg-[var(--surface)]"
+                    }`}
+                    key={household.id}
+                    onClick={() => onSelectedHouseholdChange(household.id)}
+                    type="button"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-semibold">{household.name}</p>
+                      <span className="text-xs font-bold text-[var(--muted)]">{household.role}</span>
+                    </div>
+                    <p className="mt-2 text-sm font-medium text-[var(--muted)]">
+                      {household.memberCount} member{household.memberCount === 1 ? "" : "s"} - {household.status}
+                    </p>
+                  </button>
+                ))
+              ) : (
+                <EmptyInline text="No family households yet. Create one from the side panel." />
+              )}
+            </div>
           ) : (
-            households.households.map((household) => (
+            <div className="mt-5 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+              <p className="text-sm font-semibold">Premium required</p>
+              <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted)]">
+                Upgrade the app profile to test household flows locally.
+              </p>
               <button
-                className={`w-full rounded-lg border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:border-[var(--accent)] ${
-                  selectedHouseholdId === household.id
-                    ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                    : "border-[var(--border)] bg-white"
-                }`}
-                key={household.id}
-                onClick={() => onSelectedHouseholdChange(household.id)}
+                className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
+                disabled={isSaving}
+                onClick={onUpgrade}
                 type="button"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold">{household.name}</p>
-                    <p className="mt-1 text-xs font-medium text-[var(--muted)]">
-                      {household.memberCount} members · {household.role}
-                    </p>
-                  </div>
-                  <Users className="h-5 w-5 text-[var(--accent)]" />
-                </div>
+                {isSaving ? "Updating..." : "Mark profile Premium"}
               </button>
-            ))
+            </div>
           )}
-        </div>
-      </section>
+        </article>
 
-      <aside className="min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
-        <form className="space-y-3" onSubmit={onCreateHousehold}>
-          <h2 className="text-base font-semibold">Create household</h2>
-          <Field label="Household name">
-            <input
-              className="form-control"
-              onChange={(event) => onHouseholdNameChange(event.target.value)}
-              placeholder="Shah family"
-              value={householdName}
+        <aside className="space-y-5">
+          <form className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm" onSubmit={onCreateHousehold}>
+            <h3 className="text-lg font-semibold">Create household</h3>
+            <Field label="Household name">
+              <input
+                className="form-control"
+                onChange={(event) => onHouseholdNameChange(event.target.value)}
+                placeholder="Family workspace"
+                value={householdName}
+              />
+            </Field>
+            <button
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
+              disabled={isSaving || !households.canUseHouseholds}
+              type="submit"
+            >
+              <Plus className="h-4 w-4" />
+              Create household
+            </button>
+          </form>
+
+          <form className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm" onSubmit={onAddMember}>
+            <h3 className="text-lg font-semibold">Add member</h3>
+            <Field label="Email">
+              <input
+                className="form-control"
+                onChange={(event) => onMemberEmailChange(event.target.value)}
+                placeholder="name@example.com"
+                type="email"
+                value={memberEmail}
+              />
+            </Field>
+            <Field label="Role">
+              <select
+                className="form-control"
+                onChange={(event) => onMemberRoleChange(event.target.value as HouseholdRole)}
+                value={memberRole}
+              >
+                <option value="Admin">Admin</option>
+                <option value="Member">Member</option>
+                <option value="Viewer">Viewer</option>
+              </select>
+            </Field>
+            <button
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
+              disabled={isSaving || !selectedHouseholdId || !households.canUseHouseholds}
+              type="submit"
+            >
+              <UserPlus className="h-4 w-4" />
+              Add member
+            </button>
+          </form>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function SettingsSection({
+  form,
+  isSaving,
+  onFormChange,
+  onSave,
+}: {
+  form: SettingsForm | null;
+  isSaving: boolean;
+  onFormChange: (form: SettingsForm) => void;
+  onSave: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  if (!form) {
+    return <EmptyState icon={Settings} title="Loading settings" text="Preferences are being synced." />;
+  }
+
+  return (
+    <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
+      <form className="grid gap-4 xl:grid-cols-2" onSubmit={onSave}>
+        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-normal">Settings</h2>
+              <p className="mt-1 text-sm font-medium text-[var(--muted)]">Backend profile preferences.</p>
+            </div>
+            <Settings className="h-5 w-5 text-[var(--accent)]" />
+          </div>
+          <div className="mt-5 grid gap-4">
+            <Field label="Default currency">
+              <input
+                className="form-control uppercase"
+                maxLength={3}
+                onChange={(event) => onFormChange({ ...form, currencyCode: event.target.value.toUpperCase() })}
+                value={form.currencyCode}
+              />
+            </Field>
+            <Field label="Time zone">
+              <input
+                className="form-control"
+                onChange={(event) => onFormChange({ ...form, timeZone: event.target.value })}
+                value={form.timeZone}
+              />
+            </Field>
+            <Field label="Plan">
+              <select
+                className="form-control"
+                onChange={(event) => onFormChange({ ...form, plan: event.target.value as UserPlan })}
+                value={form.plan}
+              >
+                <option value="Free">Free</option>
+                <option value="Premium">Premium</option>
+              </select>
+            </Field>
+            <Field label="Default visibility">
+              <select
+                className="form-control"
+                onChange={(event) =>
+                  onFormChange({
+                    ...form,
+                    defaultTransactionVisibility: event.target.value as TransactionVisibility,
+                  })
+                }
+                value={form.defaultTransactionVisibility}
+              >
+                <option value="Private">Private</option>
+                <option value="Household">Household</option>
+              </select>
+            </Field>
+          </div>
+        </article>
+
+        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+          <h3 className="text-base font-semibold">Capture preferences</h3>
+          <div className="mt-4 space-y-3">
+            <PreferenceToggle
+              checked={form.requireMerchantForExpenses}
+              description="Ask a follow-up when an expense does not include a merchant."
+              label="Require merchant for expenses"
+              onChange={(checked) => onFormChange({ ...form, requireMerchantForExpenses: checked })}
             />
-          </Field>
+          </div>
           <button
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white transition hover:bg-[#173d36] disabled:cursor-not-allowed disabled:opacity-65"
+            className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
             disabled={isSaving}
             type="submit"
           >
-            <Plus className="h-4 w-4" />
-            Create
+            <Save className="h-4 w-4" />
+            {isSaving ? "Saving..." : "Save settings"}
           </button>
-        </form>
-
-        <form className="mt-7 space-y-3 border-t border-[var(--border)] pt-5" onSubmit={onAddMember}>
-          <h2 className="text-base font-semibold">Add member</h2>
-          <Field label="Email">
-            <input
-              className="form-control"
-              onChange={(event) => onMemberEmailChange(event.target.value)}
-              placeholder="member@example.com"
-              type="email"
-              value={memberEmail}
-            />
-          </Field>
-          <Field label="Role">
-            <select
-              className="form-control"
-              onChange={(event) => onMemberRoleChange(event.target.value as HouseholdRole)}
-              value={memberRole}
-            >
-              <option value="Admin">Admin</option>
-              <option value="Member">Member</option>
-              <option value="Viewer">Viewer</option>
-            </select>
-          </Field>
-          <button
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-white px-4 text-sm font-bold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
-            disabled={isSaving || !selectedHouseholdId}
-            type="submit"
-          >
-            <UserPlus className="h-4 w-4" />
-            Add to selected household
-          </button>
-        </form>
-      </aside>
-    </div>
+        </article>
+      </form>
+    </section>
   );
 }
 
@@ -1278,15 +1883,17 @@ function TransactionRow({
   compact?: boolean;
   transaction: TransactionListItem;
 }) {
+  const isIncome = transaction.type === "Income";
+
   return (
-    <div className={`flex items-center justify-between gap-3 ${compact ? "px-0 py-2" : "px-4 py-3"}`}>
+    <article className={`flex items-center justify-between gap-3 ${compact ? "py-3" : "py-4"}`}>
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <p className="truncate text-sm font-semibold">
-            {transaction.description ?? transaction.merchantName ?? "Expense"}
+            {transaction.description ?? transaction.merchantName ?? transaction.sourceText}
           </p>
-          <span className="shrink-0 rounded-md bg-[var(--surface)] px-2 py-1 text-[11px] font-bold text-[var(--muted)]">
-            {transaction.visibility}
+          <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${isIncome ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
+            {transaction.type}
           </span>
         </div>
         <p className="mt-1 truncate text-xs font-medium text-[var(--muted)]">
@@ -1295,16 +1902,12 @@ function TransactionRow({
           {" - "}
           {formatDate(transaction.transactionDate)}
         </p>
-        {transaction.updatedByDisplayName ? (
-          <p className="mt-1 truncate text-xs font-medium text-[var(--muted-2)]">
-            Last edited by {transaction.updatedByDisplayName}
-          </p>
-        ) : null}
       </div>
-      <p className="shrink-0 text-sm font-bold text-[var(--ink)]">
+      <p className={`shrink-0 text-sm font-bold ${isIncome ? "text-emerald-700" : "text-[var(--ink)]"}`}>
+        {isIncome ? "+" : "-"}
         {formatMoney(transaction.amount, transaction.currencyCode)}
       </p>
-    </div>
+    </article>
   );
 }
 
@@ -1314,9 +1917,7 @@ function ChatMessageBubble({ message }: { message: Message }) {
     <div className={`chat-message-row flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
         className={`chat-message-bubble max-w-[82%] rounded-2xl px-4 py-3 text-sm font-medium leading-6 shadow-sm sm:max-w-[74%] ${
-          isUser
-            ? "chat-message-bubble--user rounded-br-md"
-            : "chat-message-bubble--assistant rounded-bl-md"
+          isUser ? "chat-message-bubble--user rounded-br-md" : "chat-message-bubble--assistant rounded-bl-md"
         }`}
       >
         {message.text}
@@ -1364,63 +1965,24 @@ function VoiceAiButton({
   );
 }
 
-function SidebarLink({
-  active,
-  href,
-  icon: Icon,
-  label,
-}: {
-  active: boolean;
-  href: string;
-  icon: typeof Bot;
-  label: string;
-}) {
+function VoiceWavePanel() {
   return (
-    <Link
-      className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold transition ${
-        active
-          ? "bg-white text-[var(--sidebar)]"
-          : "text-white/72 hover:bg-white/10 hover:text-white"
-      }`}
-      href={href}
+    <div
+      aria-live="polite"
+      className="voice-recording-panel mx-3 mb-3 rounded-lg border border-[var(--accent)] bg-[var(--ink)] px-4 py-3 text-white shadow-lg"
+      data-testid="voice-wave"
     >
-      <Icon className="h-5 w-5" />
-      <span>{label}</span>
-    </Link>
-  );
-}
-
-function MobileNavLink({
-  active,
-  href,
-  icon: Icon,
-  label,
-}: {
-  active: boolean;
-  href: string;
-  icon: typeof Bot;
-  label: string;
-}) {
-  return (
-    <Link
-      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-bold transition ${
-        active
-          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-          : "border-[var(--border)] bg-white text-[var(--muted)]"
-      }`}
-      href={href}
-    >
-      <Icon className="h-4 w-4" />
-      {label}
-    </Link>
-  );
-}
-
-function DashboardStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3 last:border-0 last:pb-0">
-      <span className="text-sm font-medium text-white/58">{label}</span>
-      <span className="text-sm font-semibold text-white">{value}</span>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Recording</p>
+          <p className="mt-1 text-xs font-medium text-white/70">I will send it when speech is captured.</p>
+        </div>
+        <div className="voice-wave" aria-hidden="true">
+          {Array.from({ length: 18 }).map((_, index) => (
+            <span key={index} style={{ animationDelay: `${index * 55}ms` }} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1437,7 +1999,7 @@ function PreferenceToggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-28 cursor-pointer items-start justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+    <label className="flex min-h-24 cursor-pointer items-start justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
       <span>
         <span className="block text-sm font-semibold text-[var(--ink)]">{label}</span>
         <span className="mt-2 block text-sm font-medium leading-6 text-[var(--muted)]">
@@ -1485,6 +2047,23 @@ function EmptyState({
   );
 }
 
+function EmptyInline({ text }: { text: string }) {
+  return (
+    <p className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)] px-3 py-4 text-center text-sm font-medium leading-6 text-[var(--muted)]">
+      {text}
+    </p>
+  );
+}
+
+function SidebarStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3 last:border-0 last:pb-0">
+      <span className="text-sm font-medium text-white/58">{label}</span>
+      <span className="text-sm font-semibold text-white">{value}</span>
+    </div>
+  );
+}
+
 function SignedOutHome() {
   return (
     <main className="grid min-h-screen place-items-center bg-[var(--background)] px-5 text-[var(--ink)]">
@@ -1515,6 +2094,38 @@ function SignedOutHome() {
   );
 }
 
+function getFallbackAssistantMessage(result: AssistantMessageResponse) {
+  if (result.status === "NeedsClarification") {
+    return "I need a little more detail before saving this.";
+  }
+
+  if (result.transaction) {
+    return "Tracked that expense.";
+  }
+
+  return "I could not handle that message yet.";
+}
+
+function sectionLabel(section: Exclude<AppSection, "home">) {
+  return navItems.find((item) => item.section === section)?.label ?? "Dashboard";
+}
+
+function toneClass(tone: DashboardJudgement["tone"]) {
+  if (tone === "Healthy") {
+    return "bg-emerald-50 text-emerald-700";
+  }
+
+  if (tone === "Watch") {
+    return "bg-amber-50 text-amber-700";
+  }
+
+  return "bg-rose-50 text-rose-700";
+}
+
+function formatTone(tone: DashboardJudgement["tone"]) {
+  return tone.replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
 function formatMoney(amount: number, currencyCode: string) {
   try {
     return new Intl.NumberFormat("en-IN", {
@@ -1538,6 +2149,10 @@ function formatDate(value: string) {
     month: "short",
     year: "numeric",
   }).format(date);
+}
+
+function getCurrentMonthKey() {
+  return new Date().toISOString().slice(0, 7);
 }
 
 function toSettingsForm(settings: UserSettingsResponse): SettingsForm {

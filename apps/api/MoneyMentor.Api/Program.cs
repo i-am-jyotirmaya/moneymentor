@@ -1,4 +1,7 @@
 using System.Text.Json.Serialization;
+using MoneyMentor.Application.Assistant;
+using MoneyMentor.Application.Dashboard;
+using MoneyMentor.Application.Finance;
 using MoneyMentor.Application.InputParsing;
 using MoneyMentor.Api.Endpoints;
 using MoneyMentor.Api.Endpoints.Auth;
@@ -8,6 +11,12 @@ var builder = WebApplication.CreateBuilder(args);
 const string WebCorsPolicy = "MoneyMentorWeb";
 
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddScoped<MonthlyDashboardBuilder>();
+builder.Services.AddScoped<IMonthlyDashboardService, MonthlyDashboardService>();
+builder.Services.AddScoped<FinanceQuestionParser>();
+builder.Services.AddScoped<IFinanceQuestionService, FinanceQuestionService>();
+builder.Services.AddScoped<IFinanceInputClassifier, HeuristicFinanceInputClassifier>();
+builder.Services.AddScoped<IAssistantMessageService, AssistantMessageService>();
 builder.Services.AddScoped<IExpenseInputParser, HeuristicExpenseInputParser>();
 builder.Services.AddSingleton<IExpenseInputDraftStore, InMemoryExpenseInputDraftStore>();
 builder.Services.AddScoped<IExpenseInputProcessor, ExpenseInputProcessor>();
