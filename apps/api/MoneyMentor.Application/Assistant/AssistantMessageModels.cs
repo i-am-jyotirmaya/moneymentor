@@ -32,7 +32,10 @@ public sealed record AssistantMessageResult(
     TransactionModel? Transaction,
     ExpenseDraft? ParsedDebug,
     FinanceQuestionAnswerModel? FinanceAnswer,
-    IReadOnlyCollection<string> Errors);
+    IReadOnlyCollection<string> Errors)
+{
+    public IncomeDraft? ParsedIncomeDebug { get; init; }
+}
 
 public interface IAssistantMessageService
 {

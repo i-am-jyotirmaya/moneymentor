@@ -93,6 +93,9 @@ public static class AssistantEndpoints
             result.Transaction,
             result.ParsedDebug,
             result.FinanceAnswer,
-            result.Errors));
+            result.Errors)
+        {
+            ParsedIncomeDebug = result.ParsedIncomeDebug
+        });
     }
 }

@@ -26,12 +26,35 @@ public static class HouseholdEndpoints
             .Produces(StatusCodes.Status403Forbidden)
             .ProducesValidationProblem();
 
-        group.MapPost("/{householdId:guid}/members", AddHouseholdMemberAsync)
-            .WithName("AddHouseholdMember")
-            .Produces<HouseholdSummaryModel>()
+        group.MapGet("/invitations", ListPendingInvitationsAsync)
+            .WithName("ListPendingHouseholdInvitations")
+            .Produces<IReadOnlyCollection<HouseholdInvitationModel>>()
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPost("/{householdId:guid}/invitations", CreateInvitationAsync)
+            .WithName("CreateHouseholdInvitation")
+            .Produces<HouseholdInvitationModel>(StatusCodes.Status201Created)
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status409Conflict)
             .ProducesValidationProblem();
+
+        group.MapPost("/invitations/{invitationId:guid}/accept", AcceptInvitationAsync)
+            .WithName("AcceptHouseholdInvitation")
+            .Produces<HouseholdInvitationModel>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status409Conflict)
+            .Produces(StatusCodes.Status410Gone);
+
+        group.MapPost("/invitations/{invitationId:guid}/decline", DeclineInvitationAsync)
+            .WithName("DeclineHouseholdInvitation")
+            .Produces<HouseholdInvitationModel>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status409Conflict)
+            .Produces(StatusCodes.Status410Gone);
 
         return group;
     }
@@ -86,9 +109,30 @@ public static class HouseholdEndpoints
             : Results.Created($"/api/households/{household.Id}", household);
     }
 
-    private static async Task<IResult> AddHouseholdMemberAsync(
+    private static async Task<IResult> ListPendingInvitationsAsync(
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        IHouseholdService householdService,
+        CancellationToken cancellationToken)
+    {
+        var userContext = await ResolveContextAsync(
+            httpContext,
+            appUserProfileService,
+            cancellationToken);
+        if (userContext is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var invitations = await householdService.ListPendingInvitationsAsync(
+            userContext,
+            cancellationToken);
+        return Results.Ok(invitations);
+    }
+
+    private static async Task<IResult> CreateInvitationAsync(
         Guid householdId,
-        AddHouseholdMemberRequest request,
+        CreateHouseholdInvitationRequest request,
         HttpContext httpContext,
         IAppUserProfileService appUserProfileService,
         IHouseholdService householdService,
@@ -109,22 +153,102 @@ public static class HouseholdEndpoints
             return Results.Unauthorized();
         }
 
-        if (!Enum.TryParse<HouseholdRole>(request.Role, ignoreCase: true, out var role))
+        if (!Enum.TryParse<HouseholdRole>(request.Role, ignoreCase: true, out var role)
+            || !HouseholdInvitationPolicy.CanAssignRole(role))
         {
             return EndpointValidation.ValidationProblem(
                 nameof(request.Role),
-                "Role must be Owner, Admin, Member, or Viewer.");
+                "Role must be Admin, Member, or Viewer.");
         }
 
-        var household = await householdService.AddMemberAsync(
-            new AddHouseholdMemberCommand(
+        var result = await householdService.InviteMemberAsync(
+            new CreateHouseholdInvitationCommand(
                 userContext,
                 householdId,
                 request.Email,
                 role),
             cancellationToken);
 
-        return household is null ? Results.Forbid() : Results.Ok(household);
+        return result.Status switch
+        {
+            HouseholdInvitationResultStatus.Succeeded => Results.Created(
+                $"/api/households/invitations/{result.Invitation!.Id}",
+                result.Invitation),
+            HouseholdInvitationResultStatus.Forbidden => Results.Forbid(),
+            HouseholdInvitationResultStatus.NotFound => Results.NotFound(),
+            HouseholdInvitationResultStatus.Conflict => Results.Problem(
+                title: "The user is already a member or has a pending invitation.",
+                statusCode: StatusCodes.Status409Conflict),
+            HouseholdInvitationResultStatus.InvalidRole => EndpointValidation.ValidationProblem(
+                nameof(request.Role),
+                "Role must be Admin, Member, or Viewer."),
+            _ => Results.Problem(statusCode: StatusCodes.Status500InternalServerError)
+        };
+    }
+
+    private static Task<IResult> AcceptInvitationAsync(
+        Guid invitationId,
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        IHouseholdService householdService,
+        CancellationToken cancellationToken) =>
+        RespondToInvitationAsync(
+            invitationId,
+            accept: true,
+            httpContext,
+            appUserProfileService,
+            householdService,
+            cancellationToken);
+
+    private static Task<IResult> DeclineInvitationAsync(
+        Guid invitationId,
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        IHouseholdService householdService,
+        CancellationToken cancellationToken) =>
+        RespondToInvitationAsync(
+            invitationId,
+            accept: false,
+            httpContext,
+            appUserProfileService,
+            householdService,
+            cancellationToken);
+
+    private static async Task<IResult> RespondToInvitationAsync(
+        Guid invitationId,
+        bool accept,
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        IHouseholdService householdService,
+        CancellationToken cancellationToken)
+    {
+        var userContext = await ResolveContextAsync(
+            httpContext,
+            appUserProfileService,
+            cancellationToken);
+        if (userContext is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var command = new RespondToHouseholdInvitationCommand(userContext, invitationId);
+        var result = accept
+            ? await householdService.AcceptInvitationAsync(command, cancellationToken)
+            : await householdService.DeclineInvitationAsync(command, cancellationToken);
+
+        return result.Status switch
+        {
+            HouseholdInvitationResultStatus.Succeeded => Results.Ok(result.Invitation),
+            HouseholdInvitationResultStatus.NotFound => Results.NotFound(),
+            HouseholdInvitationResultStatus.Conflict => Results.Problem(
+                title: "The invitation is no longer pending.",
+                statusCode: StatusCodes.Status409Conflict),
+            HouseholdInvitationResultStatus.Expired => Results.Problem(
+                title: "The invitation has expired.",
+                statusCode: StatusCodes.Status410Gone),
+            HouseholdInvitationResultStatus.Forbidden => Results.Forbid(),
+            _ => Results.Problem(statusCode: StatusCodes.Status500InternalServerError)
+        };
     }
 
     private static async Task<AppUserContext?> ResolveContextAsync(

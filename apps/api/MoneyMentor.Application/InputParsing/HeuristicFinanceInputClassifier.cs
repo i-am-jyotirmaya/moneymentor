@@ -24,7 +24,12 @@ public sealed class HeuristicFinanceInputClassifier : IFinanceInputClassifier
             return Task.FromResult(FinanceInputIntent.AskGoalAdvice);
         }
 
-        if (ContainsAny(terms, ExpenseInputKeywordSets.IncomeSignals))
+        if (ContainsAny(terms, ExpenseInputKeywordSets.ExpensePaymentSignals))
+        {
+            return Task.FromResult(FinanceInputIntent.CreateExpense);
+        }
+
+        if (ContainsAny(terms, IncomeInputKeywordSets.IncomeSignals))
         {
             return Task.FromResult(FinanceInputIntent.CreateIncome);
         }

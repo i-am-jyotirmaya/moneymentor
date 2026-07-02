@@ -13,8 +13,14 @@ public sealed class UpdateTransactionRequest
     [MaxLength(256)]
     public string? MerchantName { get; init; }
 
+    [MaxLength(256)]
+    public string? SenderName { get; init; }
+
     [MaxLength(1024)]
     public string? Description { get; init; }
+
+    [MaxLength(1024)]
+    public string? Reason { get; init; }
 
     public DateOnly? TransactionDate { get; init; }
 

@@ -34,4 +34,7 @@ public sealed record AssistantMessageResponse(
     TransactionModel? Transaction,
     ExpenseDraft? ParsedDebug,
     FinanceQuestionAnswerModel? FinanceAnswer,
-    IReadOnlyCollection<string> Errors);
+    IReadOnlyCollection<string> Errors)
+{
+    public IncomeDraft? ParsedIncomeDebug { get; init; }
+}

@@ -253,12 +253,16 @@ public sealed class ExpenseInputProcessorTests
                 command.UserContext.DisplayName));
         }
 
-        public Task<IReadOnlyCollection<TransactionModel>> ListAsync(
-            AppUserContext userContext,
-            Guid? householdId,
-            int limit,
+        public Task<TransactionModel> SaveIncomeAsync(
+            SaveIncomeCommand command,
             CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyCollection<TransactionModel>>([]);
+            throw new NotSupportedException();
+
+        public Task<TransactionPageModel> ListAsync(
+            AppUserContext userContext,
+            TransactionPageQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new TransactionPageModel([], query.Page, query.PageSize, 0, 0));
 
         public Task<TransactionModel?> GetAsync(
             AppUserContext userContext,

@@ -20,6 +20,9 @@ builder.Services.AddScoped<IAssistantMessageService, AssistantMessageService>();
 builder.Services.AddScoped<IExpenseInputParser, HeuristicExpenseInputParser>();
 builder.Services.AddSingleton<IExpenseInputDraftStore, InMemoryExpenseInputDraftStore>();
 builder.Services.AddScoped<IExpenseInputProcessor, ExpenseInputProcessor>();
+builder.Services.AddScoped<IIncomeInputParser, HeuristicIncomeInputParser>();
+builder.Services.AddSingleton<IIncomeInputDraftStore, InMemoryIncomeInputDraftStore>();
+builder.Services.AddScoped<IIncomeInputProcessor, IncomeInputProcessor>();
 builder.Services.AddMoneyMentorAuth(builder.Configuration);
 builder.Services.AddCors(options =>
 {

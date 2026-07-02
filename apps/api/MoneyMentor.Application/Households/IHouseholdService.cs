@@ -12,7 +12,19 @@ public interface IHouseholdService
         CreateHouseholdCommand command,
         CancellationToken cancellationToken);
 
-    Task<HouseholdSummaryModel?> AddMemberAsync(
-        AddHouseholdMemberCommand command,
+    Task<HouseholdInvitationResult> InviteMemberAsync(
+        CreateHouseholdInvitationCommand command,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<HouseholdInvitationModel>> ListPendingInvitationsAsync(
+        AppUserContext userContext,
+        CancellationToken cancellationToken);
+
+    Task<HouseholdInvitationResult> AcceptInvitationAsync(
+        RespondToHouseholdInvitationCommand command,
+        CancellationToken cancellationToken);
+
+    Task<HouseholdInvitationResult> DeclineInvitationAsync(
+        RespondToHouseholdInvitationCommand command,
         CancellationToken cancellationToken);
 }

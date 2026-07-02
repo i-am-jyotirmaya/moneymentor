@@ -1,3 +1,4 @@
+using System.Globalization;
 using MoneyMentor.Api.Endpoints;
 using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Transactions;
@@ -16,8 +17,9 @@ public static class TransactionEndpoints
 
         group.MapGet("", ListTransactionsAsync)
             .WithName("ListTransactions")
-            .Produces<IReadOnlyCollection<TransactionModel>>()
-            .Produces(StatusCodes.Status401Unauthorized);
+            .Produces<TransactionPageModel>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesValidationProblem();
 
         group.MapGet("/{transactionId:guid}", GetTransactionAsync)
             .WithName("GetTransaction")
@@ -40,9 +42,39 @@ public static class TransactionEndpoints
         IAppUserProfileService appUserProfileService,
         ITransactionService transactionService,
         Guid? householdId,
-        int? limit,
+        string? month,
+        int? page,
+        int? pageSize,
         CancellationToken cancellationToken)
     {
+        if (householdId == Guid.Empty)
+        {
+            return EndpointValidation.ValidationProblem(
+                nameof(householdId),
+                "HouseholdId must be a non-empty GUID when provided.");
+        }
+
+        if (!TryParseMonth(month, out var requestedMonth))
+        {
+            return EndpointValidation.ValidationProblem(
+                nameof(month),
+                "Month must use YYYY-MM format.");
+        }
+
+        var requestedPage = page ?? 1;
+        if (requestedPage < 1)
+        {
+            return EndpointValidation.ValidationProblem(nameof(page), "Page must be at least 1.");
+        }
+
+        var requestedPageSize = pageSize ?? 10;
+        if (requestedPageSize is < 1 or > 100)
+        {
+            return EndpointValidation.ValidationProblem(
+                nameof(pageSize),
+                "PageSize must be between 1 and 100.");
+        }
+
         var userContext = await ResolveContextAsync(
             httpContext,
             appUserProfileService,
@@ -54,8 +86,11 @@ public static class TransactionEndpoints
 
         var transactions = await transactionService.ListAsync(
             userContext,
-            householdId,
-            limit ?? 50,
+            new TransactionPageQuery(
+                householdId,
+                requestedMonth,
+                requestedPage,
+                requestedPageSize),
             cancellationToken);
 
         return Results.Ok(transactions);
@@ -122,7 +157,11 @@ public static class TransactionEndpoints
                 request.MerchantName,
                 request.Description,
                 request.TransactionDate,
-                visibility),
+                visibility)
+            {
+                SenderName = request.SenderName,
+                Reason = request.Reason
+            },
             cancellationToken);
 
         return transaction is null ? Results.NotFound() : Results.Ok(transaction);
@@ -162,5 +201,22 @@ public static class TransactionEndpoints
             nameof(UpdateTransactionRequest.Visibility),
             "Visibility must be Private or Household.");
         return false;
+    }
+
+    private static bool TryParseMonth(string? value, out DateOnly month)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            var currentDate = DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime);
+            month = new DateOnly(currentDate.Year, currentDate.Month, 1);
+            return true;
+        }
+
+        return DateOnly.TryParseExact(
+            $"{value.Trim()}-01",
+            "yyyy-MM-dd",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out month);
     }
 }

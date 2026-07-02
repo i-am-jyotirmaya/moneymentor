@@ -21,6 +21,14 @@ public enum HouseholdMemberStatus
     Removed
 }
 
+public enum HouseholdInvitationStatus
+{
+    Pending,
+    Accepted,
+    Declined,
+    Expired
+}
+
 public enum UserPlan
 {
     Free,

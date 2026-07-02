@@ -1,6 +1,8 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 const sessionStorageKey = "moneymentor.auth.session.v1";
+const currentMonthKey = new Date().toISOString().slice(0, 7);
+const previousMonthKey = shiftMonthKey(currentMonthKey, -1);
 
 const mockSession = {
   accessToken: "playwright-access-token",
@@ -23,7 +25,7 @@ const baseTransactions = [
     id: "txn-rent",
     merchantName: "Landlord",
     sourceText: "paid rent 18000",
-    transactionDate: "2026-06-03",
+    transactionDate: `${currentMonthKey}-03`,
     visibility: "Household",
   }),
   createTransaction({
@@ -33,8 +35,30 @@ const baseTransactions = [
     id: "txn-groceries",
     merchantName: "Local market",
     sourceText: "groceries for 3250 from local market",
-    transactionDate: "2026-06-08",
+    transactionDate: `${currentMonthKey}-08`,
     visibility: "Household",
+  }),
+  ...Array.from({ length: 10 }, (_, index) =>
+    createTransaction({
+      amount: 100 + index,
+      categoryName: "Everyday",
+      description: `Current month expense ${index + 1}`,
+      id: `txn-current-${index + 1}`,
+      merchantName: "Corner shop",
+      sourceText: `expense ${100 + index}`,
+      transactionDate: `${currentMonthKey}-${String(10 + index).padStart(2, "0")}`,
+      visibility: "Private",
+    }),
+  ),
+  createTransaction({
+    amount: 450,
+    categoryName: "Transport",
+    description: "Previous month taxi",
+    id: "txn-previous-taxi",
+    merchantName: "City taxi",
+    sourceText: "taxi 450",
+    transactionDate: `${previousMonthKey}-14`,
+    visibility: "Private",
   }),
 ];
 
@@ -78,6 +102,20 @@ async function seedVoiceRecognition(page: Page) {
 
 async function mockBackend(page: Page) {
   let transactions = [...baseTransactions];
+  let pendingInvitations = [
+    {
+      id: "invite-friends",
+      householdId: "55555555-5555-4555-8555-555555555555",
+      householdName: "Friends workspace",
+      email: mockSession.user.email,
+      role: "Member",
+      status: "Pending",
+      invitedByDisplayName: "Joe",
+      createdAt: "2026-07-01T00:00:00Z",
+      expiresAt: "2026-07-08T00:00:00Z",
+      respondedAt: null,
+    },
+  ];
 
   await page.route("http://localhost:5267/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -103,7 +141,37 @@ async function mockBackend(page: Page) {
     }
 
     if (url.pathname === "/api/transactions" && method === "GET") {
-      await json(route, transactions);
+      const month = url.searchParams.get("month") ?? currentMonthKey;
+      const page = Number(url.searchParams.get("page") ?? 1);
+      const pageSize = Number(url.searchParams.get("pageSize") ?? 10);
+      const matchingTransactions = transactions
+        .filter((transaction) => transaction.transactionDate.startsWith(month))
+        .toSorted((left, right) => right.transactionDate.localeCompare(left.transactionDate));
+      await json(route, {
+        items: matchingTransactions.slice((page - 1) * pageSize, page * pageSize),
+        page,
+        pageSize,
+        totalCount: matchingTransactions.length,
+        totalPages: Math.ceil(matchingTransactions.length / pageSize),
+      });
+      return;
+    }
+
+    if (url.pathname.startsWith("/api/transactions/") && method === "PATCH") {
+      const transactionId = url.pathname.split("/").at(-1);
+      const body = route.request().postDataJSON() as Partial<(typeof transactions)[number]>;
+      const index = transactions.findIndex((transaction) => transaction.id === transactionId);
+      if (index < 0) {
+        await route.fulfill({ status: 404, body: "Not found" });
+        return;
+      }
+
+      transactions[index] = {
+        ...transactions[index],
+        ...body,
+        updatedAt: new Date().toISOString(),
+      };
+      await json(route, transactions[index]);
       return;
     }
 
@@ -126,14 +194,110 @@ async function mockBackend(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/households/invitations" && method === "GET") {
+      await json(route, pendingInvitations);
+      return;
+    }
+
+    if (/^\/api\/households\/[^/]+\/invitations$/.test(url.pathname) && method === "POST") {
+      const body = route.request().postDataJSON() as { email: string; role: string };
+      await json(route, {
+        id: "invite-sent",
+        householdId: url.pathname.split("/")[3],
+        householdName: "Family workspace",
+        email: body.email,
+        role: body.role,
+        status: "Pending",
+        invitedByDisplayName: mockSession.user.displayName,
+        createdAt: new Date().toISOString(),
+        expiresAt: "2099-01-01T00:00:00Z",
+        respondedAt: null,
+      });
+      return;
+    }
+
+    const invitationResponse = url.pathname.match(
+      /^\/api\/households\/invitations\/([^/]+)\/(accept|decline)$/,
+    );
+    if (invitationResponse && method === "POST") {
+      const [, invitationId, response] = invitationResponse;
+      const invitation = pendingInvitations.find((item) => item.id === invitationId);
+      if (!invitation) {
+        await route.fulfill({ status: 404, body: "Not found" });
+        return;
+      }
+
+      pendingInvitations = pendingInvitations.filter((item) => item.id !== invitationId);
+      await json(route, {
+        ...invitation,
+        status: response === "accept" ? "Accepted" : "Declined",
+        respondedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
     if (url.pathname === "/api/dashboard/monthly" && method === "GET") {
-      await json(route, createDashboard(transactions));
+      const month = url.searchParams.get("month") ?? currentMonthKey;
+      await json(
+        route,
+        createDashboard(
+          transactions.filter((transaction) => transaction.transactionDate.startsWith(month)),
+          month,
+        ),
+      );
       return;
     }
 
     if (url.pathname === "/api/assistant/messages" && method === "POST") {
       const body = route.request().postDataJSON() as { text: string };
+      if (/joe sent me 300/i.test(body.text)) {
+        const transaction = createTransaction({
+          amount: 300,
+          categoryName: "Other Income",
+          description: null,
+          id: "txn-income-joe",
+          merchantName: null,
+          reason: "chips",
+          senderName: "Joe",
+          sourceText: body.text,
+          transactionDate: `${currentMonthKey}-20`,
+          type: "Income",
+          visibility: "Private",
+        });
+        transactions = [transaction, ...transactions.filter((item) => item.id !== transaction.id)];
+        await json(route, {
+          status: "Responded",
+          intent: "CreateIncome",
+          assistantMessage: "Tracked ₹300 received from Joe for chips.",
+          transaction,
+          parsedDebug: null,
+          parsedIncomeDebug: null,
+          financeAnswer: null,
+          errors: [],
+        });
+        return;
+      }
+      if (/long assistant response/i.test(body.text)) {
+        await json(route, {
+          status: "Responded",
+          intent: "Unknown",
+          assistantMessage: Array.from(
+            { length: 40 },
+            (_, index) => `Scrollable assistant detail ${index + 1}.`,
+          ).join(" "),
+          transaction: null,
+          parsedDebug: null,
+          financeAnswer: null,
+          errors: [],
+        });
+        return;
+      }
+
       if (/where/i.test(body.text)) {
+        const dashboard = createDashboard(
+          transactions.filter((transaction) => transaction.transactionDate.startsWith(currentMonthKey)),
+          currentMonthKey,
+        );
         await json(route, {
           status: "Responded",
           intent: "AskFinanceQuestion",
@@ -144,13 +308,13 @@ async function mockBackend(page: Page) {
             kind: "TopSpendingCategory",
             question: body.text,
             answer: "You spent the most on Rent: ₹18000 in June 2026.",
-            month: "2026-06",
-            periodStart: "2026-06-01",
-            periodEnd: "2026-06-30",
+            month: currentMonthKey,
+            periodStart: `${currentMonthKey}-01`,
+            periodEnd: dashboard.periodEnd,
             currencyCode: "INR",
             amount: 18000,
             categoryName: "Rent",
-            categories: createDashboard(transactions).categories,
+            categories: dashboard.categories,
           },
           errors: [],
         });
@@ -164,7 +328,7 @@ async function mockBackend(page: Page) {
         id: "txn-swiggy",
         merchantName: "Swiggy",
         sourceText: body.text,
-        transactionDate: "2026-06-20",
+        transactionDate: `${currentMonthKey}-20`,
         visibility: "Private",
       });
       transactions = [transaction, ...transactions.filter((item) => item.id !== transaction.id)];
@@ -243,11 +407,78 @@ test("desktop assistant opens as a compact floating chat", async ({ page }, test
 
   const dialog = page.getByRole("dialog", { name: "Assistant chat" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("heading", { name: "What did you spend on?" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "What did you spend or receive?" })).toBeVisible();
 
   const box = await dialog.boundingBox();
   expect(box?.width).toBeLessThan(520);
   expect(box?.height).toBeLessThan(650);
+});
+
+test("assistant popup keeps long conversations scrollable", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open assistant chat" }).click();
+  const dialog = page.getByRole("dialog", { name: "Assistant chat" });
+  await dialog.getByLabel("Message MoneyMentor").fill("long assistant response");
+  await dialog.getByRole("button", { name: "Send message" }).click();
+  await expect(dialog.getByText(/Scrollable assistant detail 40/)).toBeVisible();
+
+  const scrollState = await dialog.locator(".chat-scroll").evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    overflowY: getComputedStyle(element).overflowY,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(scrollState.overflowY).toBe("auto");
+  expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+});
+
+test("dashboard month controls load the previous month", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
+
+  await page.goto("/");
+  const dashboardRequest = page.waitForRequest(
+    (request) =>
+      request.url().includes(`/api/dashboard/monthly?month=${previousMonthKey}`) &&
+      request.method() === "GET",
+  );
+  await page.getByRole("button", { name: "Previous dashboard month" }).click();
+  await dashboardRequest;
+
+  await expect(page.getByLabel("Dashboard month", { exact: true })).toHaveValue(previousMonthKey);
+  await expect(page.getByText(formatMonthKey(previousMonthKey)).first()).toBeVisible();
+});
+
+test("transaction list paginates by month and opens editing only from the edit icon", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
+
+  await page.goto("/transactions");
+  await expect(page.getByRole("dialog", { name: "Edit transaction" })).toHaveCount(0);
+  await expect(page.getByText(/12 records, Page 1 of 2/).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Next transaction page" }).click();
+  await expect(page.getByText(/12 records, Page 2 of 2/).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /Edit transaction/ })).toHaveCount(2);
+
+  await page.getByLabel("Transaction month", { exact: true }).first().selectOption(previousMonthKey);
+  await expect(page.getByText("Previous month taxi").first()).toBeVisible();
+  await expect(page.getByText(/1 records/).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  await expect(editor).toBeVisible();
+  await expect(editor.getByLabel("Amount")).toHaveValue("450");
+  await editor.getByRole("button", { name: "Close transaction editor" }).click();
+  await expect(editor).toHaveCount(0);
+});
+
+test("mobile transaction editor is hidden until an edit icon is tapped", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
+
+  await page.goto("/transactions");
+  await expect(page.getByRole("dialog", { name: "Edit transaction" })).toHaveCount(0);
+  await page.getByRole("button", { name: /Edit transaction/ }).first().click();
+  await expect(page.getByRole("dialog", { name: "Edit transaction" })).toBeVisible();
 });
 
 test("desktop assistant sends a finance question to the backend", async ({ page }, testInfo) => {
@@ -261,13 +492,55 @@ test("desktop assistant sends a finance question to the backend", async ({ page 
   await expect(page.getByText("You spent the most on Rent").first()).toBeVisible();
 });
 
+test("assistant tracks income with sender and reason terminology", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await page.getByLabel("Message MoneyMentor").first().fill("Joe sent me 300 Rs for chips");
+  await page.getByRole("button", { name: "Send message" }).first().click();
+  await expect(page.getByText("Tracked ₹300 received from Joe for chips.").first()).toBeVisible();
+
+  await page.goto("/transactions");
+  await expect(page.getByText("chips", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/From Joe/).first()).toBeVisible();
+  await page.getByRole("button", { name: "Edit transaction chips" }).click();
+
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  await expect(editor.getByLabel("Sender")).toHaveValue("Joe");
+  await expect(editor.getByLabel("Reason")).toHaveValue("chips");
+  await expect(editor.getByLabel("Merchant")).toHaveCount(0);
+});
+
+test("household invitations can be accepted and sent", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
+
+  await page.goto("/household");
+  await expect(page.getByText(/Joe invited you as Member/).first()).toBeVisible();
+  await page.getByRole("button", { name: "Accept" }).first().click();
+  await expect(page.getByText("You joined Friends workspace.").first()).toBeVisible();
+
+  const invitationRequest = page.waitForRequest(
+    (request) =>
+      /\/api\/households\/[^/]+\/invitations$/.test(new URL(request.url()).pathname) &&
+      request.method() === "POST",
+  );
+  await page.getByLabel("Email").first().fill("friend@example.com");
+  await page.getByLabel("Role").first().selectOption("Viewer");
+  await page.getByRole("button", { name: "Send invitation" }).first().click();
+
+  const request = await invitationRequest;
+  expect(request.postDataJSON()).toEqual({ email: "friend@example.com", role: "Viewer" });
+  await expect(page.getByText("Invitation sent to friend@example.com.").first()).toBeVisible();
+});
+
 test("mobile root opens directly to the assistant", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
 
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Assistant" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "What did you spend on?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What did you spend or receive?" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Start voice input" })).toBeVisible();
 });
 
@@ -308,49 +581,74 @@ async function json(route: Route, body: unknown) {
   });
 }
 
-function createDashboard(transactions: Array<ReturnType<typeof createTransaction>>) {
+function createDashboard(
+  transactions: Array<ReturnType<typeof createTransaction>>,
+  month: string,
+) {
+  const nextMonth = shiftMonthKey(month, 1);
+  const periodEnd = new Date(`${nextMonth}-01T00:00:00.000Z`);
+  periodEnd.setUTCDate(0);
+  const expenses = transactions.filter((transaction) => transaction.type === "Expense");
+  const incomeTransactions = transactions.filter((transaction) => transaction.type === "Income");
+  const categoryTotals = new Map<string, number>();
+  for (const transaction of expenses) {
+    categoryTotals.set(
+      transaction.categoryName,
+      (categoryTotals.get(transaction.categoryName) ?? 0) + transaction.amount,
+    );
+  }
+  const categories = Array.from(categoryTotals, ([name, amount]) => ({
+    name,
+    amount,
+    budget: null,
+    tone: name === "Rent" ? "NeedsAttention" : "Watch",
+    note: `${name} spending for this month.`,
+  }));
+  const topCategory = categories.toSorted((left, right) => right.amount - left.amount)[0];
+  const spends = expenses.reduce((total, transaction) => total + transaction.amount, 0);
+  const income = incomeTransactions.reduce((total, transaction) => total + transaction.amount, 0);
+
   return {
-    month: "2026-06",
-    periodStart: "2026-06-01",
-    periodEnd: "2026-06-30",
-    monthLabel: "June 2026",
+    month,
+    periodStart: `${month}-01`,
+    periodEnd: periodEnd.toISOString().slice(0, 10),
+    monthLabel: formatMonthKey(month),
     currencyCode: "INR",
-    income: 0,
-    spends: transactions.reduce((total, transaction) => total + transaction.amount, 0),
-    saved: -transactions.reduce((total, transaction) => total + transaction.amount, 0),
-    savingsRate: null,
-    categories: [
-      {
-        name: "Rent",
-        amount: 18000,
-        budget: null,
-        tone: "NeedsAttention",
-        note: "Rent is taking a large share of tracked spending this month.",
-      },
-      {
-        name: "Groceries",
-        amount: 3250,
-        budget: null,
-        tone: "Watch",
-        note: "Groceries is worth watching as the month develops.",
-      },
-    ],
-    judgements: [
+    income,
+    spends,
+    saved: income - spends,
+    savingsRate: income > 0 ? Math.round(((income - spends) / income) * 10000) / 100 : null,
+    categories,
+    judgements: topCategory ? [
       {
         title: "Top category",
         tone: "NeedsAttention",
-        value: "Rent",
-        text: "Rent is currently your largest tracked expense category this month.",
+        value: topCategory.name,
+        text: `${topCategory.name} is currently your largest tracked expense category this month.`,
       },
-    ],
-    insights: [
+    ] : [],
+    insights: topCategory ? [
       {
         title: "Best next move",
-        text: "Review Rent first if you want to reduce this month's spending.",
+        text: `Review ${topCategory.name} first if you want to reduce this month's spending.`,
       },
-    ],
-    recentTransactions: transactions,
+    ] : [],
+    recentTransactions: transactions.slice(0, 6),
   };
+}
+
+function shiftMonthKey(month: string, offset: number) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, monthNumber - 1 + offset, 1)).toISOString().slice(0, 7);
+}
+
+function formatMonthKey(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-IN", {
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }
 
 function createTransaction({
@@ -359,17 +657,23 @@ function createTransaction({
   description,
   id,
   merchantName,
+  reason = null,
+  senderName = null,
   sourceText,
   transactionDate,
+  type = "Expense",
   visibility,
 }: {
   amount: number;
   categoryName: string;
-  description: string;
+  description: string | null;
   id: string;
-  merchantName: string;
+  merchantName: string | null;
+  reason?: string | null;
+  senderName?: string | null;
   sourceText: string;
   transactionDate: string;
+  type?: "Expense" | "Income" | "Transfer";
   visibility: "Private" | "Household";
 }) {
   return {
@@ -378,10 +682,12 @@ function createTransaction({
     userProfileId: "22222222-2222-4222-8222-222222222222",
     amount,
     currencyCode: "INR",
-    type: "Expense",
+    type,
     categoryName,
     merchantName,
     description,
+    senderName,
+    reason,
     sourceText,
     transactionDate,
     inputMode: "Text",

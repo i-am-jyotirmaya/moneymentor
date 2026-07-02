@@ -208,7 +208,19 @@ internal static class ExpenseCategoryKeywordCatalog
             65),
         new(
             "Bills",
-            ExpenseInputKeywordSets.CreateKeywordSet("emi", "loan", "insurance", "premium", "credit card bill", "card bill", "bill"),
+            ExpenseInputKeywordSets.CreateKeywordSet(
+                "emi",
+                "loan",
+                "insurance",
+                "premium",
+                "credit card",
+                "credit card bill",
+                "credit bill",
+                "card bill",
+                "credit card payment",
+                "card payment",
+                "bill payment",
+                "bill"),
             65)
     ];
 }

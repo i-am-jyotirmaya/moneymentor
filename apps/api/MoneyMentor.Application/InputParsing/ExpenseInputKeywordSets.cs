@@ -23,6 +23,17 @@ internal static class ExpenseInputKeywordSets
         "diya",
         "liya");
 
+    public static readonly IReadOnlySet<string> ExpensePaymentSignals = CreateKeywordSet(
+        "credit card",
+        "credit card bill",
+        "credit bill",
+        "card bill",
+        "credit card payment",
+        "card payment",
+        "bill payment",
+        "loan payment",
+        "emi payment");
+
     public static readonly IReadOnlySet<string> FinanceQuestionSignals = CreateKeywordSet(
         "where did",
         "how much",

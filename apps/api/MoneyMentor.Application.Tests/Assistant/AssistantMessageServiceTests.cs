@@ -78,29 +78,106 @@ public sealed class AssistantMessageServiceTests
     }
 
     [Fact]
-    public async Task ProcessAsync_ReturnsUnsupported_ForIncomeCapture()
+    public async Task ProcessAsync_RoutesIncomeToIncomeProcessor()
     {
         var expenseProcessor = new FakeExpenseInputProcessor(
             ExpenseInputProcessResult.Failed(["Should not be used."]));
-        var service = CreateService(expenseProcessor: expenseProcessor);
+        var incomeProcessor = new FakeIncomeInputProcessor(
+            IncomeInputProcessResult.Saved(
+                CreateIncomeDraft(300m, "Joe", "chips"),
+                CreateIncomeTransaction(300m, "Joe", "chips"),
+                "Tracked INR 300 received from Joe for chips."));
+        var service = CreateService(
+            expenseProcessor: expenseProcessor,
+            incomeProcessor: incomeProcessor);
 
         var result = await service.ProcessAsync(
-            CreateCommand("salary credited 50000"),
+            CreateCommand("Joe sent me 300 Rs for chips"),
             CancellationToken.None);
 
-        Assert.Equal(AssistantMessageStatus.Unsupported, result.Status);
+        Assert.Equal(AssistantMessageStatus.Responded, result.Status);
         Assert.Equal(FinanceInputIntent.CreateIncome, result.Intent);
-        Assert.Contains("Income capture", result.AssistantMessage);
+        Assert.Equal("Joe", result.ParsedIncomeDebug!.SenderName);
+        Assert.Equal("chips", result.ParsedIncomeDebug.Reason);
+        Assert.Equal("Joe", result.Transaction!.SenderName);
         Assert.Equal(0, expenseProcessor.ProcessCount);
+        Assert.Equal(1, incomeProcessor.ProcessCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RoutesAmountOnlyReplyToPendingIncomeProcessor()
+    {
+        var expenseProcessor = new FakeExpenseInputProcessor(
+            ExpenseInputProcessResult.Failed(["Should not be used."]));
+        var incomeProcessor = new FakeIncomeInputProcessor(
+            IncomeInputProcessResult.Saved(
+                CreateIncomeDraft(200000m, null, "Salary"),
+                CreateIncomeTransaction(200000m, null, "Salary"),
+                "Tracked INR 200000 received for Salary."),
+            hasPendingDraft: true);
+        var service = CreateService(
+            expenseProcessor: expenseProcessor,
+            incomeProcessor: incomeProcessor);
+
+        var result = await service.ProcessAsync(
+            CreateCommand("₹2,00,000."),
+            CancellationToken.None);
+
+        Assert.Equal(AssistantMessageStatus.Responded, result.Status);
+        Assert.Equal(FinanceInputIntent.CreateIncome, result.Intent);
+        Assert.Equal(200000m, result.Transaction!.Amount);
+        Assert.Equal("Salary", result.Transaction.Reason);
+        Assert.Equal(0, expenseProcessor.ProcessCount);
+        Assert.Equal(1, incomeProcessor.ProcessCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RoutesCreditCardPaymentToExpenseDespitePendingIncome()
+    {
+        var expenseProcessor = new FakeExpenseInputProcessor(
+            ExpenseInputProcessResult.Saved(
+                CreateDraft(70000m, "Bills"),
+                CreateTransaction(70000m, "Bills"),
+                "Tracked INR 70000 under Bills."));
+        var incomeProcessor = new FakeIncomeInputProcessor(
+            new IncomeInputProcessResult(
+                IncomeInputParseStatus.Failed,
+                FinanceInputIntent.Unknown,
+                null,
+                null,
+                null,
+                ["Should not be used."]),
+            hasPendingDraft: true);
+        var service = CreateService(
+            expenseProcessor: expenseProcessor,
+            incomeProcessor: incomeProcessor);
+
+        var result = await service.ProcessAsync(
+            CreateCommand("credit card bill 70k"),
+            CancellationToken.None);
+
+        Assert.Equal(FinanceInputIntent.CreateExpense, result.Intent);
+        Assert.Equal(TransactionType.Expense, result.Transaction!.Type);
+        Assert.Equal(1, expenseProcessor.ProcessCount);
+        Assert.Equal(0, incomeProcessor.ProcessCount);
     }
 
     private static AssistantMessageService CreateService(
         FakeExpenseInputProcessor? expenseProcessor = null,
+        FakeIncomeInputProcessor? incomeProcessor = null,
         FakeFinanceQuestionService? financeQuestionService = null) =>
         new(
             new HeuristicFinanceInputClassifier(),
             expenseProcessor ?? new FakeExpenseInputProcessor(
                 ExpenseInputProcessResult.Failed(["No fake result configured."])),
+            incomeProcessor ?? new FakeIncomeInputProcessor(
+                new IncomeInputProcessResult(
+                    IncomeInputParseStatus.Failed,
+                    FinanceInputIntent.Unknown,
+                    null,
+                    null,
+                    null,
+                    ["No fake result configured."])),
             new FakeAppUserProfileService(),
             financeQuestionService ?? new FakeFinanceQuestionService());
 
@@ -153,6 +230,47 @@ public sealed class AssistantMessageServiceTests
             DateTimeOffset.UtcNow,
             "Test User");
 
+    private static IncomeDraft CreateIncomeDraft(
+        decimal amount,
+        string? senderName,
+        string reason) =>
+        new(
+            amount,
+            senderName,
+            reason,
+            new DateOnly(2026, 6, 20),
+            "Joe sent me 300 Rs for chips",
+            InputMode.Text,
+            0.95m,
+            []);
+
+    private static TransactionModel CreateIncomeTransaction(
+        decimal amount,
+        string? senderName,
+        string reason) =>
+        new TransactionModel(
+            Guid.NewGuid(),
+            HouseholdId,
+            UserProfileId,
+            amount,
+            "INR",
+            TransactionType.Income,
+            "Other Income",
+            null,
+            null,
+            "Joe sent me 300 Rs for chips",
+            new DateOnly(2026, 6, 20),
+            InputMode.Text,
+            0.95m,
+            TransactionVisibility.Private,
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow,
+            "Test User")
+        {
+            SenderName = senderName,
+            Reason = reason
+        };
+
     private sealed class FakeExpenseInputProcessor(
         ExpenseInputProcessResult result) : IExpenseInputProcessor
     {
@@ -160,6 +278,23 @@ public sealed class AssistantMessageServiceTests
 
         public Task<ExpenseInputProcessResult> ProcessAsync(
             ExpenseInputParseRequest request,
+            CancellationToken cancellationToken)
+        {
+            ProcessCount++;
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class FakeIncomeInputProcessor(
+        IncomeInputProcessResult result,
+        bool hasPendingDraft = false) : IIncomeInputProcessor
+    {
+        public int ProcessCount { get; private set; }
+
+        public bool HasPendingDraft(IncomeInputParseRequest request) => hasPendingDraft;
+
+        public Task<IncomeInputProcessResult> ProcessAsync(
+            IncomeInputParseRequest request,
             CancellationToken cancellationToken)
         {
             ProcessCount++;
