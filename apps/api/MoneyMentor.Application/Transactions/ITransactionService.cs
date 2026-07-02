@@ -8,10 +8,13 @@ public interface ITransactionService
         SaveExpenseCommand command,
         CancellationToken cancellationToken);
 
-    Task<IReadOnlyCollection<TransactionModel>> ListAsync(
+    Task<TransactionModel> SaveIncomeAsync(
+        SaveIncomeCommand command,
+        CancellationToken cancellationToken);
+
+    Task<TransactionPageModel> ListAsync(
         AppUserContext userContext,
-        Guid? householdId,
-        int limit,
+        TransactionPageQuery query,
         CancellationToken cancellationToken);
 
     Task<TransactionModel?> GetAsync(

@@ -99,7 +99,7 @@ Dashboard:
 
 Transactions:
 
-- `GET /api/transactions?limit=50`
+- `GET /api/transactions?month=YYYY-MM&page=1&pageSize=10`
 - `GET /api/transactions/{transactionId}`
 - `PATCH /api/transactions/{transactionId}`
 

@@ -18,6 +18,8 @@ public sealed class MoneyMentorDbContext : DbContext
 
     public DbSet<HouseholdMember> HouseholdMembers => Set<HouseholdMember>();
 
+    public DbSet<HouseholdInvitation> HouseholdInvitations => Set<HouseholdInvitation>();
+
     public DbSet<Category> Categories => Set<Category>();
 
     public DbSet<Transaction> Transactions => Set<Transaction>();

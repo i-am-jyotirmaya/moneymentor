@@ -35,6 +35,17 @@ export type ExpenseDraft = {
   missingFields: string[];
 };
 
+export type IncomeDraft = {
+  amount: number | null;
+  senderName: string | null;
+  reason: string | null;
+  transactionDate: string | null;
+  sourceText: string;
+  inputMode: InputMode;
+  confidence: number;
+  missingFields: string[];
+};
+
 export type TransactionListItem = {
   id: string;
   householdId: string;
@@ -45,6 +56,8 @@ export type TransactionListItem = {
   categoryName: string | null;
   merchantName: string | null;
   description: string | null;
+  senderName: string | null;
+  reason: string | null;
   sourceText: string;
   transactionDate: string;
   inputMode: InputMode;
@@ -53,6 +66,14 @@ export type TransactionListItem = {
   createdAt: string;
   updatedAt: string;
   updatedByDisplayName: string | null;
+};
+
+export type TransactionPageResponse = {
+  items: TransactionListItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
 };
 
 export type ExpenseInputResponse = {
@@ -131,6 +152,7 @@ export type AssistantMessageResponse = {
   assistantMessage: string | null;
   transaction: TransactionListItem | null;
   parsedDebug: ExpenseDraft | null;
+  parsedIncomeDebug: IncomeDraft | null;
   financeAnswer: FinanceQuestionAnswer | null;
   errors: string[];
 };
@@ -168,6 +190,19 @@ export type HouseholdDashboard = {
   plan: UserPlan;
   canUseHouseholds: boolean;
   households: HouseholdSummary[];
+};
+
+export type HouseholdInvitation = {
+  id: string;
+  householdId: string;
+  householdName: string;
+  email: string;
+  role: HouseholdRole;
+  status: "Pending" | "Accepted" | "Declined" | "Expired";
+  invitedByDisplayName: string;
+  createdAt: string;
+  expiresAt: string;
+  respondedAt: string | null;
 };
 
 export class ApiError extends Error {
@@ -304,10 +339,38 @@ export function submitAssistantMessage(
   });
 }
 
-export function listTransactions(accessToken: string, limit = 50) {
-  return apiRequest<TransactionListItem[]>(`/api/transactions?limit=${limit}`, {
-    accessToken,
-  });
+export function listTransactions(
+  accessToken: string,
+  input: {
+    month?: string;
+    page?: number;
+    pageSize?: number;
+    householdId?: string;
+  } = {},
+) {
+  const params = new URLSearchParams();
+
+  if (input.month) {
+    params.set("month", input.month);
+  }
+
+  if (input.page) {
+    params.set("page", input.page.toString());
+  }
+
+  if (input.pageSize) {
+    params.set("pageSize", input.pageSize.toString());
+  }
+
+  if (input.householdId) {
+    params.set("householdId", input.householdId);
+  }
+
+  const queryString = params.toString();
+  return apiRequest<TransactionPageResponse>(
+    `/api/transactions${queryString ? `?${queryString}` : ""}`,
+    { accessToken },
+  );
 }
 
 export function getMonthlyDashboard(
@@ -342,6 +405,8 @@ export function updateTransaction(
     categoryName: string;
     merchantName: string;
     description: string;
+    senderName: string;
+    reason: string;
     transactionDate: string;
     visibility: TransactionVisibility;
   }>,
@@ -380,7 +445,7 @@ export function createHousehold(accessToken: string, name: string) {
   });
 }
 
-export function addHouseholdMember(
+export function createHouseholdInvitation(
   accessToken: string,
   householdId: string,
   input: {
@@ -388,9 +453,24 @@ export function addHouseholdMember(
     role: HouseholdRole;
   },
 ) {
-  return apiRequest<HouseholdSummary>(`/api/households/${householdId}/members`, {
+  return apiRequest<HouseholdInvitation>(`/api/households/${householdId}/invitations`, {
     accessToken,
     method: "POST",
     body: input,
   });
+}
+
+export function listHouseholdInvitations(accessToken: string) {
+  return apiRequest<HouseholdInvitation[]>("/api/households/invitations", { accessToken });
+}
+
+export function respondToHouseholdInvitation(
+  accessToken: string,
+  invitationId: string,
+  response: "accept" | "decline",
+) {
+  return apiRequest<HouseholdInvitation>(
+    `/api/households/invitations/${invitationId}/${response}`,
+    { accessToken, method: "POST" },
+  );
 }

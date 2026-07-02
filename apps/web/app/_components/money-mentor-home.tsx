@@ -6,6 +6,8 @@ import {
   BarChart3,
   Bot,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   CircleDollarSign,
   LayoutDashboard,
   LogOut,
@@ -39,22 +41,26 @@ import type {
   DashboardInsight,
   DashboardJudgement,
   HouseholdDashboard,
+  HouseholdInvitation,
   HouseholdRole,
   MonthlyDashboardResponse,
   TransactionListItem,
+  TransactionPageResponse,
   TransactionVisibility,
   UpdateUserSettingsRequest,
   UserPlan,
   UserSettingsResponse,
 } from "@/lib/api";
 import {
-  addHouseholdMember,
   ApiError,
   createHousehold,
+  createHouseholdInvitation,
   getMonthlyDashboard,
   getUserSettings,
+  listHouseholdInvitations,
   listHouseholds,
   listTransactions,
+  respondToHouseholdInvitation,
   submitAssistantMessage as sendAssistantMessage,
   updateTransaction,
   updateUserSettings,
@@ -84,6 +90,8 @@ type TransactionEditForm = {
   categoryName: string;
   merchantName: string;
   description: string;
+  senderName: string;
+  reason: string;
   transactionDate: string;
   visibility: TransactionVisibility;
 };
@@ -119,9 +127,11 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 const promptIdeas = [
   "groceries for 110 from local market",
-  "swiggy dinner 540",
+  "Joe sent me 300 Rs for chips",
   "where did I spend most this month?",
 ];
+
+const transactionPageSize = 10;
 
 const navItems: Array<{
   section: Exclude<AppSection, "home">;
@@ -153,13 +163,18 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
     {
       id: "seed-assistant",
       role: "assistant",
-      text: "Tell me what you spent, or ask where your money went this month.",
+      text: "Tell me what you spent or received, or ask where your money went this month.",
     },
   ]);
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
+  const [transactionPage, setTransactionPage] = useState<TransactionPageResponse | null>(null);
+  const [transactionMonth, setTransactionMonth] = useState(getCurrentMonthKey);
+  const [dashboardMonth, setDashboardMonth] = useState(getCurrentMonthKey);
   const [settings, setSettings] = useState<UserSettingsResponse | null>(null);
   const [settingsForm, setSettingsForm] = useState<SettingsForm | null>(null);
   const [households, setHouseholds] = useState<HouseholdDashboard | null>(null);
+  const [householdInvitations, setHouseholdInvitations] = useState<HouseholdInvitation[]>([]);
+  const [householdNotice, setHouseholdNotice] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<MonthlyDashboardResponse | null>(null);
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<TransactionEditForm | null>(null);
@@ -168,6 +183,8 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<HouseholdRole>("Member");
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
   const [isSavingHousehold, setIsSavingHousehold] = useState(false);
@@ -214,18 +231,28 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
       setError(null);
 
       try {
-        const [settingsResult, transactionResult, householdResult, dashboardResult] = await Promise.all([
-          getUserSettings(accessToken),
-          listTransactions(accessToken, 50),
+        const currentMonth = getCurrentMonthKey();
+        const settingsResult = await getUserSettings(accessToken);
+        const [transactionResult, householdResult, dashboardResult, invitationResult] = await Promise.all([
+          listTransactions(accessToken, {
+            month: currentMonth,
+            page: 1,
+            pageSize: transactionPageSize,
+          }),
           listHouseholds(accessToken),
-          getMonthlyDashboard(accessToken, { month: getCurrentMonthKey() }),
+          getMonthlyDashboard(accessToken, { month: currentMonth }),
+          listHouseholdInvitations(accessToken),
         ]);
 
         setSettings(settingsResult);
         setSettingsForm(toSettingsForm(settingsResult));
-        setTransactions(transactionResult);
+        setTransactions(transactionResult.items);
+        setTransactionPage(transactionResult);
+        setTransactionMonth(currentMonth);
         setHouseholds(householdResult);
+        setHouseholdInvitations(invitationResult);
         setDashboard(dashboardResult);
+        setDashboardMonth(currentMonth);
         setSelectedHouseholdId((current) => current ?? householdResult.households[0]?.id ?? null);
       } catch (caughtError) {
         handleApiError(caughtError, "Could not load your MoneyMentor workspace.");
@@ -407,12 +434,88 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
 
   async function refreshDashboardAndTransactions(accessToken: string) {
     const [transactionResult, dashboardResult] = await Promise.all([
-      listTransactions(accessToken, 50),
-      getMonthlyDashboard(accessToken, { month: getCurrentMonthKey() }),
+      listTransactions(accessToken, {
+        month: transactionMonth,
+        page: transactionPage?.page ?? 1,
+        pageSize: transactionPageSize,
+      }),
+      getMonthlyDashboard(accessToken, { month: dashboardMonth }),
     ]);
 
-    setTransactions(transactionResult);
+    setTransactions(transactionResult.items);
+    setTransactionPage(transactionResult);
     setDashboard(dashboardResult);
+  }
+
+  async function changeDashboardMonth(month: string) {
+    if (!session || month === dashboardMonth || isLoadingDashboard) {
+      return;
+    }
+
+    const previousMonth = dashboardMonth;
+    setDashboardMonth(month);
+    setIsLoadingDashboard(true);
+    setError(null);
+
+    try {
+      setDashboard(await getMonthlyDashboard(session.accessToken, { month }));
+    } catch (caughtError) {
+      setDashboardMonth(previousMonth);
+      handleApiError(caughtError, "Could not load that dashboard month.");
+    } finally {
+      setIsLoadingDashboard(false);
+    }
+  }
+
+  async function changeTransactionMonth(month: string) {
+    if (!session || month === transactionMonth || isLoadingTransactions) {
+      return;
+    }
+
+    const previousMonth = transactionMonth;
+    setTransactionMonth(month);
+    setIsLoadingTransactions(true);
+    setError(null);
+    closeTransactionEditor();
+
+    try {
+      const result = await listTransactions(session.accessToken, {
+        month,
+        page: 1,
+        pageSize: transactionPageSize,
+      });
+      setTransactions(result.items);
+      setTransactionPage(result);
+    } catch (caughtError) {
+      setTransactionMonth(previousMonth);
+      handleApiError(caughtError, "Could not load transactions for that month.");
+    } finally {
+      setIsLoadingTransactions(false);
+    }
+  }
+
+  async function changeTransactionPage(page: number) {
+    if (!session || isLoadingTransactions || page < 1 || page === transactionPage?.page) {
+      return;
+    }
+
+    setIsLoadingTransactions(true);
+    setError(null);
+    closeTransactionEditor();
+
+    try {
+      const result = await listTransactions(session.accessToken, {
+        month: transactionMonth,
+        page,
+        pageSize: transactionPageSize,
+      });
+      setTransactions(result.items);
+      setTransactionPage(result);
+    } catch (caughtError) {
+      handleApiError(caughtError, "Could not load that transaction page.");
+    } finally {
+      setIsLoadingTransactions(false);
+    }
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -440,8 +543,9 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
       const updated = await updateTransaction(session.accessToken, selectedTransaction.id, {
         amount,
         categoryName: editForm.categoryName,
-        merchantName: editForm.merchantName,
-        description: editForm.description,
+        ...(selectedTransaction.type === "Income"
+          ? { senderName: editForm.senderName, reason: editForm.reason }
+          : { merchantName: editForm.merchantName, description: editForm.description }),
         transactionDate: editForm.transactionDate,
         visibility: editForm.visibility,
       });
@@ -450,8 +554,12 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
         current.map((transaction) => (transaction.id === updated.id ? updated : transaction)),
       );
       setEditForm(toTransactionEditForm(updated));
-      appendMessage("assistant", `Updated ${updated.description ?? "that transaction"}.`);
+      appendMessage(
+        "assistant",
+        `Updated ${updated.reason ?? updated.description ?? "that transaction"}.`,
+      );
       await refreshDashboardAndTransactions(session.accessToken);
+      closeTransactionEditor();
     } catch (caughtError) {
       handleApiError(caughtError, "Could not update the transaction.");
     } finally {
@@ -481,7 +589,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
       setSettings(updated);
       setSettingsForm(toSettingsForm(updated));
       setHouseholds(await listHouseholds(session.accessToken));
-      setDashboard(await getMonthlyDashboard(session.accessToken, { month: getCurrentMonthKey() }));
+      setDashboard(await getMonthlyDashboard(session.accessToken, { month: dashboardMonth }));
     } catch (caughtError) {
       handleApiError(caughtError, "Could not save settings.");
     } finally {
@@ -498,6 +606,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
 
     setIsSavingHousehold(true);
     setError(null);
+    setHouseholdNotice(null);
 
     try {
       const created = await createHousehold(session.accessToken, householdName.trim());
@@ -505,6 +614,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
       setHouseholds(householdResult);
       setSelectedHouseholdId(created.id);
       setHouseholdName("");
+      setHouseholdNotice(`${created.name} is ready.`);
     } catch (caughtError) {
       handleApiError(caughtError, "Could not create the household.");
     } finally {
@@ -521,16 +631,57 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
 
     setIsSavingHousehold(true);
     setError(null);
+    setHouseholdNotice(null);
 
     try {
-      await addHouseholdMember(session.accessToken, selectedHouseholdId, {
+      await createHouseholdInvitation(session.accessToken, selectedHouseholdId, {
         email: memberEmail.trim(),
         role: memberRole,
       });
       setHouseholds(await listHouseholds(session.accessToken));
+      setHouseholdNotice(`Invitation sent to ${memberEmail.trim()}.`);
       setMemberEmail("");
     } catch (caughtError) {
-      handleApiError(caughtError, "Could not add that household member.");
+      handleApiError(caughtError, "Could not send that household invitation.");
+    } finally {
+      setIsSavingHousehold(false);
+    }
+  }
+
+  async function handleInvitationResponse(
+    invitationId: string,
+    response: "accept" | "decline",
+  ) {
+    if (!session || isSavingHousehold) {
+      return;
+    }
+
+    setIsSavingHousehold(true);
+    setError(null);
+    setHouseholdNotice(null);
+
+    try {
+      const invitation = await respondToHouseholdInvitation(
+        session.accessToken,
+        invitationId,
+        response,
+      );
+      const [householdResult, invitationResult] = await Promise.all([
+        listHouseholds(session.accessToken),
+        listHouseholdInvitations(session.accessToken),
+      ]);
+      setHouseholds(householdResult);
+      setHouseholdInvitations(invitationResult);
+      setSelectedHouseholdId((current) =>
+        response === "accept" ? invitation.householdId : current,
+      );
+      setHouseholdNotice(
+        response === "accept"
+          ? `You joined ${invitation.householdName}.`
+          : `Invitation to ${invitation.householdName} declined.`,
+      );
+    } catch (caughtError) {
+      handleApiError(caughtError, `Could not ${response} that household invitation.`);
     } finally {
       setIsSavingHousehold(false);
     }
@@ -588,10 +739,15 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
             {renderSection(desktopSection, {
               chatEndRef,
               dashboard,
+              dashboardMonth,
               editForm,
               households,
+              householdInvitations,
+              householdNotice,
               inputMode,
               isListening,
+              isLoadingDashboard,
+              isLoadingTransactions,
               isSavingHousehold,
               isSavingSettings,
               isSavingTransaction,
@@ -600,12 +756,15 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
               memberRole,
               messages,
               onAddMember: handleAddMember,
+              onDashboardMonthChange: (month) => void changeDashboardMonth(month),
               onCloseEdit: closeTransactionEditor,
               onCreateHousehold: handleCreateHousehold,
               onEditFormChange: setEditForm,
               onHouseholdNameChange: setHouseholdName,
               onMemberEmailChange: setMemberEmail,
               onMemberRoleChange: setMemberRole,
+              onInvitationResponse: (invitationId, response) =>
+                void handleInvitationResponse(invitationId, response),
               onFormChange: setSettingsForm,
               onPromptClick: (idea) => {
                 setText(idea);
@@ -621,11 +780,15 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
                 setInputMode("Text");
               },
               onToggleVoice: toggleVoiceInput,
+              onTransactionMonthChange: (month) => void changeTransactionMonth(month),
+              onTransactionPageChange: (page) => void changeTransactionPage(page),
               onUpgrade: upgradeToPremium,
               selectedHouseholdId,
               selectedTransaction,
               settingsForm,
               text,
+              transactionMonth,
+              transactionPage,
               transactions,
               householdName,
             })}
@@ -636,10 +799,15 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
             {renderSection(mobileSection, {
               chatEndRef,
               dashboard,
+              dashboardMonth,
               editForm,
               households,
+              householdInvitations,
+              householdNotice,
               inputMode,
               isListening,
+              isLoadingDashboard,
+              isLoadingTransactions,
               isSavingHousehold,
               isSavingSettings,
               isSavingTransaction,
@@ -648,12 +816,15 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
               memberRole,
               messages,
               onAddMember: handleAddMember,
+              onDashboardMonthChange: (month) => void changeDashboardMonth(month),
               onCloseEdit: closeTransactionEditor,
               onCreateHousehold: handleCreateHousehold,
               onEditFormChange: setEditForm,
               onHouseholdNameChange: setHouseholdName,
               onMemberEmailChange: setMemberEmail,
               onMemberRoleChange: setMemberRole,
+              onInvitationResponse: (invitationId, response) =>
+                void handleInvitationResponse(invitationId, response),
               onFormChange: setSettingsForm,
               onPromptClick: (idea) => {
                 setText(idea);
@@ -669,11 +840,15 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
                 setInputMode("Text");
               },
               onToggleVoice: toggleVoiceInput,
+              onTransactionMonthChange: (month) => void changeTransactionMonth(month),
+              onTransactionPageChange: (page) => void changeTransactionPage(page),
               onUpgrade: upgradeToPremium,
               selectedHouseholdId,
               selectedTransaction,
               settingsForm,
               text,
+              transactionMonth,
+              transactionPage,
               transactions,
               householdName,
             })}
@@ -710,6 +885,17 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
           text={text}
         />
       ) : null}
+
+      {selectedTransaction && editForm ? (
+        <TransactionEditModal
+          editForm={editForm}
+          isSaving={isSavingTransaction}
+          onClose={closeTransactionEditor}
+          onEditFormChange={setEditForm}
+          onSave={handleSaveTransaction}
+          transaction={selectedTransaction}
+        />
+      ) : null}
     </main>
   );
 }
@@ -717,11 +903,16 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
 type SectionRenderProps = {
   chatEndRef: RefObject<HTMLDivElement | null>;
   dashboard: MonthlyDashboardResponse | null;
+  dashboardMonth: string;
   editForm: TransactionEditForm | null;
   householdName: string;
   households: HouseholdDashboard | null;
+  householdInvitations: HouseholdInvitation[];
+  householdNotice: string | null;
   inputMode: InputMode;
   isListening: boolean;
+  isLoadingDashboard: boolean;
+  isLoadingTransactions: boolean;
   isSavingHousehold: boolean;
   isSavingSettings: boolean;
   isSavingTransaction: boolean;
@@ -730,6 +921,7 @@ type SectionRenderProps = {
   memberRole: HouseholdRole;
   messages: Message[];
   onAddMember: (event: FormEvent<HTMLFormElement>) => void;
+  onDashboardMonthChange: (month: string) => void;
   onCloseEdit: () => void;
   onCreateHousehold: (event: FormEvent<HTMLFormElement>) => void;
   onEditFormChange: (form: TransactionEditForm) => void;
@@ -737,6 +929,10 @@ type SectionRenderProps = {
   onHouseholdNameChange: (value: string) => void;
   onMemberEmailChange: (value: string) => void;
   onMemberRoleChange: (role: HouseholdRole) => void;
+  onInvitationResponse: (
+    invitationId: string,
+    response: "accept" | "decline",
+  ) => void;
   onPromptClick: (idea: string) => void;
   onSaveSettings: (event: FormEvent<HTMLFormElement>) => void;
   onSaveTransaction: (event: FormEvent<HTMLFormElement>) => void;
@@ -745,17 +941,28 @@ type SectionRenderProps = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onTextChange: (value: string) => void;
   onToggleVoice: () => void;
+  onTransactionMonthChange: (month: string) => void;
+  onTransactionPageChange: (page: number) => void;
   onUpgrade: () => void;
   selectedHouseholdId: string | null;
   selectedTransaction: TransactionListItem | null;
   settingsForm: SettingsForm | null;
   text: string;
+  transactionMonth: string;
+  transactionPage: TransactionPageResponse | null;
   transactions: TransactionListItem[];
 };
 
 function renderSection(section: Exclude<AppSection, "home">, props: SectionRenderProps) {
   if (section === "dashboard") {
-    return <DashboardSection dashboard={props.dashboard} transactions={props.transactions} />;
+    return (
+      <DashboardSection
+        dashboard={props.dashboard}
+        isLoading={props.isLoadingDashboard}
+        month={props.dashboardMonth}
+        onMonthChange={props.onDashboardMonthChange}
+      />
+    );
   }
 
   if (section === "assistant") {
@@ -779,13 +986,12 @@ function renderSection(section: Exclude<AppSection, "home">, props: SectionRende
   if (section === "transactions") {
     return (
       <TransactionsSection
-        editForm={props.editForm}
-        isSaving={props.isSavingTransaction}
-        onCloseEdit={props.onCloseEdit}
-        onEditFormChange={props.onEditFormChange}
-        onSave={props.onSaveTransaction}
+        isLoading={props.isLoadingTransactions}
+        month={props.transactionMonth}
         onSelectTransaction={props.onSelectTransaction}
-        selectedTransaction={props.selectedTransaction}
+        onMonthChange={props.onTransactionMonthChange}
+        onPageChange={props.onTransactionPageChange}
+        page={props.transactionPage}
         transactions={props.transactions}
       />
     );
@@ -796,17 +1002,20 @@ function renderSection(section: Exclude<AppSection, "home">, props: SectionRende
       <HouseholdSection
         householdName={props.householdName}
         households={props.households}
+        invitations={props.householdInvitations}
         isSaving={props.isSavingHousehold || props.isSavingSettings}
         memberEmail={props.memberEmail}
         memberRole={props.memberRole}
         onAddMember={props.onAddMember}
         onCreateHousehold={props.onCreateHousehold}
         onHouseholdNameChange={props.onHouseholdNameChange}
+        onInvitationResponse={props.onInvitationResponse}
         onMemberEmailChange={props.onMemberEmailChange}
         onMemberRoleChange={props.onMemberRoleChange}
         onSelectedHouseholdChange={props.onSelectedHouseholdChange}
         onUpgrade={props.onUpgrade}
         selectedHouseholdId={props.selectedHouseholdId}
+        statusMessage={props.householdNotice}
       />
     );
   }
@@ -1051,17 +1260,24 @@ function WorkspaceError({ error, isLoading }: { error: string | null; isLoading:
 
 function DashboardSection({
   dashboard,
-  transactions,
+  isLoading,
+  month,
+  onMonthChange,
 }: {
   dashboard: MonthlyDashboardResponse | null;
-  transactions: TransactionListItem[];
+  isLoading: boolean;
+  month: string;
+  onMonthChange: (month: string) => void;
 }) {
   if (!dashboard) {
     return <EmptyState icon={BarChart3} title="Loading dashboard" text="Your real money snapshot is being synced." />;
   }
 
   return (
-    <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
+    <section
+      aria-busy={isLoading}
+      className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0"
+    >
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-[var(--muted)]">{dashboard.monthLabel}</p>
@@ -1070,10 +1286,18 @@ function DashboardSection({
             Based on your stored MoneyMentor transactions.
           </p>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent-soft)] px-3 py-2 text-xs font-bold text-[var(--accent)]">
-          <CheckCircle2 className="h-4 w-4" />
-          Backend data
-        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <MonthNavigator
+            disabled={isLoading}
+            label="Dashboard month"
+            month={month}
+            onMonthChange={onMonthChange}
+          />
+          <span className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent-soft)] px-3 py-2 text-xs font-bold text-[var(--accent)]">
+            <CheckCircle2 className="h-4 w-4" />
+            Backend data
+          </span>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1124,7 +1348,7 @@ function DashboardSection({
         </div>
       </div>
 
-      <TransactionsPanel transactions={transactions.slice(0, 6)} />
+      <TransactionsPanel transactions={dashboard.recentTransactions} />
     </section>
   );
 }
@@ -1233,7 +1457,7 @@ function TransactionsPanel({ transactions }: { transactions: TransactionListItem
             <TransactionRow key={transaction.id} transaction={transaction} />
           ))
         ) : (
-          <EmptyInline text="No transactions yet. Try typing an expense in the assistant." />
+          <EmptyInline text="No transactions yet. Try tracking an expense or income in the assistant." />
         )}
       </div>
     </article>
@@ -1266,7 +1490,7 @@ function AssistantSection({
   transactions: TransactionListItem[];
 }) {
   return (
-    <section className="flex min-h-full flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5">
       <ChatSurface
         chatEndRef={chatEndRef}
         inputMode={inputMode}
@@ -1279,7 +1503,7 @@ function AssistantSection({
         onToggleVoice={onToggleVoice}
         showPromptIdeas
         text={text}
-        title="What did you spend on?"
+        title="What did you spend or receive?"
       />
       <div className="hidden min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm lg:block">
         <h3 className="text-base font-semibold">Recent tracked</h3>
@@ -1287,7 +1511,7 @@ function AssistantSection({
           {transactions.slice(0, 5).map((transaction) => (
             <TransactionRow key={transaction.id} transaction={transaction} compact />
           ))}
-          {transactions.length === 0 ? <EmptyInline text="Tracked expenses will appear here." /> : null}
+          {transactions.length === 0 ? <EmptyInline text="Tracked expenses and income will appear here." /> : null}
         </div>
       </div>
     </section>
@@ -1376,7 +1600,7 @@ function ChatSurface({
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder="spent 500 on groceries"
+              placeholder="spent 500 on groceries or got salary 50000"
               rows={1}
               value={text}
             />
@@ -1433,10 +1657,10 @@ function DesktopAssistantDock({
       {isOpen ? (
         <section
           aria-label="Assistant chat"
-          className="mb-4 h-[560px] w-[420px] overflow-hidden rounded-lg border border-[var(--border)] bg-white shadow-[0_28px_90px_rgba(16,43,38,0.22)]"
+          className="mb-4 flex h-[560px] w-[420px] min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-white shadow-[0_28px_90px_rgba(16,43,38,0.22)]"
           role="dialog"
         >
-          <div className="flex items-center justify-between border-b border-[var(--border)] bg-white px-4 py-3">
+          <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] bg-white px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--ink)] text-white">
                 <Bot className="h-5 w-5" />
@@ -1466,7 +1690,7 @@ function DesktopAssistantDock({
             onTextChange={onTextChange}
             onToggleVoice={onToggleVoice}
             text={text}
-            title="What did you spend on?"
+            title="What did you spend or receive?"
           />
         </section>
       ) : null}
@@ -1484,92 +1708,251 @@ function DesktopAssistantDock({
 }
 
 function TransactionsSection({
-  editForm,
-  isSaving,
-  onCloseEdit,
-  onEditFormChange,
-  onSave,
+  isLoading,
+  month,
+  onMonthChange,
+  onPageChange,
   onSelectTransaction,
-  selectedTransaction,
+  page,
   transactions,
 }: {
-  editForm: TransactionEditForm | null;
-  isSaving: boolean;
-  onCloseEdit: () => void;
-  onEditFormChange: (form: TransactionEditForm) => void;
-  onSave: (event: FormEvent<HTMLFormElement>) => void;
+  isLoading: boolean;
+  month: string;
+  onMonthChange: (month: string) => void;
+  onPageChange: (page: number) => void;
   onSelectTransaction: (transaction: TransactionListItem) => void;
-  selectedTransaction: TransactionListItem | null;
+  page: TransactionPageResponse | null;
   transactions: TransactionListItem[];
 }) {
+  const currentPage = page?.page ?? 1;
+  const totalPages = Math.max(page?.totalPages ?? 0, 1);
+
   return (
-    <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-2xl font-semibold tracking-normal">Transactions</h2>
-              <p className="mt-1 text-sm font-medium text-[var(--muted)]">
-                Backend records with categories, visibility, and audit-friendly edits.
-              </p>
-            </div>
+    <section
+      aria-busy={isLoading}
+      className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0"
+    >
+      <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-normal">Transactions</h2>
+            <p className="mt-1 text-sm font-medium text-[var(--muted)]">
+              Review one month at a time and edit a record when you need to.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <MonthNavigator
+              disabled={isLoading}
+              label="Transaction month"
+              month={month}
+              onMonthChange={onMonthChange}
+            />
             <ReceiptText className="h-5 w-5 text-[var(--accent)]" />
           </div>
-          <div className="mt-5 divide-y divide-[var(--border)]">
-            {transactions.length > 0 ? (
-              transactions.map((transaction) => (
-                <button
-                  className="block w-full text-left"
-                  key={transaction.id}
-                  onClick={() => onSelectTransaction(transaction)}
-                  type="button"
-                >
-                  <TransactionRow transaction={transaction} />
-                </button>
-              ))
-            ) : (
-              <EmptyInline text="No transactions yet. Add an expense from the assistant." />
-            )}
+        </div>
+
+        <div className={`mt-5 divide-y divide-[var(--border)] ${isLoading ? "opacity-60" : ""}`}>
+          {transactions.length > 0 ? (
+            transactions.map((transaction) => (
+              <TransactionRow
+                key={transaction.id}
+                onEdit={() => onSelectTransaction(transaction)}
+                transaction={transaction}
+              />
+            ))
+          ) : (
+            <EmptyInline text={`No transactions found in ${formatMonthKey(month)}.`} />
+          )}
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4">
+          <p className="text-sm font-medium text-[var(--muted)]" aria-live="polite">
+            {page?.totalCount ?? 0} records, Page {currentPage} of {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              aria-label="Previous transaction page"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--border)] px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={isLoading || currentPage <= 1}
+              onClick={() => onPageChange(currentPage - 1)}
+              type="button"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </button>
+            <button
+              aria-label="Next transaction page"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--border)] px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={isLoading || currentPage >= totalPages}
+              onClick={() => onPageChange(currentPage + 1)}
+              type="button"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
-        </article>
+        </div>
+      </article>
 
-        <aside className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
-          {selectedTransaction && editForm ? (
-            <form className="space-y-4" onSubmit={onSave}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold">Edit transaction</h3>
-                  <p className="mt-1 text-sm font-medium text-[var(--muted)]">
-                    Last edited by {selectedTransaction.updatedByDisplayName ?? "MoneyMentor"}
-                  </p>
-                </div>
-                <button
-                  aria-label="Close transaction editor"
-                  className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--border)]"
-                  onClick={onCloseEdit}
-                  type="button"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+    </section>
+  );
+}
 
-              <Field label="Amount">
+function MonthNavigator({
+  disabled,
+  label,
+  month,
+  onMonthChange,
+}: {
+  disabled: boolean;
+  label: string;
+  month: string;
+  onMonthChange: (month: string) => void;
+}) {
+  const monthOptions = useMemo(() => getMonthOptions(month), [month]);
+  const nextMonth = shiftMonthKey(month, 1);
+  const currentMonth = getCurrentMonthKey();
+
+  return (
+    <div className="inline-flex items-center rounded-lg border border-[var(--border)] bg-white p-1 shadow-sm">
+      <button
+        aria-label={`Previous ${label.toLowerCase()}`}
+        className="grid h-9 w-9 place-items-center rounded-md text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--ink)] disabled:opacity-45"
+        disabled={disabled}
+        onClick={() => onMonthChange(shiftMonthKey(month, -1))}
+        type="button"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <select
+        aria-label={label}
+        className="h-9 min-w-36 bg-transparent px-2 text-sm font-semibold outline-none disabled:opacity-60"
+        disabled={disabled}
+        onChange={(event) => onMonthChange(event.target.value)}
+        value={month}
+      >
+        {monthOptions.map((option) => (
+          <option key={option} value={option}>
+            {formatMonthKey(option)}
+          </option>
+        ))}
+      </select>
+      <button
+        aria-label={`Next ${label.toLowerCase()}`}
+        className="grid h-9 w-9 place-items-center rounded-md text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--ink)] disabled:opacity-45"
+        disabled={disabled || nextMonth > currentMonth}
+        onClick={() => onMonthChange(nextMonth)}
+        type="button"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function TransactionEditModal({
+  editForm,
+  isSaving,
+  onClose,
+  onEditFormChange,
+  onSave,
+  transaction,
+}: {
+  editForm: TransactionEditForm;
+  isSaving: boolean;
+  onClose: () => void;
+  onEditFormChange: (form: TransactionEditForm) => void;
+  onSave: (event: FormEvent<HTMLFormElement>) => void;
+  transaction: TransactionListItem;
+}) {
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const isIncome = transaction.type === "Income";
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
+
+    return () => {
+      if (dialog?.open) {
+        dialog.close();
+      }
+    };
+  }, []);
+
+  return (
+    <dialog
+      aria-describedby="transaction-editor-description"
+      aria-labelledby="transaction-editor-title"
+      className="fixed inset-0 m-auto max-h-[90dvh] w-[min(92vw,560px)] overflow-hidden rounded-xl border border-[var(--border)] bg-white p-0 text-[var(--ink)] shadow-2xl backdrop:bg-slate-950/45"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+      ref={dialogRef}
+    >
+      <form className="flex max-h-[90dvh] flex-col" onSubmit={onSave}>
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
+          <div>
+            <h3 className="text-lg font-semibold" id="transaction-editor-title">Edit transaction</h3>
+            <p className="mt-1 text-sm font-medium text-[var(--muted)]" id="transaction-editor-description">
+              Last edited by {transaction.updatedByDisplayName ?? "MoneyMentor"}
+            </p>
+          </div>
+          <button
+            aria-label="Close transaction editor"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[var(--border)]"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <Field label="Amount">
+            <input
+              className="form-control"
+              min="0.01"
+              onChange={(event) => onEditFormChange({ ...editForm, amount: event.target.value })}
+              required
+              step="0.01"
+              type="number"
+              value={editForm.amount}
+            />
+          </Field>
+          <Field label="Category">
+            <input
+              className="form-control"
+              onChange={(event) => onEditFormChange({ ...editForm, categoryName: event.target.value })}
+              value={editForm.categoryName}
+            />
+          </Field>
+          {isIncome ? (
+            <>
+              <Field label="Sender">
                 <input
                   className="form-control"
-                  min="0.01"
-                  onChange={(event) => onEditFormChange({ ...editForm, amount: event.target.value })}
-                  step="0.01"
-                  type="number"
-                  value={editForm.amount}
+                  onChange={(event) => onEditFormChange({ ...editForm, senderName: event.target.value })}
+                  value={editForm.senderName}
                 />
               </Field>
-              <Field label="Category">
+              <Field label="Reason">
                 <input
                   className="form-control"
-                  onChange={(event) => onEditFormChange({ ...editForm, categoryName: event.target.value })}
-                  value={editForm.categoryName}
+                  onChange={(event) => onEditFormChange({ ...editForm, reason: event.target.value })}
+                  value={editForm.reason}
                 />
               </Field>
+            </>
+          ) : (
+            <>
               <Field label="Merchant">
                 <input
                   className="form-control"
@@ -1584,30 +1967,35 @@ function TransactionsSection({
                   value={editForm.description}
                 />
               </Field>
-              <Field label="Transaction date">
-                <input
-                  className="form-control"
-                  onChange={(event) => onEditFormChange({ ...editForm, transactionDate: event.target.value })}
-                  type="date"
-                  value={editForm.transactionDate}
-                />
-              </Field>
-              <Field label="Visibility">
-                <select
-                  className="form-control"
-                  onChange={(event) =>
-                    onEditFormChange({
-                      ...editForm,
-                      visibility: event.target.value as TransactionVisibility,
-                    })
-                  }
-                  value={editForm.visibility}
-                >
-                  <option value="Private">Private</option>
-                  <option value="Household">Household</option>
-                </select>
-              </Field>
+            </>
+          )}
+          <Field label="Transaction date">
+            <input
+              className="form-control"
+              onChange={(event) => onEditFormChange({ ...editForm, transactionDate: event.target.value })}
+              required
+              type="date"
+              value={editForm.transactionDate}
+            />
+          </Field>
+          <Field label="Visibility">
+            <select
+              className="form-control"
+              onChange={(event) =>
+                onEditFormChange({
+                  ...editForm,
+                  visibility: event.target.value as TransactionVisibility,
+                })
+              }
+              value={editForm.visibility}
+            >
+              <option value="Private">Private</option>
+              <option value="Household">Household</option>
+            </select>
+          </Field>
+        </div>
 
+        <div className="shrink-0 border-t border-[var(--border)] bg-white px-5 py-4">
               <button
                 className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
                 disabled={isSaving}
@@ -1616,48 +2004,49 @@ function TransactionsSection({
                 <Save className="h-4 w-4" />
                 {isSaving ? "Saving..." : "Save transaction"}
               </button>
-            </form>
-          ) : (
-            <EmptyState
-              icon={Pencil}
-              title="Select a transaction"
-              text="Choose a row to review and update the backend record."
-            />
-          )}
-        </aside>
-      </div>
-    </section>
+        </div>
+      </form>
+    </dialog>
   );
 }
 
 function HouseholdSection({
   householdName,
   households,
+  invitations,
   isSaving,
   memberEmail,
   memberRole,
   onAddMember,
   onCreateHousehold,
   onHouseholdNameChange,
+  onInvitationResponse,
   onMemberEmailChange,
   onMemberRoleChange,
   onSelectedHouseholdChange,
   onUpgrade,
   selectedHouseholdId,
+  statusMessage,
 }: {
   householdName: string;
   households: HouseholdDashboard | null;
+  invitations: HouseholdInvitation[];
   isSaving: boolean;
   memberEmail: string;
   memberRole: HouseholdRole;
   onAddMember: (event: FormEvent<HTMLFormElement>) => void;
   onCreateHousehold: (event: FormEvent<HTMLFormElement>) => void;
   onHouseholdNameChange: (value: string) => void;
+  onInvitationResponse: (
+    invitationId: string,
+    response: "accept" | "decline",
+  ) => void;
   onMemberEmailChange: (value: string) => void;
   onMemberRoleChange: (role: HouseholdRole) => void;
   onSelectedHouseholdChange: (householdId: string) => void;
   onUpgrade: () => void;
   selectedHouseholdId: string | null;
+  statusMessage: string | null;
 }) {
   if (!households) {
     return <EmptyState icon={Users} title="Loading households" text="Household access is being synced." />;
@@ -1678,6 +2067,50 @@ function HouseholdSection({
               {households.plan}
             </span>
           </div>
+
+          {statusMessage ? (
+            <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800" role="status">
+              {statusMessage}
+            </p>
+          ) : null}
+
+          {invitations.length > 0 ? (
+            <div className="mt-5 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+              <h3 className="text-base font-semibold">Invitations for you</h3>
+              <div className="mt-3 grid gap-3">
+                {invitations.map((invitation) => (
+                  <article className="rounded-lg border border-[var(--border)] bg-white p-3" key={invitation.id}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">{invitation.householdName}</p>
+                        <p className="mt-1 text-xs font-medium text-[var(--muted)]">
+                          {invitation.invitedByDisplayName} invited you as {invitation.role}. Expires {formatDate(invitation.expiresAt)}.
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          className="h-9 rounded-lg border border-[var(--border)] bg-white px-3 text-xs font-bold text-[var(--muted)] disabled:opacity-65"
+                          disabled={isSaving}
+                          onClick={() => onInvitationResponse(invitation.id, "decline")}
+                          type="button"
+                        >
+                          Decline
+                        </button>
+                        <button
+                          className="h-9 rounded-lg bg-[var(--accent)] px-3 text-xs font-bold text-white disabled:opacity-65"
+                          disabled={isSaving}
+                          onClick={() => onInvitationResponse(invitation.id, "accept")}
+                          type="button"
+                        >
+                          Accept
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {households.canUseHouseholds ? (
             <div className="mt-5 grid gap-3">
@@ -1746,7 +2179,10 @@ function HouseholdSection({
           </form>
 
           <form className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm" onSubmit={onAddMember}>
-            <h3 className="text-lg font-semibold">Add member</h3>
+            <h3 className="text-lg font-semibold">Invite member</h3>
+            <p className="mt-1 text-sm font-medium text-[var(--muted)]">
+              They can accept after signing in with this email.
+            </p>
             <Field label="Email">
               <input
                 className="form-control"
@@ -1773,7 +2209,7 @@ function HouseholdSection({
               type="submit"
             >
               <UserPlus className="h-4 w-4" />
-              Add member
+              Send invitation
             </button>
           </form>
         </aside>
@@ -1878,19 +2314,24 @@ function SettingsSection({
 
 function TransactionRow({
   compact = false,
+  onEdit,
   transaction,
 }: {
   compact?: boolean;
+  onEdit?: () => void;
   transaction: TransactionListItem;
 }) {
   const isIncome = transaction.type === "Income";
+  const transactionLabel = isIncome
+    ? transaction.reason ?? (transaction.senderName ? `Income from ${transaction.senderName}` : transaction.sourceText)
+    : transaction.description ?? transaction.merchantName ?? transaction.sourceText;
 
   return (
     <article className={`flex items-center justify-between gap-3 ${compact ? "py-3" : "py-4"}`}>
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <p className="truncate text-sm font-semibold">
-            {transaction.description ?? transaction.merchantName ?? transaction.sourceText}
+            {transactionLabel}
           </p>
           <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${isIncome ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
             {transaction.type}
@@ -1898,15 +2339,29 @@ function TransactionRow({
         </div>
         <p className="mt-1 truncate text-xs font-medium text-[var(--muted)]">
           {transaction.categoryName ?? "Uncategorized"}
-          {transaction.merchantName ? ` - ${transaction.merchantName}` : ""}
+          {isIncome && transaction.senderName ? ` - From ${transaction.senderName}` : ""}
+          {!isIncome && transaction.merchantName ? ` - ${transaction.merchantName}` : ""}
           {" - "}
           {formatDate(transaction.transactionDate)}
         </p>
       </div>
-      <p className={`shrink-0 text-sm font-bold ${isIncome ? "text-emerald-700" : "text-[var(--ink)]"}`}>
-        {isIncome ? "+" : "-"}
-        {formatMoney(transaction.amount, transaction.currencyCode)}
-      </p>
+      <div className="flex shrink-0 items-center gap-2">
+        <p className={`text-sm font-bold ${isIncome ? "text-emerald-700" : "text-[var(--ink)]"}`}>
+          {isIncome ? "+" : "-"}
+          {formatMoney(transaction.amount, transaction.currencyCode)}
+        </p>
+        {onEdit ? (
+          <button
+            aria-label={`Edit transaction ${transactionLabel}`}
+            className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            onClick={onEdit}
+            title="Edit transaction"
+            type="button"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
     </article>
   );
 }
@@ -2155,6 +2610,31 @@ function getCurrentMonthKey() {
   return new Date().toISOString().slice(0, 7);
 }
 
+function shiftMonthKey(month: string, offset: number) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, monthNumber - 1 + offset, 1));
+  return date.toISOString().slice(0, 7);
+}
+
+function formatMonthKey(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, monthNumber - 1, 1));
+  return new Intl.DateTimeFormat("en-IN", {
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(date);
+}
+
+function getMonthOptions(selectedMonth: string) {
+  const currentMonth = getCurrentMonthKey();
+  const options = new Set(
+    Array.from({ length: 36 }, (_, index) => shiftMonthKey(currentMonth, -index)),
+  );
+  options.add(selectedMonth);
+  return Array.from(options).sort((left, right) => right.localeCompare(left));
+}
+
 function toSettingsForm(settings: UserSettingsResponse): SettingsForm {
   return {
     currencyCode: settings.currencyCode,
@@ -2171,6 +2651,8 @@ function toTransactionEditForm(transaction: TransactionListItem): TransactionEdi
     categoryName: transaction.categoryName ?? "",
     merchantName: transaction.merchantName ?? "",
     description: transaction.description ?? "",
+    senderName: transaction.senderName ?? "",
+    reason: transaction.reason ?? "",
     transactionDate: transaction.transactionDate.slice(0, 10),
     visibility: transaction.visibility,
   };

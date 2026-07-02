@@ -80,6 +80,36 @@ public sealed class HeuristicExpenseInputParserTests
         Assert.Contains(ExpenseDraftMissingField.Amount, draft.MissingFields);
     }
 
+    [Theory]
+    [InlineData("sent 70k to credit card", 70000)]
+    [InlineData("Credit card bill 70k", 70000)]
+    [InlineData("paid 70k in credit card", 70000)]
+    public async Task ParseAsync_ParsesCreditCardPaymentsAsExpenses(
+        string sourceText,
+        decimal expectedAmount)
+    {
+        var result = await parser.ParseAsync(CreateRequest(sourceText), CancellationToken.None);
+
+        Assert.Equal(ExpenseInputParseStatus.Parsed, result.Status);
+        Assert.Equal(FinanceInputIntent.CreateExpense, result.Intent);
+        Assert.Equal(expectedAmount, result.Draft!.Amount);
+        Assert.Equal("Bills", result.Draft.CategoryGuess);
+    }
+
+    [Theory]
+    [InlineData("credit bill")]
+    [InlineData("credit card")]
+    public async Task ParseAsync_AsksForAmountForCreditCardExpense(string sourceText)
+    {
+        var result = await parser.ParseAsync(CreateRequest(sourceText), CancellationToken.None);
+
+        Assert.Equal(ExpenseInputParseStatus.NeedsClarification, result.Status);
+        Assert.Equal(FinanceInputIntent.ClarificationResponse, result.Intent);
+        Assert.Null(result.Draft!.Amount);
+        Assert.Equal("Bills", result.Draft.CategoryGuess);
+        Assert.Contains(ExpenseDraftMissingField.Amount, result.Draft.MissingFields);
+    }
+
     [Fact]
     public async Task ParseAsync_AsksWhatExpenseWasFor_WhenOnlyAmountIsPresent()
     {

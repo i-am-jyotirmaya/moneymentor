@@ -9,10 +9,11 @@ public sealed class CreateHouseholdRequest
     public string Name { get; init; } = string.Empty;
 }
 
-public sealed class AddHouseholdMemberRequest
+public sealed class CreateHouseholdInvitationRequest
 {
     [Required]
     [EmailAddress]
+    [MaxLength(256)]
     public string Email { get; init; } = string.Empty;
 
     [MaxLength(32)]

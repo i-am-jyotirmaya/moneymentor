@@ -7,6 +7,7 @@ namespace MoneyMentor.Application.Assistant;
 public sealed class AssistantMessageService(
     IFinanceInputClassifier inputClassifier,
     IExpenseInputProcessor expenseInputProcessor,
+    IIncomeInputProcessor incomeInputProcessor,
     IAppUserProfileService appUserProfileService,
     IFinanceQuestionService financeQuestionService) : IAssistantMessageService
 {
@@ -51,18 +52,51 @@ public sealed class AssistantMessageService(
                 []);
         }
 
-        if (intent is FinanceInputIntent.CreateIncome or FinanceInputIntent.AskGoalAdvice)
+        if (intent == FinanceInputIntent.AskGoalAdvice)
         {
             return new AssistantMessageResult(
                 AssistantMessageStatus.Unsupported,
                 intent,
-                intent == FinanceInputIntent.CreateIncome
-                    ? "Income capture is not supported yet."
-                    : "Goal advice is not supported yet.",
+                "Goal advice is not supported yet.",
                 null,
                 null,
                 null,
                 []);
+        }
+
+        var incomeRequest = new IncomeInputParseRequest(
+            text,
+            command.AuthProvider,
+            command.AuthSubject,
+            command.HouseholdId,
+            command.InputMode,
+            command.TransactionDate,
+            command.CurrencyCode,
+            command.Locale,
+            command.Email,
+            command.DisplayName);
+        var hasExplicitExpensePaymentSignal = ExpenseInputKeywordSets.ExpensePaymentSignals.Any(
+            ExpenseInputTextNormalizer.CreateTermSet(text).Contains);
+
+        if (intent == FinanceInputIntent.CreateIncome
+            || (!hasExplicitExpensePaymentSignal
+                && incomeInputProcessor.HasPendingDraft(incomeRequest)))
+        {
+            var incomeResult = await incomeInputProcessor.ProcessAsync(
+                incomeRequest,
+                cancellationToken);
+
+            return new AssistantMessageResult(
+                ToAssistantStatus(incomeResult.Status),
+                incomeResult.Intent,
+                incomeResult.AssistantMessage,
+                incomeResult.Transaction,
+                null,
+                null,
+                incomeResult.Errors)
+            {
+                ParsedIncomeDebug = incomeResult.ParsedDebug
+            };
         }
 
         var expenseResult = await expenseInputProcessor.ProcessAsync(
@@ -96,6 +130,16 @@ public sealed class AssistantMessageService(
             ExpenseInputParseStatus.Parsed => AssistantMessageStatus.Responded,
             ExpenseInputParseStatus.NeedsClarification => AssistantMessageStatus.NeedsClarification,
             ExpenseInputParseStatus.Unsupported => AssistantMessageStatus.Unsupported,
+            _ => AssistantMessageStatus.Failed
+        };
+
+    private static AssistantMessageStatus ToAssistantStatus(
+        IncomeInputParseStatus status) =>
+        status switch
+        {
+            IncomeInputParseStatus.Parsed => AssistantMessageStatus.Responded,
+            IncomeInputParseStatus.NeedsClarification => AssistantMessageStatus.NeedsClarification,
+            IncomeInputParseStatus.Unsupported => AssistantMessageStatus.Unsupported,
             _ => AssistantMessageStatus.Failed
         };
 }

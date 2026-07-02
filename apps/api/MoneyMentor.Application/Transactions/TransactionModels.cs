@@ -21,7 +21,12 @@ public sealed record TransactionModel(
     TransactionVisibility Visibility,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    string? UpdatedByDisplayName);
+    string? UpdatedByDisplayName)
+{
+    public string? SenderName { get; init; }
+
+    public string? Reason { get; init; }
+}
 
 public sealed record UpdateTransactionCommand(
     decimal? Amount,
@@ -29,9 +34,32 @@ public sealed record UpdateTransactionCommand(
     string? MerchantName,
     string? Description,
     DateOnly? TransactionDate,
-    TransactionVisibility? Visibility);
+    TransactionVisibility? Visibility)
+{
+    public string? SenderName { get; init; }
+
+    public string? Reason { get; init; }
+}
+
+public sealed record TransactionPageQuery(
+    Guid? HouseholdId,
+    DateOnly Month,
+    int Page,
+    int PageSize);
+
+public sealed record TransactionPageModel(
+    IReadOnlyCollection<TransactionModel> Items,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    int TotalPages);
 
 public sealed record SaveExpenseCommand(
     AppUserContext UserContext,
     ExpenseDraft Draft,
+    Guid? RequestedHouseholdId);
+
+public sealed record SaveIncomeCommand(
+    AppUserContext UserContext,
+    IncomeDraft Draft,
     Guid? RequestedHouseholdId);

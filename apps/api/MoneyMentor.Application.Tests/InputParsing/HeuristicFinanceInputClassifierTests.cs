@@ -13,6 +13,13 @@ public sealed class HeuristicFinanceInputClassifierTests
     [InlineData("ice cream from zepto", FinanceInputIntent.CreateExpense)]
     [InlineData("250", FinanceInputIntent.ClarificationResponse)]
     [InlineData("salary credited 50000", FinanceInputIntent.CreateIncome)]
+    [InlineData("Joe sent me 300 Rs for chips", FinanceInputIntent.CreateIncome)]
+    [InlineData("Rahul ne mujhe 500 chips ke liye diye", FinanceInputIntent.CreateIncome)]
+    [InlineData("sent 70k to credit card", FinanceInputIntent.CreateExpense)]
+    [InlineData("Credit card bill 70k", FinanceInputIntent.CreateExpense)]
+    [InlineData("credit bill", FinanceInputIntent.CreateExpense)]
+    [InlineData("credit card", FinanceInputIntent.CreateExpense)]
+    [InlineData("paid 70k in credit card", FinanceInputIntent.CreateExpense)]
     [InlineData("I want to save 3 lakh in 8 months", FinanceInputIntent.AskGoalAdvice)]
     [InlineData("hello there", FinanceInputIntent.Unknown)]
     public async Task ClassifyAsync_ReturnsExpectedIntent(
