@@ -19,6 +19,9 @@ export type InputMode = "Text" | "Voice" | "System";
 export type TransactionVisibility = "Private" | "Household";
 export type UserPlan = "Free" | "Premium";
 export type HouseholdRole = "Owner" | "Admin" | "Member" | "Viewer";
+export type SpendingJudgment = "Healthy" | "Watch" | "NeedsAttention" | "Risky" | "Critical";
+export type AssistantMessageStatus = "Responded" | "NeedsClarification" | "Unsupported" | "Failed";
+export type FinanceQuestionKind = "TopSpendingCategory" | "CategorySpendTotal" | "Unknown";
 
 export type ExpenseDraft = {
   amount: number | null;
@@ -64,6 +67,71 @@ export type ExpenseInputResponse = {
   transaction: TransactionListItem | null;
   parsedDebug: ExpenseDraft | null;
   assistantMessage: string | null;
+  errors: string[];
+};
+
+export type CategorySpendSummary = {
+  name: string;
+  amount: number;
+  budget: number | null;
+  tone: SpendingJudgment;
+  note: string;
+};
+
+export type DashboardJudgement = {
+  title: string;
+  tone: SpendingJudgment;
+  value: string;
+  text: string;
+};
+
+export type DashboardInsight = {
+  title: string;
+  text: string;
+};
+
+export type MonthlyDashboardResponse = {
+  month: string;
+  periodStart: string;
+  periodEnd: string;
+  monthLabel: string;
+  currencyCode: string;
+  income: number;
+  spends: number;
+  saved: number;
+  savingsRate: number | null;
+  categories: CategorySpendSummary[];
+  judgements: DashboardJudgement[];
+  insights: DashboardInsight[];
+  recentTransactions: TransactionListItem[];
+};
+
+export type FinanceQuestionAnswer = {
+  kind: FinanceQuestionKind;
+  question: string;
+  answer: string;
+  month: string;
+  periodStart: string;
+  periodEnd: string;
+  currencyCode: string;
+  amount: number | null;
+  categoryName: string | null;
+  categories: CategorySpendSummary[];
+};
+
+export type AssistantMessageResponse = {
+  status: AssistantMessageStatus;
+  intent:
+    | "CreateExpense"
+    | "CreateIncome"
+    | "AskFinanceQuestion"
+    | "AskGoalAdvice"
+    | "ClarificationResponse"
+    | "Unknown";
+  assistantMessage: string | null;
+  transaction: TransactionListItem | null;
+  parsedDebug: ExpenseDraft | null;
+  financeAnswer: FinanceQuestionAnswer | null;
   errors: string[];
 };
 
@@ -218,10 +286,52 @@ export function submitExpenseInput(
   });
 }
 
+export function submitAssistantMessage(
+  accessToken: string,
+  input: {
+    text: string;
+    inputMode: "Text" | "Voice";
+    householdId?: string;
+    transactionDate?: string;
+    currencyCode?: string;
+    locale?: string;
+  },
+) {
+  return apiRequest<AssistantMessageResponse>("/api/assistant/messages", {
+    accessToken,
+    method: "POST",
+    body: input,
+  });
+}
+
 export function listTransactions(accessToken: string, limit = 50) {
   return apiRequest<TransactionListItem[]>(`/api/transactions?limit=${limit}`, {
     accessToken,
   });
+}
+
+export function getMonthlyDashboard(
+  accessToken: string,
+  input: {
+    month?: string;
+    householdId?: string;
+  } = {},
+) {
+  const params = new URLSearchParams();
+
+  if (input.month) {
+    params.set("month", input.month);
+  }
+
+  if (input.householdId) {
+    params.set("householdId", input.householdId);
+  }
+
+  const queryString = params.toString();
+  return apiRequest<MonthlyDashboardResponse>(
+    `/api/dashboard/monthly${queryString ? `?${queryString}` : ""}`,
+    { accessToken },
+  );
 }
 
 export function updateTransaction(

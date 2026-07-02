@@ -41,4 +41,13 @@ public sealed record ExpenseInputProcessResult(
             transaction,
             assistantMessage,
             []);
+
+    public static ExpenseInputProcessResult Failed(IEnumerable<string> errors) =>
+        new(
+            ExpenseInputParseStatus.Failed,
+            FinanceInputIntent.Unknown,
+            null,
+            null,
+            null,
+            errors.ToArray());
 }
