@@ -9,20 +9,22 @@ using Npgsql;
 namespace MoneyMentor.Infrastructure.Households;
 
 internal sealed class PostgresHouseholdService(
-    MoneyMentorDbContext dbContext) : IHouseholdService
+    MoneyMentorDbContext dbContext,
+    TimeProvider timeProvider) : IHouseholdService
 {
     public async Task<HouseholdDashboardModel> ListAsync(
         AppUserContext userContext,
         CancellationToken cancellationToken)
     {
         var memberships = await LoadMembershipSummariesAsync(
-            userContext.UserProfileId,
-            includePersonal: false,
+            userContext,
+            includePersonal: true,
             cancellationToken);
 
         return new HouseholdDashboardModel(
             userContext.Plan,
             userContext.Plan == UserPlan.Premium,
+            userContext.PersonalHouseholdId,
             memberships);
     }
 
@@ -41,11 +43,14 @@ internal sealed class PostgresHouseholdService(
             return null;
         }
 
+        var now = timeProvider.GetUtcNow();
         var household = new Household
         {
             Name = name,
             Kind = HouseholdKind.Family,
-            CreatedByUserProfileId = command.UserContext.UserProfileId
+            CreatedByUserProfileId = command.UserContext.UserProfileId,
+            CreatedAt = now,
+            UpdatedAt = now
         };
 
         var member = new HouseholdMember
@@ -53,7 +58,8 @@ internal sealed class PostgresHouseholdService(
             HouseholdId = household.Id,
             UserProfileId = command.UserContext.UserProfileId,
             Role = HouseholdRole.Owner,
-            Status = HouseholdMemberStatus.Active
+            Status = HouseholdMemberStatus.Active,
+            JoinedAt = now
         };
 
         dbContext.Households.Add(household);
@@ -67,6 +73,7 @@ internal sealed class PostgresHouseholdService(
             household.Kind,
             member.Role,
             member.Status,
+            true,
             1,
             household.CreatedAt);
     }
@@ -85,6 +92,11 @@ internal sealed class PostgresHouseholdService(
                 member => member.HouseholdId == command.HouseholdId
                     && member.UserProfileId == command.UserContext.UserProfileId,
                 cancellationToken);
+
+        if (currentMember is null || currentMember.Status != HouseholdMemberStatus.Active)
+        {
+            return new HouseholdInvitationResult(HouseholdInvitationResultStatus.NotFound);
+        }
 
         if (!HouseholdInvitationPolicy.CanManageInvitations(
                 command.UserContext.Plan,
@@ -126,11 +138,12 @@ internal sealed class PostgresHouseholdService(
             }
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         var invitation = await dbContext.HouseholdInvitations
             .FirstOrDefaultAsync(
                 item => item.HouseholdId == household.Id
-                    && item.Email == email,
+                    && item.Email == email
+                    && item.Status == HouseholdInvitationStatus.Pending,
                 cancellationToken);
 
         if (invitation is not null
@@ -140,31 +153,30 @@ internal sealed class PostgresHouseholdService(
             return new HouseholdInvitationResult(HouseholdInvitationResultStatus.Conflict);
         }
 
-        if (invitation is null)
+        if (invitation is not null)
         {
-            invitation = new HouseholdInvitation
-            {
-                HouseholdId = household.Id,
-                InvitedByUserProfileId = command.UserContext.UserProfileId,
-                Email = email,
-                Role = command.Role,
-                Status = HouseholdInvitationStatus.Pending,
-                CreatedAt = now,
-                ExpiresAt = now.Add(HouseholdInvitationPolicy.Lifetime)
-            };
+            invitation.Status = HouseholdInvitationStatus.Expired;
+            invitation.DeliveryStatus = invitation.DeliveryStatus == InvitationDeliveryStatus.Sent
+                ? invitation.DeliveryStatus
+                : InvitationDeliveryStatus.Failed;
+            invitation.LastDeliveryError ??= "Invitation expired before delivery completed.";
+            invitation.NextDeliveryAttemptAt = null;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
 
-            dbContext.HouseholdInvitations.Add(invitation);
-        }
-        else
+        invitation = new HouseholdInvitation
         {
-            invitation.InvitedByUserProfileId = command.UserContext.UserProfileId;
-            invitation.RespondedByUserProfileId = null;
-            invitation.Role = command.Role;
-            invitation.Status = HouseholdInvitationStatus.Pending;
-            invitation.CreatedAt = now;
-            invitation.ExpiresAt = now.Add(HouseholdInvitationPolicy.Lifetime);
-            invitation.RespondedAt = null;
-        }
+            HouseholdId = household.Id,
+            InvitedByUserProfileId = command.UserContext.UserProfileId,
+            Email = email,
+            Role = command.Role,
+            Status = HouseholdInvitationStatus.Pending,
+            CreatedAt = now,
+            ExpiresAt = now.Add(HouseholdInvitationPolicy.Lifetime),
+            DeliveryStatus = InvitationDeliveryStatus.Queued,
+            NextDeliveryAttemptAt = now
+        };
+        dbContext.HouseholdInvitations.Add(invitation);
 
         household.UpdatedAt = now;
 
@@ -194,7 +206,7 @@ internal sealed class PostgresHouseholdService(
         CancellationToken cancellationToken)
     {
         var email = HouseholdInvitationPolicy.NormalizeEmail(userContext.Email);
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
 
         return await dbContext.HouseholdInvitations
             .Where(invitation => invitation.Email == email
@@ -226,8 +238,72 @@ internal sealed class PostgresHouseholdService(
                 row.InvitedByDisplayName,
                 row.Invitation.CreatedAt,
                 row.Invitation.ExpiresAt,
-                row.Invitation.RespondedAt))
+                row.Invitation.RespondedAt,
+                row.Invitation.DeliveryStatus,
+                row.Invitation.DeliveryAttemptCount,
+                row.Invitation.SentAt,
+                row.Invitation.LastDeliveryError))
             .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<HouseholdInvitationModel>?> ListSentInvitationsAsync(
+        AppUserContext userContext,
+        Guid householdId,
+        CancellationToken cancellationToken)
+    {
+        var membership = await dbContext.HouseholdMembers.AsNoTracking().FirstOrDefaultAsync(
+            member => member.HouseholdId == householdId
+                && member.UserProfileId == userContext.UserProfileId,
+            cancellationToken);
+        if (!HouseholdInvitationPolicy.CanManageInvitations(
+                userContext.Plan,
+                membership?.Role,
+                membership?.Status))
+        {
+            return null;
+        }
+
+        return await BuildSentInvitationsQuery(dbContext, householdId)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    internal static IQueryable<HouseholdInvitationModel> BuildSentInvitationsQuery(
+        MoneyMentorDbContext dbContext,
+        Guid householdId)
+    {
+        return dbContext.HouseholdInvitations.AsNoTracking()
+            .Where(invitation => invitation.HouseholdId == householdId)
+            .Join(
+                dbContext.Households,
+                invitation => invitation.HouseholdId,
+                household => household.Id,
+                (invitation, household) => new { Invitation = invitation, Household = household })
+            .Join(
+                dbContext.UserProfiles,
+                row => row.Invitation.InvitedByUserProfileId,
+                profile => profile.Id,
+                (row, profile) => new
+                {
+                    row.Invitation,
+                    HouseholdName = row.Household.Name,
+                    InvitedByDisplayName = profile.DisplayName
+                })
+            .OrderByDescending(row => row.Invitation.CreatedAt)
+            .Select(row => new HouseholdInvitationModel(
+                    row.Invitation.Id,
+                    row.Invitation.HouseholdId,
+                    row.HouseholdName,
+                    row.Invitation.Email,
+                    row.Invitation.Role,
+                    row.Invitation.Status,
+                    row.InvitedByDisplayName,
+                    row.Invitation.CreatedAt,
+                    row.Invitation.ExpiresAt,
+                    row.Invitation.RespondedAt,
+                    row.Invitation.DeliveryStatus,
+                    row.Invitation.DeliveryAttemptCount,
+                    row.Invitation.SentAt,
+                    row.Invitation.LastDeliveryError));
     }
 
     public Task<HouseholdInvitationResult> AcceptInvitationAsync(
@@ -262,7 +338,7 @@ internal sealed class PostgresHouseholdService(
             return new HouseholdInvitationResult(HouseholdInvitationResultStatus.Conflict);
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
         if (HouseholdInvitationPolicy.HasExpired(invitation.ExpiresAt, now))
         {
             invitation.Status = HouseholdInvitationStatus.Expired;
@@ -360,7 +436,11 @@ internal sealed class PostgresHouseholdService(
                     profile.DisplayName,
                     row.Invitation.CreatedAt,
                     row.Invitation.ExpiresAt,
-                    row.Invitation.RespondedAt))
+                    row.Invitation.RespondedAt,
+                    row.Invitation.DeliveryStatus,
+                    row.Invitation.DeliveryAttemptCount,
+                    row.Invitation.SentAt,
+                    row.Invitation.LastDeliveryError))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -378,15 +458,19 @@ internal sealed class PostgresHouseholdService(
             invitedByDisplayName,
             invitation.CreatedAt,
             invitation.ExpiresAt,
-            invitation.RespondedAt);
+            invitation.RespondedAt,
+            invitation.DeliveryStatus,
+            invitation.DeliveryAttemptCount,
+            invitation.SentAt,
+            invitation.LastDeliveryError);
 
     private async Task<IReadOnlyCollection<HouseholdSummaryModel>> LoadMembershipSummariesAsync(
-        Guid userProfileId,
+        AppUserContext userContext,
         bool includePersonal,
         CancellationToken cancellationToken)
     {
         var rows = await dbContext.HouseholdMembers
-            .Where(member => member.UserProfileId == userProfileId
+            .Where(member => member.UserProfileId == userContext.UserProfileId
                 && member.Status == HouseholdMemberStatus.Active)
             .Join(
                 dbContext.Households,
@@ -412,6 +496,7 @@ internal sealed class PostgresHouseholdService(
                 item.Household.Kind,
                 item.Member.Role,
                 item.Member.Status,
+                item.Member.Role != HouseholdRole.Viewer,
                 memberCounts.GetValueOrDefault(item.Household.Id),
                 item.Household.CreatedAt))
             .ToArray();

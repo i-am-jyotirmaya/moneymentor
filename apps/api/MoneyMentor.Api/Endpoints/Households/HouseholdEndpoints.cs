@@ -2,6 +2,7 @@ using MoneyMentor.Api.Endpoints;
 using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Domain.Enums;
+using MoneyMentor.Api.Production;
 
 namespace MoneyMentor.Api.Endpoints.Households;
 
@@ -32,6 +33,7 @@ public static class HouseholdEndpoints
             .Produces(StatusCodes.Status401Unauthorized);
 
         group.MapPost("/{householdId:guid}/invitations", CreateInvitationAsync)
+            .RequireRateLimiting(RateLimitPolicyNames.Invitation)
             .WithName("CreateHouseholdInvitation")
             .Produces<HouseholdInvitationModel>(StatusCodes.Status201Created)
             .Produces(StatusCodes.Status401Unauthorized)
@@ -39,6 +41,13 @@ public static class HouseholdEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status409Conflict)
             .ProducesValidationProblem();
+
+        group.MapGet("/{householdId:guid}/invitations", ListSentInvitationsAsync)
+            .WithName("ListSentHouseholdInvitations")
+            .Produces<IReadOnlyCollection<HouseholdInvitationModel>>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status404NotFound);
 
         group.MapPost("/invitations/{invitationId:guid}/accept", AcceptInvitationAsync)
             .WithName("AcceptHouseholdInvitation")
@@ -128,6 +137,40 @@ public static class HouseholdEndpoints
             userContext,
             cancellationToken);
         return Results.Ok(invitations);
+    }
+
+    private static async Task<IResult> ListSentInvitationsAsync(
+        Guid householdId,
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        IHouseholdAccessService householdAccessService,
+        IHouseholdService householdService,
+        CancellationToken cancellationToken)
+    {
+        var userContext = await ResolveContextAsync(httpContext, appUserProfileService, cancellationToken);
+        if (userContext is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            await householdAccessService.ResolveAsync(
+                userContext,
+                householdId,
+                requireWrite: false,
+                cancellationToken);
+        }
+        catch (HouseholdNotFoundException)
+        {
+            return Results.NotFound();
+        }
+
+        var invitations = await householdService.ListSentInvitationsAsync(
+            userContext,
+            householdId,
+            cancellationToken);
+        return invitations is null ? Results.Forbid() : Results.Ok(invitations);
     }
 
     private static async Task<IResult> CreateInvitationAsync(

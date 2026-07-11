@@ -8,7 +8,7 @@ public sealed class Transaction
 
     public Guid HouseholdId { get; set; }
 
-    public Guid UserProfileId { get; set; }
+    public Guid? UserProfileId { get; set; }
 
     public decimal Amount { get; set; }
 
@@ -22,7 +22,7 @@ public sealed class Transaction
 
     public string SourceText { get; set; } = string.Empty;
 
-    public DateTimeOffset TransactionDate { get; set; }
+    public DateOnly TransactionDate { get; set; }
 
     public InputMode InputMode { get; set; }
 
@@ -35,4 +35,10 @@ public sealed class Transaction
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    public Guid? DeletedByUserProfileId { get; set; }
+
+    public DateTimeOffset? PurgeAfter { get; set; }
 }

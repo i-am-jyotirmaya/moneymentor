@@ -20,6 +20,12 @@ public interface IHouseholdService
         AppUserContext userContext,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyCollection<HouseholdInvitationModel>?> ListSentInvitationsAsync(
+        AppUserContext userContext,
+        Guid householdId,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyCollection<HouseholdInvitationModel>?>(null);
+
     Task<HouseholdInvitationResult> AcceptInvitationAsync(
         RespondToHouseholdInvitationCommand command,
         CancellationToken cancellationToken);

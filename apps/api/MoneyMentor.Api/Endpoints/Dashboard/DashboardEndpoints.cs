@@ -2,6 +2,7 @@ using System.Globalization;
 using MoneyMentor.Api.Endpoints;
 using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Dashboard;
+using MoneyMentor.Application.Households;
 
 namespace MoneyMentor.Api.Endpoints.Dashboard;
 
@@ -44,32 +45,38 @@ public static class DashboardEndpoints
                 "HouseholdId must be a non-empty GUID when provided.");
         }
 
-        if (!TryParseMonth(month, out var requestedMonth))
+        var userContext = await appUserProfileService.ResolveAsync(
+            identity,
+            cancellationToken);
+        if (!TryParseMonth(month, userContext.CurrentDate, out var requestedMonth))
         {
             return EndpointValidation.ValidationProblem(
                 nameof(month),
                 "Month must use YYYY-MM format.");
         }
-
-        var userContext = await appUserProfileService.ResolveAsync(
-            identity,
-            cancellationToken);
-        var dashboard = await dashboardService.GetMonthlyDashboardAsync(
-            userContext,
-            new MonthlyDashboardQuery(
-                householdId,
-                requestedMonth,
-                RecentTransactionLimit: 6),
-            cancellationToken);
+        MonthlyDashboardModel dashboard;
+        try
+        {
+            dashboard = await dashboardService.GetMonthlyDashboardAsync(
+                userContext,
+                new MonthlyDashboardQuery(
+                    householdId,
+                    requestedMonth,
+                    RecentTransactionLimit: 6),
+                cancellationToken);
+        }
+        catch (HouseholdNotFoundException)
+        {
+            return Results.NotFound();
+        }
 
         return Results.Ok(dashboard);
     }
 
-    private static bool TryParseMonth(string? value, out DateOnly month)
+    private static bool TryParseMonth(string? value, DateOnly currentDate, out DateOnly month)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            var currentDate = DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime);
             month = new DateOnly(currentDate.Year, currentDate.Month, 1);
             return true;
         }

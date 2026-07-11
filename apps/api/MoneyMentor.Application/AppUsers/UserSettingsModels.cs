@@ -15,6 +15,5 @@ public sealed record UserSettingsModel(
 public sealed record UpdateUserSettingsCommand(
     string? CurrencyCode,
     string? TimeZone,
-    UserPlan? Plan,
     bool? RequireMerchantForExpenses,
     TransactionVisibility? DefaultTransactionVisibility);

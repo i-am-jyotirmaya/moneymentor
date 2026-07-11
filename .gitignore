@@ -71,6 +71,7 @@ coverage/
 # Next.js
 # =========================
 .next/
+.next-moneymentor/
 .vercel/
 
 # =========================

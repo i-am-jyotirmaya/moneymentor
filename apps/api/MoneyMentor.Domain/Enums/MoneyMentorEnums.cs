@@ -29,6 +29,15 @@ public enum HouseholdInvitationStatus
     Expired
 }
 
+public enum InvitationDeliveryStatus
+{
+    Unknown,
+    Queued,
+    Processing,
+    Sent,
+    Failed
+}
+
 public enum UserPlan
 {
     Free,

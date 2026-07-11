@@ -17,4 +17,6 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     public DateTimeOffset? LastSignedInAt { get; set; }
 
     public ICollection<RefreshToken> RefreshTokens { get; } = new List<RefreshToken>();
+
+    public ICollection<AuthSession> AuthSessions { get; } = new List<AuthSession>();
 }

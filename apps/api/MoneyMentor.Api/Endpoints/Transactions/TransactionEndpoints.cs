@@ -1,6 +1,7 @@
 using System.Globalization;
 using MoneyMentor.Api.Endpoints;
 using MoneyMentor.Application.AppUsers;
+using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Transactions;
 using MoneyMentor.Domain.Enums;
 
@@ -34,6 +35,26 @@ public static class TransactionEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .ProducesValidationProblem();
 
+        group.MapDelete("/{transactionId:guid}", DeleteTransactionAsync)
+            .WithName("DeleteTransaction")
+            .Produces<TransactionModel>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden);
+
+        group.MapPost("/{transactionId:guid}/restore", RestoreTransactionAsync)
+            .WithName("RestoreTransaction")
+            .Produces<TransactionModel>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden);
+
+        group.MapGet("/trash", ListTrashAsync)
+            .WithName("ListDeletedTransactions")
+            .Produces<TransactionTrashModel>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound);
+
         return group;
     }
 
@@ -52,13 +73,6 @@ public static class TransactionEndpoints
             return EndpointValidation.ValidationProblem(
                 nameof(householdId),
                 "HouseholdId must be a non-empty GUID when provided.");
-        }
-
-        if (!TryParseMonth(month, out var requestedMonth))
-        {
-            return EndpointValidation.ValidationProblem(
-                nameof(month),
-                "Month must use YYYY-MM format.");
         }
 
         var requestedPage = page ?? 1;
@@ -84,14 +98,30 @@ public static class TransactionEndpoints
             return Results.Unauthorized();
         }
 
-        var transactions = await transactionService.ListAsync(
-            userContext,
-            new TransactionPageQuery(
-                householdId,
-                requestedMonth,
-                requestedPage,
-                requestedPageSize),
-            cancellationToken);
+
+        if (!TryParseMonth(month, userContext.CurrentDate, out var requestedMonth))
+        {
+            return EndpointValidation.ValidationProblem(
+                nameof(month),
+                "Month must use YYYY-MM format.");
+        }
+
+        TransactionPageModel transactions;
+        try
+        {
+            transactions = await transactionService.ListAsync(
+                userContext,
+                new TransactionPageQuery(
+                    householdId,
+                    requestedMonth,
+                    requestedPage,
+                    requestedPageSize),
+                cancellationToken);
+        }
+        catch (HouseholdNotFoundException)
+        {
+            return Results.NotFound();
+        }
 
         return Results.Ok(transactions);
     }
@@ -148,21 +178,29 @@ public static class TransactionEndpoints
             return visibilityError!;
         }
 
-        var transaction = await transactionService.UpdateAsync(
-            userContext,
-            transactionId,
-            new UpdateTransactionCommand(
-                request.Amount,
-                request.CategoryName,
-                request.MerchantName,
-                request.Description,
-                request.TransactionDate,
-                visibility)
-            {
-                SenderName = request.SenderName,
-                Reason = request.Reason
-            },
-            cancellationToken);
+        TransactionModel? transaction;
+        try
+        {
+            transaction = await transactionService.UpdateAsync(
+                userContext,
+                transactionId,
+                new UpdateTransactionCommand(
+                    request.Amount,
+                    request.CategoryName,
+                    request.MerchantName,
+                    request.Description,
+                    request.TransactionDate,
+                    visibility)
+                {
+                    SenderName = request.SenderName,
+                    Reason = request.Reason
+                },
+                cancellationToken);
+        }
+        catch (HouseholdWriteForbiddenException)
+        {
+            return Results.Forbid();
+        }
 
         return transaction is null ? Results.NotFound() : Results.Ok(transaction);
     }
@@ -176,6 +214,88 @@ public static class TransactionEndpoints
         return identity is null
             ? null
             : await appUserProfileService.ResolveAsync(identity, cancellationToken);
+    }
+
+    private static Task<IResult> DeleteTransactionAsync(
+        Guid transactionId,
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        ITransactionService transactionService,
+        CancellationToken cancellationToken) =>
+        ChangeDeletionStateAsync(
+            transactionId,
+            restore: false,
+            httpContext,
+            appUserProfileService,
+            transactionService,
+            cancellationToken);
+
+    private static Task<IResult> RestoreTransactionAsync(
+        Guid transactionId,
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        ITransactionService transactionService,
+        CancellationToken cancellationToken) =>
+        ChangeDeletionStateAsync(
+            transactionId,
+            restore: true,
+            httpContext,
+            appUserProfileService,
+            transactionService,
+            cancellationToken);
+
+    private static async Task<IResult> ChangeDeletionStateAsync(
+        Guid transactionId,
+        bool restore,
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        ITransactionService transactionService,
+        CancellationToken cancellationToken)
+    {
+        var userContext = await ResolveContextAsync(httpContext, appUserProfileService, cancellationToken);
+        if (userContext is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        TransactionModel? transaction;
+        try
+        {
+            transaction = restore
+                ? await transactionService.RestoreAsync(userContext, transactionId, cancellationToken)
+                : await transactionService.DeleteAsync(userContext, transactionId, cancellationToken);
+        }
+        catch (HouseholdWriteForbiddenException)
+        {
+            return Results.Forbid();
+        }
+        return transaction is null ? Results.NotFound() : Results.Ok(transaction);
+    }
+
+    private static async Task<IResult> ListTrashAsync(
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        ITransactionService transactionService,
+        Guid? householdId,
+        CancellationToken cancellationToken)
+    {
+        var userContext = await ResolveContextAsync(httpContext, appUserProfileService, cancellationToken);
+        if (userContext is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            return Results.Ok(await transactionService.ListTrashAsync(
+                userContext,
+                householdId,
+                cancellationToken));
+        }
+        catch (HouseholdNotFoundException)
+        {
+            return Results.NotFound();
+        }
     }
 
     private static bool TryParseVisibility(
@@ -203,11 +323,10 @@ public static class TransactionEndpoints
         return false;
     }
 
-    private static bool TryParseMonth(string? value, out DateOnly month)
+    private static bool TryParseMonth(string? value, DateOnly currentDate, out DateOnly month)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            var currentDate = DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime);
             month = new DateOnly(currentDate.Year, currentDate.Month, 1);
             return true;
         }

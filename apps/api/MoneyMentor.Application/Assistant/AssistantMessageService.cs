@@ -38,7 +38,7 @@ public sealed class AssistantMessageService(
                 new FinanceQuestionRequest(
                     text,
                     command.HouseholdId,
-                    command.TransactionDate,
+                    command.TransactionDate ?? userContext.CurrentDate,
                     command.Locale),
                 cancellationToken);
 

@@ -6,27 +6,37 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MoneyMentor.Infrastructure.Auth;
 using MoneyMentor.Infrastructure.Identity;
+using MoneyMentor.Application.AppUsers;
+using MoneyMentor.Application.Privacy;
+using MoneyMentor.Application.Telemetry;
 
 namespace MoneyMentor.Api.Endpoints.Auth;
 
 internal sealed class PostgresAuthManager : IAuthManager
 {
-    private static readonly string[] InvalidCredentialsErrors = ["Invalid email or password."];
+    private static readonly string[] InvalidCredentialsErrors = ["Unable to sign in with the provided credentials."];
     private static readonly string[] InvalidRefreshTokenErrors = ["Invalid refresh token."];
+    private static readonly string[] LockedOutErrors = ["Unable to sign in with the provided credentials."];
     private static readonly string[] UnauthorizedErrors = ["Authentication is required."];
 
     private readonly IAuthRepository _authRepository;
     private readonly JwtOptions _jwtOptions;
     private readonly TimeProvider _timeProvider;
+    private readonly IAppUserProfileService _appUserProfileService;
+    private readonly IPrivacyService _privacyService;
 
     public PostgresAuthManager(
         IAuthRepository authRepository,
         IOptions<JwtOptions> jwtOptions,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IAppUserProfileService appUserProfileService,
+        IPrivacyService privacyService)
     {
         _authRepository = authRepository;
         _jwtOptions = jwtOptions.Value;
         _timeProvider = timeProvider;
+        _appUserProfileService = appUserProfileService;
+        _privacyService = privacyService;
     }
 
     public async Task<AuthManagerResult<AuthSessionResponse>> CreateUserAsync(
@@ -47,7 +57,16 @@ internal sealed class PostgresAuthManager : IAuthManager
                 result.Errors.Select(error => error.Description));
         }
 
-        return await IssueSessionAsync(result.Value, ipAddress, cancellationToken);
+        var userContext = await ResolveAppUserAsync(result.Value, cancellationToken);
+        await _privacyService.AcceptAsync(
+            userContext,
+            request.PrivacyPolicyVersion,
+            cancellationToken);
+        return await IssueSessionAsync(
+            result.Value,
+            ipAddress,
+            requiresPrivacyConsent: false,
+            cancellationToken);
     }
 
     public async Task<AuthManagerResult<AuthSessionResponse>> LoginAsync(
@@ -59,9 +78,18 @@ internal sealed class PostgresAuthManager : IAuthManager
 
         if (user is null)
         {
+            RecordAuthFailure("invalid_credentials");
             return AuthManagerResult<AuthSessionResponse>.Failure(
                 AuthFailureKind.InvalidCredentials,
                 InvalidCredentialsErrors);
+        }
+
+        if (await _authRepository.IsLockedOutAsync(user, cancellationToken))
+        {
+            RecordAuthFailure("locked_out");
+            return AuthManagerResult<AuthSessionResponse>.Failure(
+                AuthFailureKind.LockedOut,
+                LockedOutErrors);
         }
 
         var passwordIsValid = await _authRepository.CheckPasswordAsync(
@@ -71,9 +99,22 @@ internal sealed class PostgresAuthManager : IAuthManager
 
         if (!passwordIsValid)
         {
+            await _authRepository.RecordFailedLoginAsync(user, cancellationToken);
+            var failureKind = await _authRepository.IsLockedOutAsync(user, cancellationToken)
+                ? AuthFailureKind.LockedOut
+                : AuthFailureKind.InvalidCredentials;
+            RecordAuthFailure(failureKind == AuthFailureKind.LockedOut ? "locked_out" : "invalid_credentials");
             return AuthManagerResult<AuthSessionResponse>.Failure(
-                AuthFailureKind.InvalidCredentials,
-                InvalidCredentialsErrors);
+                failureKind,
+                failureKind == AuthFailureKind.LockedOut ? LockedOutErrors : InvalidCredentialsErrors);
+        }
+
+        var resetResult = await _authRepository.ResetFailedLoginAsync(user, cancellationToken);
+        if (!resetResult.Succeeded)
+        {
+            return AuthManagerResult<AuthSessionResponse>.Failure(
+                AuthFailureKind.Validation,
+                resetResult.Errors.Select(error => error.Description));
         }
 
         var now = _timeProvider.GetUtcNow();
@@ -89,61 +130,121 @@ internal sealed class PostgresAuthManager : IAuthManager
                 updateResult.Errors.Select(error => error.Description));
         }
 
-        return await IssueSessionAsync(user, ipAddress, cancellationToken);
+        var userContext = await ResolveAppUserAsync(user, cancellationToken);
+        return await IssueSessionAsync(
+            user,
+            ipAddress,
+            !userContext.HasCurrentPrivacyConsent,
+            cancellationToken);
     }
 
     public async Task<AuthManagerResult<AuthSessionResponse>> RefreshAsync(
-        RefreshTokenRequest request,
+        string refreshToken,
         string? ipAddress,
         CancellationToken cancellationToken)
     {
-        var tokenHash = HashToken(request.RefreshToken);
+        var tokenHash = HashToken(refreshToken);
         var existingRefreshToken = await _authRepository.FindRefreshTokenByHashAsync(
             tokenHash,
             cancellationToken);
 
         var now = _timeProvider.GetUtcNow();
-        if (existingRefreshToken is null || existingRefreshToken.RevokedAt is not null || existingRefreshToken.ExpiresAt <= now)
+        if (existingRefreshToken is null)
         {
+            RecordAuthFailure("invalid_refresh");
             return AuthManagerResult<AuthSessionResponse>.Failure(
                 AuthFailureKind.InvalidCredentials,
                 InvalidRefreshTokenErrors);
         }
 
-        var replacementToken = CreateRefreshToken(existingRefreshToken.UserId, now, ipAddress);
 
-        await _authRepository.ReplaceRefreshTokenAsync(
+        if (existingRefreshToken.RevokedAt is not null)
+        {
+            if (existingRefreshToken.ReplacedByTokenHash is not null)
+            {
+                await _authRepository.RevokeSessionAsync(
+                    existingRefreshToken.SessionId,
+                    now,
+                    ipAddress,
+                    cancellationToken);
+            }
+
+            RecordAuthFailure("refresh_replay");
+            return AuthManagerResult<AuthSessionResponse>.Failure(
+                AuthFailureKind.InvalidCredentials,
+                InvalidRefreshTokenErrors);
+        }
+
+        if (existingRefreshToken.ExpiresAt <= now
+            || existingRefreshToken.Session.RevokedAt is not null
+            || existingRefreshToken.Session.ExpiresAt <= now)
+        {
+            RecordAuthFailure("expired_session");
+            return AuthManagerResult<AuthSessionResponse>.Failure(
+                AuthFailureKind.InvalidCredentials,
+                InvalidRefreshTokenErrors);
+        }
+
+        var replacementToken = CreateRefreshToken(
+            existingRefreshToken.UserId,
+            existingRefreshToken.SessionId,
+            now,
+            ipAddress);
+
+        var replaced = await _authRepository.ReplaceRefreshTokenAsync(
             existingRefreshToken,
             replacementToken.Entity,
             now,
             ipAddress,
             cancellationToken);
+        if (!replaced)
+        {
+            await _authRepository.RevokeSessionAsync(
+                existingRefreshToken.SessionId,
+                now,
+                ipAddress,
+                cancellationToken);
+            RecordAuthFailure("concurrent_refresh_reuse");
+            return AuthManagerResult<AuthSessionResponse>.Failure(
+                AuthFailureKind.InvalidCredentials,
+                InvalidRefreshTokenErrors);
+        }
 
         var user = existingRefreshToken.User;
+        var userContext = await ResolveAppUserAsync(user, cancellationToken);
         var roles = await _authRepository.GetRolesAsync(user, cancellationToken);
-        var accessToken = CreateAccessToken(user, roles, now, out var accessTokenExpiresAt);
+        var accessToken = CreateAccessToken(
+            user,
+            roles,
+            existingRefreshToken.SessionId,
+            now,
+            out var accessTokenExpiresAt);
 
         return AuthManagerResult<AuthSessionResponse>.Success(
             new AuthSessionResponse(
                 accessToken,
                 accessTokenExpiresAt,
-                replacementToken.PlainTextToken,
-                replacementToken.Entity.ExpiresAt,
-                MapUser(user, roles)));
+                MapUser(user, roles),
+                !userContext.HasCurrentPrivacyConsent)
+            {
+                RefreshToken = replacementToken.PlainTextToken,
+                RefreshTokenExpiresAt = replacementToken.Entity.ExpiresAt,
+                SessionId = existingRefreshToken.SessionId
+            });
     }
 
     public async Task<AuthManagerResult> LogoutAsync(
-        RefreshTokenRequest request,
+        string refreshTokenValue,
         string? ipAddress,
         CancellationToken cancellationToken)
     {
-        var tokenHash = HashToken(request.RefreshToken);
+        var tokenHash = HashToken(refreshTokenValue);
         var refreshToken = await _authRepository.FindRefreshTokenByHashAsync(tokenHash, cancellationToken);
 
         if (refreshToken is not null && refreshToken.RevokedAt is null)
         {
-            await _authRepository.RevokeRefreshTokenAsync(
-                refreshToken,
+            await _authRepository.RevokeSessionAsync(
+                refreshToken.SessionId,
                 _timeProvider.GetUtcNow(),
                 ipAddress,
                 cancellationToken);
@@ -162,7 +263,7 @@ internal sealed class PostgresAuthManager : IAuthManager
             return AuthManagerResult.Failure(AuthFailureKind.Unauthorized, UnauthorizedErrors);
         }
 
-        await _authRepository.RevokeActiveRefreshTokensForUserAsync(
+        await _authRepository.RevokeActiveSessionsForUserAsync(
             userId,
             _timeProvider.GetUtcNow(),
             ipAddress,
@@ -198,27 +299,45 @@ internal sealed class PostgresAuthManager : IAuthManager
     private async Task<AuthManagerResult<AuthSessionResponse>> IssueSessionAsync(
         ApplicationUser user,
         string? ipAddress,
+        bool requiresPrivacyConsent,
         CancellationToken cancellationToken)
     {
         var now = _timeProvider.GetUtcNow();
         var roles = await _authRepository.GetRolesAsync(user, cancellationToken);
-        var accessToken = CreateAccessToken(user, roles, now, out var accessTokenExpiresAt);
-        var refreshToken = CreateRefreshToken(user.Id, now, ipAddress);
+        var session = new AuthSession
+        {
+            UserId = user.Id,
+            CreatedAt = now,
+            ExpiresAt = now.AddDays(_jwtOptions.RefreshTokenDays),
+            CreatedByIp = ipAddress
+        };
+        var accessToken = CreateAccessToken(
+            user,
+            roles,
+            session.Id,
+            now,
+            out var accessTokenExpiresAt);
+        var refreshToken = CreateRefreshToken(user.Id, session.Id, now, ipAddress);
 
-        await _authRepository.AddRefreshTokenAsync(refreshToken.Entity, cancellationToken);
+        await _authRepository.AddSessionAsync(session, refreshToken.Entity, cancellationToken);
 
         return AuthManagerResult<AuthSessionResponse>.Success(
             new AuthSessionResponse(
                 accessToken,
                 accessTokenExpiresAt,
-                refreshToken.PlainTextToken,
-                refreshToken.Entity.ExpiresAt,
-                MapUser(user, roles)));
+                MapUser(user, roles),
+                requiresPrivacyConsent)
+            {
+                RefreshToken = refreshToken.PlainTextToken,
+                RefreshTokenExpiresAt = refreshToken.Entity.ExpiresAt,
+                SessionId = session.Id
+            });
     }
 
     private string CreateAccessToken(
         ApplicationUser user,
         IReadOnlyCollection<string> roles,
+        Guid sessionId,
         DateTimeOffset now,
         out DateTimeOffset expiresAt)
     {
@@ -229,6 +348,7 @@ internal sealed class PostgresAuthManager : IAuthManager
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("sid", sessionId.ToString()),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Email, user.Email ?? string.Empty),
             new(ClaimTypes.Name, user.DisplayName)
@@ -251,6 +371,7 @@ internal sealed class PostgresAuthManager : IAuthManager
 
     private RefreshTokenEnvelope CreateRefreshToken(
         Guid userId,
+        Guid sessionId,
         DateTimeOffset now,
         string? ipAddress)
     {
@@ -258,6 +379,7 @@ internal sealed class PostgresAuthManager : IAuthManager
         var refreshToken = new RefreshToken
         {
             UserId = userId,
+            SessionId = sessionId,
             TokenHash = HashToken(plainTextToken),
             CreatedAt = now,
             ExpiresAt = now.AddDays(_jwtOptions.RefreshTokenDays),
@@ -276,8 +398,24 @@ internal sealed class PostgresAuthManager : IAuthManager
             user.DisplayName,
             roles);
 
+    private Task<AppUserContext> ResolveAppUserAsync(
+        ApplicationUser user,
+        CancellationToken cancellationToken) =>
+        _appUserProfileService.ResolveAsync(
+            new AppUserIdentity(
+                "local",
+                user.Id.ToString(),
+                user.Email,
+                user.DisplayName),
+            cancellationToken);
+
     private static string HashToken(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+    private static void RecordAuthFailure(string reason) =>
+        MoneyMentorTelemetry.AuthFailures.Add(
+            1,
+            new KeyValuePair<string, object?>("reason", reason));
 
     private static bool TryGetUserId(ClaimsPrincipal principal, out Guid userId)
     {

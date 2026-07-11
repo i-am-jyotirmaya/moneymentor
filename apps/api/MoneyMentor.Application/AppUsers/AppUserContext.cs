@@ -11,4 +11,9 @@ public sealed record AppUserContext(
     string TimeZone,
     UserPlan Plan,
     bool RequireMerchantForExpenses,
-    TransactionVisibility DefaultTransactionVisibility);
+    TransactionVisibility DefaultTransactionVisibility)
+{
+    public DateOnly CurrentDate { get; init; } = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    public bool HasCurrentPrivacyConsent { get; init; }
+}

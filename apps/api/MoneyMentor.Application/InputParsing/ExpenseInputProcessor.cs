@@ -14,6 +14,14 @@ public sealed class ExpenseInputProcessor(
         ExpenseInputParseRequest request,
         CancellationToken cancellationToken)
     {
+        var userContext = await appUserProfileService.ResolveAsync(
+            new AppUserIdentity(
+                request.AuthProvider,
+                request.AuthSubject,
+                request.Email,
+                request.DisplayName),
+            cancellationToken);
+        request = request with { ReferenceDate = request.ReferenceDate ?? userContext.CurrentDate };
         var parseResult = await parser.ParseAsync(request, cancellationToken);
 
         if (parseResult.Status is ExpenseInputParseStatus.Failed or ExpenseInputParseStatus.Unsupported)
@@ -27,14 +35,6 @@ public sealed class ExpenseInputProcessor(
         }
 
         var pendingDraft = draftStore.Get(request);
-        var userContext = await appUserProfileService.ResolveAsync(
-            new AppUserIdentity(
-                request.AuthProvider,
-                request.AuthSubject,
-                request.Email,
-                request.DisplayName),
-            cancellationToken);
-
         if (pendingDraft is not null && parseResult.Status == ExpenseInputParseStatus.Parsed)
         {
             if (ShouldMergeParsedResponse(pendingDraft, parseResult.Draft))

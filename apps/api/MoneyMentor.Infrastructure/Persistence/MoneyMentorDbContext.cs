@@ -38,6 +38,10 @@ public sealed class MoneyMentorDbContext : DbContext
 
     public DbSet<FinancialGoal> FinancialGoals => Set<FinancialGoal>();
 
+    public DbSet<PrivacyConsent> PrivacyConsents => Set<PrivacyConsent>();
+
+    public DbSet<EntitlementChange> EntitlementChanges => Set<EntitlementChange>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(AppSchema);

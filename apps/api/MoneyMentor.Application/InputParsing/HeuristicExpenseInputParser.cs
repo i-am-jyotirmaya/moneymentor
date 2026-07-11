@@ -62,7 +62,7 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
                 ExpenseInputParseResult.Unsupported("This input does not look like an expense."));
         }
 
-        var date = ExtractDate(sourceText, request.TransactionDate);
+        var date = ExtractDate(sourceText, request.TransactionDate, request.ReferenceDate);
         var amount = ExtractAmount(sourceText, date.SourceSpans);
         var category = ExtractCategory(searchTerms);
         var merchant = ExtractMerchant(sourceText, searchTerms);
@@ -147,7 +147,10 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
     private static bool ContainsAny(IReadOnlySet<string> searchTerms, IReadOnlySet<string> terms) =>
         terms.Any(searchTerms.Contains);
 
-    private static DateExtraction ExtractDate(string sourceText, DateOnly? requestedDate)
+    private static DateExtraction ExtractDate(
+        string sourceText,
+        DateOnly? requestedDate,
+        DateOnly? referenceDate)
     {
         var spans = new List<TextSpan>();
 
@@ -168,7 +171,8 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
         {
             var year = match.Groups["year"].Success
                 ? match.Groups["year"].Value
-                : DateTimeOffset.Now.Year.ToString(InvariantCulture);
+                : (referenceDate ?? DateOnly.FromDateTime(DateTime.Now))
+                    .Year.ToString(InvariantCulture);
 
             if (TryCreateDate(year, match.Groups["month"].Value, match.Groups["day"].Value, out var parsedDate))
             {
@@ -177,7 +181,7 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
             }
         }
 
-        var relativeDate = ExtractRelativeDate(sourceText);
+        var relativeDate = ExtractRelativeDate(sourceText, referenceDate);
         if (relativeDate is not null)
         {
             spans.Add(relativeDate.Span);
@@ -189,10 +193,12 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
             : new DateExtraction(null, spans, false);
     }
 
-    private static RelativeDateMatch? ExtractRelativeDate(string sourceText)
+    private static RelativeDateMatch? ExtractRelativeDate(
+        string sourceText,
+        DateOnly? referenceDate)
     {
         var searchTerms = ExpenseInputTextNormalizer.CreateTermSet(sourceText);
-        var today = DateOnly.FromDateTime(DateTimeOffset.Now.Date);
+        var today = referenceDate ?? DateOnly.FromDateTime(DateTime.Now);
 
         if (TryFindTermSpan(sourceText, searchTerms, "today", out var todaySpan)
             || TryFindTermSpan(sourceText, searchTerms, "aaj", out todaySpan))

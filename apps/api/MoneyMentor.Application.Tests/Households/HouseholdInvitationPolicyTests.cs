@@ -7,12 +7,14 @@ namespace MoneyMentor.Application.Tests.Households;
 public sealed class HouseholdInvitationPolicyTests
 {
     [Theory]
-    [InlineData(HouseholdRole.Owner)]
-    [InlineData(HouseholdRole.Admin)]
-    public void CanManageInvitations_AllowsActivePremiumManagers(HouseholdRole role)
+    [InlineData(UserPlan.Free, HouseholdRole.Owner)]
+    [InlineData(UserPlan.Premium, HouseholdRole.Admin)]
+    public void CanManageInvitations_AllowsActiveManagersRegardlessOfPersonalPlan(
+        UserPlan plan,
+        HouseholdRole role)
     {
         var result = HouseholdInvitationPolicy.CanManageInvitations(
-            UserPlan.Premium,
+            plan,
             role,
             HouseholdMemberStatus.Active);
 
@@ -20,8 +22,8 @@ public sealed class HouseholdInvitationPolicyTests
     }
 
     [Theory]
-    [InlineData(UserPlan.Free, HouseholdRole.Owner, HouseholdMemberStatus.Active)]
     [InlineData(UserPlan.Premium, HouseholdRole.Member, HouseholdMemberStatus.Active)]
+    [InlineData(UserPlan.Premium, HouseholdRole.Viewer, HouseholdMemberStatus.Active)]
     [InlineData(UserPlan.Premium, HouseholdRole.Owner, HouseholdMemberStatus.Removed)]
     public void CanManageInvitations_RejectsUnauthorizedUsers(
         UserPlan plan,

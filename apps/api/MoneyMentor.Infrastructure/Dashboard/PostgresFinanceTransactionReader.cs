@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Dashboard;
+using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Transactions;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
@@ -9,7 +10,8 @@ using MoneyMentor.Infrastructure.Persistence;
 namespace MoneyMentor.Infrastructure.Dashboard;
 
 internal sealed class PostgresFinanceTransactionReader(
-    MoneyMentorDbContext dbContext) : IFinanceTransactionReader
+    MoneyMentorDbContext dbContext,
+    IHouseholdAccessService householdAccessService) : IFinanceTransactionReader
 {
     public async Task<IReadOnlyCollection<TransactionModel>> ListMonthlyTransactionsAsync(
         AppUserContext userContext,
@@ -17,21 +19,18 @@ internal sealed class PostgresFinanceTransactionReader(
         DateOnly month,
         CancellationToken cancellationToken)
     {
-        var householdIds = await GetActiveHouseholdIdsAsync(
-            userContext.UserProfileId,
+        var householdAccess = await householdAccessService.ResolveAsync(
+            userContext,
+            householdId,
+            requireWrite: false,
             cancellationToken);
-        if (householdId is not null)
-        {
-            householdIds = householdIds.Contains(householdId.Value)
-                ? [householdId.Value]
-                : [];
-        }
 
-        var periodStart = ToUtcDate(new DateOnly(month.Year, month.Month, 1));
+        var periodStart = new DateOnly(month.Year, month.Month, 1);
         var periodEnd = periodStart.AddMonths(1);
         var transactions = await dbContext.Transactions
             .AsNoTracking()
-            .Where(transaction => householdIds.Contains(transaction.HouseholdId)
+            .Where(transaction => transaction.HouseholdId == householdAccess.HouseholdId
+                && transaction.DeletedAt == null
                 && transaction.TransactionDate >= periodStart
                 && transaction.TransactionDate < periodEnd
                 && (transaction.UserProfileId == userContext.UserProfileId
@@ -45,16 +44,6 @@ internal sealed class PostgresFinanceTransactionReader(
             userContext.CurrencyCode,
             cancellationToken);
     }
-
-    private async Task<IReadOnlyCollection<Guid>> GetActiveHouseholdIdsAsync(
-        Guid userProfileId,
-        CancellationToken cancellationToken) =>
-        await dbContext.HouseholdMembers
-            .AsNoTracking()
-            .Where(member => member.UserProfileId == userProfileId
-                && member.Status == HouseholdMemberStatus.Active)
-            .Select(member => member.HouseholdId)
-            .ToArrayAsync(cancellationToken);
 
     private async Task<IReadOnlyCollection<TransactionModel>> MapTransactionsAsync(
         IReadOnlyCollection<Transaction> transactions,
@@ -95,7 +84,7 @@ internal sealed class PostgresFinanceTransactionReader(
                 transaction.MerchantName,
                 transaction.Description,
                 transaction.SourceText,
-                ToDateOnly(transaction.TransactionDate),
+                transaction.TransactionDate,
                 transaction.InputMode,
                 transaction.Confidence,
                 transaction.Visibility,
@@ -107,12 +96,4 @@ internal sealed class PostgresFinanceTransactionReader(
             .ToArray();
     }
 
-    private static DateTimeOffset ToUtcDate(DateOnly date) =>
-        new(
-            DateTime.SpecifyKind(
-                date.ToDateTime(TimeOnly.MinValue),
-                DateTimeKind.Utc));
-
-    private static DateOnly ToDateOnly(DateTimeOffset dateTimeOffset) =>
-        DateOnly.FromDateTime(dateTimeOffset.UtcDateTime);
 }

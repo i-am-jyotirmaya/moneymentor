@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - run: dotnet restore MoneyMentor.slnx
+      - run: dotnet build MoneyMentor.slnx --no-restore --configuration Release --verbosity minimal
+      - run: dotnet test apps/api/MoneyMentor.Application.Tests/MoneyMentor.Application.Tests.csproj --no-build --configuration Release --verbosity minimal
+      - run: dotnet test apps/api/MoneyMentor.Api.IntegrationTests/MoneyMentor.Api.IntegrationTests.csproj --no-build --configuration Release --verbosity minimal
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+      - run: pnpm lint
+        working-directory: apps/web
+      - run: pnpm build
+        working-directory: apps/web
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: pnpm test:e2e
+        working-directory: apps/web

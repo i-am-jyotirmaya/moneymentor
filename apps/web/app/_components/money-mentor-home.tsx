@@ -16,9 +16,12 @@ import {
   Pencil,
   Plus,
   ReceiptText,
+  RotateCcw,
   Save,
   Send,
   Settings,
+  Trash2,
+  Download,
   UserPlus,
   Users,
   Wallet,
@@ -53,14 +56,23 @@ import type {
 } from "@/lib/api";
 import {
   ApiError,
+  acceptPrivacyConsent,
   createHousehold,
   createHouseholdInvitation,
+  deleteAccount,
+  deleteTransaction,
+  downloadPrivacyExport,
   getMonthlyDashboard,
   getUserSettings,
   listHouseholdInvitations,
+  listSentHouseholdInvitations,
+  listDeletedTransactions,
   listHouseholds,
   listTransactions,
+  logout,
+  refreshSession,
   respondToHouseholdInvitation,
+  restoreTransaction,
   submitAssistantMessage as sendAssistantMessage,
   updateTransaction,
   updateUserSettings,
@@ -68,8 +80,15 @@ import {
 import {
   clearAuthSession,
   getAuthSessionSnapshot,
+  saveAuthSession,
   subscribeToAuthSession,
 } from "@/lib/auth-session";
+import { useHouseholdScopeState } from "../_hooks/use-household-scope-state";
+import { usePrivacyState } from "../_hooks/use-privacy-state";
+import {
+  type TransactionEditForm,
+  useTransactionState,
+} from "../_hooks/use-transaction-state";
 import { BrandMarkIcon } from "./icons";
 
 type InputMode = "Text" | "Voice";
@@ -83,17 +102,6 @@ type Message = {
   id: string;
   role: "user" | "assistant";
   text: string;
-};
-
-type TransactionEditForm = {
-  amount: string;
-  categoryName: string;
-  merchantName: string;
-  description: string;
-  senderName: string;
-  reason: string;
-  transactionDate: string;
-  visibility: TransactionVisibility;
 };
 
 type SettingsForm = {
@@ -166,28 +174,64 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
       text: "Tell me what you spent or received, or ask where your money went this month.",
     },
   ]);
-  const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
-  const [transactionPage, setTransactionPage] = useState<TransactionPageResponse | null>(null);
-  const [transactionMonth, setTransactionMonth] = useState(getCurrentMonthKey);
+  const {
+    transactions,
+    setTransactions,
+    transactionPage,
+    setTransactionPage,
+    transactionMonth,
+    setTransactionMonth,
+    selectedTransactionId,
+    setSelectedTransactionId,
+    editForm,
+    setEditForm,
+    deletedTransactions,
+    setDeletedTransactions,
+    undoTransaction,
+    setUndoTransaction,
+    isLoadingTransactions,
+    setIsLoadingTransactions,
+    isSavingTransaction,
+    setIsSavingTransaction,
+  } = useTransactionState(getCurrentMonthKey());
   const [dashboardMonth, setDashboardMonth] = useState(getCurrentMonthKey);
   const [settings, setSettings] = useState<UserSettingsResponse | null>(null);
   const [settingsForm, setSettingsForm] = useState<SettingsForm | null>(null);
-  const [households, setHouseholds] = useState<HouseholdDashboard | null>(null);
-  const [householdInvitations, setHouseholdInvitations] = useState<HouseholdInvitation[]>([]);
-  const [householdNotice, setHouseholdNotice] = useState<string | null>(null);
+  const {
+    households,
+    setHouseholds,
+    householdInvitations,
+    setHouseholdInvitations,
+    sentHouseholdInvitations,
+    setSentHouseholdInvitations,
+    householdNotice,
+    setHouseholdNotice,
+    selectedHouseholdId,
+    setSelectedHouseholdId,
+    householdName,
+    setHouseholdName,
+    memberEmail,
+    setMemberEmail,
+    memberRole,
+    setMemberRole,
+    isSavingHousehold,
+    setIsSavingHousehold,
+  } = useHouseholdScopeState();
   const [dashboard, setDashboard] = useState<MonthlyDashboardResponse | null>(null);
-  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<TransactionEditForm | null>(null);
-  const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
-  const [householdName, setHouseholdName] = useState("");
-  const [memberEmail, setMemberEmail] = useState("");
-  const [memberRole, setMemberRole] = useState<HouseholdRole>("Member");
+  const [sessionReady, setSessionReady] = useState(false);
+  const {
+    isAcceptingConsent,
+    setIsAcceptingConsent,
+    deletionPassword,
+    setDeletionPassword,
+    deletionConfirmation,
+    setDeletionConfirmation,
+    isPrivacyWorking,
+    setIsPrivacyWorking,
+  } = usePrivacyState();
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
-  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [isSavingTransaction, setIsSavingTransaction] = useState(false);
-  const [isSavingHousehold, setIsSavingHousehold] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
@@ -202,6 +246,10 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
   const spends = dashboard?.spends ?? 0;
   const saved = dashboard?.saved ?? income - spends;
   const currencyCode = settings?.currencyCode ?? dashboard?.currencyCode ?? "INR";
+  const selectedHousehold = households?.households.find(
+    (household) => household.id === selectedHouseholdId,
+  );
+  const canWriteSelectedHousehold = selectedHousehold?.canWrite ?? true;
   const greetingName = useMemo(() => {
     const name = session?.user.displayName?.trim();
     return name ? name.split(/\s+/)[0] : "there";
@@ -231,44 +279,85 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
       setError(null);
 
       try {
-        const currentMonth = getCurrentMonthKey();
-        const settingsResult = await getUserSettings(accessToken);
-        const [transactionResult, householdResult, dashboardResult, invitationResult] = await Promise.all([
+        const [settingsResult, householdResult, invitationResult] = await Promise.all([
+          getUserSettings(accessToken),
+          listHouseholds(accessToken),
+          listHouseholdInvitations(accessToken),
+        ]);
+        const effectiveHouseholdId = householdResult.households.some(
+          (household) => household.id === selectedHouseholdId,
+        )
+          ? selectedHouseholdId!
+          : householdResult.defaultHouseholdId;
+        const effectiveHousehold = householdResult.households.find(
+          (household) => household.id === effectiveHouseholdId,
+        );
+        const [transactionResult, dashboardResult, trashResult, sentInvitationResult] = await Promise.all([
           listTransactions(accessToken, {
-            month: currentMonth,
             page: 1,
             pageSize: transactionPageSize,
+            householdId: effectiveHouseholdId,
           }),
-          listHouseholds(accessToken),
-          getMonthlyDashboard(accessToken, { month: currentMonth }),
-          listHouseholdInvitations(accessToken),
+          getMonthlyDashboard(accessToken, { householdId: effectiveHouseholdId }),
+          listDeletedTransactions(accessToken, effectiveHouseholdId),
+          effectiveHousehold?.kind === "Family"
+            && (effectiveHousehold.role === "Owner" || effectiveHousehold.role === "Admin")
+            ? listSentHouseholdInvitations(accessToken, effectiveHouseholdId)
+            : Promise.resolve([]),
         ]);
 
         setSettings(settingsResult);
         setSettingsForm(toSettingsForm(settingsResult));
         setTransactions(transactionResult.items);
         setTransactionPage(transactionResult);
-        setTransactionMonth(currentMonth);
+        setTransactionMonth(transactionResult.month);
         setHouseholds(householdResult);
         setHouseholdInvitations(invitationResult);
+        setSentHouseholdInvitations(sentInvitationResult);
+        setDeletedTransactions(trashResult.items);
         setDashboard(dashboardResult);
-        setDashboardMonth(currentMonth);
-        setSelectedHouseholdId((current) => current ?? householdResult.households[0]?.id ?? null);
+        setDashboardMonth(dashboardResult.month);
+        setSelectedHouseholdId(effectiveHouseholdId);
       } catch (caughtError) {
         handleApiError(caughtError, "Could not load your MoneyMentor workspace.");
       } finally {
         setIsLoadingData(false);
       }
     },
-    [handleApiError],
+    [
+      handleApiError,
+      selectedHouseholdId,
+      setDeletedTransactions,
+      setHouseholdInvitations,
+      setHouseholds,
+      setSelectedHouseholdId,
+      setSentHouseholdInvitations,
+      setTransactionMonth,
+      setTransactionPage,
+      setTransactions,
+    ],
   );
+
+  useEffect(() => {
+    let active = true;
+    void refreshSession()
+      .catch(() => clearAuthSession())
+      .finally(() => {
+        if (active) {
+          setSessionReady(true);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isSubmitting]);
 
   useEffect(() => {
-    if (!session) {
+    if (!sessionReady || !session || session.requiresPrivacyConsent) {
       return;
     }
 
@@ -277,7 +366,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [refreshAppData, session]);
+  }, [refreshAppData, session, sessionReady]);
 
   useEffect(() => {
     return () => {
@@ -285,9 +374,12 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
     };
   }, []);
 
-  function signOut() {
-    clearAuthSession();
-    router.push("/login");
+  async function signOut() {
+    try {
+      await logout(session?.accessToken);
+    } finally {
+      router.push("/login");
+    }
   }
 
   function selectSection(section: Exclude<AppSection, "home">) {
@@ -397,6 +489,11 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
       return;
     }
 
+    if (!canWriteSelectedHousehold && !looksLikeFinanceQuestion(normalizedText)) {
+      setError("This household is read-only for Viewers. You can still ask finance questions.");
+      return;
+    }
+
     setError(null);
     setIsSubmitting(true);
     setText("");
@@ -407,7 +504,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
       const result = await sendAssistantMessage(session.accessToken, {
         text: normalizedText,
         inputMode: mode,
-        transactionDate: new Date().toISOString().slice(0, 10),
+        householdId: selectedHouseholdId ?? undefined,
         currencyCode,
         locale: "en-IN",
       });
@@ -438,8 +535,12 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
         month: transactionMonth,
         page: transactionPage?.page ?? 1,
         pageSize: transactionPageSize,
+        householdId: selectedHouseholdId ?? undefined,
       }),
-      getMonthlyDashboard(accessToken, { month: dashboardMonth }),
+      getMonthlyDashboard(accessToken, {
+        month: dashboardMonth,
+        householdId: selectedHouseholdId ?? undefined,
+      }),
     ]);
 
     setTransactions(transactionResult.items);
@@ -458,7 +559,10 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
     setError(null);
 
     try {
-      setDashboard(await getMonthlyDashboard(session.accessToken, { month }));
+      setDashboard(await getMonthlyDashboard(session.accessToken, {
+        month,
+        householdId: selectedHouseholdId ?? undefined,
+      }));
     } catch (caughtError) {
       setDashboardMonth(previousMonth);
       handleApiError(caughtError, "Could not load that dashboard month.");
@@ -483,6 +587,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
         month,
         page: 1,
         pageSize: transactionPageSize,
+        householdId: selectedHouseholdId ?? undefined,
       });
       setTransactions(result.items);
       setTransactionPage(result);
@@ -508,6 +613,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
         month: transactionMonth,
         page,
         pageSize: transactionPageSize,
+        householdId: selectedHouseholdId ?? undefined,
       });
       setTransactions(result.items);
       setTransactionPage(result);
@@ -581,7 +687,6 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
       const payload: UpdateUserSettingsRequest = {
         currencyCode: settingsForm.currencyCode,
         timeZone: settingsForm.timeZone,
-        plan: settingsForm.plan,
         requireMerchantForExpenses: settingsForm.requireMerchantForExpenses,
         defaultTransactionVisibility: settingsForm.defaultTransactionVisibility,
       };
@@ -589,7 +694,10 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
       setSettings(updated);
       setSettingsForm(toSettingsForm(updated));
       setHouseholds(await listHouseholds(session.accessToken));
-      setDashboard(await getMonthlyDashboard(session.accessToken, { month: dashboardMonth }));
+      setDashboard(await getMonthlyDashboard(session.accessToken, {
+        month: dashboardMonth,
+        householdId: selectedHouseholdId ?? undefined,
+      }));
     } catch (caughtError) {
       handleApiError(caughtError, "Could not save settings.");
     } finally {
@@ -639,6 +747,9 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
         role: memberRole,
       });
       setHouseholds(await listHouseholds(session.accessToken));
+      setSentHouseholdInvitations(
+        await listSentHouseholdInvitations(session.accessToken, selectedHouseholdId),
+      );
       setHouseholdNotice(`Invitation sent to ${memberEmail.trim()}.`);
       setMemberEmail("");
     } catch (caughtError) {
@@ -687,28 +798,102 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
     }
   }
 
-  async function upgradeToPremium() {
-    if (!session) {
-      return;
-    }
-
-    setIsSavingSettings(true);
+  async function handleDeleteTransaction(transaction: TransactionListItem) {
+    if (!session || !canWriteSelectedHousehold) return;
     setError(null);
-
     try {
-      const updated = await updateUserSettings(session.accessToken, { plan: "Premium" });
-      setSettings(updated);
-      setSettingsForm(toSettingsForm(updated));
-      setHouseholds(await listHouseholds(session.accessToken));
+      const deleted = await deleteTransaction(session.accessToken, transaction.id);
+      setUndoTransaction(deleted);
+      setTransactions((current) => current.filter((item) => item.id !== transaction.id));
+      setDeletedTransactions((current) => [
+        deleted,
+        ...current.filter((item) => item.id !== transaction.id),
+      ]);
+      await refreshDashboardAndTransactions(session.accessToken);
     } catch (caughtError) {
-      handleApiError(caughtError, "Could not update your plan.");
-    } finally {
-      setIsSavingSettings(false);
+      handleApiError(caughtError, "Could not move the transaction to trash.");
     }
+  }
+
+  async function handleRestoreTransaction(transaction: TransactionListItem) {
+    if (!session || !canWriteSelectedHousehold) return;
+    setError(null);
+    try {
+      const restored = await restoreTransaction(session.accessToken, transaction.id);
+      setDeletedTransactions((current) => current.filter((item) => item.id !== transaction.id));
+      setUndoTransaction((current) => current?.id === transaction.id ? null : current);
+      setTransactions((current) => [
+        restored,
+        ...current.filter((item) => item.id !== restored.id),
+      ]);
+      await refreshDashboardAndTransactions(session.accessToken);
+    } catch (caughtError) {
+      handleApiError(caughtError, "Could not restore the transaction.");
+    }
+  }
+
+  async function handleExportData() {
+    if (!session || isPrivacyWorking) return;
+    setIsPrivacyWorking(true);
+    setError(null);
+    try {
+      const exported = await downloadPrivacyExport(session.accessToken);
+      const url = URL.createObjectURL(exported.blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = exported.fileName;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (caughtError) {
+      handleApiError(caughtError, "Could not export your data.");
+    } finally {
+      setIsPrivacyWorking(false);
+    }
+  }
+
+  async function handleDeleteAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session || isPrivacyWorking) return;
+    setIsPrivacyWorking(true);
+    setError(null);
+    try {
+      await deleteAccount(session.accessToken, {
+        password: deletionPassword,
+        confirmation: deletionConfirmation,
+      });
+      clearAuthSession();
+      router.push("/signup");
+    } catch (caughtError) {
+      handleApiError(caughtError, "Could not delete your account.");
+    } finally {
+      setIsPrivacyWorking(false);
+    }
+  }
+
+  async function handleAcceptConsent() {
+    if (!session || isAcceptingConsent) return;
+    setIsAcceptingConsent(true);
+    setError(null);
+    try {
+      await acceptPrivacyConsent(session.accessToken);
+      saveAuthSession({ ...session, requiresPrivacyConsent: false });
+    } catch (caughtError) {
+      handleApiError(caughtError, "Could not record privacy consent.");
+    } finally {
+      setIsAcceptingConsent(false);
+    }
+  }
+
+  if (!sessionReady) {
+    return <LoadingSession />;
   }
 
   if (!session) {
     return <SignedOutHome />;
+  }
+
+  if (session.requiresPrivacyConsent) {
+    return <PrivacyConsentGate isSaving={isAcceptingConsent} onAccept={() => void handleAcceptConsent()} onSignOut={() => void signOut()} />;
   }
 
   return (
@@ -735,14 +920,27 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
           />
 
           <div className="hidden min-h-0 flex-1 overflow-y-auto px-6 py-5 lg:block xl:px-8">
+            <HouseholdScopeSelector
+              households={households}
+              onChange={(householdId) => {
+                closeTransactionEditor();
+                setSelectedHouseholdId(householdId);
+              }}
+              selectedHouseholdId={selectedHouseholdId}
+            />
             <WorkspaceError error={error} isLoading={isLoadingData} />
             {renderSection(desktopSection, {
               chatEndRef,
               dashboard,
               dashboardMonth,
               editForm,
+              canWriteSelectedHousehold,
+              deletedTransactions,
+              deletionConfirmation,
+              deletionPassword,
               households,
               householdInvitations,
+              sentHouseholdInvitations,
               householdNotice,
               inputMode,
               isListening,
@@ -751,6 +949,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
               isSavingHousehold,
               isSavingSettings,
               isSavingTransaction,
+              isPrivacyWorking,
               isSubmitting,
               memberEmail,
               memberRole,
@@ -765,6 +964,12 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
               onMemberRoleChange: setMemberRole,
               onInvitationResponse: (invitationId, response) =>
                 void handleInvitationResponse(invitationId, response),
+              onDeleteTransaction: (transaction) => void handleDeleteTransaction(transaction),
+              onRestoreTransaction: (transaction) => void handleRestoreTransaction(transaction),
+              onExportData: () => void handleExportData(),
+              onDeleteAccount: handleDeleteAccount,
+              onDeletionConfirmationChange: setDeletionConfirmation,
+              onDeletionPasswordChange: setDeletionPassword,
               onFormChange: setSettingsForm,
               onPromptClick: (idea) => {
                 setText(idea);
@@ -782,7 +987,6 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
               onToggleVoice: toggleVoiceInput,
               onTransactionMonthChange: (month) => void changeTransactionMonth(month),
               onTransactionPageChange: (page) => void changeTransactionPage(page),
-              onUpgrade: upgradeToPremium,
               selectedHouseholdId,
               selectedTransaction,
               settingsForm,
@@ -795,14 +999,27 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:hidden">
+            <HouseholdScopeSelector
+              households={households}
+              onChange={(householdId) => {
+                closeTransactionEditor();
+                setSelectedHouseholdId(householdId);
+              }}
+              selectedHouseholdId={selectedHouseholdId}
+            />
             <WorkspaceError error={error} isLoading={isLoadingData} />
             {renderSection(mobileSection, {
               chatEndRef,
               dashboard,
               dashboardMonth,
               editForm,
+              canWriteSelectedHousehold,
+              deletedTransactions,
+              deletionConfirmation,
+              deletionPassword,
               households,
               householdInvitations,
+              sentHouseholdInvitations,
               householdNotice,
               inputMode,
               isListening,
@@ -811,6 +1028,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
               isSavingHousehold,
               isSavingSettings,
               isSavingTransaction,
+              isPrivacyWorking,
               isSubmitting,
               memberEmail,
               memberRole,
@@ -825,6 +1043,12 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
               onMemberRoleChange: setMemberRole,
               onInvitationResponse: (invitationId, response) =>
                 void handleInvitationResponse(invitationId, response),
+              onDeleteTransaction: (transaction) => void handleDeleteTransaction(transaction),
+              onRestoreTransaction: (transaction) => void handleRestoreTransaction(transaction),
+              onExportData: () => void handleExportData(),
+              onDeleteAccount: handleDeleteAccount,
+              onDeletionConfirmationChange: setDeletionConfirmation,
+              onDeletionPasswordChange: setDeletionPassword,
               onFormChange: setSettingsForm,
               onPromptClick: (idea) => {
                 setText(idea);
@@ -842,7 +1066,6 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
               onToggleVoice: toggleVoiceInput,
               onTransactionMonthChange: (month) => void changeTransactionMonth(month),
               onTransactionPageChange: (page) => void changeTransactionPage(page),
-              onUpgrade: upgradeToPremium,
               selectedHouseholdId,
               selectedTransaction,
               settingsForm,
@@ -865,6 +1088,16 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
         sessionEmail={session.user.email}
         sessionName={session.user.displayName}
       />
+
+      {undoTransaction ? (
+        <div className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-lg bg-[var(--ink)] px-4 py-3 text-sm font-semibold text-white shadow-xl" role="status">
+          Moved to Recently Deleted.
+          <button className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 font-bold" onClick={() => void handleRestoreTransaction(undoTransaction)} type="button">
+            <RotateCcw className="h-4 w-4" /> Undo
+          </button>
+          <button aria-label="Dismiss undo" onClick={() => setUndoTransaction(null)} type="button"><X className="h-4 w-4" /></button>
+        </div>
+      ) : null}
 
       {desktopSection !== "assistant" ? (
         <DesktopAssistantDock
@@ -901,18 +1134,24 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
 }
 
 type SectionRenderProps = {
+  canWriteSelectedHousehold: boolean;
   chatEndRef: RefObject<HTMLDivElement | null>;
   dashboard: MonthlyDashboardResponse | null;
   dashboardMonth: string;
   editForm: TransactionEditForm | null;
+  deletedTransactions: TransactionListItem[];
+  deletionConfirmation: string;
+  deletionPassword: string;
   householdName: string;
   households: HouseholdDashboard | null;
   householdInvitations: HouseholdInvitation[];
+  sentHouseholdInvitations: HouseholdInvitation[];
   householdNotice: string | null;
   inputMode: InputMode;
   isListening: boolean;
   isLoadingDashboard: boolean;
   isLoadingTransactions: boolean;
+  isPrivacyWorking: boolean;
   isSavingHousehold: boolean;
   isSavingSettings: boolean;
   isSavingTransaction: boolean;
@@ -924,6 +1163,10 @@ type SectionRenderProps = {
   onDashboardMonthChange: (month: string) => void;
   onCloseEdit: () => void;
   onCreateHousehold: (event: FormEvent<HTMLFormElement>) => void;
+  onDeleteAccount: (event: FormEvent<HTMLFormElement>) => void;
+  onDeleteTransaction: (transaction: TransactionListItem) => void;
+  onDeletionConfirmationChange: (value: string) => void;
+  onDeletionPasswordChange: (value: string) => void;
   onEditFormChange: (form: TransactionEditForm) => void;
   onFormChange: (form: SettingsForm) => void;
   onHouseholdNameChange: (value: string) => void;
@@ -933,9 +1176,11 @@ type SectionRenderProps = {
     invitationId: string,
     response: "accept" | "decline",
   ) => void;
+  onExportData: () => void;
   onPromptClick: (idea: string) => void;
   onSaveSettings: (event: FormEvent<HTMLFormElement>) => void;
   onSaveTransaction: (event: FormEvent<HTMLFormElement>) => void;
+  onRestoreTransaction: (transaction: TransactionListItem) => void;
   onSelectTransaction: (transaction: TransactionListItem) => void;
   onSelectedHouseholdChange: (householdId: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -943,7 +1188,6 @@ type SectionRenderProps = {
   onToggleVoice: () => void;
   onTransactionMonthChange: (month: string) => void;
   onTransactionPageChange: (page: number) => void;
-  onUpgrade: () => void;
   selectedHouseholdId: string | null;
   selectedTransaction: TransactionListItem | null;
   settingsForm: SettingsForm | null;
@@ -986,11 +1230,15 @@ function renderSection(section: Exclude<AppSection, "home">, props: SectionRende
   if (section === "transactions") {
     return (
       <TransactionsSection
+        canWrite={props.canWriteSelectedHousehold}
+        deletedTransactions={props.deletedTransactions}
         isLoading={props.isLoadingTransactions}
         month={props.transactionMonth}
+        onDeleteTransaction={props.onDeleteTransaction}
         onSelectTransaction={props.onSelectTransaction}
         onMonthChange={props.onTransactionMonthChange}
         onPageChange={props.onTransactionPageChange}
+        onRestoreTransaction={props.onRestoreTransaction}
         page={props.transactionPage}
         transactions={props.transactions}
       />
@@ -1003,6 +1251,7 @@ function renderSection(section: Exclude<AppSection, "home">, props: SectionRende
         householdName={props.householdName}
         households={props.households}
         invitations={props.householdInvitations}
+        sentInvitations={props.sentHouseholdInvitations}
         isSaving={props.isSavingHousehold || props.isSavingSettings}
         memberEmail={props.memberEmail}
         memberRole={props.memberRole}
@@ -1013,7 +1262,6 @@ function renderSection(section: Exclude<AppSection, "home">, props: SectionRende
         onMemberEmailChange={props.onMemberEmailChange}
         onMemberRoleChange={props.onMemberRoleChange}
         onSelectedHouseholdChange={props.onSelectedHouseholdChange}
-        onUpgrade={props.onUpgrade}
         selectedHouseholdId={props.selectedHouseholdId}
         statusMessage={props.householdNotice}
       />
@@ -1022,8 +1270,15 @@ function renderSection(section: Exclude<AppSection, "home">, props: SectionRende
 
   return (
     <SettingsSection
+      deletionConfirmation={props.deletionConfirmation}
+      deletionPassword={props.deletionPassword}
       form={props.settingsForm}
+      isPrivacyWorking={props.isPrivacyWorking}
       isSaving={props.isSavingSettings}
+      onDeleteAccount={props.onDeleteAccount}
+      onDeletionConfirmationChange={props.onDeletionConfirmationChange}
+      onDeletionPasswordChange={props.onDeletionPasswordChange}
+      onExportData={props.onExportData}
       onFormChange={props.onFormChange}
       onSave={props.onSaveSettings}
     />
@@ -1708,19 +1963,27 @@ function DesktopAssistantDock({
 }
 
 function TransactionsSection({
+  canWrite,
+  deletedTransactions,
   isLoading,
   month,
+  onDeleteTransaction,
   onMonthChange,
   onPageChange,
   onSelectTransaction,
+  onRestoreTransaction,
   page,
   transactions,
 }: {
+  canWrite: boolean;
+  deletedTransactions: TransactionListItem[];
   isLoading: boolean;
   month: string;
+  onDeleteTransaction: (transaction: TransactionListItem) => void;
   onMonthChange: (month: string) => void;
   onPageChange: (page: number) => void;
   onSelectTransaction: (transaction: TransactionListItem) => void;
+  onRestoreTransaction: (transaction: TransactionListItem) => void;
   page: TransactionPageResponse | null;
   transactions: TransactionListItem[];
 }) {
@@ -1755,7 +2018,9 @@ function TransactionsSection({
           {transactions.length > 0 ? (
             transactions.map((transaction) => (
               <TransactionRow
+                canWrite={canWrite}
                 key={transaction.id}
+                onDelete={() => onDeleteTransaction(transaction)}
                 onEdit={() => onSelectTransaction(transaction)}
                 transaction={transaction}
               />
@@ -1794,7 +2059,59 @@ function TransactionsSection({
         </div>
       </article>
 
+      <article className="mt-5 rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold">Recently deleted</h3>
+            <p className="mt-1 text-sm font-medium text-[var(--muted)]">Items remain restorable for 30 days.</p>
+          </div>
+          <Trash2 className="h-5 w-5 text-[var(--muted)]" />
+        </div>
+        <div className="mt-4 divide-y divide-[var(--border)]">
+          {deletedTransactions.length > 0 ? deletedTransactions.map((transaction) => (
+            <div className="flex items-center justify-between gap-3 py-3" key={transaction.id}>
+              <div>
+                <p className="text-sm font-semibold">{transaction.reason ?? transaction.description ?? transaction.categoryName ?? "Transaction"}</p>
+                <p className="text-xs font-medium text-[var(--muted)]">{formatMoney(transaction.amount, transaction.currencyCode)} · purge {transaction.purgeAfter ? formatDate(transaction.purgeAfter) : "in 30 days"}</p>
+              </div>
+              <button className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-bold disabled:opacity-45" disabled={!canWrite} onClick={() => onRestoreTransaction(transaction)} type="button">
+                <RotateCcw className="h-4 w-4" /> Restore
+              </button>
+            </div>
+          )) : <EmptyInline text="Trash is empty." />}
+        </div>
+      </article>
+
     </section>
+  );
+}
+
+function HouseholdScopeSelector({
+  households,
+  onChange,
+  selectedHouseholdId,
+}: {
+  households: HouseholdDashboard | null;
+  onChange: (householdId: string) => void;
+  selectedHouseholdId: string | null;
+}) {
+  if (!households || households.households.length === 0) return null;
+  const selected = households.households.find((household) => household.id === selectedHouseholdId);
+  return (
+    <div className="mb-4 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-white px-4 py-3 shadow-sm lg:mb-5">
+      <label className="flex min-w-0 items-center gap-3 text-sm font-semibold">
+        <Users className="h-4 w-4 shrink-0 text-[var(--accent)]" />
+        <span className="hidden sm:inline">Household</span>
+        <select className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 outline-none" onChange={(event) => onChange(event.target.value)} value={selectedHouseholdId ?? households.defaultHouseholdId}>
+          {households.households.map((household) => (
+            <option key={household.id} value={household.id}>{household.name} ({household.kind})</option>
+          ))}
+        </select>
+      </label>
+      <span className={`rounded-md px-2 py-1 text-xs font-bold ${selected?.canWrite ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+        {selected?.canWrite ? "Can write" : "Read only"}
+      </span>
+    </div>
   );
 }
 
@@ -2014,6 +2331,7 @@ function HouseholdSection({
   householdName,
   households,
   invitations,
+  sentInvitations,
   isSaving,
   memberEmail,
   memberRole,
@@ -2024,13 +2342,13 @@ function HouseholdSection({
   onMemberEmailChange,
   onMemberRoleChange,
   onSelectedHouseholdChange,
-  onUpgrade,
   selectedHouseholdId,
   statusMessage,
 }: {
   householdName: string;
   households: HouseholdDashboard | null;
   invitations: HouseholdInvitation[];
+  sentInvitations: HouseholdInvitation[];
   isSaving: boolean;
   memberEmail: string;
   memberRole: HouseholdRole;
@@ -2044,13 +2362,19 @@ function HouseholdSection({
   onMemberEmailChange: (value: string) => void;
   onMemberRoleChange: (role: HouseholdRole) => void;
   onSelectedHouseholdChange: (householdId: string) => void;
-  onUpgrade: () => void;
   selectedHouseholdId: string | null;
   statusMessage: string | null;
 }) {
   if (!households) {
     return <EmptyState icon={Users} title="Loading households" text="Household access is being synced." />;
   }
+
+  const selectedHousehold = households.households.find(
+    (household) => household.id === selectedHouseholdId,
+  );
+  const canManageSelectedHousehold = selectedHousehold?.kind === "Family"
+    && selectedHousehold.canWrite
+    && (selectedHousehold.role === "Owner" || selectedHousehold.role === "Admin");
 
   return (
     <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
@@ -2060,7 +2384,7 @@ function HouseholdSection({
             <div>
               <h2 className="text-2xl font-semibold tracking-normal">Household</h2>
               <p className="mt-1 text-sm font-medium text-[var(--muted)]">
-                Family households are available to Premium profiles.
+                Personal is the default scope. Premium entitlement is managed by MoneyMentor support.
               </p>
             </div>
             <span className="rounded-lg bg-[var(--accent-soft)] px-3 py-2 text-xs font-bold text-[var(--accent)]">
@@ -2112,10 +2436,9 @@ function HouseholdSection({
             </div>
           ) : null}
 
-          {households.canUseHouseholds ? (
-            <div className="mt-5 grid gap-3">
-              {households.households.length > 0 ? (
-                households.households.map((household) => (
+          <div className="mt-5 grid gap-3">
+            {households.households.length > 0 ? (
+              households.households.map((household) => (
                   <button
                     className={`rounded-lg border p-4 text-left transition ${
                       selectedHouseholdId === household.id
@@ -2134,27 +2457,28 @@ function HouseholdSection({
                       {household.memberCount} member{household.memberCount === 1 ? "" : "s"} - {household.status}
                     </p>
                   </button>
-                ))
-              ) : (
-                <EmptyInline text="No family households yet. Create one from the side panel." />
-              )}
-            </div>
-          ) : (
+              ))
+            ) : (
+              <EmptyInline text="No households are available." />
+            )}
+          </div>
+
+          {sentInvitations.length > 0 ? (
             <div className="mt-5 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-              <p className="text-sm font-semibold">Premium required</p>
-              <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted)]">
-                Upgrade the app profile to test household flows locally.
-              </p>
-              <button
-                className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
-                disabled={isSaving}
-                onClick={onUpgrade}
-                type="button"
-              >
-                {isSaving ? "Updating..." : "Mark profile Premium"}
-              </button>
+              <h3 className="text-base font-semibold">Sent invitations</h3>
+              <div className="mt-3 grid gap-2">
+                {sentInvitations.map((invitation) => (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-white p-3" key={invitation.id}>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{invitation.email}</p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">{invitation.role} - {invitation.status}</p>
+                    </div>
+                    <span className="rounded-md bg-[var(--accent-soft)] px-2 py-1 text-xs font-bold text-[var(--accent)]">{invitation.deliveryStatus}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
+          ) : null}
         </article>
 
         <aside className="space-y-5">
@@ -2205,7 +2529,7 @@ function HouseholdSection({
             </Field>
             <button
               className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
-              disabled={isSaving || !selectedHouseholdId || !households.canUseHouseholds}
+              disabled={isSaving || !canManageSelectedHousehold}
               type="submit"
             >
               <UserPlus className="h-4 w-4" />
@@ -2219,13 +2543,27 @@ function HouseholdSection({
 }
 
 function SettingsSection({
+  deletionConfirmation,
+  deletionPassword,
   form,
+  isPrivacyWorking,
   isSaving,
+  onDeleteAccount,
+  onDeletionConfirmationChange,
+  onDeletionPasswordChange,
+  onExportData,
   onFormChange,
   onSave,
 }: {
+  deletionConfirmation: string;
+  deletionPassword: string;
   form: SettingsForm | null;
+  isPrivacyWorking: boolean;
   isSaving: boolean;
+  onDeleteAccount: (event: FormEvent<HTMLFormElement>) => void;
+  onDeletionConfirmationChange: (value: string) => void;
+  onDeletionPasswordChange: (value: string) => void;
+  onExportData: () => void;
   onFormChange: (form: SettingsForm) => void;
   onSave: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -2261,14 +2599,8 @@ function SettingsSection({
               />
             </Field>
             <Field label="Plan">
-              <select
-                className="form-control"
-                onChange={(event) => onFormChange({ ...form, plan: event.target.value as UserPlan })}
-                value={form.plan}
-              >
-                <option value="Free">Free</option>
-                <option value="Premium">Premium</option>
-              </select>
+              <input className="form-control" readOnly value={form.plan} />
+              <span className="text-xs font-medium text-[var(--muted)]">Entitlements are server-controlled. Contact support for beta access changes.</span>
             </Field>
             <Field label="Default visibility">
               <select
@@ -2308,16 +2640,44 @@ function SettingsSection({
           </button>
         </article>
       </form>
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-2">
+        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+          <h3 className="text-lg font-semibold">Your privacy data</h3>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">Download a versioned JSON copy of your profile, consent history, memberships, invitations, transactions including trash, and other user-owned records.</p>
+          <button className="mt-4 inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-3 text-sm font-bold disabled:opacity-60" disabled={isPrivacyWorking} onClick={onExportData} type="button">
+            <Download className="h-4 w-4" /> Export my data
+          </button>
+          <p className="mt-4 text-sm font-medium text-[var(--muted)]">Support: <a className="font-bold text-[var(--accent)] underline" href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@moneymentor.example"}`}>{process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@moneymentor.example"}</a></p>
+          <Link className="mt-2 inline-flex text-sm font-bold text-[var(--accent)] underline" href="/privacy" target="_blank">Read the beta privacy policy</Link>
+        </article>
+
+        <form className="rounded-lg border border-red-200 bg-white p-4 shadow-sm" onSubmit={onDeleteAccount}>
+          <h3 className="text-lg font-semibold text-red-800">Delete account</h3>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">This deletes private data and anonymizes eligible shared household records. Enter your password and type DELETE.</p>
+          <Field label="Current password">
+            <input autoComplete="current-password" className="form-control" onChange={(event) => onDeletionPasswordChange(event.target.value)} required type="password" value={deletionPassword} />
+          </Field>
+          <Field label="Confirmation">
+            <input className="form-control" onChange={(event) => onDeletionConfirmationChange(event.target.value)} placeholder="DELETE" required value={deletionConfirmation} />
+          </Field>
+          <button className="mt-4 rounded-lg bg-red-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60" disabled={isPrivacyWorking || deletionConfirmation !== "DELETE"} type="submit">Delete my account</button>
+        </form>
+      </div>
     </section>
   );
 }
 
 function TransactionRow({
+  canWrite = true,
   compact = false,
+  onDelete,
   onEdit,
   transaction,
 }: {
+  canWrite?: boolean;
   compact?: boolean;
+  onDelete?: () => void;
   onEdit?: () => void;
   transaction: TransactionListItem;
 }) {
@@ -2354,11 +2714,24 @@ function TransactionRow({
           <button
             aria-label={`Edit transaction ${transactionLabel}`}
             className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            disabled={!canWrite}
             onClick={onEdit}
             title="Edit transaction"
             type="button"
           >
             <Pencil className="h-4 w-4" />
+          </button>
+        ) : null}
+        {onDelete ? (
+          <button
+            aria-label={`Delete transaction ${transactionLabel}`}
+            className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition hover:border-red-300 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!canWrite}
+            onClick={onDelete}
+            title={canWrite ? "Move to trash" : "Viewer access is read-only"}
+            type="button"
+          >
+            <Trash2 className="h-4 w-4" />
           </button>
         ) : null}
       </div>
@@ -2608,6 +2981,54 @@ function formatDate(value: string) {
 
 function getCurrentMonthKey() {
   return new Date().toISOString().slice(0, 7);
+}
+
+function looksLikeFinanceQuestion(text: string) {
+  return /\b(where|what|which|how much|spent most|total|summary|report)\b/i.test(text);
+}
+
+function LoadingSession() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-[var(--background)] text-[var(--ink)]">
+      <div className="text-center">
+        <BrandMarkIcon className="mx-auto h-10 w-10 text-[var(--accent)]" />
+        <p className="mt-4 text-sm font-semibold text-[var(--muted)]">Restoring your secure session…</p>
+      </div>
+    </main>
+  );
+}
+
+function PrivacyConsentGate({
+  isSaving,
+  onAccept,
+  onSignOut,
+}: {
+  isSaving: boolean;
+  onAccept: () => void;
+  onSignOut: () => void;
+}) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-[var(--background)] px-5 text-[var(--ink)]">
+      <section className="w-full max-w-xl rounded-xl border border-[var(--border)] bg-white p-7 shadow-lg">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Privacy update</p>
+        <h1 className="mt-3 text-3xl font-semibold">Review the beta privacy policy</h1>
+        <p className="mt-4 leading-7 text-[var(--muted)]">
+          Before finance features reopen, please review and accept version 2026-07-03-beta.1. You can still export or delete your account through the API without accepting.
+        </p>
+        <Link className="mt-5 inline-flex font-bold text-[var(--accent)] underline" href="/privacy" target="_blank">
+          Read the plain-language policy
+        </Link>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <button className="rounded-lg bg-[var(--ink)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60" disabled={isSaving} onClick={onAccept} type="button">
+            {isSaving ? "Recording…" : "Accept and continue"}
+          </button>
+          <button className="rounded-lg border border-[var(--border)] px-5 py-3 text-sm font-bold" onClick={onSignOut} type="button">
+            Sign out
+          </button>
+        </div>
+      </section>
+    </main>
+  );
 }
 
 function shiftMonthKey(month: string, offset: number) {

@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MoneyMentor.Application.AppUsers;
+using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Transactions;
+using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Persistence;
@@ -9,27 +11,31 @@ using MoneyMentor.Infrastructure.Persistence;
 namespace MoneyMentor.Infrastructure.Transactions;
 
 internal sealed class PostgresTransactionService(
-    MoneyMentorDbContext dbContext) : ITransactionService
+    MoneyMentorDbContext dbContext,
+    IHouseholdAccessService householdAccessService,
+    TimeProvider timeProvider) : ITransactionService
 {
     private const int MaxPageSize = 100;
+    private static readonly TimeSpan TrashRetention = TimeSpan.FromDays(30);
 
     public async Task<TransactionModel> SaveExpenseAsync(
         SaveExpenseCommand command,
         CancellationToken cancellationToken)
     {
-        var householdId = await ResolveWritableHouseholdIdAsync(
+        var householdAccess = await householdAccessService.ResolveAsync(
             command.UserContext,
             command.RequestedHouseholdId,
+            requireWrite: true,
             cancellationToken);
         var categoryId = await GetOrCreateCategoryIdAsync(
             command.Draft.CategoryGuess,
             CategoryType.Expense,
             cancellationToken);
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
 
         var transaction = new Transaction
         {
-            HouseholdId = householdId,
+            HouseholdId = householdAccess.HouseholdId,
             UserProfileId = command.UserContext.UserProfileId,
             Amount = command.Draft.Amount!.Value,
             Type = TransactionType.Expense,
@@ -37,7 +43,7 @@ internal sealed class PostgresTransactionService(
             MerchantName = NormalizeOptional(command.Draft.MerchantName),
             Description = NormalizeOptional(command.Draft.Description),
             SourceText = command.Draft.SourceText,
-            TransactionDate = ToUtcDate(command.Draft.TransactionDate),
+            TransactionDate = command.Draft.TransactionDate ?? command.UserContext.CurrentDate,
             InputMode = command.Draft.InputMode,
             Confidence = command.Draft.Confidence,
             Visibility = command.UserContext.DefaultTransactionVisibility,
@@ -48,6 +54,7 @@ internal sealed class PostgresTransactionService(
 
         dbContext.Transactions.Add(transaction);
         await dbContext.SaveChangesAsync(cancellationToken);
+        RecordLifecycle("created", "expense");
 
         return await MapTransactionAsync(
             transaction,
@@ -59,19 +66,20 @@ internal sealed class PostgresTransactionService(
         SaveIncomeCommand command,
         CancellationToken cancellationToken)
     {
-        var householdId = await ResolveWritableHouseholdIdAsync(
+        var householdAccess = await householdAccessService.ResolveAsync(
             command.UserContext,
             command.RequestedHouseholdId,
+            requireWrite: true,
             cancellationToken);
         var categoryId = await GetOrCreateCategoryIdAsync(
             GetIncomeCategoryName(command.Draft.Reason),
             CategoryType.Income,
             cancellationToken);
-        var now = DateTimeOffset.UtcNow;
+        var now = timeProvider.GetUtcNow();
 
         var transaction = new Transaction
         {
-            HouseholdId = householdId,
+            HouseholdId = householdAccess.HouseholdId,
             UserProfileId = command.UserContext.UserProfileId,
             Amount = command.Draft.Amount!.Value,
             Type = TransactionType.Income,
@@ -81,7 +89,7 @@ internal sealed class PostgresTransactionService(
             MerchantName = NormalizeOptional(command.Draft.SenderName),
             Description = NormalizeOptional(command.Draft.Reason),
             SourceText = command.Draft.SourceText,
-            TransactionDate = ToUtcDate(command.Draft.TransactionDate),
+            TransactionDate = command.Draft.TransactionDate ?? command.UserContext.CurrentDate,
             InputMode = command.Draft.InputMode,
             Confidence = command.Draft.Confidence,
             Visibility = command.UserContext.DefaultTransactionVisibility,
@@ -92,6 +100,7 @@ internal sealed class PostgresTransactionService(
 
         dbContext.Transactions.Add(transaction);
         await dbContext.SaveChangesAsync(cancellationToken);
+        RecordLifecycle("created", "income");
 
         return await MapTransactionAsync(
             transaction,
@@ -104,21 +113,20 @@ internal sealed class PostgresTransactionService(
         TransactionPageQuery query,
         CancellationToken cancellationToken)
     {
-        var householdIds = await GetActiveHouseholdIdsAsync(userContext.UserProfileId, cancellationToken);
-        if (query.HouseholdId is not null)
-        {
-            householdIds = householdIds.Contains(query.HouseholdId.Value)
-                ? [query.HouseholdId.Value]
-                : [];
-        }
+        var householdAccess = await householdAccessService.ResolveAsync(
+            userContext,
+            query.HouseholdId,
+            requireWrite: false,
+            cancellationToken);
 
         var page = Math.Max(query.Page, 1);
         var pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
-        var periodStart = ToUtcDate(new DateOnly(query.Month.Year, query.Month.Month, 1));
+        var periodStart = new DateOnly(query.Month.Year, query.Month.Month, 1);
         var periodEnd = periodStart.AddMonths(1);
         var visibleTransactions = dbContext.Transactions
             .AsNoTracking()
-            .Where(transaction => householdIds.Contains(transaction.HouseholdId)
+            .Where(transaction => transaction.HouseholdId == householdAccess.HouseholdId
+                && transaction.DeletedAt == null
                 && transaction.TransactionDate >= periodStart
                 && transaction.TransactionDate < periodEnd
                 && (transaction.UserProfileId == userContext.UserProfileId
@@ -151,7 +159,10 @@ internal sealed class PostgresTransactionService(
             page,
             pageSize,
             totalCount,
-            (int)Math.Ceiling(totalCount / (double)pageSize));
+            (int)Math.Ceiling(totalCount / (double)pageSize))
+        {
+            Month = $"{periodStart:yyyy-MM}"
+        };
     }
 
     public async Task<TransactionModel?> GetAsync(
@@ -160,7 +171,9 @@ internal sealed class PostgresTransactionService(
         CancellationToken cancellationToken)
     {
         var transaction = await dbContext.Transactions
-            .FirstOrDefaultAsync(item => item.Id == transactionId, cancellationToken);
+            .FirstOrDefaultAsync(
+                item => item.Id == transactionId && item.DeletedAt == null,
+                cancellationToken);
 
         if (transaction is null || !await CanViewAsync(transaction, userContext, cancellationToken))
         {
@@ -180,7 +193,9 @@ internal sealed class PostgresTransactionService(
         CancellationToken cancellationToken)
     {
         var transaction = await dbContext.Transactions
-            .FirstOrDefaultAsync(item => item.Id == transactionId, cancellationToken);
+            .FirstOrDefaultAsync(
+                item => item.Id == transactionId && item.DeletedAt == null,
+                cancellationToken);
 
         if (transaction is null || !await CanEditAsync(transaction, userContext, cancellationToken))
         {
@@ -236,11 +251,11 @@ internal sealed class PostgresTransactionService(
 
         if (command.TransactionDate is not null)
         {
-            var transactionDate = ToUtcDate(command.TransactionDate);
+            var transactionDate = command.TransactionDate.Value;
             if (transaction.TransactionDate != transactionDate)
             {
                 changes["transactionDate"] = new FieldChange(
-                    ToDateOnly(transaction.TransactionDate),
+                    transaction.TransactionDate,
                     command.TransactionDate.Value);
                 transaction.TransactionDate = transactionDate;
             }
@@ -254,7 +269,7 @@ internal sealed class PostgresTransactionService(
 
         if (changes.Count > 0)
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = timeProvider.GetUtcNow();
             transaction.UpdatedAt = now;
             transaction.UpdatedByUserProfileId = userContext.UserProfileId;
 
@@ -267,6 +282,7 @@ internal sealed class PostgresTransactionService(
             });
 
             await dbContext.SaveChangesAsync(cancellationToken);
+            RecordLifecycle("updated", transaction.Type.ToString().ToLowerInvariant());
         }
 
         return await MapTransactionAsync(
@@ -275,39 +291,124 @@ internal sealed class PostgresTransactionService(
             cancellationToken);
     }
 
-    private async Task<Guid> ResolveWritableHouseholdIdAsync(
+    public async Task<TransactionModel?> DeleteAsync(
         AppUserContext userContext,
-        Guid? requestedHouseholdId,
+        Guid transactionId,
         CancellationToken cancellationToken)
     {
-        if (requestedHouseholdId is null)
+        var transaction = await dbContext.Transactions.FirstOrDefaultAsync(
+            item => item.Id == transactionId && item.DeletedAt == null,
+            cancellationToken);
+        if (transaction is null || !await CanEditAsync(transaction, userContext, cancellationToken))
         {
-            return userContext.PersonalHouseholdId;
+            return null;
         }
 
-        var membership = await dbContext.HouseholdMembers
-            .Join(
-                dbContext.Households,
-                member => member.HouseholdId,
-                household => household.Id,
-                (member, household) => new { Member = member, Household = household })
-            .FirstOrDefaultAsync(
-                item => item.Member.HouseholdId == requestedHouseholdId.Value
-                    && item.Member.UserProfileId == userContext.UserProfileId
-                    && item.Member.Status == HouseholdMemberStatus.Active,
-                cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        transaction.DeletedAt = now;
+        transaction.DeletedByUserProfileId = userContext.UserProfileId;
+        transaction.PurgeAfter = now.Add(TrashRetention);
+        transaction.UpdatedAt = now;
+        transaction.UpdatedByUserProfileId = userContext.UserProfileId;
+        AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", false, true);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        RecordLifecycle("deleted", transaction.Type.ToString().ToLowerInvariant());
+        return await MapTransactionAsync(transaction, userContext.CurrencyCode, cancellationToken);
+    }
 
-        if (membership is null)
+    public async Task<TransactionModel?> RestoreAsync(
+        AppUserContext userContext,
+        Guid transactionId,
+        CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow();
+        var transaction = await dbContext.Transactions.FirstOrDefaultAsync(
+            item => item.Id == transactionId
+                && item.DeletedAt != null
+                && item.PurgeAfter > now,
+            cancellationToken);
+        if (transaction is null || !await CanEditAsync(transaction, userContext, cancellationToken))
         {
-            throw new InvalidOperationException("The selected household is not available.");
+            return null;
         }
 
-        if (membership.Household.Kind == HouseholdKind.Family && userContext.Plan != UserPlan.Premium)
+        transaction.DeletedAt = null;
+        transaction.DeletedByUserProfileId = null;
+        transaction.PurgeAfter = null;
+        transaction.UpdatedAt = now;
+        transaction.UpdatedByUserProfileId = userContext.UserProfileId;
+        AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", true, false);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        RecordLifecycle("restored", transaction.Type.ToString().ToLowerInvariant());
+        return await MapTransactionAsync(transaction, userContext.CurrencyCode, cancellationToken);
+    }
+
+    public async Task<TransactionTrashModel> ListTrashAsync(
+        AppUserContext userContext,
+        Guid? householdId,
+        CancellationToken cancellationToken)
+    {
+        var access = await householdAccessService.ResolveAsync(
+            userContext,
+            householdId,
+            requireWrite: false,
+            cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var transactions = await dbContext.Transactions
+            .AsNoTracking()
+            .Where(transaction => transaction.HouseholdId == access.HouseholdId
+                && transaction.DeletedAt != null
+                && transaction.PurgeAfter > now
+                && (transaction.UserProfileId == userContext.UserProfileId
+                    || transaction.Visibility == TransactionVisibility.Household))
+            .OrderByDescending(transaction => transaction.DeletedAt)
+            .Take(100)
+            .ToArrayAsync(cancellationToken);
+        return new TransactionTrashModel(
+            await MapTransactionsAsync(transactions, userContext.CurrencyCode, cancellationToken));
+    }
+
+    public async Task<int> PurgeDeletedAsync(CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow();
+        var purged = await dbContext.Transactions
+            .Where(transaction => transaction.DeletedAt != null && transaction.PurgeAfter <= now)
+            .ExecuteDeleteAsync(cancellationToken);
+        if (purged > 0)
         {
-            throw new InvalidOperationException("Household tracking requires a Premium plan.");
+            MoneyMentorTelemetry.TransactionLifecycle.Add(
+                purged,
+                new KeyValuePair<string, object?>("operation", "purged"));
         }
 
-        return requestedHouseholdId.Value;
+        return purged;
+    }
+
+    private static void RecordLifecycle(string operation, string type) =>
+        MoneyMentorTelemetry.TransactionLifecycle.Add(
+            1,
+            new KeyValuePair<string, object?>("operation", operation),
+            new KeyValuePair<string, object?>("type", type));
+
+    private void AddAudit(
+        Guid transactionId,
+        Guid userProfileId,
+        DateTimeOffset now,
+        string field,
+        object? before,
+        object? after)
+    {
+        dbContext.TransactionAuditEntries.Add(new TransactionAuditEntry
+        {
+            TransactionId = transactionId,
+            EditedByUserProfileId = userProfileId,
+            EditedAt = now,
+            ChangedFieldsJson = JsonSerializer.Serialize(
+                new Dictionary<string, FieldChange>
+                {
+                    [field] = new(before, after)
+                })
+        });
     }
 
     private async Task<bool> CanViewAsync(
@@ -337,6 +438,18 @@ internal sealed class PostgresTransactionService(
         AppUserContext userContext,
         CancellationToken cancellationToken)
     {
+        try
+        {
+            await householdAccessService.ResolveAsync(
+                userContext,
+                transaction.HouseholdId,
+                requireWrite: true,
+                cancellationToken);
+        }
+        catch (HouseholdNotFoundException)
+        {
+            return false;
+        }
         if (transaction.UserProfileId == userContext.UserProfileId)
         {
             return true;
@@ -352,15 +465,6 @@ internal sealed class PostgresTransactionService(
         return role is HouseholdRole.Owner or HouseholdRole.Admin
             && transaction.Visibility == TransactionVisibility.Household;
     }
-
-    private async Task<IReadOnlyCollection<Guid>> GetActiveHouseholdIdsAsync(
-        Guid userProfileId,
-        CancellationToken cancellationToken) =>
-        await dbContext.HouseholdMembers
-            .Where(member => member.UserProfileId == userProfileId
-                && member.Status == HouseholdMemberStatus.Active)
-            .Select(member => member.HouseholdId)
-            .ToArrayAsync(cancellationToken);
 
     private async Task<Guid?> GetOrCreateCategoryIdAsync(
         string? categoryName,
@@ -444,7 +548,7 @@ internal sealed class PostgresTransactionService(
                 transaction.Type == TransactionType.Income ? null : transaction.MerchantName,
                 transaction.Type == TransactionType.Income ? null : transaction.Description,
                 transaction.SourceText,
-                ToDateOnly(transaction.TransactionDate),
+                transaction.TransactionDate,
                 transaction.InputMode,
                 transaction.Confidence,
                 transaction.Visibility,
@@ -455,7 +559,9 @@ internal sealed class PostgresTransactionService(
                     : userProfiles.GetValueOrDefault(transaction.UpdatedByUserProfileId.Value))
             {
                 SenderName = transaction.Type == TransactionType.Income ? transaction.MerchantName : null,
-                Reason = transaction.Type == TransactionType.Income ? transaction.Description : null
+                Reason = transaction.Type == TransactionType.Income ? transaction.Description : null,
+                DeletedAt = transaction.DeletedAt,
+                PurgeAfter = transaction.PurgeAfter
             })
             .ToArray();
     }
@@ -490,16 +596,6 @@ internal sealed class PostgresTransactionService(
         changes[fieldName] = new FieldChange(currentValue, newValue);
         apply(newValue);
     }
-
-    private static DateTimeOffset ToUtcDate(DateOnly? date)
-    {
-        var resolvedDate = date ?? DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime);
-        return new DateTimeOffset(
-            DateTime.SpecifyKind(resolvedDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc));
-    }
-
-    private static DateOnly ToDateOnly(DateTimeOffset dateTimeOffset) =>
-        DateOnly.FromDateTime(dateTimeOffset.UtcDateTime);
 
     private static string? NormalizeOptional(string? value)
     {

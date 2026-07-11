@@ -180,6 +180,46 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.ToTable("categories", "app");
                 });
 
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.EntitlementChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("NewPlan")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Operator")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("PreviousPlan")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<Guid>("UserProfileId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId", "ChangedAt");
+
+                    b.ToTable("entitlement_changes", "app");
+                });
+
             modelBuilder.Entity("MoneyMentor.Domain.Entities.FinancialGoal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -266,7 +306,9 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedByUserProfileId");
+                    b.HasIndex("CreatedByUserProfileId")
+                        .IsUnique()
+                        .HasFilter("\"Kind\" = 'Personal'");
 
                     b.ToTable("households", "app");
                 });
@@ -280,6 +322,23 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<int>("DeliveryAttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("DeliveryId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset?>("DeliveryLeaseUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeliveryStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Unknown");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -295,6 +354,17 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.Property<Guid>("InvitedByUserProfileId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("LastDeliveryError")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<DateTimeOffset?>("NextDeliveryAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProviderMessageId")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
                     b.Property<DateTimeOffset?>("RespondedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -306,6 +376,9 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -313,12 +386,18 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DeliveryId")
+                        .IsUnique();
+
                     b.HasIndex("InvitedByUserProfileId");
 
                     b.HasIndex("RespondedByUserProfileId");
 
+                    b.HasIndex("DeliveryStatus", "NextDeliveryAttemptAt");
+
                     b.HasIndex("HouseholdId", "Email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Pending'");
 
                     b.HasIndex("Email", "Status", "ExpiresAt");
 
@@ -463,6 +542,32 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.ToTable("pending_actions", "app");
                 });
 
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.PrivacyConsent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AcceptedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("UserProfileId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId", "PolicyVersion")
+                        .IsUnique();
+
+                    b.ToTable("privacy_consents", "app");
+                });
+
             modelBuilder.Entity("MoneyMentor.Domain.Entities.Transaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -484,6 +589,12 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedByUserProfileId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Description")
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
@@ -500,13 +611,16 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<DateTimeOffset?>("PurgeAfter")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("SourceText")
                         .IsRequired()
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
-                    b.Property<DateTimeOffset>("TransactionDate")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<DateOnly>("TransactionDate")
+                        .HasColumnType("date");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -521,7 +635,7 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.Property<Guid?>("UpdatedByUserProfileId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("UserProfileId")
+                    b.Property<Guid?>("UserProfileId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Visibility")
@@ -533,13 +647,19 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
                     b.HasIndex("CategoryId");
 
+                    b.HasIndex("DeletedByUserProfileId");
+
                     b.HasIndex("HouseholdId");
 
-                    b.HasIndex("TransactionDate");
+                    b.HasIndex("PurgeAfter")
+                        .HasFilter("\"DeletedAt\" IS NOT NULL");
 
                     b.HasIndex("UpdatedByUserProfileId");
 
                     b.HasIndex("UserProfileId");
+
+                    b.HasIndex("HouseholdId", "TransactionDate")
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.ToTable("transactions", "app");
                 });
@@ -692,6 +812,15 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.EntitlementChange", b =>
+                {
+                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
+                        .WithMany()
+                        .HasForeignKey("UserProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MoneyMentor.Domain.Entities.FinancialGoal", b =>
                 {
                     b.HasOne("MoneyMentor.Domain.Entities.Household", null)
@@ -779,11 +908,25 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.PrivacyConsent", b =>
+                {
+                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
+                        .WithMany()
+                        .HasForeignKey("UserProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MoneyMentor.Domain.Entities.Transaction", b =>
                 {
                     b.HasOne("MoneyMentor.Domain.Entities.Category", null)
                         .WithMany()
                         .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
+                        .WithMany()
+                        .HasForeignKey("DeletedByUserProfileId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("MoneyMentor.Domain.Entities.Household", null)
@@ -800,8 +943,7 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
                         .WithMany()
                         .HasForeignKey("UserProfileId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.TransactionAuditEntry", b =>

@@ -18,6 +18,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [acceptPrivacyPolicy, setAcceptPrivacyPolicy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,6 +38,8 @@ export function AuthForm({ mode }: AuthFormProps) {
             displayName: displayName.trim(),
             email: email.trim(),
             password,
+            privacyPolicyVersion: "2026-07-03-beta.1",
+            acceptPrivacyPolicy,
           })
         : await login({
             email: email.trim(),
@@ -163,6 +166,25 @@ export function AuthForm({ mode }: AuthFormProps) {
               type="password"
               value={password}
             />
+
+            {isSignup ? (
+              <label className="flex items-start gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-sm font-medium leading-6 text-[var(--muted)]">
+                <input
+                  checked={acceptPrivacyPolicy}
+                  className="mt-1 h-4 w-4 accent-[var(--accent)]"
+                  onChange={(event) => setAcceptPrivacyPolicy(event.target.checked)}
+                  required
+                  type="checkbox"
+                />
+                <span>
+                  I accept the{" "}
+                  <Link className="font-bold text-[var(--accent)] underline" href="/privacy" target="_blank">
+                    beta privacy policy
+                  </Link>
+                  {" "}(version 2026-07-03-beta.1).
+                </span>
+              </label>
+            ) : null}
 
             {error ? (
               <p className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm font-medium leading-6 text-[var(--danger)]">

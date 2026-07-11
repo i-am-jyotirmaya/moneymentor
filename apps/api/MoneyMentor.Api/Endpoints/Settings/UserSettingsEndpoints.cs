@@ -60,9 +60,12 @@ public static class UserSettingsEndpoints
             return Results.Unauthorized();
         }
 
-        if (!TryParseOptional<UserPlan>(request.Plan, nameof(request.Plan), out var plan, out var planError))
+        if (!string.IsNullOrWhiteSpace(request.TimeZone)
+            && !UserTimeZone.TryNormalize(request.TimeZone, out _))
         {
-            return planError!;
+            return EndpointValidation.ValidationProblem(
+                nameof(request.TimeZone),
+                "TimeZone must be a valid IANA time-zone identifier.");
         }
 
         if (!TryParseOptional<TransactionVisibility>(
@@ -79,7 +82,6 @@ public static class UserSettingsEndpoints
             new UpdateUserSettingsCommand(
                 request.CurrencyCode,
                 request.TimeZone,
-                plan,
                 request.RequireMerchantForExpenses,
                 visibility),
             cancellationToken);

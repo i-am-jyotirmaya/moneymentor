@@ -17,6 +17,8 @@ public sealed class MoneyMentorAuthDbContext
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
+    public DbSet<AuthSession> AuthSessions => Set<AuthSession>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -25,6 +27,7 @@ public sealed class MoneyMentorAuthDbContext
         ConfigureApplicationUser(builder);
         ConfigureApplicationRole(builder);
         ConfigureRefreshToken(builder);
+        ConfigureAuthSession(builder);
     }
 
     private static void ConfigureIdentityTables(ModelBuilder builder)
@@ -54,6 +57,11 @@ public sealed class MoneyMentorAuthDbContext
             entity.HasMany(user => user.RefreshTokens)
                 .WithOne(refreshToken => refreshToken.User)
                 .HasForeignKey(refreshToken => refreshToken.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(user => user.AuthSessions)
+                .WithOne(session => session.User)
+                .HasForeignKey(session => session.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }
@@ -98,6 +106,27 @@ public sealed class MoneyMentorAuthDbContext
                 .IsUnique();
 
             entity.HasIndex(refreshToken => new { refreshToken.UserId, refreshToken.ExpiresAt });
+
+            entity.HasOne(refreshToken => refreshToken.Session)
+                .WithMany(session => session.RefreshTokens)
+                .HasForeignKey(refreshToken => refreshToken.SessionId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
+        });
+    }
+
+    private static void ConfigureAuthSession(ModelBuilder builder)
+    {
+        builder.Entity<AuthSession>(entity =>
+        {
+            entity.ToTable("auth_sessions", AuthSchema);
+            entity.HasKey(session => session.Id);
+            entity.Property(session => session.Id).ValueGeneratedNever();
+            entity.Property(session => session.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(session => session.CreatedByIp).HasMaxLength(45);
+            entity.Property(session => session.RevokedByIp).HasMaxLength(45);
+            entity.HasIndex(session => new { session.UserId, session.ExpiresAt });
+            entity.HasIndex(session => session.RevokedAt);
         });
     }
 }

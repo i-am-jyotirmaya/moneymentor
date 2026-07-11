@@ -9,12 +9,14 @@ public sealed record HouseholdSummaryModel(
     HouseholdKind Kind,
     HouseholdRole Role,
     HouseholdMemberStatus Status,
+    bool CanWrite,
     int MemberCount,
     DateTimeOffset CreatedAt);
 
 public sealed record HouseholdDashboardModel(
     UserPlan Plan,
     bool CanUseHouseholds,
+    Guid DefaultHouseholdId,
     IReadOnlyCollection<HouseholdSummaryModel> Households);
 
 public sealed record CreateHouseholdCommand(
@@ -31,7 +33,11 @@ public sealed record HouseholdInvitationModel(
     string InvitedByDisplayName,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
-    DateTimeOffset? RespondedAt);
+    DateTimeOffset? RespondedAt,
+    InvitationDeliveryStatus DeliveryStatus,
+    int DeliveryAttemptCount,
+    DateTimeOffset? SentAt,
+    string? LastDeliveryError);
 
 public enum HouseholdInvitationResultStatus
 {

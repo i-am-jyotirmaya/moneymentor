@@ -15,12 +15,12 @@ public interface IAuthManager
         CancellationToken cancellationToken);
 
     Task<AuthManagerResult<AuthSessionResponse>> RefreshAsync(
-        RefreshTokenRequest request,
+        string refreshToken,
         string? ipAddress,
         CancellationToken cancellationToken);
 
     Task<AuthManagerResult> LogoutAsync(
-        RefreshTokenRequest request,
+        string refreshToken,
         string? ipAddress,
         CancellationToken cancellationToken);
 

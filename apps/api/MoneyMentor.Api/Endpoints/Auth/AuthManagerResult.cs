@@ -7,7 +7,8 @@ public enum AuthFailureKind
     Conflict,
     InvalidCredentials,
     Unauthorized,
-    NotFound
+    NotFound,
+    LockedOut
 }
 
 public sealed record AuthManagerResult(

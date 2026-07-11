@@ -6,6 +6,8 @@ public sealed class RefreshToken
 
     public Guid UserId { get; set; }
 
+    public Guid SessionId { get; set; }
+
     public string TokenHash { get; set; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -21,6 +23,8 @@ public sealed class RefreshToken
     public string? RevokedByIp { get; set; }
 
     public ApplicationUser User { get; set; } = null!;
+
+    public AuthSession Session { get; set; } = null!;
 
     public bool IsExpired => DateTimeOffset.UtcNow >= ExpiresAt;
 

@@ -12,4 +12,5 @@ public sealed record ExpenseInputParseRequest(
     string? CurrencyCode,
     string? Locale,
     string? Email = null,
-    string? DisplayName = null);
+    string? DisplayName = null,
+    DateOnly? ReferenceDate = null);

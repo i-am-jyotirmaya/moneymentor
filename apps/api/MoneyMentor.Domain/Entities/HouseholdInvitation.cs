@@ -23,4 +23,20 @@ public sealed class HouseholdInvitation
     public DateTimeOffset ExpiresAt { get; set; }
 
     public DateTimeOffset? RespondedAt { get; set; }
+
+    public Guid DeliveryId { get; set; } = Guid.NewGuid();
+
+    public InvitationDeliveryStatus DeliveryStatus { get; set; } = InvitationDeliveryStatus.Queued;
+
+    public int DeliveryAttemptCount { get; set; }
+
+    public DateTimeOffset? NextDeliveryAttemptAt { get; set; }
+
+    public DateTimeOffset? DeliveryLeaseUntil { get; set; }
+
+    public DateTimeOffset? SentAt { get; set; }
+
+    public string? ProviderMessageId { get; set; }
+
+    public string? LastDeliveryError { get; set; }
 }

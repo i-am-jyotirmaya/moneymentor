@@ -1,4 +1,11 @@
+import {
+  clearAuthSession,
+  getAuthSessionSnapshot,
+  saveAuthSession,
+} from "./auth-session";
+
 const DEFAULT_API_BASE_URL = "http://localhost:5267";
+let refreshPromise: Promise<AuthSession> | null = null;
 
 export type AuthUser = {
   id: string;
@@ -10,9 +17,8 @@ export type AuthUser = {
 export type AuthSession = {
   accessToken: string;
   accessTokenExpiresAt: string;
-  refreshToken: string;
-  refreshTokenExpiresAt: string;
   user: AuthUser;
+  requiresPrivacyConsent: boolean;
 };
 
 export type InputMode = "Text" | "Voice" | "System";
@@ -49,7 +55,7 @@ export type IncomeDraft = {
 export type TransactionListItem = {
   id: string;
   householdId: string;
-  userProfileId: string;
+  userProfileId: string | null;
   amount: number;
   currencyCode: string;
   type: "Expense" | "Income" | "Transfer";
@@ -66,6 +72,8 @@ export type TransactionListItem = {
   createdAt: string;
   updatedAt: string;
   updatedByDisplayName: string | null;
+  deletedAt: string | null;
+  purgeAfter: string | null;
 };
 
 export type TransactionPageResponse = {
@@ -74,6 +82,11 @@ export type TransactionPageResponse = {
   pageSize: number;
   totalCount: number;
   totalPages: number;
+  month: string;
+};
+
+export type TransactionTrashResponse = {
+  items: TransactionListItem[];
 };
 
 export type ExpenseInputResponse = {
@@ -171,7 +184,6 @@ export type UserSettingsResponse = {
 export type UpdateUserSettingsRequest = Partial<{
   currencyCode: string;
   timeZone: string;
-  plan: UserPlan;
   requireMerchantForExpenses: boolean;
   defaultTransactionVisibility: TransactionVisibility;
 }>;
@@ -182,6 +194,7 @@ export type HouseholdSummary = {
   kind: "Personal" | "Family";
   role: HouseholdRole;
   status: "Pending" | "Active" | "Removed";
+  canWrite: boolean;
   memberCount: number;
   createdAt: string;
 };
@@ -189,6 +202,7 @@ export type HouseholdSummary = {
 export type HouseholdDashboard = {
   plan: UserPlan;
   canUseHouseholds: boolean;
+  defaultHouseholdId: string;
   households: HouseholdSummary[];
 };
 
@@ -203,6 +217,10 @@ export type HouseholdInvitation = {
   createdAt: string;
   expiresAt: string;
   respondedAt: string | null;
+  deliveryStatus: "Unknown" | "Queued" | "Processing" | "Sent" | "Failed";
+  deliveryAttemptCount: number;
+  sentAt: string | null;
+  lastDeliveryError: string | null;
 };
 
 export class ApiError extends Error {
@@ -218,7 +236,7 @@ export class ApiError extends Error {
 
 type RequestOptions = {
   accessToken?: string;
-  method?: "GET" | "POST" | "PATCH";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
 };
 
@@ -257,6 +275,7 @@ async function readResponseError(response: Response) {
 async function apiRequest<TResponse>(
   path: string,
   { accessToken, method = "GET", body }: RequestOptions = {},
+  allowRefresh = true,
 ) {
   const headers = new Headers();
 
@@ -272,7 +291,21 @@ async function apiRequest<TResponse>(
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
+    credentials: "include",
   });
+
+  if (response.status === 401 && allowRefresh && !path.startsWith("/api/auth/")) {
+    try {
+      const refreshed = await refreshSession();
+      return apiRequest<TResponse>(
+        path,
+        { accessToken: refreshed.accessToken, method, body },
+        false,
+      );
+    } catch {
+      clearAuthSession();
+    }
+  }
 
   if (!response.ok) {
     const errors = await readResponseError(response);
@@ -290,6 +323,8 @@ export function createUser(input: {
   email: string;
   password: string;
   displayName: string;
+  privacyPolicyVersion: string;
+  acceptPrivacyPolicy: boolean;
 }) {
   return apiRequest<AuthSession>("/api/auth/users", {
     method: "POST",
@@ -371,6 +406,47 @@ export function listTransactions(
     `/api/transactions${queryString ? `?${queryString}` : ""}`,
     { accessToken },
   );
+}
+
+export function refreshSession() {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  const performRefresh = async () => {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const errors = await readResponseError(response);
+      throw new ApiError(errors[0] ?? "Session refresh failed.", response.status, errors);
+    }
+
+    const session = (await response.json()) as AuthSession;
+    saveAuthSession(session);
+    return session;
+  };
+
+  refreshPromise = performRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  return refreshPromise;
+}
+
+export async function logout(accessToken?: string) {
+  try {
+    await apiRequest<void>(
+      "/api/auth/logout",
+      {
+        accessToken: accessToken ?? getAuthSessionSnapshot()?.accessToken,
+        method: "POST",
+      },
+      false,
+    );
+  } finally {
+    clearAuthSession();
+  }
 }
 
 export function getMonthlyDashboard(
@@ -464,6 +540,13 @@ export function listHouseholdInvitations(accessToken: string) {
   return apiRequest<HouseholdInvitation[]>("/api/households/invitations", { accessToken });
 }
 
+export function listSentHouseholdInvitations(accessToken: string, householdId: string) {
+  return apiRequest<HouseholdInvitation[]>(
+    `/api/households/${householdId}/invitations`,
+    { accessToken },
+  );
+}
+
 export function respondToHouseholdInvitation(
   accessToken: string,
   invitationId: string,
@@ -473,4 +556,67 @@ export function respondToHouseholdInvitation(
     `/api/households/invitations/${invitationId}/${response}`,
     { accessToken, method: "POST" },
   );
+}
+
+export function deleteTransaction(accessToken: string, transactionId: string) {
+  return apiRequest<TransactionListItem>(`/api/transactions/${transactionId}`, {
+    accessToken,
+    method: "DELETE",
+  });
+}
+
+export function restoreTransaction(accessToken: string, transactionId: string) {
+  return apiRequest<TransactionListItem>(`/api/transactions/${transactionId}/restore`, {
+    accessToken,
+    method: "POST",
+  });
+}
+
+export function listDeletedTransactions(accessToken: string, householdId?: string) {
+  const query = householdId ? `?householdId=${encodeURIComponent(householdId)}` : "";
+  return apiRequest<TransactionTrashResponse>(`/api/transactions/trash${query}`, { accessToken });
+}
+
+export function acceptPrivacyConsent(accessToken: string) {
+  return apiRequest<{ policyVersion: string; acceptedAt: string }>("/api/privacy/consents", {
+    accessToken,
+    method: "POST",
+    body: { policyVersion: "2026-07-03-beta.1", accepted: true },
+  });
+}
+
+export async function downloadPrivacyExport(accessToken: string) {
+  let response = await fetch(`${getApiBaseUrl()}/api/privacy/export`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    credentials: "include",
+  });
+  if (response.status === 401) {
+    const session = await refreshSession();
+    response = await fetch(`${getApiBaseUrl()}/api/privacy/export`, {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+      credentials: "include",
+    });
+  }
+  if (!response.ok) {
+    const errors = await readResponseError(response);
+    throw new ApiError(errors[0] ?? "Export failed.", response.status, errors);
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName:
+      response.headers.get("Content-Disposition")?.match(/filename="?([^";]+)"?/)?.[1] ??
+      "moneymentor-export.json",
+  };
+}
+
+export function deleteAccount(
+  accessToken: string,
+  input: { password: string; confirmation: string },
+) {
+  return apiRequest<void>("/api/privacy/account", {
+    accessToken,
+    method: "DELETE",
+    body: input,
+  });
 }

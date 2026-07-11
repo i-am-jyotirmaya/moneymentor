@@ -35,5 +35,11 @@ internal sealed class HouseholdConfiguration : IEntityTypeConfiguration<Househol
             .HasForeignKey(household => household.CreatedByUserProfileId)
             .OnDelete(DeleteBehavior.Restrict)
             .IsRequired();
+
+        builder.HasIndex(household => household.CreatedByUserProfileId);
+
+        builder.HasIndex(household => household.CreatedByUserProfileId)
+            .IsUnique()
+            .HasFilter("\"Kind\" = 'Personal'");
     }
 }
