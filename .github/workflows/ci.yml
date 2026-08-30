@@ -29,7 +29,6 @@ jobs:
           dotnet-version: 10.0.x
       - uses: pnpm/setup@v2
         with:
-          version: ^12.1.0
           cache: true
           cache-dependency-path: apps/web/pnpm-lock.yaml
           runtime: node@24
