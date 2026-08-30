@@ -7,7 +7,7 @@ namespace MoneyMentor.Application.Privacy;
 
 public static class PrivacyPolicy
 {
-    public const string CurrentVersion = "2026-07-03-beta.1";
+    public const string CurrentVersion = "2026-07-26-ai-planning.1";
 }
 
 public sealed record PrivacyConsentModel(
@@ -26,10 +26,43 @@ public sealed record PrivacyExportModel(
 
 public sealed record PrivacyOwnedRecordsModel(
     IReadOnlyCollection<PrivacyFinancialGoalModel> FinancialGoals,
+    IReadOnlyCollection<PrivacyGoalPlanningRunModel> GoalPlanningRuns,
+    IReadOnlyCollection<PrivacyGoalPlanVersionModel> GoalPlanVersions,
+    IReadOnlyCollection<PrivacyGoalParticipantConsentModel> GoalParticipantConsents,
     IReadOnlyCollection<PrivacyInsightModel> Insights,
     IReadOnlyCollection<PrivacyAssistantSessionModel> AssistantSessions,
     IReadOnlyCollection<PrivacyPendingActionModel> PendingActions,
     IReadOnlyCollection<PrivacyEntitlementChangeModel> EntitlementChanges);
+
+public sealed record PrivacyGoalPlanningRunModel(
+    Guid Id,
+    Guid GoalId,
+    string RunType,
+    string Status,
+    string RequestJson,
+    string SnapshotJson,
+    string? Model,
+    int InputTokens,
+    int OutputTokens,
+    string? FailureCategory,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? CompletedAt);
+
+public sealed record PrivacyGoalPlanVersionModel(
+    Guid Id,
+    Guid GoalPlanId,
+    Guid? SourceVersionId,
+    int VersionNumber,
+    string Source,
+    string? UserContext,
+    string OptionsJson,
+    DateTimeOffset CreatedAt);
+
+public sealed record PrivacyGoalParticipantConsentModel(
+    Guid GoalId,
+    string PolicyVersion,
+    DateTimeOffset ConsentedAt,
+    DateTimeOffset? RevokedAt);
 
 public sealed record PrivacyFinancialGoalModel(
     Guid Id,

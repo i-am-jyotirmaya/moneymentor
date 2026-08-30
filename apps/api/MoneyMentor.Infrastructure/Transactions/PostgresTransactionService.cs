@@ -6,13 +6,16 @@ using MoneyMentor.Application.Transactions;
 using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
+using MoneyMentor.Infrastructure.Categories;
 using MoneyMentor.Infrastructure.Persistence;
+using MoneyMentor.Infrastructure.JudgementReports;
 
 namespace MoneyMentor.Infrastructure.Transactions;
 
 internal sealed class PostgresTransactionService(
     MoneyMentorDbContext dbContext,
     IHouseholdAccessService householdAccessService,
+    IJudgementReportRecalculationQueue judgementReportRecalculationQueue,
     TimeProvider timeProvider) : ITransactionService
 {
     private const int MaxPageSize = 100;
@@ -53,12 +56,13 @@ internal sealed class PostgresTransactionService(
         };
 
         dbContext.Transactions.Add(transaction);
+        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         RecordLifecycle("created", "expense");
 
         return await MapTransactionAsync(
             transaction,
-            command.UserContext.CurrencyCode,
+            householdAccess.CurrencyCode,
             cancellationToken);
     }
 
@@ -99,12 +103,13 @@ internal sealed class PostgresTransactionService(
         };
 
         dbContext.Transactions.Add(transaction);
+        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         RecordLifecycle("created", "income");
 
         return await MapTransactionAsync(
             transaction,
-            command.UserContext.CurrencyCode,
+            householdAccess.CurrencyCode,
             cancellationToken);
     }
 
@@ -151,7 +156,7 @@ internal sealed class PostgresTransactionService(
 
         var items = await MapTransactionsAsync(
             transactions,
-            userContext.CurrencyCode,
+            householdAccess.CurrencyCode,
             cancellationToken);
 
         return new TransactionPageModel(
@@ -182,7 +187,7 @@ internal sealed class PostgresTransactionService(
 
         return await MapTransactionAsync(
             transaction,
-            userContext.CurrencyCode,
+            await GetHouseholdCurrencyAsync(transaction.HouseholdId, cancellationToken),
             cancellationToken);
     }
 
@@ -201,6 +206,8 @@ internal sealed class PostgresTransactionService(
         {
             return null;
         }
+
+        var originalReportingSnapshot = ReportingSnapshot(transaction);
 
         var changes = new Dictionary<string, FieldChange>();
 
@@ -281,13 +288,16 @@ internal sealed class PostgresTransactionService(
                 ChangedFieldsJson = JsonSerializer.Serialize(changes)
             });
 
+            await judgementReportRecalculationQueue.EnqueueAsync(
+                [originalReportingSnapshot, ReportingSnapshot(transaction)],
+                cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
             RecordLifecycle("updated", transaction.Type.ToString().ToLowerInvariant());
         }
 
         return await MapTransactionAsync(
             transaction,
-            userContext.CurrencyCode,
+            await GetHouseholdCurrencyAsync(transaction.HouseholdId, cancellationToken),
             cancellationToken);
     }
 
@@ -311,9 +321,13 @@ internal sealed class PostgresTransactionService(
         transaction.UpdatedAt = now;
         transaction.UpdatedByUserProfileId = userContext.UserProfileId;
         AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", false, true);
+        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         RecordLifecycle("deleted", transaction.Type.ToString().ToLowerInvariant());
-        return await MapTransactionAsync(transaction, userContext.CurrencyCode, cancellationToken);
+        return await MapTransactionAsync(
+            transaction,
+            await GetHouseholdCurrencyAsync(transaction.HouseholdId, cancellationToken),
+            cancellationToken);
     }
 
     public async Task<TransactionModel?> RestoreAsync(
@@ -338,9 +352,13 @@ internal sealed class PostgresTransactionService(
         transaction.UpdatedAt = now;
         transaction.UpdatedByUserProfileId = userContext.UserProfileId;
         AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", true, false);
+        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         RecordLifecycle("restored", transaction.Type.ToString().ToLowerInvariant());
-        return await MapTransactionAsync(transaction, userContext.CurrencyCode, cancellationToken);
+        return await MapTransactionAsync(
+            transaction,
+            await GetHouseholdCurrencyAsync(transaction.HouseholdId, cancellationToken),
+            cancellationToken);
     }
 
     public async Task<TransactionTrashModel> ListTrashAsync(
@@ -365,7 +383,7 @@ internal sealed class PostgresTransactionService(
             .Take(100)
             .ToArrayAsync(cancellationToken);
         return new TransactionTrashModel(
-            await MapTransactionsAsync(transactions, userContext.CurrencyCode, cancellationToken));
+            await MapTransactionsAsync(transactions, access.CurrencyCode, cancellationToken));
     }
 
     public async Task<int> PurgeDeletedAsync(CancellationToken cancellationToken)
@@ -469,40 +487,12 @@ internal sealed class PostgresTransactionService(
     private async Task<Guid?> GetOrCreateCategoryIdAsync(
         string? categoryName,
         CategoryType categoryType,
-        CancellationToken cancellationToken)
-    {
-        var normalizedName = NormalizeOptional(categoryName);
-        if (normalizedName is null)
-        {
-            return null;
-        }
-
-        var normalizedNameLower = normalizedName.ToLowerInvariant();
-        var category = await dbContext.Categories
-            .FirstOrDefaultAsync(
-                item => item.HouseholdId == null
-                    && item.Type == categoryType
-                    && item.Name.ToLower() == normalizedNameLower,
-                cancellationToken);
-
-        if (category is not null)
-        {
-            return category.Id;
-        }
-
-        category = new Category
-        {
-            Name = normalizedName,
-            Type = categoryType,
-            KeywordsJson = "[]",
-            IsSystemCategory = true
-        };
-
-        dbContext.Categories.Add(category);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return category.Id;
-    }
+        CancellationToken cancellationToken) =>
+        await CategoryPersistence.GetOrCreateSystemCategoryIdAsync(
+            dbContext,
+            categoryName,
+            categoryType,
+            cancellationToken);
 
     private async Task<TransactionModel> MapTransactionAsync(
         Transaction transaction,
@@ -531,37 +521,64 @@ internal sealed class PostgresTransactionService(
 
         var categories = await dbContext.Categories
             .Where(category => categoryIds.Contains(category.Id))
+            .ToDictionaryAsync(
+                category => category.Id,
+                category => new CategoryProjection(
+                    category.Name,
+                    category.ParentCategoryId,
+                    category.Classification),
+                cancellationToken);
+        var parentIds = categories.Values
+            .Select(category => category.ParentCategoryId)
+            .OfType<Guid>()
+            .Distinct()
+            .ToArray();
+        var parentNames = await dbContext.Categories
+            .Where(category => parentIds.Contains(category.Id))
             .ToDictionaryAsync(category => category.Id, category => category.Name, cancellationToken);
         var userProfiles = await dbContext.UserProfiles
             .Where(userProfile => userProfileIds.Contains(userProfile.Id))
             .ToDictionaryAsync(userProfile => userProfile.Id, userProfile => userProfile.DisplayName, cancellationToken);
 
         return transactions
-            .Select(transaction => new TransactionModel(
-                transaction.Id,
-                transaction.HouseholdId,
-                transaction.UserProfileId,
-                transaction.Amount,
-                currencyCode,
-                transaction.Type,
-                transaction.CategoryId is null ? null : categories.GetValueOrDefault(transaction.CategoryId.Value),
-                transaction.Type == TransactionType.Income ? null : transaction.MerchantName,
-                transaction.Type == TransactionType.Income ? null : transaction.Description,
-                transaction.SourceText,
-                transaction.TransactionDate,
-                transaction.InputMode,
-                transaction.Confidence,
-                transaction.Visibility,
-                transaction.CreatedAt,
-                transaction.UpdatedAt,
-                transaction.UpdatedByUserProfileId is null
-                    ? null
-                    : userProfiles.GetValueOrDefault(transaction.UpdatedByUserProfileId.Value))
+            .Select(transaction =>
             {
-                SenderName = transaction.Type == TransactionType.Income ? transaction.MerchantName : null,
-                Reason = transaction.Type == TransactionType.Income ? transaction.Description : null,
-                DeletedAt = transaction.DeletedAt,
-                PurgeAfter = transaction.PurgeAfter
+                CategoryProjection? category = null;
+                if (transaction.CategoryId is not null)
+                {
+                    categories.TryGetValue(transaction.CategoryId.Value, out category);
+                }
+
+                return new TransactionModel(
+                    transaction.Id,
+                    transaction.HouseholdId,
+                    transaction.UserProfileId,
+                    transaction.Amount,
+                    currencyCode,
+                    transaction.Type,
+                    category?.Name,
+                    transaction.Type == TransactionType.Income ? null : transaction.MerchantName,
+                    transaction.Type == TransactionType.Income ? null : transaction.Description,
+                    transaction.SourceText,
+                    transaction.TransactionDate,
+                    transaction.InputMode,
+                    transaction.Confidence,
+                    transaction.Visibility,
+                    transaction.CreatedAt,
+                    transaction.UpdatedAt,
+                    transaction.UpdatedByUserProfileId is null
+                        ? null
+                        : userProfiles.GetValueOrDefault(transaction.UpdatedByUserProfileId.Value))
+                {
+                    SenderName = transaction.Type == TransactionType.Income ? transaction.MerchantName : null,
+                    Reason = transaction.Type == TransactionType.Income ? transaction.Description : null,
+                    DeletedAt = transaction.DeletedAt,
+                    PurgeAfter = transaction.PurgeAfter,
+                    ParentCategoryName = category?.ParentCategoryId is null
+                        ? null
+                        : parentNames.GetValueOrDefault(category.ParentCategoryId.Value),
+                    CategoryClassification = category?.Classification
+                };
             })
             .ToArray();
     }
@@ -597,6 +614,18 @@ internal sealed class PostgresTransactionService(
         apply(newValue);
     }
 
+    private static TransactionReportingSnapshot ReportingSnapshot(Transaction transaction) => new(
+        transaction.HouseholdId,
+        transaction.UserProfileId,
+        transaction.TransactionDate,
+        transaction.Visibility);
+
+    private async Task<string> GetHouseholdCurrencyAsync(Guid householdId, CancellationToken cancellationToken) =>
+        await dbContext.Households.AsNoTracking()
+            .Where(household => household.Id == householdId)
+            .Select(household => household.CurrencyCode)
+            .SingleAsync(cancellationToken);
+
     private static string? NormalizeOptional(string? value)
     {
         var trimmed = value?.Trim();
@@ -614,31 +643,36 @@ internal sealed class PostgresTransactionService(
         if (normalizedReason.Contains("salary", StringComparison.Ordinal)
             || normalizedReason.Contains("wage", StringComparison.Ordinal))
         {
-            return "Salary";
+            return "Salary / Wages";
         }
 
         if (normalizedReason.Contains("bonus", StringComparison.Ordinal)
             || normalizedReason.Contains("incentive", StringComparison.Ordinal))
         {
-            return "Bonus";
+            return "Bonus / Commission";
         }
 
         if (normalizedReason.Contains("freelance", StringComparison.Ordinal)
             || normalizedReason.Contains("client", StringComparison.Ordinal)
             || normalizedReason.Contains("consult", StringComparison.Ordinal))
         {
-            return "Freelance";
+            return "Freelance / Self-Employment";
         }
 
         if (normalizedReason.Contains("refund", StringComparison.Ordinal)
             || normalizedReason.Contains("reimbursement", StringComparison.Ordinal)
             || normalizedReason.Contains("cashback", StringComparison.Ordinal))
         {
-            return "Refund";
+            return "Refunds / Reimbursements";
         }
 
         return "Other Income";
     }
 
     private sealed record FieldChange(object? Before, object? After);
+
+    private sealed record CategoryProjection(
+        string Name,
+        Guid? ParentCategoryId,
+        CategoryClassification Classification);
 }

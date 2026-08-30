@@ -64,6 +64,21 @@ internal sealed class PostgresFinanceTransactionReader(
         var categories = await dbContext.Categories
             .AsNoTracking()
             .Where(category => categoryIds.Contains(category.Id))
+            .ToDictionaryAsync(
+                category => category.Id,
+                category => new CategoryProjection(
+                    category.Name,
+                    category.ParentCategoryId,
+                    category.Classification),
+                cancellationToken);
+        var parentIds = categories.Values
+            .Select(category => category.ParentCategoryId)
+            .OfType<Guid>()
+            .Distinct()
+            .ToArray();
+        var parentNames = await dbContext.Categories
+            .AsNoTracking()
+            .Where(category => parentIds.Contains(category.Id))
             .ToDictionaryAsync(category => category.Id, category => category.Name, cancellationToken);
         var userProfiles = await dbContext.UserProfiles
             .AsNoTracking()
@@ -71,29 +86,47 @@ internal sealed class PostgresFinanceTransactionReader(
             .ToDictionaryAsync(userProfile => userProfile.Id, userProfile => userProfile.DisplayName, cancellationToken);
 
         return transactions
-            .Select(transaction => new TransactionModel(
-                transaction.Id,
-                transaction.HouseholdId,
-                transaction.UserProfileId,
-                transaction.Amount,
-                currencyCode,
-                transaction.Type,
-                transaction.CategoryId is null
-                    ? null
-                    : categories.GetValueOrDefault(transaction.CategoryId.Value),
-                transaction.MerchantName,
-                transaction.Description,
-                transaction.SourceText,
-                transaction.TransactionDate,
-                transaction.InputMode,
-                transaction.Confidence,
-                transaction.Visibility,
-                transaction.CreatedAt,
-                transaction.UpdatedAt,
-                transaction.UpdatedByUserProfileId is null
-                    ? null
-                    : userProfiles.GetValueOrDefault(transaction.UpdatedByUserProfileId.Value)))
+            .Select(transaction =>
+            {
+                CategoryProjection? category = null;
+                if (transaction.CategoryId is not null)
+                {
+                    categories.TryGetValue(transaction.CategoryId.Value, out category);
+                }
+
+                return new TransactionModel(
+                    transaction.Id,
+                    transaction.HouseholdId,
+                    transaction.UserProfileId,
+                    transaction.Amount,
+                    currencyCode,
+                    transaction.Type,
+                    category?.Name,
+                    transaction.MerchantName,
+                    transaction.Description,
+                    transaction.SourceText,
+                    transaction.TransactionDate,
+                    transaction.InputMode,
+                    transaction.Confidence,
+                    transaction.Visibility,
+                    transaction.CreatedAt,
+                    transaction.UpdatedAt,
+                    transaction.UpdatedByUserProfileId is null
+                        ? null
+                        : userProfiles.GetValueOrDefault(transaction.UpdatedByUserProfileId.Value))
+                {
+                    ParentCategoryName = category?.ParentCategoryId is null
+                        ? null
+                        : parentNames.GetValueOrDefault(category.ParentCategoryId.Value),
+                    CategoryClassification = category?.Classification
+                };
+            })
             .ToArray();
     }
+
+    private sealed record CategoryProjection(
+        string Name,
+        Guid? ParentCategoryId,
+        CategoryClassification Classification);
 
 }

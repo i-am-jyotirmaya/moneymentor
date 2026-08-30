@@ -25,12 +25,14 @@ internal sealed class PostgresHouseholdAccessService(
                 dbContext.Households,
                 member => member.HouseholdId,
                 household => household.Id,
-                (member, household) => new { member.Role, household.Kind })
+                (member, household) => new { member.Role, household.Kind, household.CurrencyCode, household.TimeZone })
             .Select(row => new HouseholdAccessContext(
                 householdId,
                 row.Kind,
                 row.Role,
-                row.Role != HouseholdRole.Viewer))
+                row.Role != HouseholdRole.Viewer,
+                row.CurrencyCode,
+                row.TimeZone))
             .SingleOrDefaultAsync(cancellationToken);
 
         if (access is null)

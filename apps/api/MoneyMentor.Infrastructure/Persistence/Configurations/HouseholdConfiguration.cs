@@ -24,6 +24,15 @@ internal sealed class HouseholdConfiguration : IEntityTypeConfiguration<Househol
             .HasMaxLength(32)
             .IsRequired();
 
+        builder.Property(household => household.CurrencyCode)
+            .HasMaxLength(3)
+            .IsFixedLength()
+            .IsRequired();
+
+        builder.Property(household => household.TimeZone)
+            .HasMaxLength(100)
+            .IsRequired();
+
         builder.Property(household => household.CreatedAt)
             .HasDefaultValueSql("now()");
 

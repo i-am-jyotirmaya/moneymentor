@@ -27,6 +27,15 @@ public static class HouseholdEndpoints
             .Produces(StatusCodes.Status403Forbidden)
             .ProducesValidationProblem();
 
+        group.MapPatch("/{householdId:guid}/settings", UpdateSettingsAsync)
+            .WithName("UpdateHouseholdSettings")
+            .Produces<HouseholdSummaryModel>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status409Conflict)
+            .ProducesValidationProblem();
+
         group.MapGet("/invitations", ListPendingInvitationsAsync)
             .WithName("ListPendingHouseholdInvitations")
             .Produces<IReadOnlyCollection<HouseholdInvitationModel>>()
@@ -116,6 +125,52 @@ public static class HouseholdEndpoints
         return household is null
             ? Results.Forbid()
             : Results.Created($"/api/households/{household.Id}", household);
+    }
+
+    private static async Task<IResult> UpdateSettingsAsync(
+        Guid householdId,
+        UpdateHouseholdSettingsRequest request,
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        IHouseholdService householdService,
+        CancellationToken cancellationToken)
+    {
+        var validationResult = EndpointValidation.Validate(request);
+        if (validationResult is not null)
+        {
+            return validationResult;
+        }
+
+        var userContext = await ResolveContextAsync(httpContext, appUserProfileService, cancellationToken);
+        if (userContext is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await householdService.UpdateSettingsAsync(
+            new UpdateHouseholdSettingsCommand(
+                userContext,
+                householdId,
+                request.CurrencyCode,
+                request.TimeZone),
+            cancellationToken);
+
+        return result.Status switch
+        {
+            UpdateHouseholdSettingsStatus.Succeeded => Results.Ok(result.Household),
+            UpdateHouseholdSettingsStatus.Forbidden => Results.Forbid(),
+            UpdateHouseholdSettingsStatus.NotFound => Results.NotFound(),
+            UpdateHouseholdSettingsStatus.CurrencyLocked => Results.Problem(
+                title: "Household currency is locked after the first transaction.",
+                statusCode: StatusCodes.Status409Conflict),
+            UpdateHouseholdSettingsStatus.InvalidCurrency => EndpointValidation.ValidationProblem(
+                nameof(request.CurrencyCode),
+                "CurrencyCode must be a three-letter ISO currency code."),
+            UpdateHouseholdSettingsStatus.InvalidTimeZone => EndpointValidation.ValidationProblem(
+                nameof(request.TimeZone),
+                "TimeZone must be a valid IANA time-zone identifier."),
+            _ => Results.Problem(statusCode: StatusCodes.Status500InternalServerError)
+        };
     }
 
     private static async Task<IResult> ListPendingInvitationsAsync(

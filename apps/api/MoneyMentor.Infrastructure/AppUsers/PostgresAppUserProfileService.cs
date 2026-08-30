@@ -232,6 +232,8 @@ internal sealed class PostgresAppUserProfileService(
         {
             Name = $"{userProfile.DisplayName}'s workspace",
             Kind = HouseholdKind.Personal,
+            CurrencyCode = userProfile.CurrencyCode,
+            TimeZone = userProfile.TimeZone,
             CreatedByUserProfileId = userProfile.Id,
             CreatedAt = now,
             UpdatedAt = now

@@ -22,6 +22,7 @@ import {
   Settings,
   Trash2,
   Download,
+  Flag,
   UserPlus,
   Users,
   Wallet,
@@ -40,9 +41,16 @@ import {
 } from "react";
 import type {
   AssistantMessageResponse,
+  CategoryCatalogResponse,
   CategorySpendSummary,
+  Commitment,
   DashboardInsight,
   DashboardJudgement,
+  Goal,
+  GoalDetail,
+  GoalPlanPace,
+  GoalPlanVersion,
+  GoalPlanningRun,
   HouseholdDashboard,
   HouseholdInvitation,
   HouseholdRole,
@@ -57,24 +65,37 @@ import type {
 import {
   ApiError,
   acceptPrivacyConsent,
+  activateGoalPlan,
+  createGoal,
+  createGoalPlanningRun,
   createHousehold,
   createHouseholdInvitation,
   deleteAccount,
   deleteTransaction,
   downloadPrivacyExport,
   getMonthlyDashboard,
+  getGoal,
+  getGoalPlanningRun,
   getUserSettings,
+  listCategories,
+  listCommitments,
+  listGoals,
   listHouseholdInvitations,
   listSentHouseholdInvitations,
   listDeletedTransactions,
   listHouseholds,
   listTransactions,
   logout,
+  putGoalParticipantConsent,
+  deleteGoalParticipantConsent,
+  customizeGoalPlan,
+  reviewGoalPlan,
   refreshSession,
   respondToHouseholdInvitation,
   restoreTransaction,
   submitAssistantMessage as sendAssistantMessage,
   updateTransaction,
+  updateHouseholdSettings,
   updateUserSettings,
 } from "@/lib/api";
 import {
@@ -90,9 +111,10 @@ import {
   useTransactionState,
 } from "../_hooks/use-transaction-state";
 import { BrandMarkIcon } from "./icons";
+import { JudgementReportsPanel } from "./judgement-reports-panel";
 
 type InputMode = "Text" | "Voice";
-export type AppSection = "home" | "dashboard" | "assistant" | "transactions" | "household" | "settings";
+export type AppSection = "home" | "dashboard" | "assistant" | "transactions" | "reports" | "planning" | "household" | "settings";
 
 type MoneyMentorHomeProps = {
   initialSection?: AppSection;
@@ -149,6 +171,8 @@ const navItems: Array<{
   { section: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { section: "assistant", label: "Assistant", icon: Bot },
   { section: "transactions", label: "Transactions", icon: ReceiptText },
+  { section: "reports", label: "Reports", icon: BarChart3 },
+  { section: "planning", label: "Planning", icon: Flag },
   { section: "household", label: "Household", icon: Users },
   { section: "settings", label: "Settings", icon: Settings },
 ];
@@ -218,6 +242,9 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
     setIsSavingHousehold,
   } = useHouseholdScopeState();
   const [dashboard, setDashboard] = useState<MonthlyDashboardResponse | null>(null);
+  const [categoryCatalog, setCategoryCatalog] = useState<CategoryCatalogResponse | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [commitments, setCommitments] = useState<Commitment[]>([]);
   const [sessionReady, setSessionReady] = useState(false);
   const {
     isAcceptingConsent,
@@ -292,7 +319,15 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
         const effectiveHousehold = householdResult.households.find(
           (household) => household.id === effectiveHouseholdId,
         );
-        const [transactionResult, dashboardResult, trashResult, sentInvitationResult] = await Promise.all([
+        const [
+          transactionResult,
+          dashboardResult,
+          trashResult,
+          sentInvitationResult,
+          categoryResult,
+          goalResult,
+          commitmentResult,
+        ] = await Promise.all([
           listTransactions(accessToken, {
             page: 1,
             pageSize: transactionPageSize,
@@ -304,6 +339,9 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
             && (effectiveHousehold.role === "Owner" || effectiveHousehold.role === "Admin")
             ? listSentHouseholdInvitations(accessToken, effectiveHouseholdId)
             : Promise.resolve([]),
+          listCategories(accessToken, effectiveHouseholdId),
+          listGoals(accessToken, effectiveHouseholdId),
+          listCommitments(accessToken, effectiveHouseholdId),
         ]);
 
         setSettings(settingsResult);
@@ -316,6 +354,9 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
         setSentHouseholdInvitations(sentInvitationResult);
         setDeletedTransactions(trashResult.items);
         setDashboard(dashboardResult);
+        setCategoryCatalog(categoryResult);
+        setGoals(goalResult);
+        setCommitments(commitmentResult);
         setDashboardMonth(dashboardResult.month);
         setSelectedHouseholdId(effectiveHouseholdId);
       } catch (caughtError) {
@@ -759,6 +800,35 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
     }
   }
 
+  async function handleSaveHouseholdSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session || !selectedHouseholdId || isSavingHousehold) return;
+
+    const formData = new FormData(event.currentTarget);
+    const currencyCode = String(formData.get("currencyCode") ?? "").trim().toUpperCase();
+    const timeZone = String(formData.get("timeZone") ?? "").trim();
+    setIsSavingHousehold(true);
+    setHouseholdNotice(null);
+    setError(null);
+    try {
+      const updated = await updateHouseholdSettings(
+        session.accessToken,
+        selectedHouseholdId,
+        { currencyCode, timeZone },
+      );
+      setHouseholds((current) => current ? {
+        ...current,
+        households: current.households.map((household) =>
+          household.id === updated.id ? updated : household),
+      } : current);
+      setHouseholdNotice("Household reporting settings saved.");
+    } catch (caughtError) {
+      handleApiError(caughtError, "Could not save household reporting settings.");
+    } finally {
+      setIsSavingHousehold(false);
+    }
+  }
+
   async function handleInvitationResponse(
     invitationId: string,
     response: "accept" | "decline",
@@ -930,9 +1000,14 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
             />
             <WorkspaceError error={error} isLoading={isLoadingData} />
             {renderSection(desktopSection, {
+              accessToken: session.accessToken,
+              allowHouseholdReportScope: selectedHousehold?.kind === "Family",
               chatEndRef,
               dashboard,
               dashboardMonth,
+              categoryCatalog,
+              goals,
+              commitments,
               editForm,
               canWriteSelectedHousehold,
               deletedTransactions,
@@ -958,6 +1033,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
               onDashboardMonthChange: (month) => void changeDashboardMonth(month),
               onCloseEdit: closeTransactionEditor,
               onCreateHousehold: handleCreateHousehold,
+              onSaveHouseholdSettings: handleSaveHouseholdSettings,
               onEditFormChange: setEditForm,
               onHouseholdNameChange: setHouseholdName,
               onMemberEmailChange: setMemberEmail,
@@ -1009,9 +1085,14 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
             />
             <WorkspaceError error={error} isLoading={isLoadingData} />
             {renderSection(mobileSection, {
+              accessToken: session.accessToken,
+              allowHouseholdReportScope: selectedHousehold?.kind === "Family",
               chatEndRef,
               dashboard,
               dashboardMonth,
+              categoryCatalog,
+              goals,
+              commitments,
               editForm,
               canWriteSelectedHousehold,
               deletedTransactions,
@@ -1037,6 +1118,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
               onDashboardMonthChange: (month) => void changeDashboardMonth(month),
               onCloseEdit: closeTransactionEditor,
               onCreateHousehold: handleCreateHousehold,
+              onSaveHouseholdSettings: handleSaveHouseholdSettings,
               onEditFormChange: setEditForm,
               onHouseholdNameChange: setHouseholdName,
               onMemberEmailChange: setMemberEmail,
@@ -1134,8 +1216,12 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
 }
 
 type SectionRenderProps = {
+  accessToken: string;
+  allowHouseholdReportScope: boolean;
   canWriteSelectedHousehold: boolean;
   chatEndRef: RefObject<HTMLDivElement | null>;
+  categoryCatalog: CategoryCatalogResponse | null;
+  commitments: Commitment[];
   dashboard: MonthlyDashboardResponse | null;
   dashboardMonth: string;
   editForm: TransactionEditForm | null;
@@ -1143,6 +1229,7 @@ type SectionRenderProps = {
   deletionConfirmation: string;
   deletionPassword: string;
   householdName: string;
+  goals: Goal[];
   households: HouseholdDashboard | null;
   householdInvitations: HouseholdInvitation[];
   sentHouseholdInvitations: HouseholdInvitation[];
@@ -1163,6 +1250,7 @@ type SectionRenderProps = {
   onDashboardMonthChange: (month: string) => void;
   onCloseEdit: () => void;
   onCreateHousehold: (event: FormEvent<HTMLFormElement>) => void;
+  onSaveHouseholdSettings: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteAccount: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteTransaction: (transaction: TransactionListItem) => void;
   onDeletionConfirmationChange: (value: string) => void;
@@ -1245,6 +1333,30 @@ function renderSection(section: Exclude<AppSection, "home">, props: SectionRende
     );
   }
 
+  if (section === "reports") {
+    return (
+      <JudgementReportsPanel
+        accessToken={props.accessToken}
+        allowHouseholdScope={props.allowHouseholdReportScope}
+        householdId={props.selectedHouseholdId}
+      />
+    );
+  }
+
+  if (section === "planning") {
+    return (
+      <PlanningSection
+        canWrite={props.canWriteSelectedHousehold}
+        categoryCatalog={props.categoryCatalog}
+        commitments={props.commitments}
+        currencyCode={props.dashboard?.currencyCode ?? "INR"}
+        goals={props.goals}
+        householdId={props.selectedHouseholdId}
+        judgements={props.dashboard?.judgements ?? []}
+      />
+    );
+  }
+
   if (section === "household") {
     return (
       <HouseholdSection
@@ -1257,6 +1369,7 @@ function renderSection(section: Exclude<AppSection, "home">, props: SectionRende
         memberRole={props.memberRole}
         onAddMember={props.onAddMember}
         onCreateHousehold={props.onCreateHousehold}
+        onSaveHouseholdSettings={props.onSaveHouseholdSettings}
         onHouseholdNameChange={props.onHouseholdNameChange}
         onInvitationResponse={props.onInvitationResponse}
         onMemberEmailChange={props.onMemberEmailChange}
@@ -2086,6 +2199,590 @@ function TransactionsSection({
   );
 }
 
+function PlanningSection({
+  canWrite,
+  categoryCatalog,
+  commitments,
+  currencyCode,
+  goals,
+  householdId,
+  judgements,
+}: {
+  canWrite: boolean;
+  categoryCatalog: CategoryCatalogResponse | null;
+  commitments: Commitment[];
+  currencyCode: string;
+  goals: Goal[];
+  householdId: string | null;
+  judgements: DashboardJudgement[];
+}) {
+  const [createdGoals, setCreatedGoals] = useState<Goal[]>([]);
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(goals[0]?.id ?? null);
+  const [goalDetail, setGoalDetail] = useState<GoalDetail | null>(null);
+  const [planningRun, setPlanningRun] = useState<GoalPlanningRun | null>(null);
+  const [isPlanningWorking, setIsPlanningWorking] = useState(false);
+  const [planningNotice, setPlanningNotice] = useState<string | null>(null);
+  const [goalForm, setGoalForm] = useState({
+    name: "",
+    goalType: "Saving" as Goal["goalType"],
+    targetAmount: "",
+    targetDate: "",
+    priority: "Medium" as Goal["priority"],
+    isShared: false,
+  });
+  const [planForm, setPlanForm] = useState({
+    pace: "" as "" | GoalPlanPace,
+    targetDate: "",
+    monthlyContribution: "",
+  });
+  const [customizationContext, setCustomizationContext] = useState("");
+
+  const visibleGoals = useMemo(
+    () => [...createdGoals, ...goals.filter((goal) => !createdGoals.some((created) => created.id === goal.id))],
+    [createdGoals, goals],
+  );
+
+  const accessToken = getAuthSessionSnapshot()?.accessToken;
+
+  const loadGoalDetail = useCallback(async (goalId: string) => {
+    if (!accessToken) return;
+    const detail = await getGoal(accessToken, goalId);
+    setGoalDetail(detail);
+    setSelectedGoalId(goalId);
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (!planningRun || !accessToken || !["Pending", "Processing"].includes(planningRun.status)) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void getGoalPlanningRun(accessToken, planningRun.goalId, planningRun.id)
+        .then(async (nextRun) => {
+          setPlanningRun(nextRun);
+          if (nextRun.status === "Succeeded") {
+            await loadGoalDetail(nextRun.goalId);
+            setPlanningNotice("Your plan is ready.");
+          } else if (nextRun.status === "Failed") {
+            setPlanningNotice(nextRun.error ?? "Plan generation failed. You can retry.");
+          }
+        })
+        .catch(() => setPlanningNotice("Could not refresh plan generation status."));
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [accessToken, loadGoalDetail, planningRun]);
+
+  async function handleCreateGoal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !goalForm.name.trim() || !goalForm.targetAmount) return;
+    setIsPlanningWorking(true);
+    setPlanningNotice(null);
+    try {
+      const created = await createGoal(accessToken, {
+        householdId: householdId ?? undefined,
+        name: goalForm.name.trim(),
+        goalType: goalForm.goalType,
+        targetAmount: Number(goalForm.targetAmount),
+        targetDate: goalForm.targetDate || undefined,
+        priority: goalForm.priority,
+        isShared: goalForm.isShared,
+      });
+      setCreatedGoals((current) => [created, ...current]);
+      setGoalForm({
+        name: "",
+        goalType: "Saving",
+        targetAmount: "",
+        targetDate: "",
+        priority: "Medium",
+        isShared: false,
+      });
+      await loadGoalDetail(created.id);
+      setPlanningNotice("Goal created. Generate a plan when you are ready.");
+    } catch (caughtError) {
+      setPlanningNotice(caughtError instanceof Error ? caughtError.message : "Could not create goal.");
+    } finally {
+      setIsPlanningWorking(false);
+    }
+  }
+
+  async function handleGeneratePlan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !selectedGoalId) return;
+    setIsPlanningWorking(true);
+    setPlanningNotice(null);
+    try {
+      const run = await createGoalPlanningRun(accessToken, selectedGoalId, {
+        pace: planForm.pace || undefined,
+        targetDate: planForm.targetDate || undefined,
+        monthlyContribution: planForm.monthlyContribution
+          ? Number(planForm.monthlyContribution)
+          : undefined,
+        locale: "en-IN",
+      });
+      setPlanningRun(run);
+      setPlanningNotice("We are securely preparing your plan in the background.");
+    } catch (caughtError) {
+      setPlanningNotice(caughtError instanceof Error ? caughtError.message : "Could not start planning.");
+    } finally {
+      setIsPlanningWorking(false);
+    }
+  }
+
+  async function handleActivate(version: GoalPlanVersion) {
+    if (!accessToken || !selectedGoalId) return;
+    setIsPlanningWorking(true);
+    try {
+      await activateGoalPlan(accessToken, selectedGoalId, version.id);
+      await loadGoalDetail(selectedGoalId);
+      setPlanningNotice("You are now following this plan.");
+    } catch (caughtError) {
+      setPlanningNotice(caughtError instanceof Error ? caughtError.message : "Could not follow this plan.");
+    } finally {
+      setIsPlanningWorking(false);
+    }
+  }
+
+  async function handleCustomize(version: GoalPlanVersion) {
+    if (!accessToken || !selectedGoalId) return;
+    const source = version.options[0];
+    if (!source) return;
+    setIsPlanningWorking(true);
+    try {
+      const customized = await customizeGoalPlan(accessToken, selectedGoalId, version.id, {
+        pace: planForm.pace || source.pace,
+        targetDate: planForm.targetDate || undefined,
+        monthlyContribution: planForm.monthlyContribution
+          ? Number(planForm.monthlyContribution)
+          : source.monthlyContribution,
+        context: customizationContext || undefined,
+      });
+      await loadGoalDetail(selectedGoalId);
+      setPlanningNotice(`Customized version ${customized.versionNumber} created.`);
+    } catch (caughtError) {
+      setPlanningNotice(caughtError instanceof Error ? caughtError.message : "Could not customize plan.");
+    } finally {
+      setIsPlanningWorking(false);
+    }
+  }
+
+  async function handleReview(version: GoalPlanVersion) {
+    if (!accessToken || !selectedGoalId) return;
+    setIsPlanningWorking(true);
+    try {
+      const run = await reviewGoalPlan(accessToken, selectedGoalId, version.id);
+      setPlanningRun(run);
+      setPlanningNotice("AI review started.");
+    } catch (caughtError) {
+      setPlanningNotice(caughtError instanceof Error ? caughtError.message : "Could not start AI review.");
+    } finally {
+      setIsPlanningWorking(false);
+    }
+  }
+
+  async function handleConsent() {
+    if (!accessToken || !selectedGoalId || !goalDetail) return;
+    setIsPlanningWorking(true);
+    try {
+      if (goalDetail.currentUserConsent?.revokedAt === null) {
+        await deleteGoalParticipantConsent(accessToken, selectedGoalId);
+      } else {
+        await putGoalParticipantConsent(accessToken, selectedGoalId);
+      }
+      await loadGoalDetail(selectedGoalId);
+    } catch (caughtError) {
+      setPlanningNotice(caughtError instanceof Error ? caughtError.message : "Could not update consent.");
+    } finally {
+      setIsPlanningWorking(false);
+    }
+  }
+
+  const visibleGroups = useMemo(() => {
+    const categoryById = new Map((categoryCatalog?.categories ?? []).map((category) => [category.id, category]));
+    return (categoryCatalog?.categories ?? [])
+      .filter((category) => category.parentCategoryId === null && !category.isHidden)
+      .map((group) => ({
+        ...group,
+        childCount: (categoryCatalog?.categories ?? []).filter(
+          (category) => category.parentCategoryId === group.id && !category.isHidden,
+        ).length,
+      }))
+      .filter((group) => group.childCount > 0 || categoryById.has(group.id))
+      .slice(0, 8);
+  }, [categoryCatalog]);
+
+  return (
+    <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
+      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-normal">Planning</h2>
+              <p className="mt-1 text-sm font-medium text-[var(--muted)]">
+                Goals, SIPs, premiums, and rule-based nudges in one place.
+              </p>
+            </div>
+            <Flag className="h-5 w-5 text-[var(--accent)]" />
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <PlanningStat label="Active goals" value={visibleGoals.filter((goal) => goal.status === "Active").length.toString()} />
+            <PlanningStat label="Commitments" value={commitments.filter((commitment) => commitment.isActive).length.toString()} />
+            <PlanningStat label="Judgements" value={judgements.length.toString()} />
+          </div>
+
+          {!canWrite ? (
+            <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600">
+              This household is read-only for you. Planning data is visible, but changes are disabled.
+            </p>
+          ) : null}
+
+          {canWrite ? (
+            <form className="mt-5 grid gap-3 sm:grid-cols-2" onSubmit={handleCreateGoal}>
+              <label className="text-xs font-bold text-[var(--muted)]">
+                Goal
+                <input
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--ink)]"
+                  maxLength={128}
+                  onChange={(event) => setGoalForm((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="Emergency fund"
+                  required
+                  value={goalForm.name}
+                />
+              </label>
+              <label className="text-xs font-bold text-[var(--muted)]">
+                Target amount
+                <input
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--ink)]"
+                  min="0.01"
+                  onChange={(event) => setGoalForm((current) => ({ ...current, targetAmount: event.target.value }))}
+                  required
+                  step="0.01"
+                  type="number"
+                  value={goalForm.targetAmount}
+                />
+              </label>
+              <label className="text-xs font-bold text-[var(--muted)]">
+                Goal type
+                <select
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--ink)]"
+                  onChange={(event) => setGoalForm((current) => ({
+                    ...current,
+                    goalType: event.target.value as Goal["goalType"],
+                  }))}
+                  value={goalForm.goalType}
+                >
+                  <option value="Saving">Saving</option>
+                  <option value="EmergencyFund">Emergency fund</option>
+                  <option value="DebtPayoff">Debt payoff</option>
+                  <option value="Purchase">Purchase</option>
+                  <option value="Investment">Investment</option>
+                </select>
+              </label>
+              <label className="text-xs font-bold text-[var(--muted)]">
+                Target date (optional)
+                <input
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--ink)]"
+                  onChange={(event) => setGoalForm((current) => ({ ...current, targetDate: event.target.value }))}
+                  type="date"
+                  value={goalForm.targetDate}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm font-semibold">
+                <input
+                  checked={goalForm.isShared}
+                  onChange={(event) => setGoalForm((current) => ({ ...current, isShared: event.target.checked }))}
+                  type="checkbox"
+                />
+                Share with household
+              </label>
+              <button
+                className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                disabled={isPlanningWorking}
+                type="submit"
+              >
+                Create goal
+              </button>
+            </form>
+          ) : null}
+          {planningNotice ? (
+            <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700" role="status">
+              {planningNotice}
+            </p>
+          ) : null}
+        </article>
+
+        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+          <h3 className="text-lg font-semibold">Current nudges</h3>
+          <div className="mt-4 space-y-3">
+            {judgements.length > 0 ? (
+              judgements.slice(0, 4).map((judgement) => (
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3" key={judgement.id ?? judgement.title}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-bold">{judgement.title}</p>
+                    <span className="rounded-md bg-white px-2 py-1 text-xs font-bold text-[var(--muted)]">{judgement.severity ?? judgement.tone}</span>
+                  </div>
+                  <p className="mt-2 text-sm text-[var(--muted)]">{judgement.text}</p>
+                </div>
+              ))
+            ) : (
+              <EmptyInline text="No planning nudges for this month yet." />
+            )}
+          </div>
+        </article>
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+          <h3 className="text-lg font-semibold">Goals</h3>
+          <div className="mt-4 space-y-3">
+            {visibleGoals.length > 0 ? (
+              visibleGoals.slice(0, 8).map((goal) => (
+                <button
+                  className={`w-full rounded-lg border p-3 text-left ${selectedGoalId === goal.id ? "border-[var(--accent)] bg-emerald-50/40" : "border-[var(--border)]"}`}
+                  key={goal.id}
+                  onClick={() => void loadGoalDetail(goal.id)}
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold">{goal.name}</p>
+                      <p className="mt-1 text-xs font-semibold text-[var(--muted)]">{goal.goalType} - {goal.priority} priority - {goal.status}</p>
+                    </div>
+                    <span className="text-sm font-bold">{formatMoney(goal.currentAmount, currencyCode)}</span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-[var(--accent)]"
+                      style={{ width: `${Math.min(100, Math.round((goal.currentAmount / Math.max(goal.targetAmount, 1)) * 100))}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs font-medium text-[var(--muted)]">
+                    {formatMoney(goal.remainingAmount, currencyCode)} left
+                    {goal.requiredMonthlyContribution ? ` - needs ${formatMoney(goal.requiredMonthlyContribution, currencyCode)}/mo` : ""}
+                  </p>
+                </button>
+              ))
+            ) : (
+              <EmptyInline text="No goals yet. Create your first goal above." />
+            )}
+          </div>
+        </article>
+
+        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+          <h3 className="text-lg font-semibold">Commitments</h3>
+          <div className="mt-4 space-y-3">
+            {commitments.length > 0 ? (
+              commitments.slice(0, 6).map((commitment) => (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3" key={commitment.id}>
+                  <div>
+                    <p className="text-sm font-bold">{commitment.name}</p>
+                    <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
+                      {commitment.transactionType} - {commitment.cadence} - due {formatDate(commitment.nextDueDate)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold">{formatMoney(commitment.amount, currencyCode)}</p>
+                    <p className={`text-xs font-bold ${commitment.isActive ? "text-emerald-600" : "text-slate-500"}`}>
+                      {commitment.isActive ? "Active" : "Paused"}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <EmptyInline text="No recurring commitments tracked yet." />
+            )}
+          </div>
+        </article>
+      </div>
+
+      <article className="mt-5 rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold">AI goal planner</h3>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Based on calculated aggregates from your tracked finances. AI explains the plan; MoneyMentor calculates the amounts.
+            </p>
+          </div>
+          {planningRun ? (
+            <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
+              {planningRun.runType} · {planningRun.status}
+            </span>
+          ) : null}
+        </div>
+
+        {!goalDetail ? (
+          <div className="mt-4"><EmptyInline text="Select a goal to generate or review a plan." /></div>
+        ) : (
+          <>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[var(--surface)] p-3">
+              <div>
+                <p className="text-sm font-bold">{goalDetail.goal.name}</p>
+                <p className="text-xs font-semibold text-[var(--muted)]">
+                  {formatMoney(goalDetail.goal.remainingAmount, currencyCode)} remaining
+                  {goalDetail.plan?.activeVersionId ? " · following a plan" : " · no followed plan"}
+                </p>
+              </div>
+              {goalDetail.goal.userProfileId === null ? (
+                <button
+                  className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-xs font-bold disabled:opacity-50"
+                  disabled={isPlanningWorking}
+                  onClick={() => void handleConsent()}
+                  type="button"
+                >
+                  {goalDetail.currentUserConsent?.revokedAt === null
+                    ? "Revoke private aggregate consent"
+                    : "Opt in private aggregates"}
+                </button>
+              ) : null}
+            </div>
+
+            <form className="mt-4 grid gap-3 md:grid-cols-4" onSubmit={handleGeneratePlan}>
+              <label className="text-xs font-bold text-[var(--muted)]">
+                Pace (optional)
+                <select
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--ink)]"
+                  onChange={(event) => setPlanForm((current) => ({
+                    ...current,
+                    pace: event.target.value as "" | GoalPlanPace,
+                  }))}
+                  value={planForm.pace}
+                >
+                  <option value="">Show three paces</option>
+                  <option value="Comfortable">Comfortable</option>
+                  <option value="Balanced">Balanced</option>
+                  <option value="Aggressive">Aggressive</option>
+                </select>
+              </label>
+              <label className="text-xs font-bold text-[var(--muted)]">
+                Target date (optional)
+                <input
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--ink)]"
+                  onChange={(event) => setPlanForm((current) => ({ ...current, targetDate: event.target.value }))}
+                  type="date"
+                  value={planForm.targetDate}
+                />
+              </label>
+              <label className="text-xs font-bold text-[var(--muted)]">
+                Monthly amount (optional)
+                <input
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--ink)]"
+                  min="0.01"
+                  onChange={(event) => setPlanForm((current) => ({ ...current, monthlyContribution: event.target.value }))}
+                  step="0.01"
+                  type="number"
+                  value={planForm.monthlyContribution}
+                />
+              </label>
+              <button
+                className="self-end rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                disabled={!canWrite || isPlanningWorking || ["Pending", "Processing"].includes(planningRun?.status ?? "")}
+                type="submit"
+              >
+                Generate plan
+              </button>
+            </form>
+
+            {goalDetail.plan?.versions.length ? (
+              <div className="mt-5 space-y-5">
+                {goalDetail.plan.versions.map((version) => (
+                  <section className="rounded-lg border border-[var(--border)] p-4" key={version.id}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-bold">
+                        Version {version.versionNumber} · {version.source}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-bold disabled:opacity-50"
+                          disabled={isPlanningWorking}
+                          onClick={() => void handleReview(version)}
+                          type="button"
+                        >
+                          Review with AI
+                        </button>
+                        <button
+                          className="rounded-md bg-[var(--ink)] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                          disabled={isPlanningWorking || goalDetail.plan?.activeVersionId === version.id}
+                          onClick={() => void handleActivate(version)}
+                          type="button"
+                        >
+                          {goalDetail.plan?.activeVersionId === version.id ? "Following" : "Follow this version"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                      {version.options.map((option) => (
+                        <div className="rounded-lg bg-[var(--surface)] p-3" key={option.id}>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-bold">{option.title}</p>
+                            <span className="text-xs font-bold text-[var(--accent)]">{option.pace}</span>
+                          </div>
+                          <p className="mt-2 text-xl font-semibold">{formatMoney(option.monthlyContribution, currencyCode)}/mo</p>
+                          <p className="text-xs font-semibold text-[var(--muted)]">
+                            Target {formatDate(option.projectedCompletionDate)} · {option.feasibility}
+                          </p>
+                          <p className="mt-3 text-sm text-[var(--muted)]">{option.explanation}</p>
+                          {option.risks.length ? (
+                            <ul className="mt-3 list-disc space-y-1 pl-4 text-xs font-medium text-amber-800">
+                              {option.risks.map((risk) => <li key={risk}>{risk}</li>)}
+                            </ul>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+                      <textarea
+                        aria-label="Plan customization context"
+                        className="min-h-20 rounded-lg border border-[var(--border)] px-3 py-2 text-sm"
+                        maxLength={1000}
+                        onChange={(event) => setCustomizationContext(event.target.value)}
+                        placeholder="Optional context for a customized version, for example: keep more room for school fees."
+                        value={customizationContext}
+                      />
+                      <button
+                        className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-bold disabled:opacity-50"
+                        disabled={isPlanningWorking}
+                        onClick={() => void handleCustomize(version)}
+                        type="button"
+                      >
+                        Save customization
+                      </button>
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4"><EmptyInline text="No plan versions yet." /></div>
+            )}
+          </>
+        )}
+        <p className="mt-4 text-xs font-medium text-[var(--muted)]">
+          Guidance is based on tracked data and is not a guarantee or certified financial advice. Review assumptions before following a plan.
+        </p>
+      </article>
+
+      <article className="mt-5 rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <h3 className="text-lg font-semibold">Category groups</h3>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {visibleGroups.length > 0 ? visibleGroups.map((group) => (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3" key={group.id}>
+              <p className="text-sm font-bold">{group.name}</p>
+              <p className="mt-1 text-xs font-semibold text-[var(--muted)]">{group.classification} - {group.childCount} categories</p>
+            </div>
+          )) : <EmptyInline text="Categories will appear after the catalog is loaded." />}
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function PlanningStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+      <p className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
 function HouseholdScopeSelector({
   households,
   onChange,
@@ -2337,6 +3034,7 @@ function HouseholdSection({
   memberRole,
   onAddMember,
   onCreateHousehold,
+  onSaveHouseholdSettings,
   onHouseholdNameChange,
   onInvitationResponse,
   onMemberEmailChange,
@@ -2354,6 +3052,7 @@ function HouseholdSection({
   memberRole: HouseholdRole;
   onAddMember: (event: FormEvent<HTMLFormElement>) => void;
   onCreateHousehold: (event: FormEvent<HTMLFormElement>) => void;
+  onSaveHouseholdSettings: (event: FormEvent<HTMLFormElement>) => void;
   onHouseholdNameChange: (value: string) => void;
   onInvitationResponse: (
     invitationId: string,
@@ -2375,6 +3074,10 @@ function HouseholdSection({
   const canManageSelectedHousehold = selectedHousehold?.kind === "Family"
     && selectedHousehold.canWrite
     && (selectedHousehold.role === "Owner" || selectedHousehold.role === "Admin");
+  const canEditSelectedSettings = Boolean(
+    selectedHousehold?.canWrite
+    && (selectedHousehold.role === "Owner" || selectedHousehold.role === "Admin"),
+  );
 
   return (
     <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
@@ -2456,6 +3159,9 @@ function HouseholdSection({
                     <p className="mt-2 text-sm font-medium text-[var(--muted)]">
                       {household.memberCount} member{household.memberCount === 1 ? "" : "s"} - {household.status}
                     </p>
+                    <p className="mt-1 text-xs font-medium text-[var(--muted)]">
+                      {household.currencyCode} · {household.timeZone}
+                    </p>
                   </button>
               ))
             ) : (
@@ -2482,6 +3188,25 @@ function HouseholdSection({
         </article>
 
         <aside className="space-y-5">
+          {selectedHousehold ? (
+            <form className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm" key={selectedHousehold.id} onSubmit={onSaveHouseholdSettings}>
+              <h3 className="text-lg font-semibold">Report settings</h3>
+              <p className="mt-1 text-sm font-medium text-[var(--muted)]">
+                Time zone changes apply to future report windows. Currency locks after the first transaction.
+              </p>
+              <Field label="Currency">
+                <input className="form-control uppercase" defaultValue={selectedHousehold.currencyCode} maxLength={3} name="currencyCode" required />
+              </Field>
+              <Field label="IANA time zone">
+                <input className="form-control" defaultValue={selectedHousehold.timeZone} name="timeZone" placeholder="Asia/Kolkata" required />
+              </Field>
+              <button className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65" disabled={isSaving || !canEditSelectedSettings} type="submit">
+                <Save className="h-4 w-4" />
+                {isSaving ? "Saving..." : "Save report settings"}
+              </button>
+            </form>
+          ) : null}
+
           <form className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm" onSubmit={onCreateHousehold}>
             <h3 className="text-lg font-semibold">Create household</h3>
             <Field label="Household name">
@@ -3013,7 +3738,7 @@ function PrivacyConsentGate({
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Privacy update</p>
         <h1 className="mt-3 text-3xl font-semibold">Review the beta privacy policy</h1>
         <p className="mt-4 leading-7 text-[var(--muted)]">
-          Before finance features reopen, please review and accept version 2026-07-03-beta.1. You can still export or delete your account through the API without accepting.
+          Before finance features reopen, please review and accept version 2026-07-26-ai-planning.1, which discloses minimized AI goal-planning processing. You can still export or delete your account through the API without accepting.
         </p>
         <Link className="mt-5 inline-flex font-bold text-[var(--accent)] underline" href="/privacy" target="_blank">
           Read the plain-language policy

@@ -1,6 +1,7 @@
 using MoneyMentor.Application.Finance;
 using MoneyMentor.Application.InputParsing;
 using MoneyMentor.Application.Transactions;
+using MoneyMentor.Application.Goals;
 using MoneyMentor.Domain.Enums;
 
 namespace MoneyMentor.Application.Assistant;
@@ -35,6 +36,10 @@ public sealed record AssistantMessageResult(
     IReadOnlyCollection<string> Errors)
 {
     public IncomeDraft? ParsedIncomeDebug { get; init; }
+
+    public GoalModel? Goal { get; init; }
+
+    public GoalPlanningRunModel? GoalPlanningRun { get; init; }
 }
 
 public interface IAssistantMessageService

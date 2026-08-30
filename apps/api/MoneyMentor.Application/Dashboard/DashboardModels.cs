@@ -17,8 +17,10 @@ public sealed record MonthlyDashboardModel(
     string CurrencyCode,
     decimal Income,
     decimal Spends,
+    decimal Invested,
     decimal Saved,
     decimal? SavingsRate,
+    decimal? InvestedRate,
     IReadOnlyCollection<CategorySpendSummaryModel> Categories,
     IReadOnlyCollection<DashboardJudgementModel> Judgements,
     IReadOnlyCollection<DashboardInsightModel> Insights,
@@ -29,13 +31,27 @@ public sealed record CategorySpendSummaryModel(
     decimal Amount,
     decimal? Budget,
     SpendingJudgment Tone,
-    string Note);
+    string Note)
+{
+    public string? ParentCategoryName { get; init; }
+
+    public CategoryClassification? Classification { get; init; }
+}
 
 public sealed record DashboardJudgementModel(
     string Title,
     SpendingJudgment Tone,
     string Value,
-    string Text);
+    string Text)
+{
+    public Guid? Id { get; init; }
+
+    public string? RuleCode { get; init; }
+
+    public JudgementSeverity? Severity { get; init; }
+
+    public string? InputsJson { get; init; }
+}
 
 public sealed record DashboardInsightModel(
     string Title,

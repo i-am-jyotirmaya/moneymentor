@@ -9,6 +9,7 @@ using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Auth;
 using MoneyMentor.Infrastructure.Persistence;
 using Npgsql;
+using System.Text.Json;
 
 namespace MoneyMentor.Infrastructure.Privacy;
 
@@ -85,6 +86,8 @@ internal sealed class PostgresPrivacyService(
             row.Household.Id,
             row.Household.Name,
             row.Household.Kind,
+            row.Household.CurrencyCode,
+            row.Household.TimeZone,
             row.Member.Role,
             row.Member.Status,
             row.Member.Role != HouseholdRole.Viewer,
@@ -184,6 +187,51 @@ internal sealed class PostgresPrivacyService(
                 insight.Status,
                 insight.CreatedAt))
             .ToArrayAsync(cancellationToken);
+        var planningRuns = await dbContext.GoalPlanningRuns.AsNoTracking()
+            .Where(run => run.RequestedByUserProfileId == userContext.UserProfileId)
+            .OrderBy(run => run.CreatedAt)
+            .Select(run => new PrivacyGoalPlanningRunModel(
+                run.Id,
+                run.GoalId,
+                run.RunType.ToString(),
+                run.Status.ToString(),
+                run.RequestJson,
+                run.SnapshotJson,
+                run.Model,
+                run.InputTokens,
+                run.OutputTokens,
+                run.FailureCategory,
+                run.CreatedAt,
+                run.CompletedAt))
+            .ToArrayAsync(cancellationToken);
+        var planVersionRows = await dbContext.GoalPlanVersions.AsNoTracking()
+            .Where(version => version.CreatedByUserProfileId == userContext.UserProfileId)
+            .OrderBy(version => version.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+        var planVersionIds = planVersionRows.Select(version => version.Id).ToArray();
+        var planOptionRows = await dbContext.GoalPlanOptions.AsNoTracking()
+            .Where(option => planVersionIds.Contains(option.GoalPlanVersionId))
+            .OrderBy(option => option.SortOrder)
+            .ToArrayAsync(cancellationToken);
+        var planVersions = planVersionRows.Select(version => new PrivacyGoalPlanVersionModel(
+            version.Id,
+            version.GoalPlanId,
+            version.SourceVersionId,
+            version.VersionNumber,
+            version.Source.ToString(),
+            version.UserContext,
+            JsonSerializer.Serialize(planOptionRows.Where(option =>
+                option.GoalPlanVersionId == version.Id)),
+            version.CreatedAt)).ToArray();
+        var goalParticipantConsents = await dbContext.GoalPlanParticipantConsents.AsNoTracking()
+            .Where(consent => consent.UserProfileId == userContext.UserProfileId)
+            .OrderBy(consent => consent.ConsentedAt)
+            .Select(consent => new PrivacyGoalParticipantConsentModel(
+                consent.GoalId,
+                consent.PolicyVersion,
+                consent.ConsentedAt,
+                consent.RevokedAt))
+            .ToArrayAsync(cancellationToken);
         var assistantSessions = await dbContext.AssistantSessions.AsNoTracking()
             .Where(session => session.UserProfileId == userContext.UserProfileId)
             .OrderBy(session => session.CreatedAt)
@@ -242,6 +290,9 @@ internal sealed class PostgresPrivacyService(
             transactions,
             new PrivacyOwnedRecordsModel(
                 goals,
+                planningRuns,
+                planVersions,
+                goalParticipantConsents,
                 insights,
                 sessionModels,
                 pendingActions,
@@ -390,6 +441,51 @@ internal sealed class PostgresPrivacyService(
             .Where(goal => goal.UserProfileId == profile.Id)
             .ToArrayAsync(cancellationToken);
         appDb.FinancialGoals.RemoveRange(goals);
+        var sharedGoalsCreatedByUser = await appDb.FinancialGoals
+            .Where(goal => goal.UserProfileId == null
+                && goal.CreatedByUserProfileId == profile.Id)
+            .ToArrayAsync(cancellationToken);
+        foreach (var goal in sharedGoalsCreatedByUser)
+        {
+            var successorId = await appDb.HouseholdMembers
+                .Where(member => member.HouseholdId == goal.HouseholdId
+                    && member.UserProfileId != profile.Id
+                    && member.Status == HouseholdMemberStatus.Active
+                    && member.Role != HouseholdRole.Viewer)
+                .OrderBy(member => member.Role == HouseholdRole.Owner ? 0
+                    : member.Role == HouseholdRole.Admin ? 1 : 2)
+                .ThenBy(member => member.JoinedAt)
+                .Select(member => (Guid?)member.UserProfileId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (successorId is null)
+            {
+                appDb.FinancialGoals.Remove(goal);
+                continue;
+            }
+
+            goal.CreatedByUserProfileId = successorId.Value;
+            var plan = await appDb.GoalPlans
+                .FirstOrDefaultAsync(item => item.GoalId == goal.Id, cancellationToken);
+            if (plan is not null)
+            {
+                plan.CreatedByUserProfileId = successorId.Value;
+                plan.ActiveVersionId = null;
+                plan.Status = GoalPlanStatus.Draft;
+                var versions = await appDb.GoalPlanVersions
+                    .Where(version => version.GoalPlanId == plan.Id
+                        && version.CreatedByUserProfileId == profile.Id)
+                    .ToArrayAsync(cancellationToken);
+                foreach (var version in versions)
+                {
+                    version.CreatedByUserProfileId = successorId.Value;
+                    version.UserContext = null;
+                }
+            }
+        }
+        var planningRuns = await appDb.GoalPlanningRuns
+            .Where(run => run.RequestedByUserProfileId == profile.Id)
+            .ToArrayAsync(cancellationToken);
+        appDb.GoalPlanningRuns.RemoveRange(planningRuns);
         var insights = await appDb.Insights
             .Where(insight => insight.UserProfileId == profile.Id)
             .ToArrayAsync(cancellationToken);

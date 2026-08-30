@@ -288,7 +288,7 @@ public sealed class ExternalBetaReadinessTests(MoneyMentorApiFactory factory)
         Assert.Equal((HttpStatusCode)428, (await client.GetAsync("/api/settings/me")).StatusCode);
         (await client.PostAsJsonAsync(
             "/api/privacy/consents",
-            new { policyVersion = "2026-07-03-beta.1", accepted = true }))
+            new { policyVersion = "2026-07-26-ai-planning.1", accepted = true }))
             .EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/settings/me")).StatusCode);
 
@@ -354,7 +354,7 @@ public sealed class ExternalBetaReadinessTests(MoneyMentorApiFactory factory)
             email,
             password = Password,
             displayName,
-            privacyPolicyVersion = "2026-07-03-beta.1",
+            privacyPolicyVersion = "2026-07-26-ai-planning.1",
             acceptPrivacyPolicy = true
         });
         response.EnsureSuccessStatusCode();

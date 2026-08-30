@@ -9,6 +9,17 @@ public sealed class CreateHouseholdRequest
     public string Name { get; init; } = string.Empty;
 }
 
+public sealed class UpdateHouseholdSettingsRequest
+{
+    [Required]
+    [RegularExpression("^[A-Za-z]{3}$")]
+    public string CurrencyCode { get; init; } = string.Empty;
+
+    [Required]
+    [MaxLength(128)]
+    public string TimeZone { get; init; } = string.Empty;
+}
+
 public sealed class CreateHouseholdInvitationRequest
 {
     [Required]

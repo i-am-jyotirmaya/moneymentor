@@ -12,6 +12,10 @@ public interface IHouseholdService
         CreateHouseholdCommand command,
         CancellationToken cancellationToken);
 
+    Task<UpdateHouseholdSettingsResult> UpdateSettingsAsync(
+        UpdateHouseholdSettingsCommand command,
+        CancellationToken cancellationToken);
+
     Task<HouseholdInvitationResult> InviteMemberAsync(
         CreateHouseholdInvitationCommand command,
         CancellationToken cancellationToken);

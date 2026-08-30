@@ -7,6 +7,8 @@ public sealed record HouseholdSummaryModel(
     Guid Id,
     string Name,
     HouseholdKind Kind,
+    string CurrencyCode,
+    string TimeZone,
     HouseholdRole Role,
     HouseholdMemberStatus Status,
     bool CanWrite,
@@ -22,6 +24,26 @@ public sealed record HouseholdDashboardModel(
 public sealed record CreateHouseholdCommand(
     AppUserContext UserContext,
     string Name);
+
+public sealed record UpdateHouseholdSettingsCommand(
+    AppUserContext UserContext,
+    Guid HouseholdId,
+    string CurrencyCode,
+    string TimeZone);
+
+public enum UpdateHouseholdSettingsStatus
+{
+    Succeeded,
+    Forbidden,
+    NotFound,
+    CurrencyLocked,
+    InvalidCurrency,
+    InvalidTimeZone
+}
+
+public sealed record UpdateHouseholdSettingsResult(
+    UpdateHouseholdSettingsStatus Status,
+    HouseholdSummaryModel? Household = null);
 
 public sealed record HouseholdInvitationModel(
     Guid Id,

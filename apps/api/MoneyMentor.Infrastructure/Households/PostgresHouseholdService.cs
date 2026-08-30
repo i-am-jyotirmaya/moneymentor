@@ -48,6 +48,8 @@ internal sealed class PostgresHouseholdService(
         {
             Name = name,
             Kind = HouseholdKind.Family,
+            CurrencyCode = command.UserContext.CurrencyCode,
+            TimeZone = command.UserContext.TimeZone,
             CreatedByUserProfileId = command.UserContext.UserProfileId,
             CreatedAt = now,
             UpdatedAt = now
@@ -71,11 +73,82 @@ internal sealed class PostgresHouseholdService(
             household.Id,
             household.Name,
             household.Kind,
+            household.CurrencyCode,
+            household.TimeZone,
             member.Role,
             member.Status,
             true,
             1,
             household.CreatedAt);
+    }
+
+    public async Task<UpdateHouseholdSettingsResult> UpdateSettingsAsync(
+        UpdateHouseholdSettingsCommand command,
+        CancellationToken cancellationToken)
+    {
+        var currencyCode = command.CurrencyCode.Trim().ToUpperInvariant();
+        if (currencyCode.Length != 3 || currencyCode.Any(character => !char.IsAsciiLetter(character)))
+        {
+            return new UpdateHouseholdSettingsResult(UpdateHouseholdSettingsStatus.InvalidCurrency);
+        }
+
+        if (!UserTimeZone.TryNormalize(command.TimeZone, out var timeZone))
+        {
+            return new UpdateHouseholdSettingsResult(UpdateHouseholdSettingsStatus.InvalidTimeZone);
+        }
+
+        var row = await dbContext.HouseholdMembers
+            .Where(member => member.HouseholdId == command.HouseholdId
+                && member.UserProfileId == command.UserContext.UserProfileId
+                && member.Status == HouseholdMemberStatus.Active)
+            .Join(
+                dbContext.Households,
+                member => member.HouseholdId,
+                household => household.Id,
+                (member, household) => new { Member = member, Household = household })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (row is null)
+        {
+            return new UpdateHouseholdSettingsResult(UpdateHouseholdSettingsStatus.NotFound);
+        }
+
+        if (row.Member.Role is not (HouseholdRole.Owner or HouseholdRole.Admin))
+        {
+            return new UpdateHouseholdSettingsResult(UpdateHouseholdSettingsStatus.Forbidden);
+        }
+
+        if (!string.Equals(row.Household.CurrencyCode, currencyCode, StringComparison.OrdinalIgnoreCase)
+            && await dbContext.Transactions.AnyAsync(
+                transaction => transaction.HouseholdId == command.HouseholdId,
+                cancellationToken))
+        {
+            return new UpdateHouseholdSettingsResult(UpdateHouseholdSettingsStatus.CurrencyLocked);
+        }
+
+        row.Household.CurrencyCode = currencyCode;
+        row.Household.TimeZone = timeZone;
+        row.Household.UpdatedAt = timeProvider.GetUtcNow();
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var memberCount = await dbContext.HouseholdMembers.CountAsync(
+            member => member.HouseholdId == command.HouseholdId
+                && member.Status == HouseholdMemberStatus.Active,
+            cancellationToken);
+
+        return new UpdateHouseholdSettingsResult(
+            UpdateHouseholdSettingsStatus.Succeeded,
+            new HouseholdSummaryModel(
+                row.Household.Id,
+                row.Household.Name,
+                row.Household.Kind,
+                row.Household.CurrencyCode,
+                row.Household.TimeZone,
+                row.Member.Role,
+                row.Member.Status,
+                true,
+                memberCount,
+                row.Household.CreatedAt));
     }
 
     public async Task<HouseholdInvitationResult> InviteMemberAsync(
@@ -494,6 +567,8 @@ internal sealed class PostgresHouseholdService(
                 item.Household.Id,
                 item.Household.Name,
                 item.Household.Kind,
+                item.Household.CurrencyCode,
+                item.Household.TimeZone,
                 item.Member.Role,
                 item.Member.Status,
                 item.Member.Role != HouseholdRole.Viewer,

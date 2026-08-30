@@ -13,7 +13,8 @@ public sealed class MonthlyDashboardBuilder
         AppUserContext userContext,
         DateOnly month,
         IReadOnlyCollection<TransactionModel> transactions,
-        int recentTransactionLimit)
+        int recentTransactionLimit,
+        IReadOnlyCollection<DashboardJudgementModel>? persistedJudgements = null)
     {
         var periodStart = ToMonthStart(month);
         var periodEnd = periodStart.AddMonths(1).AddDays(-1);
@@ -23,12 +24,21 @@ public sealed class MonthlyDashboardBuilder
         var income = transactions
             .Where(transaction => transaction.Type == TransactionType.Income)
             .Sum(transaction => transaction.Amount);
+        var invested = transactions
+            .Where(transaction => transaction.Type == TransactionType.Investment)
+            .Sum(transaction => transaction.Amount);
         var spends = expenses.Sum(transaction => transaction.Amount);
         var saved = income - spends;
         decimal? savingsRate = income > 0m
             ? decimal.Round(saved / income * 100m, 1)
             : null;
+        decimal? investedRate = income > 0m
+            ? decimal.Round(invested / income * 100m, 1)
+            : null;
         var categories = BuildCategorySummaries(expenses, spends);
+        var judgements = persistedJudgements is { Count: > 0 }
+            ? persistedJudgements
+            : BuildJudgements(categories, income, spends, savingsRate);
 
         return new MonthlyDashboardModel(
             $"{periodStart.Year:D4}-{periodStart.Month:D2}",
@@ -38,10 +48,12 @@ public sealed class MonthlyDashboardBuilder
             userContext.CurrencyCode,
             income,
             spends,
+            invested,
             saved,
             savingsRate,
+            investedRate,
             categories,
-            BuildJudgements(categories, income, spends, savingsRate),
+            judgements,
             BuildInsights(categories, income, spends),
             transactions
                 .OrderByDescending(transaction => transaction.TransactionDate)
@@ -63,18 +75,27 @@ public sealed class MonthlyDashboardBuilder
         }
 
         return expenses
-            .GroupBy(transaction => NormalizeCategoryName(transaction.CategoryName))
+            .GroupBy(transaction => new
+            {
+                Name = NormalizeCategoryName(transaction.ParentCategoryName ?? transaction.CategoryName),
+                transaction.ParentCategoryName,
+                transaction.CategoryClassification
+            })
             .Select(group =>
             {
                 var amount = group.Sum(transaction => transaction.Amount);
                 var tone = GetCategoryTone(amount, spends);
 
                 return new CategorySpendSummaryModel(
-                    group.Key,
+                    group.Key.Name,
                     amount,
                     null,
                     tone,
-                    BuildCategoryNote(group.Key, tone));
+                    BuildCategoryNote(group.Key.Name, tone))
+                {
+                    ParentCategoryName = group.Key.ParentCategoryName,
+                    Classification = group.Key.CategoryClassification
+                };
             })
             .OrderByDescending(category => category.Amount)
             .ThenBy(category => category.Name)

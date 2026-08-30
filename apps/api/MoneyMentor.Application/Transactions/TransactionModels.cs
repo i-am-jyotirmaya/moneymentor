@@ -30,6 +30,10 @@ public sealed record TransactionModel(
     public DateTimeOffset? DeletedAt { get; init; }
 
     public DateTimeOffset? PurgeAfter { get; init; }
+
+    public string? ParentCategoryName { get; init; }
+
+    public CategoryClassification? CategoryClassification { get; init; }
 }
 
 public sealed record UpdateTransactionCommand(

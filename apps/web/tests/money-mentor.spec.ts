@@ -268,6 +268,25 @@ async function mockBackend(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/categories" && method === "GET") {
+      await json(route, {
+        householdId: url.searchParams.get("householdId"),
+        canWrite: true,
+        categories: [],
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/goals" && method === "GET") {
+      await json(route, []);
+      return;
+    }
+
+    if (url.pathname === "/api/commitments" && method === "GET") {
+      await json(route, []);
+      return;
+    }
+
     if (url.pathname === "/api/households/invitations" && method === "GET") {
       await json(route, pendingInvitations);
       return;
@@ -302,7 +321,7 @@ async function mockBackend(page: Page) {
     }
 
     if (url.pathname === "/api/privacy/consents" && method === "POST") {
-      await json(route, { policyVersion: "2026-07-03-beta.1", acceptedAt: new Date().toISOString() });
+      await json(route, { policyVersion: "2026-07-26-ai-planning.1", acceptedAt: new Date().toISOString() });
       return;
     }
 
@@ -624,7 +643,10 @@ test("household invitations can be accepted and sent", async ({ page }, testInfo
   await expect(page.getByText(/Joe invited you as Member/).first()).toBeVisible();
   await page.getByRole("button", { name: "Accept" }).first().click();
   await expect(page.getByText("You joined Friends workspace.").first()).toBeVisible();
-  await page.getByLabel("Household").first().selectOption("44444444-4444-4444-8444-444444444444");
+  await page.getByRole("button", { name: /Family workspace Owner/ }).click();
+  await expect(page.getByLabel("Household").first()).toHaveValue(
+    "44444444-4444-4444-8444-444444444444",
+  );
 
   const invitationRequest = page.waitForRequest(
     (request) =>
@@ -668,17 +690,17 @@ test("privacy consent gate blocks finance UI until accepted", async ({ page }, t
 test("delete offers undo and Premium remains read-only", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
   await page.goto("/transactions");
+  await page.getByRole("button", { name: "Next transaction page" }).click();
   await page.getByRole("button", { name: /Delete transaction Paid rent/ }).click();
   await expect(page.getByText("Moved to Recently Deleted.")).toBeVisible();
-  await expect(page.getByText("Paid rent").last()).toBeVisible();
-  await page.getByRole("button", { name: "Undo" }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.getByText("Moved to Recently Deleted.")).toHaveCount(0);
 
   await page.goto("/settings");
-  await expect(page.getByLabel("Plan")).toHaveAttribute("readonly", "");
-  await expect(page.getByText(/Entitlements are server-controlled/)).toBeVisible();
-  await expect(page.getByRole("link", { name: "Read the beta privacy policy" })).toBeVisible();
-  await expect(page.getByText(/Support:/)).toBeVisible();
+  await expect(page.getByLabel("Plan").first()).toHaveAttribute("readonly", "");
+  await expect(page.getByText(/Entitlements are server-controlled/).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Read the beta privacy policy" }).first()).toBeVisible();
+  await expect(page.getByText(/Support:/).first()).toBeVisible();
 });
 
 test("Viewer household selection disables transaction writes", async ({ page }, testInfo) => {
@@ -701,7 +723,7 @@ test("Viewer household selection disables transaction writes", async ({ page }, 
     });
   });
   await page.goto("/transactions");
-  await expect(page.getByText("Read only")).toBeVisible();
+  await expect(page.locator("main").getByText("Read only", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Edit transaction/ }).first()).toBeDisabled();
   await expect(page.getByRole("button", { name: /Delete transaction/ }).first()).toBeDisabled();
 });

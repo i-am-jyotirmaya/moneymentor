@@ -38,7 +38,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             displayName: displayName.trim(),
             email: email.trim(),
             password,
-            privacyPolicyVersion: "2026-07-03-beta.1",
+            privacyPolicyVersion: "2026-07-26-ai-planning.1",
             acceptPrivacyPolicy,
           })
         : await login({
@@ -181,7 +181,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                   <Link className="font-bold text-[var(--accent)] underline" href="/privacy" target="_blank">
                     beta privacy policy
                   </Link>
-                  {" "}(version 2026-07-03-beta.1).
+                  {" "}(version 2026-07-26-ai-planning.1).
                 </span>
               </label>
             ) : null}

@@ -25,9 +25,12 @@ _ReSharper*/
 # =========================
 TestResults/
 coverage/
+coverage-report/
 *.trx
 *.coverage
 *.coveragexml
+*.binlog
+BenchmarkDotNet.Artifacts/
 
 # =========================
 # NuGet
@@ -42,6 +45,7 @@ packages/
 appsettings.Local.json
 appsettings.Development.local.json
 appsettings.*.local.json
+*.pubxml.user
 
 .env
 .env.*

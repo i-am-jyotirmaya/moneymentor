@@ -16,7 +16,9 @@ public sealed record HouseholdAccessContext(
     Guid HouseholdId,
     HouseholdKind Kind,
     HouseholdRole Role,
-    bool CanWrite);
+    bool CanWrite,
+    string CurrencyCode,
+    string TimeZone);
 
 public sealed class HouseholdNotFoundException : InvalidOperationException
 {
