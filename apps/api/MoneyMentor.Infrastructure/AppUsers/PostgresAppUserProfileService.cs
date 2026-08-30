@@ -291,6 +291,6 @@ internal sealed class PostgresAppUserProfileService(
             return email.Split('@', StringSplitOptions.RemoveEmptyEntries)[0];
         }
 
-        return "MoneyMentor user";
+        return "Spndrr user";
     }
 }

@@ -301,7 +301,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
   );
 
   const refreshAppData = useCallback(
-    async (accessToken: string) => {
+    async (accessToken: string, isCurrentRequest: () => boolean) => {
       setIsLoadingData(true);
       setError(null);
 
@@ -344,6 +344,10 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
           listCommitments(accessToken, effectiveHouseholdId),
         ]);
 
+        if (!isCurrentRequest()) {
+          return;
+        }
+
         setSettings(settingsResult);
         setSettingsForm(toSettingsForm(settingsResult));
         setTransactions(transactionResult.items);
@@ -360,9 +364,13 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
         setDashboardMonth(dashboardResult.month);
         setSelectedHouseholdId(effectiveHouseholdId);
       } catch (caughtError) {
-        handleApiError(caughtError, "Could not load your MoneyMentor workspace.");
+        if (isCurrentRequest()) {
+          handleApiError(caughtError, "Could not load your Spndrr workspace.");
+        }
       } finally {
-        setIsLoadingData(false);
+        if (isCurrentRequest()) {
+          setIsLoadingData(false);
+        }
       }
     },
     [
@@ -398,15 +406,19 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
   }, [messages, isSubmitting]);
 
   useEffect(() => {
+    let active = true;
     if (!sessionReady || !session || session.requiresPrivacyConsent) {
       return;
     }
 
     const timeoutId = window.setTimeout(() => {
-      void refreshAppData(session.accessToken);
+      void refreshAppData(session.accessToken, () => active);
     }, 0);
 
-    return () => window.clearTimeout(timeoutId);
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
   }, [refreshAppData, session, sessionReady]);
 
   useEffect(() => {
@@ -563,7 +575,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
         await refreshDashboardAndTransactions(session.accessToken);
       }
     } catch (caughtError) {
-      handleApiError(caughtError, "Could not reach MoneyMentor API. Check that the backend is running.");
+      handleApiError(caughtError, "Could not reach the Spndrr API. Check that the backend is running.");
     } finally {
       setIsSubmitting(false);
       setInputMode("Text");
@@ -1427,7 +1439,7 @@ function DesktopSidebar({
         <span className="grid h-10 w-10 place-items-center rounded-lg bg-white text-[var(--sidebar)]">
           <BrandMarkIcon className="h-6 w-6" />
         </span>
-        <span className="text-lg font-semibold">MoneyMentor</span>
+        <span className="text-lg font-semibold">Spndrr</span>
       </Link>
 
       <nav className="mt-9 space-y-1" aria-label="Desktop navigation">
@@ -1555,7 +1567,7 @@ function MobileMenu({
             <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
               <BrandMarkIcon className="h-6 w-6" />
             </span>
-            <span className="text-base font-semibold">MoneyMentor</span>
+            <span className="text-base font-semibold">Spndrr</span>
           </div>
           <button
             aria-label="Close menu"
@@ -1621,7 +1633,7 @@ function WorkspaceError({ error, isLoading }: { error: string | null; isLoading:
 
   return (
     <p className="mb-4 rounded-lg border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--muted)]">
-      Syncing your MoneyMentor workspace...
+      Syncing your Spndrr workspace...
     </p>
   );
 }
@@ -1651,7 +1663,7 @@ function DashboardSection({
           <p className="text-sm font-semibold text-[var(--muted)]">{dashboard.monthLabel}</p>
           <h2 className="text-3xl font-semibold tracking-normal">Dashboard</h2>
           <p className="mt-1 text-sm font-medium text-[var(--muted)]">
-            Based on your stored MoneyMentor transactions.
+            Based on your stored Spndrr transactions.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1959,7 +1971,7 @@ function ChatSurface({
         <form className="flex items-end gap-2" onSubmit={onSubmit}>
           <div className="chat-text-bar flex min-h-14 flex-1 items-end gap-2 rounded-full border border-[var(--border)] bg-white px-2 py-2 shadow-inner transition">
             <textarea
-              aria-label="Message MoneyMentor"
+              aria-label="Message Spndrr"
               className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-3 py-2 text-base font-medium leading-6 text-[var(--ink)] outline-none placeholder:text-[var(--muted-2)]"
               onChange={(event) => onTextChange(event.target.value)}
               onKeyDown={(event) => {
@@ -2599,7 +2611,7 @@ function PlanningSection({
           <div>
             <h3 className="text-lg font-semibold">AI goal planner</h3>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Based on calculated aggregates from your tracked finances. AI explains the plan; MoneyMentor calculates the amounts.
+              Based on calculated aggregates from your tracked finances. AI explains the plan; Spndrr calculates the amounts.
             </p>
           </div>
           {planningRun ? (
@@ -2916,7 +2928,7 @@ function TransactionEditModal({
           <div>
             <h3 className="text-lg font-semibold" id="transaction-editor-title">Edit transaction</h3>
             <p className="mt-1 text-sm font-medium text-[var(--muted)]" id="transaction-editor-description">
-              Last edited by {transaction.updatedByDisplayName ?? "MoneyMentor"}
+              Last edited by {transaction.updatedByDisplayName ?? "Spndrr"}
             </p>
           </div>
           <button
@@ -3087,7 +3099,7 @@ function HouseholdSection({
             <div>
               <h2 className="text-2xl font-semibold tracking-normal">Household</h2>
               <p className="mt-1 text-sm font-medium text-[var(--muted)]">
-                Personal is the default scope. Premium entitlement is managed by MoneyMentor support.
+                Personal is the default scope. Premium entitlement is managed by Spndrr support.
               </p>
             </div>
             <span className="rounded-lg bg-[var(--accent-soft)] px-3 py-2 text-xs font-bold text-[var(--accent)]">
@@ -3373,7 +3385,7 @@ function SettingsSection({
           <button className="mt-4 inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-3 text-sm font-bold disabled:opacity-60" disabled={isPrivacyWorking} onClick={onExportData} type="button">
             <Download className="h-4 w-4" /> Export my data
           </button>
-          <p className="mt-4 text-sm font-medium text-[var(--muted)]">Support: <a className="font-bold text-[var(--accent)] underline" href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@moneymentor.example"}`}>{process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@moneymentor.example"}</a></p>
+          <p className="mt-4 text-sm font-medium text-[var(--muted)]">Support: <a className="font-bold text-[var(--accent)] underline" href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@spndrr.example"}`}>{process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@spndrr.example"}</a></p>
           <Link className="mt-2 inline-flex text-sm font-bold text-[var(--accent)] underline" href="/privacy" target="_blank">Read the beta privacy policy</Link>
         </article>
 
@@ -3624,7 +3636,7 @@ function SignedOutHome() {
         <div className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-[var(--ink)] text-white">
           <BrandMarkIcon className="h-7 w-7" />
         </div>
-        <h1 className="mt-6 text-3xl font-semibold tracking-normal">MoneyMentor</h1>
+        <h1 className="mt-6 text-3xl font-semibold tracking-normal">Spndrr</h1>
         <p className="mt-3 text-base font-medium leading-7 text-[var(--muted)]">
           Sign in to use the assistant input workspace.
         </p>

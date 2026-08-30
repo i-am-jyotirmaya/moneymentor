@@ -26,6 +26,12 @@ using MoneyMentor.Api.Endpoints.Privacy;
 using MoneyMentor.Api.Production;
 using MoneyMentor.Infrastructure;
 
+var platformPort = Environment.GetEnvironmentVariable("PORT");
+if (int.TryParse(platformPort, out var parsedPort) && parsedPort is > 0 and <= 65535)
+{
+    Environment.SetEnvironmentVariable("ASPNETCORE_HTTP_PORTS", parsedPort.ToString(CultureInfo.InvariantCulture));
+}
+
 var builder = WebApplication.CreateBuilder(args);
 const string WebCorsPolicy = "MoneyMentorWeb";
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -274,12 +280,18 @@ static void ValidateProductionConfiguration(
 
     if (string.IsNullOrWhiteSpace(builder.Configuration["Product:SupportEmail"])
         || !Uri.TryCreate(builder.Configuration["Product:PublicWebUrl"], UriKind.Absolute, out var publicWebUri)
-        || publicWebUri.Scheme != Uri.UriSchemeHttps
-        || string.IsNullOrWhiteSpace(builder.Configuration["Resend:ApiKey"])
-        || string.IsNullOrWhiteSpace(builder.Configuration["Resend:FromAddress"])
-        || string.IsNullOrWhiteSpace(builder.Configuration["Resend:ReplyTo"]))
+        || publicWebUri.Scheme != Uri.UriSchemeHttps)
     {
-        throw new InvalidOperationException("Production public URL, support, and Resend settings are required.");
+        throw new InvalidOperationException("Production public URL and support email are required.");
+    }
+
+    if (builder.Configuration.GetValue<bool>("Resend:DispatcherEnabled")
+        && (string.IsNullOrWhiteSpace(builder.Configuration["Resend:ApiKey"])
+            || string.IsNullOrWhiteSpace(builder.Configuration["Resend:FromAddress"])
+            || string.IsNullOrWhiteSpace(builder.Configuration["Resend:ReplyTo"])))
+    {
+        throw new InvalidOperationException(
+            "Production Resend settings are required when invitation email delivery is enabled.");
     }
 
     var signingKey = builder.Configuration["Jwt:SigningKey"];

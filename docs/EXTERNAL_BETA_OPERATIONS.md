@@ -1,6 +1,8 @@
-# External beta operations
+# Spndrr external beta operations
 
-MoneyMentor runs as one modular-monolith API, one Next.js web process, and PostgreSQL. Authentication and application data remain in separate EF Core DbContexts and migration histories, even though the initial beta uses one PostgreSQL database.
+Spndrr runs as one modular-monolith API, one Next.js web process, and PostgreSQL. Authentication and application data remain in separate EF Core DbContexts and migration histories, even though the initial beta uses one PostgreSQL database. Internal projects retain their `MoneyMentor.*` names.
+
+For the Railway-specific three-service setup, pre-deploy migration, health checks, and variables, use `deploy/README.md`. This document also covers the generic self-hosted image/Compose path.
 
 ## Required production configuration
 
@@ -11,7 +13,8 @@ Copy `.env.example` into the deployment secret store; do not commit a populated 
 - wildcard `AllowedHosts`;
 - JWT keys shorter than 32 bytes;
 - insecure refresh cookies;
-- missing support email or Resend API key/from/reply-to settings.
+- missing support email;
+- missing Resend API key/from/reply-to settings when `Resend:DispatcherEnabled` is true.
 
 Only configure reverse-proxy IPs actually controlled by the deployment. The API trusts forwarded client addresses only from those entries. The initial beta is limited to one API instance; multiple instances require distributed or edge rate limiting and coordinated background-worker leases.
 
@@ -20,12 +23,12 @@ Only configure reverse-proxy IPs actually controlled by the deployment. The API 
 Build all images from the repository root and tag them with the commit SHA:
 
 ```bash
-docker build -f apps/api/MoneyMentor.Api/Dockerfile -t registry.example/moneymentor-api:$GIT_SHA .
-docker build -f apps/api/MoneyMentor.Operations/Dockerfile -t registry.example/moneymentor-operations:$GIT_SHA .
+docker build -f apps/api/MoneyMentor.Api/Dockerfile -t registry.example/spndrr-api:$GIT_SHA .
+docker build -f apps/api/MoneyMentor.Operations/Dockerfile -t registry.example/spndrr-operations:$GIT_SHA .
 docker build -f apps/web/Dockerfile \
-  --build-arg NEXT_PUBLIC_API_BASE_URL=https://api.moneymentor.example \
-  --build-arg NEXT_PUBLIC_SUPPORT_EMAIL=support@moneymentor.example \
-  -t registry.example/moneymentor-web:$GIT_SHA .
+  --build-arg NEXT_PUBLIC_API_BASE_URL=https://api.spndrr.example \
+  --build-arg NEXT_PUBLIC_SUPPORT_EMAIL=support@spndrr.example \
+  -t registry.example/spndrr-web:$GIT_SHA .
 ```
 
 Runtime images run as non-root users. The API never applies migrations on startup.
@@ -78,7 +81,9 @@ Every actual change writes an `entitlement_changes` row in the same application 
 
 ## Invitation delivery
 
-Verify a sender domain in Resend and configure its API key, from address, reply-to address, and public web URL as deployment secrets. Invitations are persisted before delivery. The dispatcher uses a delivery GUID as its idempotency key, sends outside the claim transaction, and retries failures with bounded backoff. Owners/Admins can inspect queued, sent, and failed history.
+Invitation email is optional for the initial two-user smoke test. With `Resend:DispatcherEnabled` false, invitations are persisted but no email worker runs; the invited user can sign up with the exact invited address and accept in-app.
+
+To enable delivery, verify a sender domain in Resend, configure its API key, from address, reply-to address, and public web URL as deployment secrets, then set `Resend:DispatcherEnabled` to true. The dispatcher uses a delivery GUID as its idempotency key, sends outside the claim transaction, and retries failures with bounded backoff. Owners/Admins can inspect queued, sent, and failed history.
 
 ## Backups and restore drills
 

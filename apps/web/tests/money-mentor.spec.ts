@@ -544,7 +544,7 @@ test("assistant popup keeps long conversations scrollable", async ({ page }, tes
   await page.goto("/");
   await page.getByRole("button", { name: "Open assistant chat" }).click();
   const dialog = page.getByRole("dialog", { name: "Assistant chat" });
-  await dialog.getByLabel("Message MoneyMentor").fill("long assistant response");
+  await dialog.getByLabel("Message Spndrr").fill("long assistant response");
   await dialog.getByRole("button", { name: "Send message" }).click();
   await expect(dialog.getByText(/Scrollable assistant detail 40/)).toBeVisible();
 
@@ -610,7 +610,7 @@ test("desktop assistant sends a finance question to the backend", async ({ page 
 
   await page.goto("/");
   await page.getByRole("button", { name: "Assistant", exact: true }).click();
-  await page.getByLabel("Message MoneyMentor").first().fill("where did I spend most this month?");
+  await page.getByLabel("Message Spndrr").first().fill("where did I spend most this month?");
   await page.getByRole("button", { name: "Send message" }).first().click();
 
   await expect(page.getByText("You spent the most on Rent").first()).toBeVisible();
@@ -621,7 +621,7 @@ test("assistant tracks income with sender and reason terminology", async ({ page
 
   await page.goto("/");
   await page.getByRole("button", { name: "Assistant", exact: true }).click();
-  await page.getByLabel("Message MoneyMentor").first().fill("Joe sent me 300 Rs for chips");
+  await page.getByLabel("Message Spndrr").first().fill("Joe sent me 300 Rs for chips");
   await page.getByRole("button", { name: "Send message" }).first().click();
   await expect(page.getByText("Tracked ₹300 received from Joe for chips.").first()).toBeVisible();
 

@@ -1241,7 +1241,7 @@ export async function downloadPrivacyExport(accessToken: string) {
     blob: await response.blob(),
     fileName:
       response.headers.get("Content-Disposition")?.match(/filename="?([^";]+)"?/)?.[1] ??
-      "moneymentor-export.json",
+      "spndrr-export.json",
   };
 }
 

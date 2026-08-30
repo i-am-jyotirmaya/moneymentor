@@ -1,6 +1,8 @@
-# MoneyMentor Runbook
+# Spndrr Runbook
 
-This runbook covers local setup, backend/frontend verification, API surfaces, and the premium test-account workflow for MoneyMentor.
+This runbook covers local setup, backend/frontend verification, API surfaces, and the premium test-account workflow for Spndrr. Internal .NET projects and contexts retain their `MoneyMentor.*` names.
+
+For the current Railway procedure and environment templates, see `deploy/README.md`.
 
 ## Local Services
 

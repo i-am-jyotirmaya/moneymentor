@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@moneymentor.example";
+const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@spndrr.example";
 
 export default function PrivacyPage() {
   return (
@@ -12,7 +12,7 @@ export default function PrivacyPage() {
         <section className="mt-8 space-y-3">
           <h2 className="text-xl font-semibold">AI goal planning</h2>
           <p>
-            When you request an AI goal plan, MoneyMentor sends a minimized financial
+            When you request an AI goal plan, Spndrr sends a minimized financial
             summary to its configured model provider. The summary contains calculated
             totals and planning constraints, not transaction descriptions, merchant
             names, account identity, email, or raw transaction history.
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
             future planning runs.
           </p>
         </section>
-        <h1 className="mt-3 text-4xl font-semibold">MoneyMentor beta privacy policy</h1>
+        <h1 className="mt-3 text-4xl font-semibold">Spndrr beta privacy policy</h1>
         <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
           This plain-language beta policy is a product draft and must receive legal review before general availability.
         </p>
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
           </section>
           <section>
             <h2 className="text-xl font-semibold text-[var(--ink)]">How we use it</h2>
-            <p className="mt-2">We use your data to run MoneyMentor, calculate reports deterministically, deliver invitations, secure sessions, diagnose reliability problems, and improve the beta. We do not use AI-generated values as the source of truth for financial totals.</p>
+            <p className="mt-2">We use your data to run Spndrr, calculate reports deterministically, deliver invitations, secure sessions, diagnose reliability problems, and improve the beta. We do not use AI-generated values as the source of truth for financial totals.</p>
           </section>
           <section>
             <h2 className="text-xl font-semibold text-[var(--ink)]">Households and visibility</h2>
@@ -52,7 +52,7 @@ export default function PrivacyPage() {
         </div>
 
         <Link className="mt-10 inline-flex rounded-lg bg-[var(--ink)] px-5 py-3 text-sm font-bold text-white" href="/">
-          Return to MoneyMentor
+          Return to Spndrr
         </Link>
       </article>
     </main>

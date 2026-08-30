@@ -90,7 +90,7 @@ public static class PrivacyEndpoints
 
         var userContext = await appUserProfileService.ResolveAsync(identity, cancellationToken);
         var export = await privacyService.ExportAsync(userContext, cancellationToken);
-        var fileName = $"moneymentor-export-{export.GeneratedAt:yyyyMMddHHmmss}.json";
+        var fileName = $"spndrr-export-{export.GeneratedAt:yyyyMMddHHmmss}.json";
         return Results.Stream(
             async stream => await JsonSerializer.SerializeAsync(
                 stream,

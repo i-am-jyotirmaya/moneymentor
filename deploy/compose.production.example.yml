@@ -29,6 +29,7 @@ services:
       Cors__AllowedOrigins__0: ${CORS_ORIGIN}
       Product__PublicWebUrl: ${PUBLIC_WEB_URL}
       Product__SupportEmail: ${SUPPORT_EMAIL}
+      Resend__DispatcherEnabled: ${RESEND_DISPATCHER_ENABLED:-false}
       Resend__ApiKey: ${RESEND_API_KEY}
       Resend__FromAddress: ${RESEND_FROM_ADDRESS}
       Resend__ReplyTo: ${RESEND_REPLY_TO}

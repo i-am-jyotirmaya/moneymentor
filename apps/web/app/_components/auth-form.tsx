@@ -52,7 +52,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       if (caughtError instanceof ApiError) {
         setError(caughtError.errors.join(" "));
       } else {
-        setError("Could not reach MoneyMentor API. Check that the backend is running.");
+        setError("Could not reach the Spndrr API. Check that the backend is running.");
       }
     } finally {
       setIsSubmitting(false);
@@ -84,7 +84,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
               <BrandMarkIcon className="h-6 w-6" />
             </span>
-            <span className="text-lg font-semibold">MoneyMentor</span>
+            <span className="text-lg font-semibold">Spndrr</span>
           </Link>
 
           <div className="mt-16 max-w-xl">
@@ -92,7 +92,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               A calm place to tell your money what happened.
             </h1>
             <p className="mt-5 max-w-lg text-lg font-medium leading-8 text-[var(--muted)]">
-              Sign in, type naturally, and let MoneyMentor turn quick notes into
+              Sign in, type naturally, and let Spndrr turn quick notes into
               clear finance drafts before anything is saved.
             </p>
           </div>
@@ -120,7 +120,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
                 <BrandMarkIcon className="h-6 w-6" />
               </span>
-              <span className="text-lg font-semibold">MoneyMentor</span>
+              <span className="text-lg font-semibold">Spndrr</span>
             </Link>
             <span className="hidden text-sm font-semibold text-[var(--muted)] lg:block">
               {isSignup ? "Create account" : "Welcome back"}
@@ -134,7 +134,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted)]">
               {isSignup
                 ? "Start with the assistant input, then build the rest around real data."
-                : "Continue to your MoneyMentor workspace."}
+                : "Continue to your Spndrr workspace."}
             </p>
           </div>
 

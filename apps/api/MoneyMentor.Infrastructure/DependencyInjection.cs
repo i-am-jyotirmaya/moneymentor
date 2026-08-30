@@ -121,8 +121,10 @@ public static class DependencyInjection
             client.DefaultRequestHeaders.UserAgent.ParseAdd("MoneyMentor/1.0");
             client.Timeout = TimeSpan.FromSeconds(15);
         });
-        // TODO: Enable invitationEmailDispatcher once setup is done
-        // services.AddHostedService<InvitationEmailDispatcher>();
+        if (configuration.GetValue<bool>($"{ResendOptions.SectionName}:DispatcherEnabled"))
+        {
+            services.AddHostedService<InvitationEmailDispatcher>();
+        }
         services.AddHealthChecks()
             .AddCheck<PostgresReadinessHealthCheck>("postgres", tags: ["ready"]);
 
