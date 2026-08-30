@@ -30,7 +30,7 @@ jobs:
       - uses: pnpm/setup@v2
         with:
           cache: true
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
           runtime: node@24
       - run: dotnet restore MoneyMentor.slnx
       - run: dotnet build MoneyMentor.slnx --no-restore --configuration Release --verbosity minimal
