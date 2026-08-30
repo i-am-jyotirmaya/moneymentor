@@ -18,19 +18,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: gitleaks/gitleaks-action@v2
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v6
+      - uses: gitleaks/gitleaks-action@v3
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/setup@v2
         with:
-          version: 10.33.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
+          version: next-12
+          cache: true
           cache-dependency-path: apps/web/pnpm-lock.yaml
+          runtime: node@24
       - run: dotnet restore MoneyMentor.slnx
       - run: dotnet build MoneyMentor.slnx --no-restore --configuration Release --verbosity minimal
       - run: dotnet test apps/api/MoneyMentor.Application.Tests/MoneyMentor.Application.Tests.csproj --no-build --configuration Release --verbosity minimal
