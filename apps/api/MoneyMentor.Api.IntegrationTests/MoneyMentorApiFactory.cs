@@ -1,11 +1,12 @@
 using System.Collections.Concurrent;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Identity;
@@ -22,22 +23,24 @@ public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsy
         .WithUsername("moneymentor")
         .WithPassword("moneymentor-tests")
         .Build();
+    private string? _connectionString;
 
     public FrozenTimeProvider Clock { get; } = new(
         new DateTimeOffset(2026, 7, 1, 18, 45, 0, TimeSpan.Zero));
 
     public RecordingEmailSender EmailSender { get; } = new();
 
-    public string ConnectionString => _postgres.GetConnectionString();
+    public string ConnectionString => _connectionString
+        ?? throw new InvalidOperationException("The PostgreSQL test container has not started.");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        builder.ConfigureAppConfiguration((_, configuration) =>
-        {
-            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        TestWebHostSettings.Apply(
+            builder,
+            new Dictionary<string, string>
             {
-                ["ConnectionStrings:MoneyMentorDb"] = _postgres.GetConnectionString(),
+                ["ConnectionStrings:MoneyMentorDb"] = ConnectionString,
                 ["Jwt:Issuer"] = "MoneyMentor.Tests",
                 ["Jwt:Audience"] = "MoneyMentor.Api.IntegrationTests",
                 ["Jwt:SigningKey"] = "integration-tests-signing-key-at-least-32-bytes-long",
@@ -50,6 +53,8 @@ public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsy
                 ["Resend:ApiKey"] = "test-key",
                 ["Resend:FromAddress"] = "MoneyMentor <noreply@moneymentor.test>",
                 ["Resend:ReplyTo"] = "support@moneymentor.test",
+                ["Resend:DispatcherEnabled"] = "true",
+                ["Resend:DispatcherInterval"] = "00:00:00.050",
                 ["RateLimits:AuthenticatedPerMinute"] = "10000",
                 ["RateLimits:AnonymousPerMinute"] = "10000",
                 ["RateLimits:SignupsPerHour"] = "10000",
@@ -58,11 +63,11 @@ public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsy
                 ["RateLimits:InvitationsPerHour"] = "10000",
                 ["RateLimits:PrivacyOperationsPerHour"] = "10000"
             });
-        });
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
+            TestWebHostSettings.UseJwtClock(services, Clock);
             services.RemoveAll<ITransactionalEmailSender>();
             services.AddSingleton<ITransactionalEmailSender>(EmailSender);
         });
@@ -71,12 +76,13 @@ public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsy
     public async ValueTask InitializeAsync()
     {
         await _postgres.StartAsync();
+        _connectionString = _postgres.GetConnectionString();
         var authOptions = new DbContextOptionsBuilder<MoneyMentorAuthDbContext>()
-            .UseNpgsql(_postgres.GetConnectionString(), options =>
+            .UseNpgsql(ConnectionString, options =>
                 options.MigrationsAssembly(typeof(MoneyMentorAuthDbContext).Assembly.FullName))
             .Options;
         var appOptions = new DbContextOptionsBuilder<MoneyMentorDbContext>()
-            .UseNpgsql(_postgres.GetConnectionString(), options =>
+            .UseNpgsql(ConnectionString, options =>
                 options.MigrationsAssembly(typeof(MoneyMentorDbContext).Assembly.FullName))
             .Options;
         await using var authDb = new MoneyMentorAuthDbContext(authOptions);
@@ -135,8 +141,9 @@ public sealed class RateLimitedApiFactory(
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        builder.ConfigureAppConfiguration((_, configuration) =>
-            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        TestWebHostSettings.Apply(
+            builder,
+            new Dictionary<string, string>
             {
                 ["ConnectionStrings:MoneyMentorDb"] = connectionString,
                 ["Jwt:Issuer"] = "MoneyMentor.Tests",
@@ -147,11 +154,12 @@ public sealed class RateLimitedApiFactory(
                 ["Product:SupportEmail"] = "support@moneymentor.test",
                 ["RateLimits:AnonymousPerMinute"] = "2",
                 ["RateLimits:AuthenticatedPerMinute"] = "10000"
-            }));
+            });
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<TimeProvider>();
             services.AddSingleton(clock);
+            TestWebHostSettings.UseJwtClock(services, clock);
             services.RemoveAll<ITransactionalEmailSender>();
             services.AddSingleton(emailSender);
         });
@@ -163,11 +171,45 @@ public sealed class InvalidProductionApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Production");
-        builder.ConfigureAppConfiguration((_, configuration) =>
-            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        TestWebHostSettings.Apply(
+            builder,
+            new Dictionary<string, string>
             {
                 ["Cors:AllowedOrigins:0"] = "http://localhost:3000"
-            }));
+            });
+    }
+}
+
+internal static class TestWebHostSettings
+{
+    public static void Apply(IWebHostBuilder builder, IReadOnlyDictionary<string, string> settings)
+    {
+        foreach (var (key, value) in settings)
+        {
+            builder.UseSetting(key, value);
+        }
+    }
+
+    public static void UseJwtClock(IServiceCollection services, TimeProvider clock)
+    {
+        services.PostConfigure<JwtBearerOptions>(
+            JwtBearerDefaults.AuthenticationScheme,
+            options => options.TokenValidationParameters.LifetimeValidator =
+                (notBefore, expires, _, parameters) =>
+                    ValidateLifetime(notBefore, expires, parameters, clock));
+    }
+
+    private static bool ValidateLifetime(
+        DateTime? notBefore,
+        DateTime? expires,
+        TokenValidationParameters parameters,
+        TimeProvider clock)
+    {
+        var now = clock.GetUtcNow().UtcDateTime;
+        return (notBefore is null || notBefore <= now + parameters.ClockSkew)
+            && (expires is not null
+                ? expires >= now - parameters.ClockSkew
+                : !parameters.RequireExpirationTime);
     }
 }
 

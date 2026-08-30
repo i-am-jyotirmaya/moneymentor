@@ -18,6 +18,7 @@ internal sealed class InvitationEmailDispatcher(
     TimeProvider timeProvider,
     ILogger<InvitationEmailDispatcher> logger) : BackgroundService
 {
+    private const string DispatcherIntervalKey = "Resend:DispatcherInterval";
     private static readonly TimeSpan[] RetryDelays =
     [
         TimeSpan.FromMinutes(1),
@@ -30,7 +31,9 @@ internal sealed class InvitationEmailDispatcher(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await DispatchAvailableAsync(stoppingToken);
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15), timeProvider);
+        var dispatcherInterval = configuration.GetValue<TimeSpan?>(DispatcherIntervalKey)
+            ?? TimeSpan.FromSeconds(15);
+        using var timer = new PeriodicTimer(dispatcherInterval);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             await DispatchAvailableAsync(stoppingToken);

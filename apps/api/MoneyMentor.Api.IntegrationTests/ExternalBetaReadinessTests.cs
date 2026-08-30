@@ -253,7 +253,9 @@ public sealed class ExternalBetaReadinessTests(MoneyMentorApiFactory factory)
         var signupResponse = await SignupResponseAsync(client, UniqueEmail("refresh"), "Refresh User");
         var oldCookie = ExtractRefreshCookie(signupResponse.Response);
 
-        var refreshResponse = await client.PostAsync("/api/auth/refresh", null);
+        using var refreshRequest = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        refreshRequest.Headers.Add("Cookie", oldCookie);
+        var refreshResponse = await client.SendAsync(refreshRequest);
         refreshResponse.EnsureSuccessStatusCode();
         var refreshed = await ReadSessionAsync(refreshResponse);
 
@@ -268,9 +270,11 @@ public sealed class ExternalBetaReadinessTests(MoneyMentorApiFactory factory)
         Authorize(client, refreshed.AccessToken);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
 
-        var logoutSignup = await SignupAsync(client, UniqueEmail("logout"), "Logout User");
-        Authorize(client, logoutSignup.AccessToken);
-        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/api/auth/logout", null)).StatusCode);
+        var logoutSignup = await SignupResponseAsync(client, UniqueEmail("logout"), "Logout User");
+        Authorize(client, logoutSignup.Session.AccessToken);
+        using var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
+        logoutRequest.Headers.Add("Cookie", ExtractRefreshCookie(logoutSignup.Response));
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(logoutRequest)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
     }
 

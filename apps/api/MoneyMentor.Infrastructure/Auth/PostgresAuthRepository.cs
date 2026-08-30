@@ -92,6 +92,11 @@ internal sealed class PostgresAuthRepository : IAuthRepository
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (user.AccessFailedCount == 0)
+        {
+            return AuthRepositoryResult.Success();
+        }
+
         var result = await _userManager.ResetAccessFailedCountAsync(user);
         return result.Succeeded
             ? AuthRepositoryResult.Success()
@@ -113,13 +118,15 @@ internal sealed class PostgresAuthRepository : IAuthRepository
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
-        user.LastSignedInAt = signedInAt;
-        var result = await _userManager.UpdateAsync(user);
-
-        return result.Succeeded
+        var updated = await _dbContext.Users
+            .Where(candidate => candidate.Id == user.Id)
+            .ExecuteUpdateAsync(
+                updates => updates.SetProperty(candidate => candidate.LastSignedInAt, signedInAt),
+                cancellationToken);
+        return updated == 1
             ? AuthRepositoryResult.Success()
-            : AuthRepositoryResult.Failure(MapErrors(result));
+            : AuthRepositoryResult.Failure(
+                [new AuthRepositoryError("UserNotFound", "The user no longer exists.")]);
     }
 
     public async Task AddSessionAsync(
