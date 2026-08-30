@@ -16,4 +16,8 @@
     <ProjectReference Include="..\MoneyMentor.Domain\MoneyMentor.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
 </Project>

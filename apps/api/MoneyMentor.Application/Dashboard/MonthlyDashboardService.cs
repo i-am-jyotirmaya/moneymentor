@@ -1,10 +1,12 @@
 using MoneyMentor.Application.AppUsers;
+using MoneyMentor.Application.Judgements;
 
 namespace MoneyMentor.Application.Dashboard;
 
 public sealed class MonthlyDashboardService(
     IFinanceTransactionReader transactionReader,
-    MonthlyDashboardBuilder dashboardBuilder) : IMonthlyDashboardService
+    MonthlyDashboardBuilder dashboardBuilder,
+    IJudgementService? judgementService = null) : IMonthlyDashboardService
 {
     public async Task<MonthlyDashboardModel> GetMonthlyDashboardAsync(
         AppUserContext userContext,
@@ -17,11 +19,19 @@ public sealed class MonthlyDashboardService(
             query.HouseholdId,
             month,
             cancellationToken);
+        IReadOnlyCollection<JudgementModel> judgements = judgementService is null
+            ? []
+            : await judgementService.ListAsync(
+                userContext,
+                query.HouseholdId,
+                month,
+                cancellationToken);
 
         return dashboardBuilder.Build(
             userContext,
             month,
             transactions,
-            query.RecentTransactionLimit);
+            query.RecentTransactionLimit,
+            judgements.Select(judgement => judgement.ToDashboardModel()).ToArray());
     }
 }

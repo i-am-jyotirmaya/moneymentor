@@ -1,20 +1,23 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
-const sessionStorageKey = "moneymentor.auth.session.v1";
 const currentMonthKey = new Date().toISOString().slice(0, 7);
 const previousMonthKey = shiftMonthKey(currentMonthKey, -1);
 
 const mockSession = {
   accessToken: "playwright-access-token",
   accessTokenExpiresAt: "2099-01-01T00:00:00.000Z",
-  refreshToken: "playwright-refresh-token",
-  refreshTokenExpiresAt: "2099-01-02T00:00:00.000Z",
+  requiresPrivacyConsent: false,
   user: {
     id: "11111111-1111-4111-8111-111111111111",
     email: "playwright@moneymentor.test",
     displayName: "Playwright Tester",
     roles: ["User"],
   },
+};
+
+type MockTransaction = Omit<ReturnType<typeof createTransaction>, "deletedAt" | "purgeAfter"> & {
+  deletedAt: string | null;
+  purgeAfter: string | null;
 };
 
 const baseTransactions = [
@@ -63,12 +66,7 @@ const baseTransactions = [
 ];
 
 async function seedAuthSession(page: Page) {
-  await page.addInitScript(
-    ([key, session]) => {
-      window.sessionStorage.setItem(key, JSON.stringify(session));
-    },
-    [sessionStorageKey, mockSession],
-  );
+  await page.addInitScript(() => undefined);
 }
 
 async function seedVoiceRecognition(page: Page) {
@@ -101,7 +99,9 @@ async function seedVoiceRecognition(page: Page) {
 }
 
 async function mockBackend(page: Page) {
-  let transactions = [...baseTransactions];
+  let transactions: MockTransaction[] = [...baseTransactions];
+  let deletedTransactions: MockTransaction[] = [];
+  let sentInvitations: Array<Record<string, unknown>> = [];
   let pendingInvitations = [
     {
       id: "invite-friends",
@@ -114,6 +114,10 @@ async function mockBackend(page: Page) {
       createdAt: "2026-07-01T00:00:00Z",
       expiresAt: "2026-07-08T00:00:00Z",
       respondedAt: null,
+      deliveryStatus: "Sent",
+      deliveryAttemptCount: 1,
+      sentAt: "2026-07-01T00:00:01Z",
+      lastDeliveryError: null,
     },
   ];
 
@@ -123,6 +127,16 @@ async function mockBackend(page: Page) {
 
     if (url.pathname === "/api/auth/login" && method === "POST") {
       await json(route, mockSession);
+      return;
+    }
+
+    if (url.pathname === "/api/auth/refresh" && method === "POST") {
+      await json(route, mockSession);
+      return;
+    }
+
+    if (url.pathname === "/api/auth/logout" && method === "POST") {
+      await route.fulfill({ status: 204 });
       return;
     }
 
@@ -153,7 +167,55 @@ async function mockBackend(page: Page) {
         pageSize,
         totalCount: matchingTransactions.length,
         totalPages: Math.ceil(matchingTransactions.length / pageSize),
+        month,
       });
+      return;
+    }
+
+    if (url.pathname === "/api/settings/me" && method === "PATCH") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await json(route, {
+        userProfileId: "22222222-2222-4222-8222-222222222222",
+        email: "playwright@moneymentor.test",
+        displayName: "Playwright Tester",
+        currencyCode: body.currencyCode ?? "INR",
+        timeZone: body.timeZone ?? "Asia/Kolkata",
+        plan: "Premium",
+        requireMerchantForExpenses: body.requireMerchantForExpenses ?? false,
+        defaultTransactionVisibility: body.defaultTransactionVisibility ?? "Private",
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/transactions/trash" && method === "GET") {
+      await json(route, { items: deletedTransactions });
+      return;
+    }
+
+    const restoreMatch = url.pathname.match(/^\/api\/transactions\/([^/]+)\/restore$/);
+    if (restoreMatch && method === "POST") {
+      const restored = deletedTransactions.find((item) => item.id === restoreMatch[1]);
+      if (!restored) {
+        await route.fulfill({ status: 404, body: "Not found" });
+        return;
+      }
+      deletedTransactions = deletedTransactions.filter((item) => item.id !== restored.id);
+      transactions = [{ ...restored, deletedAt: null, purgeAfter: null }, ...transactions];
+      await json(route, transactions[0]);
+      return;
+    }
+
+    const deleteMatch = url.pathname.match(/^\/api\/transactions\/([^/]+)$/);
+    if (deleteMatch && method === "DELETE") {
+      const deleted = transactions.find((item) => item.id === deleteMatch[1]);
+      if (!deleted) {
+        await route.fulfill({ status: 404, body: "Not found" });
+        return;
+      }
+      transactions = transactions.filter((item) => item.id !== deleted.id);
+      const trashed = { ...deleted, deletedAt: new Date().toISOString(), purgeAfter: "2099-01-01T00:00:00Z" };
+      deletedTransactions = [trashed, ...deletedTransactions];
+      await json(route, trashed);
       return;
     }
 
@@ -179,13 +241,25 @@ async function mockBackend(page: Page) {
       await json(route, {
         plan: "Premium",
         canUseHouseholds: true,
+        defaultHouseholdId: "33333333-3333-4333-8333-333333333333",
         households: [
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            name: "Personal",
+            kind: "Personal",
+            role: "Owner",
+            status: "Active",
+            canWrite: true,
+            memberCount: 1,
+            createdAt: "2026-06-01T00:00:00Z",
+          },
           {
             id: "44444444-4444-4444-8444-444444444444",
             name: "Family workspace",
             kind: "Family",
             role: "Owner",
             status: "Active",
+            canWrite: true,
             memberCount: 1,
             createdAt: "2026-06-01T00:00:00Z",
           },
@@ -194,14 +268,38 @@ async function mockBackend(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/categories" && method === "GET") {
+      await json(route, {
+        householdId: url.searchParams.get("householdId"),
+        canWrite: true,
+        categories: [],
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/goals" && method === "GET") {
+      await json(route, []);
+      return;
+    }
+
+    if (url.pathname === "/api/commitments" && method === "GET") {
+      await json(route, []);
+      return;
+    }
+
     if (url.pathname === "/api/households/invitations" && method === "GET") {
       await json(route, pendingInvitations);
       return;
     }
 
+    if (/^\/api\/households\/[^/]+\/invitations$/.test(url.pathname) && method === "GET") {
+      await json(route, sentInvitations);
+      return;
+    }
+
     if (/^\/api\/households\/[^/]+\/invitations$/.test(url.pathname) && method === "POST") {
       const body = route.request().postDataJSON() as { email: string; role: string };
-      await json(route, {
+      const invitation = {
         id: "invite-sent",
         householdId: url.pathname.split("/")[3],
         householdName: "Family workspace",
@@ -212,7 +310,33 @@ async function mockBackend(page: Page) {
         createdAt: new Date().toISOString(),
         expiresAt: "2099-01-01T00:00:00Z",
         respondedAt: null,
+        deliveryStatus: "Queued",
+        deliveryAttemptCount: 0,
+        sentAt: null,
+        lastDeliveryError: null,
+      };
+      sentInvitations = [invitation, ...sentInvitations];
+      await json(route, invitation);
+      return;
+    }
+
+    if (url.pathname === "/api/privacy/consents" && method === "POST") {
+      await json(route, { policyVersion: "2026-07-26-ai-planning.1", acceptedAt: new Date().toISOString() });
+      return;
+    }
+
+    if (url.pathname === "/api/privacy/export" && method === "GET") {
+      await route.fulfill({
+        body: JSON.stringify({ schemaVersion: 1, profile: { email: mockSession.user.email } }),
+        contentType: "application/json",
+        headers: { "Content-Disposition": "attachment; filename=moneymentor-export.json" },
+        status: 200,
       });
+      return;
+    }
+
+    if (url.pathname === "/api/privacy/account" && method === "DELETE") {
+      await route.fulfill({ status: 204 });
       return;
     }
 
@@ -420,7 +544,7 @@ test("assistant popup keeps long conversations scrollable", async ({ page }, tes
   await page.goto("/");
   await page.getByRole("button", { name: "Open assistant chat" }).click();
   const dialog = page.getByRole("dialog", { name: "Assistant chat" });
-  await dialog.getByLabel("Message MoneyMentor").fill("long assistant response");
+  await dialog.getByLabel("Message Spndrr").fill("long assistant response");
   await dialog.getByRole("button", { name: "Send message" }).click();
   await expect(dialog.getByText(/Scrollable assistant detail 40/)).toBeVisible();
 
@@ -486,7 +610,7 @@ test("desktop assistant sends a finance question to the backend", async ({ page 
 
   await page.goto("/");
   await page.getByRole("button", { name: "Assistant", exact: true }).click();
-  await page.getByLabel("Message MoneyMentor").first().fill("where did I spend most this month?");
+  await page.getByLabel("Message Spndrr").first().fill("where did I spend most this month?");
   await page.getByRole("button", { name: "Send message" }).first().click();
 
   await expect(page.getByText("You spent the most on Rent").first()).toBeVisible();
@@ -497,7 +621,7 @@ test("assistant tracks income with sender and reason terminology", async ({ page
 
   await page.goto("/");
   await page.getByRole("button", { name: "Assistant", exact: true }).click();
-  await page.getByLabel("Message MoneyMentor").first().fill("Joe sent me 300 Rs for chips");
+  await page.getByLabel("Message Spndrr").first().fill("Joe sent me 300 Rs for chips");
   await page.getByRole("button", { name: "Send message" }).first().click();
   await expect(page.getByText("Tracked ₹300 received from Joe for chips.").first()).toBeVisible();
 
@@ -519,6 +643,10 @@ test("household invitations can be accepted and sent", async ({ page }, testInfo
   await expect(page.getByText(/Joe invited you as Member/).first()).toBeVisible();
   await page.getByRole("button", { name: "Accept" }).first().click();
   await expect(page.getByText("You joined Friends workspace.").first()).toBeVisible();
+  await page.getByRole("button", { name: /Family workspace Owner/ }).click();
+  await expect(page.getByLabel("Household").first()).toHaveValue(
+    "44444444-4444-4444-8444-444444444444",
+  );
 
   const invitationRequest = page.waitForRequest(
     (request) =>
@@ -532,6 +660,72 @@ test("household invitations can be accepted and sent", async ({ page }, testInfo
   const request = await invitationRequest;
   expect(request.postDataJSON()).toEqual({ email: "friend@example.com", role: "Viewer" });
   await expect(page.getByText("Invitation sent to friend@example.com.").first()).toBeVisible();
+  await expect(page.getByText("Queued").first()).toBeVisible();
+});
+
+test("silent refresh restores the session and logout calls the server", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
+  const refreshRequest = page.waitForRequest((request) => request.url().endsWith("/api/auth/refresh"));
+  await page.goto("/");
+  await refreshRequest;
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+
+  const logoutRequest = page.waitForRequest((request) => request.url().endsWith("/api/auth/logout"));
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await logoutRequest;
+  await expect(page).toHaveURL(/\/login$/);
+});
+
+test("privacy consent gate blocks finance UI until accepted", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
+  await page.route("http://localhost:5267/api/auth/refresh", async (route) => {
+    await json(route, { ...mockSession, requiresPrivacyConsent: true });
+  });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Review the beta privacy policy" })).toBeVisible();
+  await page.getByRole("button", { name: "Accept and continue" }).click();
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+});
+
+test("delete offers undo and Premium remains read-only", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
+  await page.goto("/transactions");
+  await page.getByRole("button", { name: "Next transaction page" }).click();
+  await page.getByRole("button", { name: /Delete transaction Paid rent/ }).click();
+  await expect(page.getByText("Moved to Recently Deleted.")).toBeVisible();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.getByText("Moved to Recently Deleted.")).toHaveCount(0);
+
+  await page.goto("/settings");
+  await expect(page.getByLabel("Plan").first()).toHaveAttribute("readonly", "");
+  await expect(page.getByText(/Entitlements are server-controlled/).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Read the beta privacy policy" }).first()).toBeVisible();
+  await expect(page.getByText(/Support:/).first()).toBeVisible();
+});
+
+test("Viewer household selection disables transaction writes", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
+  await page.route("http://localhost:5267/api/households", async (route) => {
+    await json(route, {
+      plan: "Premium",
+      canUseHouseholds: true,
+      defaultHouseholdId: "viewer-household",
+      households: [{
+        id: "viewer-household",
+        name: "Shared read only",
+        kind: "Family",
+        role: "Viewer",
+        status: "Active",
+        canWrite: false,
+        memberCount: 2,
+        createdAt: "2026-06-01T00:00:00Z",
+      }],
+    });
+  });
+  await page.goto("/transactions");
+  await expect(page.locator("main").getByText("Read only", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /Edit transaction/ }).first()).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Delete transaction/ }).first()).toBeDisabled();
 });
 
 test("mobile root opens directly to the assistant", async ({ page }, testInfo) => {
@@ -582,7 +776,7 @@ async function json(route: Route, body: unknown) {
 }
 
 function createDashboard(
-  transactions: Array<ReturnType<typeof createTransaction>>,
+  transactions: MockTransaction[],
   month: string,
 ) {
   const nextMonth = shiftMonthKey(month, 1);
@@ -676,6 +870,8 @@ function createTransaction({
   type?: "Expense" | "Income" | "Transfer";
   visibility: "Private" | "Household";
 }) {
+  const deletedAt: string | null = null;
+  const purgeAfter: string | null = null;
   return {
     id,
     householdId: "44444444-4444-4444-8444-444444444444",
@@ -696,5 +892,7 @@ function createTransaction({
     createdAt: `${transactionDate}T00:00:00Z`,
     updatedAt: `${transactionDate}T00:00:00Z`,
     updatedByDisplayName: "Playwright Tester",
+    deletedAt,
+    purgeAfter,
   };
 }

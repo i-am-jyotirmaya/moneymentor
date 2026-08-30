@@ -24,8 +24,16 @@ internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
             .HasMaxLength(32)
             .IsRequired();
 
+        builder.Property(category => category.Classification)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .IsRequired();
+
         builder.Property(category => category.KeywordsJson)
             .IsRequired();
+
+        builder.Property(category => category.Icon)
+            .HasMaxLength(64);
 
         builder.Property(category => category.CreatedAt)
             .HasDefaultValueSql("now()");
@@ -39,5 +47,18 @@ internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
             .WithMany()
             .HasForeignKey(category => category.ParentCategoryId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(category => new
+            {
+                category.HouseholdId,
+                category.ParentCategoryId,
+                category.Name
+            })
+            .IsUnique();
+
+        builder.ToTable(table =>
+            table.HasCheckConstraint(
+                "CK_categories_no_self_parent",
+                "\"ParentCategoryId\" IS NULL OR \"ParentCategoryId\" <> \"Id\""));
     }
 }

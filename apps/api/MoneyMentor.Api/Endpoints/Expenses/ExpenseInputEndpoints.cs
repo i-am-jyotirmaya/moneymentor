@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using MoneyMentor.Api.Endpoints;
 using MoneyMentor.Application.InputParsing;
+using MoneyMentor.Application.Households;
 using MoneyMentor.Domain.Enums;
 
 namespace MoneyMentor.Api.Endpoints.Expenses;
@@ -88,6 +89,10 @@ public static class ExpenseInputEndpoints
         try
         {
             result = await processor.ProcessAsync(parseRequest, cancellationToken);
+        }
+        catch (HouseholdNotFoundException)
+        {
+            return Results.NotFound();
         }
         catch (InvalidOperationException exception)
         {

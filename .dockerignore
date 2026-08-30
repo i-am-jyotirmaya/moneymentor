@@ -1,0 +1,11 @@
+**/bin
+**/obj
+**/node_modules
+**/.next
+**/.next-moneymentor
+.git
+.vs
+.vscode
+TestResults
+.env
+backups

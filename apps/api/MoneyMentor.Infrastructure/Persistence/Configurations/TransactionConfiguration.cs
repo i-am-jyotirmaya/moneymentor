@@ -43,6 +43,10 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
             .HasPrecision(5, 4)
             .IsRequired();
 
+        builder.Property(transaction => transaction.TransactionDate)
+            .HasColumnType("date")
+            .IsRequired();
+
         builder.Property(transaction => transaction.Visibility)
             .HasConversion<string>()
             .HasMaxLength(32)
@@ -65,8 +69,7 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
         builder.HasOne<UserProfile>()
             .WithMany()
             .HasForeignKey(transaction => transaction.UserProfileId)
-            .OnDelete(DeleteBehavior.Restrict)
-            .IsRequired();
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasOne<Category>()
             .WithMany()
@@ -78,10 +81,19 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
             .HasForeignKey(transaction => transaction.UpdatedByUserProfileId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.HasOne<UserProfile>()
+            .WithMany()
+            .HasForeignKey(transaction => transaction.DeletedByUserProfileId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(transaction => transaction.HouseholdId);
         builder.HasIndex(transaction => transaction.UserProfileId);
         builder.HasIndex(transaction => transaction.UpdatedByUserProfileId);
-        builder.HasIndex(transaction => transaction.TransactionDate);
+        builder.HasIndex(transaction => transaction.DeletedByUserProfileId);
+        builder.HasIndex(transaction => new { transaction.HouseholdId, transaction.TransactionDate })
+            .HasFilter("\"DeletedAt\" IS NULL");
+        builder.HasIndex(transaction => transaction.PurgeAfter)
+            .HasFilter("\"DeletedAt\" IS NOT NULL");
         builder.HasIndex(transaction => transaction.CategoryId);
     }
 }

@@ -1,5 +1,6 @@
 using MoneyMentor.Api.Endpoints;
 using MoneyMentor.Application.Assistant;
+using MoneyMentor.Application.Households;
 using MoneyMentor.Domain.Enums;
 
 namespace MoneyMentor.Api.Endpoints.Assistant;
@@ -77,6 +78,10 @@ public static class AssistantEndpoints
                     identity.Email,
                     identity.DisplayName),
                 cancellationToken);
+        }
+        catch (HouseholdNotFoundException)
+        {
+            return Results.NotFound();
         }
         catch (InvalidOperationException exception)
         {

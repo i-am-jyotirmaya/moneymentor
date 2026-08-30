@@ -32,8 +32,10 @@ public sealed class MonthlyDashboardBuilderTests
         Assert.Equal(new DateOnly(2026, 6, 30), dashboard.PeriodEnd);
         Assert.Equal(1000m, dashboard.Income);
         Assert.Equal(500m, dashboard.Spends);
+        Assert.Equal(0m, dashboard.Invested);
         Assert.Equal(500m, dashboard.Saved);
         Assert.Equal(50m, dashboard.SavingsRate);
+        Assert.Equal(0m, dashboard.InvestedRate);
         Assert.Collection(
             dashboard.Categories,
             category =>
@@ -63,8 +65,10 @@ public sealed class MonthlyDashboardBuilderTests
         Assert.Equal("2026-07", dashboard.Month);
         Assert.Equal(0m, dashboard.Income);
         Assert.Equal(0m, dashboard.Spends);
+        Assert.Equal(0m, dashboard.Invested);
         Assert.Equal(0m, dashboard.Saved);
         Assert.Null(dashboard.SavingsRate);
+        Assert.Null(dashboard.InvestedRate);
         Assert.Empty(dashboard.Categories);
         Assert.Contains(dashboard.Judgements, judgement => judgement.Title == "No tracked data");
         Assert.Contains(dashboard.Insights, insight => insight.Title == "Best next move");
@@ -82,6 +86,28 @@ public sealed class MonthlyDashboardBuilderTests
         var category = Assert.Single(dashboard.Categories);
         Assert.Equal("Uncategorized", category.Name);
         Assert.Equal(125m, category.Amount);
+    }
+
+    [Fact]
+    public void Build_TreatsInvestmentAsSavedButNotSpent()
+    {
+        var dashboard = builder.Build(
+            CreateContext(),
+            new DateOnly(2026, 6, 15),
+            [
+                CreateTransaction(TransactionType.Income, 1000m, "Salary / Wages", new DateOnly(2026, 6, 1)),
+                CreateTransaction(TransactionType.Expense, 300m, "Food Delivery", new DateOnly(2026, 6, 10)),
+                CreateTransaction(TransactionType.Investment, 200m, "Mutual Funds / ETFs", new DateOnly(2026, 6, 11))
+            ],
+            recentTransactionLimit: 6);
+
+        Assert.Equal(1000m, dashboard.Income);
+        Assert.Equal(300m, dashboard.Spends);
+        Assert.Equal(200m, dashboard.Invested);
+        Assert.Equal(700m, dashboard.Saved);
+        Assert.Equal(70m, dashboard.SavingsRate);
+        Assert.Equal(20m, dashboard.InvestedRate);
+        Assert.DoesNotContain(dashboard.Categories, category => category.Name == "Mutual Funds / ETFs");
     }
 
     [Fact]

@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: postgres:17.5-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    image: ${OPERATIONS_IMAGE}
+    command: ["migrate"]
+    environment: &api-environment
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__MoneyMentorDb: ${CONNECTION_STRING}
+      Jwt__Issuer: MoneyMentor
+      Jwt__Audience: MoneyMentor.Api
+      Jwt__SigningKey: ${JWT_SIGNING_KEY}
+      AuthCookie__Secure: "true"
+      AuthCookie__SameSite: Strict
+      AllowedHosts: ${ALLOWED_HOSTS}
+      Cors__AllowedOrigins__0: ${CORS_ORIGIN}
+      Product__PublicWebUrl: ${PUBLIC_WEB_URL}
+      Product__SupportEmail: ${SUPPORT_EMAIL}
+      Resend__DispatcherEnabled: ${RESEND_DISPATCHER_ENABLED:-false}
+      Resend__ApiKey: ${RESEND_API_KEY}
+      Resend__FromAddress: ${RESEND_FROM_ADDRESS}
+      Resend__ReplyTo: ${RESEND_REPLY_TO}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_SAFETY_IDENTIFIER_KEY: ${OPENAI_SAFETY_IDENTIFIER_KEY}
+      OpenAI__Model: ${OPENAI_MODEL}
+      JudgementReports__SchedulerEnabled: ${JUDGEMENT_REPORT_SCHEDULER_ENABLED:-false}
+      JudgementReports__CalculationWorkerEnabled: ${JUDGEMENT_REPORT_CALCULATION_ENABLED:-false}
+      JudgementReports__NarrationWorkerEnabled: ${JUDGEMENT_REPORT_NARRATION_ENABLED:-false}
+      JudgementReports__MaxNarrationConcurrency: ${JUDGEMENT_REPORT_MAX_NARRATION_CONCURRENCY:-2}
+      ReverseProxy__KnownProxies__0: ${KNOWN_PROXY_IP}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: ${API_IMAGE}
+    restart: unless-stopped
+    environment: *api-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/health/ready >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  web:
+    image: ${WEB_IMAGE}
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_API_URL}
+      NEXT_PUBLIC_SUPPORT_EMAIL: ${NEXT_PUBLIC_SUPPORT_EMAIL}
+    depends_on:
+      api:
+        condition: service_healthy
+
+  ingress:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - api
+      - web
+
+volumes:
+  postgres-data:

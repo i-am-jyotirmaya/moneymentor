@@ -16,6 +16,12 @@ public interface IAuthRepository
 
     Task<bool> CheckPasswordAsync(ApplicationUser user, string password, CancellationToken cancellationToken);
 
+    Task<bool> IsLockedOutAsync(ApplicationUser user, CancellationToken cancellationToken);
+
+    Task<AuthRepositoryResult> RecordFailedLoginAsync(ApplicationUser user, CancellationToken cancellationToken);
+
+    Task<AuthRepositoryResult> ResetFailedLoginAsync(ApplicationUser user, CancellationToken cancellationToken);
+
     Task<IReadOnlyCollection<string>> GetRolesAsync(ApplicationUser user, CancellationToken cancellationToken);
 
     Task<AuthRepositoryResult> UpdateLastSignedInAtAsync(
@@ -23,28 +29,37 @@ public interface IAuthRepository
         DateTimeOffset signedInAt,
         CancellationToken cancellationToken);
 
-    Task AddRefreshTokenAsync(RefreshToken refreshToken, CancellationToken cancellationToken);
+    Task AddSessionAsync(
+        AuthSession session,
+        RefreshToken refreshToken,
+        CancellationToken cancellationToken);
 
     Task<RefreshToken?> FindRefreshTokenByHashAsync(
         string tokenHash,
         CancellationToken cancellationToken);
 
-    Task ReplaceRefreshTokenAsync(
+    Task<bool> ReplaceRefreshTokenAsync(
         RefreshToken existingRefreshToken,
         RefreshToken replacementRefreshToken,
         DateTimeOffset revokedAt,
         string? revokedByIp,
         CancellationToken cancellationToken);
 
-    Task RevokeRefreshTokenAsync(
-        RefreshToken refreshToken,
+    Task RevokeSessionAsync(
+        Guid sessionId,
         DateTimeOffset revokedAt,
         string? revokedByIp,
         CancellationToken cancellationToken);
 
-    Task RevokeActiveRefreshTokensForUserAsync(
+    Task RevokeActiveSessionsForUserAsync(
         Guid userId,
         DateTimeOffset revokedAt,
         string? revokedByIp,
+        CancellationToken cancellationToken);
+
+    Task<bool> IsSessionActiveAsync(
+        Guid sessionId,
+        Guid userId,
+        DateTimeOffset now,
         CancellationToken cancellationToken);
 }

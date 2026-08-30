@@ -71,6 +71,7 @@ coverage/
 # Next.js
 # =========================
 .next/
+.next-moneymentor/
 .vercel/
 
 # =========================
@@ -134,3 +135,42 @@ docker-compose.override.yml
 .tmp/
 temp/
 generated/
+
+# Local agent state
+/.agents/
+/.codex/
+
+# =========================
+# Repository / CI artifacts
+# =========================
+/.artifacts/
+/artifacts/
+BenchmarkDotNet.Artifacts/
+*.binlog
+*.trx
+*.coverage
+*.coveragexml
+coverage-report/
+
+# =========================
+# Tool caches
+# =========================
+.cache/
+.eslintcache
+.stylelintcache
+
+# =========================
+# Local application config
+# =========================
+appsettings.Local.json
+appsettings.*.local.json
+*.pubxml.user
+
+# =========================
+# Browser test output
+# =========================
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/

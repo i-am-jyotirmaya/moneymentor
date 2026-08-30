@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 using MoneyMentor.Api.Endpoints;
+using MoneyMentor.Application.Privacy;
+using MoneyMentor.Api.Production;
 
 namespace MoneyMentor.Api.Endpoints.Auth;
 
@@ -13,6 +16,7 @@ public static class AuthEndpoints
 
         group.MapPost("/users", CreateUserAsync)
             .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicyNames.Signup)
             .WithName("CreateAuthUser")
             .Produces<AuthSessionResponse>()
             .Produces<AuthErrorResponse>(StatusCodes.Status400BadRequest)
@@ -21,6 +25,7 @@ public static class AuthEndpoints
 
         group.MapPost("/login", LoginAsync)
             .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicyNames.Login)
             .WithName("Login")
             .Produces<AuthSessionResponse>()
             .Produces<AuthErrorResponse>(StatusCodes.Status400BadRequest)
@@ -29,6 +34,7 @@ public static class AuthEndpoints
 
         group.MapPost("/refresh", RefreshAsync)
             .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicyNames.Session)
             .WithName("RefreshSession")
             .Produces<AuthSessionResponse>()
             .Produces<AuthErrorResponse>(StatusCodes.Status400BadRequest)
@@ -37,6 +43,7 @@ public static class AuthEndpoints
 
         group.MapPost("/logout", LogoutAsync)
             .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicyNames.Session)
             .WithName("Logout")
             .Produces(StatusCodes.Status204NoContent)
             .Produces<AuthErrorResponse>(StatusCodes.Status400BadRequest)
@@ -62,6 +69,7 @@ public static class AuthEndpoints
         CreateUserRequest request,
         IAuthManager authManager,
         HttpContext httpContext,
+        IOptions<AuthCookieOptions> cookieOptions,
         CancellationToken cancellationToken)
     {
         var validationResult = EndpointValidation.Validate(request);
@@ -70,18 +78,30 @@ public static class AuthEndpoints
             return validationResult;
         }
 
+        if (!request.AcceptPrivacyPolicy
+            || !string.Equals(
+                request.PrivacyPolicyVersion,
+                PrivacyPolicy.CurrentVersion,
+                StringComparison.Ordinal))
+        {
+            return EndpointValidation.ValidationProblem(
+                nameof(request.PrivacyPolicyVersion),
+                "The current privacy policy must be accepted before signup.");
+        }
+
         var result = await authManager.CreateUserAsync(
             request,
             GetIpAddress(httpContext),
             cancellationToken);
 
-        return AuthEndpointResults.ToResult(result);
+        return ToSessionResult(result, httpContext, cookieOptions.Value);
     }
 
     private static async Task<IResult> LoginAsync(
         LoginRequest request,
         IAuthManager authManager,
         HttpContext httpContext,
+        IOptions<AuthCookieOptions> cookieOptions,
         CancellationToken cancellationToken)
     {
         var validationResult = EndpointValidation.Validate(request);
@@ -95,59 +115,73 @@ public static class AuthEndpoints
             GetIpAddress(httpContext),
             cancellationToken);
 
-        return AuthEndpointResults.ToResult(result);
+        return ToSessionResult(result, httpContext, cookieOptions.Value);
     }
 
     private static async Task<IResult> RefreshAsync(
-        RefreshTokenRequest request,
         IAuthManager authManager,
         HttpContext httpContext,
+        IOptions<AuthCookieOptions> cookieOptions,
         CancellationToken cancellationToken)
     {
-        var validationResult = EndpointValidation.Validate(request);
-        if (validationResult is not null)
+        if (!httpContext.Request.Cookies.TryGetValue(
+                AuthCookieOptions.RefreshCookieName,
+                out var refreshToken)
+            || string.IsNullOrWhiteSpace(refreshToken))
         {
-            return validationResult;
+            return Results.Unauthorized();
         }
 
         var result = await authManager.RefreshAsync(
-            request,
+            refreshToken,
             GetIpAddress(httpContext),
             cancellationToken);
 
-        return AuthEndpointResults.ToResult(result);
+        if (!result.Succeeded)
+        {
+            DeleteRefreshCookie(httpContext, cookieOptions.Value);
+        }
+
+        return ToSessionResult(result, httpContext, cookieOptions.Value);
     }
 
     private static async Task<IResult> LogoutAsync(
-        RefreshTokenRequest request,
         IAuthManager authManager,
         HttpContext httpContext,
+        IOptions<AuthCookieOptions> cookieOptions,
         CancellationToken cancellationToken)
     {
-        var validationResult = EndpointValidation.Validate(request);
-        if (validationResult is not null)
+        if (httpContext.Request.Cookies.TryGetValue(
+                AuthCookieOptions.RefreshCookieName,
+                out var refreshToken)
+            && !string.IsNullOrWhiteSpace(refreshToken))
         {
-            return validationResult;
+            await authManager.LogoutAsync(
+                refreshToken,
+                GetIpAddress(httpContext),
+                cancellationToken);
         }
 
-        var result = await authManager.LogoutAsync(
-            request,
-            GetIpAddress(httpContext),
-            cancellationToken);
-
-        return AuthEndpointResults.ToResult(result);
+        DeleteRefreshCookie(httpContext, cookieOptions.Value);
+        return Results.NoContent();
     }
 
     [Authorize]
     private static async Task<IResult> RevokeUserRefreshTokensAsync(
         IAuthManager authManager,
         HttpContext httpContext,
+        IOptions<AuthCookieOptions> cookieOptions,
         CancellationToken cancellationToken)
     {
         var result = await authManager.RevokeUserRefreshTokensAsync(
             httpContext.User,
             GetIpAddress(httpContext),
             cancellationToken);
+
+        if (result.Succeeded)
+        {
+            DeleteRefreshCookie(httpContext, cookieOptions.Value);
+        }
 
         return AuthEndpointResults.ToResult(result);
     }
@@ -167,4 +201,37 @@ public static class AuthEndpoints
 
     private static string? GetIpAddress(HttpContext httpContext) =>
         httpContext.Connection.RemoteIpAddress?.ToString();
+
+    private static IResult ToSessionResult(
+        AuthManagerResult<AuthSessionResponse> result,
+        HttpContext httpContext,
+        AuthCookieOptions cookieOptions)
+    {
+        if (!result.Succeeded || result.Value is null)
+        {
+            return AuthEndpointResults.ToResult(result);
+        }
+
+        httpContext.Response.Cookies.Append(
+            AuthCookieOptions.RefreshCookieName,
+            result.Value.RefreshToken,
+            cookieOptions.Build(result.Value.RefreshTokenExpiresAt));
+        httpContext.Response.Cookies.Append(
+            AuthCookieOptions.SessionCookieName,
+            result.Value.SessionId.ToString(),
+            cookieOptions.Build(result.Value.RefreshTokenExpiresAt));
+        return Results.Ok(result.Value);
+    }
+
+    private static void DeleteRefreshCookie(
+        HttpContext httpContext,
+        AuthCookieOptions cookieOptions)
+    {
+        httpContext.Response.Cookies.Delete(
+            AuthCookieOptions.RefreshCookieName,
+            cookieOptions.Build(DateTimeOffset.UnixEpoch));
+        httpContext.Response.Cookies.Delete(
+            AuthCookieOptions.SessionCookieName,
+            cookieOptions.Build(DateTimeOffset.UnixEpoch));
+    }
 }

@@ -1,6 +1,8 @@
-# MoneyMentor Runbook
+# Spndrr Runbook
 
-This runbook covers local setup, backend/frontend verification, API surfaces, and the premium test-account workflow for MoneyMentor.
+This runbook covers local setup, backend/frontend verification, API surfaces, and the premium test-account workflow for Spndrr. Internal .NET projects and contexts retain their `MoneyMentor.*` names.
+
+For the current Railway procedure and environment templates, see `deploy/README.md`.
 
 ## Local Services
 
@@ -102,6 +104,9 @@ Transactions:
 - `GET /api/transactions?month=YYYY-MM&page=1&pageSize=10`
 - `GET /api/transactions/{transactionId}`
 - `PATCH /api/transactions/{transactionId}`
+- `DELETE /api/transactions/{transactionId}`
+- `POST /api/transactions/{transactionId}/restore`
+- `GET /api/transactions/trash`
 
 Settings:
 
@@ -112,28 +117,22 @@ Households:
 
 - `GET /api/households`
 - `POST /api/households`
-- `POST /api/households/{householdId}/members`
+- `POST /api/households/{householdId}/invitations`
+- `GET /api/households/{householdId}/invitations`
+- `GET /api/households/invitations`
+
+Privacy and health:
+
+- `GET /api/public/privacy`
+- `POST /api/privacy/consents`
+- `GET /api/privacy/export`
+- `DELETE /api/privacy/account`
+- `GET /health/live`
+- `GET /health/ready`
 
 ## Premium Test Account
 
-Test account email:
-
-```txt
-jyotirmayasahu38+1@gmail.com
-```
-
-The password is an operator-supplied secret and must not be committed to the repository.
-
-Premium setup:
-
-1. Start the API and web app.
-2. Sign in with the test account.
-3. Open Settings.
-4. Set `Plan` to `Premium`.
-5. Save settings.
-6. Open Household and verify household creation/member controls are enabled.
-
-This updates the app-level `UserProfile.Plan`; it does not change auth tables or `ApplicationUser`.
+Premium is server-controlled and cannot be changed from Settings. Use the audited operations command documented in `docs/EXTERNAL_BETA_OPERATIONS.md`; never commit test-account passwords or operator secrets.
 
 ## Verification Commands
 

@@ -18,6 +18,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [acceptPrivacyPolicy, setAcceptPrivacyPolicy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,6 +38,8 @@ export function AuthForm({ mode }: AuthFormProps) {
             displayName: displayName.trim(),
             email: email.trim(),
             password,
+            privacyPolicyVersion: "2026-07-26-ai-planning.1",
+            acceptPrivacyPolicy,
           })
         : await login({
             email: email.trim(),
@@ -49,7 +52,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       if (caughtError instanceof ApiError) {
         setError(caughtError.errors.join(" "));
       } else {
-        setError("Could not reach MoneyMentor API. Check that the backend is running.");
+        setError("Could not reach the Spndrr API. Check that the backend is running.");
       }
     } finally {
       setIsSubmitting(false);
@@ -81,7 +84,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
               <BrandMarkIcon className="h-6 w-6" />
             </span>
-            <span className="text-lg font-semibold">MoneyMentor</span>
+            <span className="text-lg font-semibold">Spndrr</span>
           </Link>
 
           <div className="mt-16 max-w-xl">
@@ -89,7 +92,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               A calm place to tell your money what happened.
             </h1>
             <p className="mt-5 max-w-lg text-lg font-medium leading-8 text-[var(--muted)]">
-              Sign in, type naturally, and let MoneyMentor turn quick notes into
+              Sign in, type naturally, and let Spndrr turn quick notes into
               clear finance drafts before anything is saved.
             </p>
           </div>
@@ -117,7 +120,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
                 <BrandMarkIcon className="h-6 w-6" />
               </span>
-              <span className="text-lg font-semibold">MoneyMentor</span>
+              <span className="text-lg font-semibold">Spndrr</span>
             </Link>
             <span className="hidden text-sm font-semibold text-[var(--muted)] lg:block">
               {isSignup ? "Create account" : "Welcome back"}
@@ -131,7 +134,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted)]">
               {isSignup
                 ? "Start with the assistant input, then build the rest around real data."
-                : "Continue to your MoneyMentor workspace."}
+                : "Continue to your Spndrr workspace."}
             </p>
           </div>
 
@@ -163,6 +166,25 @@ export function AuthForm({ mode }: AuthFormProps) {
               type="password"
               value={password}
             />
+
+            {isSignup ? (
+              <label className="flex items-start gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-sm font-medium leading-6 text-[var(--muted)]">
+                <input
+                  checked={acceptPrivacyPolicy}
+                  className="mt-1 h-4 w-4 accent-[var(--accent)]"
+                  onChange={(event) => setAcceptPrivacyPolicy(event.target.checked)}
+                  required
+                  type="checkbox"
+                />
+                <span>
+                  I accept the{" "}
+                  <Link className="font-bold text-[var(--accent)] underline" href="/privacy" target="_blank">
+                    beta privacy policy
+                  </Link>
+                  {" "}(version 2026-07-26-ai-planning.1).
+                </span>
+              </label>
+            ) : null}
 
             {error ? (
               <p className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm font-medium leading-6 text-[var(--danger)]">

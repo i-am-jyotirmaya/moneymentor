@@ -236,6 +236,42 @@ namespace MoneyMentor.Infrastructure.Migrations
                     b.ToTable("users", "auth");
                 });
 
+            modelBuilder.Entity("MoneyMentor.Infrastructure.Identity.AuthSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("CreatedByIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RevokedByIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RevokedAt");
+
+                    b.HasIndex("UserId", "ExpiresAt");
+
+                    b.ToTable("auth_sessions", "auth");
+                });
+
             modelBuilder.Entity("MoneyMentor.Infrastructure.Identity.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -265,6 +301,9 @@ namespace MoneyMentor.Infrastructure.Migrations
                         .HasMaxLength(45)
                         .HasColumnType("character varying(45)");
 
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(512)
@@ -274,6 +313,8 @@ namespace MoneyMentor.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SessionId");
 
                     b.HasIndex("TokenHash")
                         .IsUnique();
@@ -334,10 +375,10 @@ namespace MoneyMentor.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("MoneyMentor.Infrastructure.Identity.RefreshToken", b =>
+            modelBuilder.Entity("MoneyMentor.Infrastructure.Identity.AuthSession", b =>
                 {
                     b.HasOne("MoneyMentor.Infrastructure.Identity.ApplicationUser", "User")
-                        .WithMany("RefreshTokens")
+                        .WithMany("AuthSessions")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -345,7 +386,33 @@ namespace MoneyMentor.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MoneyMentor.Infrastructure.Identity.RefreshToken", b =>
+                {
+                    b.HasOne("MoneyMentor.Infrastructure.Identity.AuthSession", "Session")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyMentor.Infrastructure.Identity.ApplicationUser", "User")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Session");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("MoneyMentor.Infrastructure.Identity.ApplicationUser", b =>
+                {
+                    b.Navigation("AuthSessions");
+
+                    b.Navigation("RefreshTokens");
+                });
+
+            modelBuilder.Entity("MoneyMentor.Infrastructure.Identity.AuthSession", b =>
                 {
                     b.Navigation("RefreshTokens");
                 });

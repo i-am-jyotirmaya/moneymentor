@@ -19,6 +19,11 @@ internal sealed class FinancialGoalConfiguration : IEntityTypeConfiguration<Fina
             .HasMaxLength(128)
             .IsRequired();
 
+        builder.Property(financialGoal => financialGoal.GoalType)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .IsRequired();
+
         builder.Property(financialGoal => financialGoal.TargetAmount)
             .HasPrecision(18, 2)
             .IsRequired();
@@ -26,6 +31,9 @@ internal sealed class FinancialGoalConfiguration : IEntityTypeConfiguration<Fina
         builder.Property(financialGoal => financialGoal.CurrentAmount)
             .HasPrecision(18, 2)
             .IsRequired();
+
+        builder.Property(financialGoal => financialGoal.MonthlyTarget)
+            .HasPrecision(18, 2);
 
         builder.Property(financialGoal => financialGoal.Priority)
             .HasConversion<string>()
@@ -53,6 +61,12 @@ internal sealed class FinancialGoalConfiguration : IEntityTypeConfiguration<Fina
             .WithMany()
             .HasForeignKey(financialGoal => financialGoal.UserProfileId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne<UserProfile>()
+            .WithMany()
+            .HasForeignKey(financialGoal => financialGoal.CreatedByUserProfileId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired();
 
         builder.HasIndex(financialGoal => new
         {

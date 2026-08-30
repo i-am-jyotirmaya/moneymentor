@@ -24,6 +24,15 @@ internal sealed class HouseholdConfiguration : IEntityTypeConfiguration<Househol
             .HasMaxLength(32)
             .IsRequired();
 
+        builder.Property(household => household.CurrencyCode)
+            .HasMaxLength(3)
+            .IsFixedLength()
+            .IsRequired();
+
+        builder.Property(household => household.TimeZone)
+            .HasMaxLength(100)
+            .IsRequired();
+
         builder.Property(household => household.CreatedAt)
             .HasDefaultValueSql("now()");
 
@@ -35,5 +44,11 @@ internal sealed class HouseholdConfiguration : IEntityTypeConfiguration<Househol
             .HasForeignKey(household => household.CreatedByUserProfileId)
             .OnDelete(DeleteBehavior.Restrict)
             .IsRequired();
+
+        builder.HasIndex(household => household.CreatedByUserProfileId);
+
+        builder.HasIndex(household => household.CreatedByUserProfileId)
+            .IsUnique()
+            .HasFilter("\"Kind\" = 'Personal'");
     }
 }

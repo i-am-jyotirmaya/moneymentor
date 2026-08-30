@@ -1,27 +1,34 @@
 using Microsoft.EntityFrameworkCore;
 using MoneyMentor.Application.AppUsers;
+using MoneyMentor.Application.Privacy;
+using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Persistence;
+using Npgsql;
 
 namespace MoneyMentor.Infrastructure.AppUsers;
 
 internal sealed class PostgresAppUserProfileService(
-    MoneyMentorDbContext dbContext) : IAppUserProfileService
+    MoneyMentorDbContext dbContext,
+    TimeProvider timeProvider) : IAppUserProfileService
 {
     private const string DefaultCurrencyCode = "INR";
-    private const string DefaultTimeZone = "Asia/Calcutta";
 
     public async Task<AppUserContext> ResolveAsync(
         AppUserIdentity identity,
         CancellationToken cancellationToken)
     {
-        var userProfile = await GetOrCreateUserProfileAsync(identity, cancellationToken);
-        var personalHousehold = await GetOrCreatePersonalHouseholdAsync(userProfile, cancellationToken);
+        var (userProfile, personalHousehold) = await ProvisionAsync(identity, cancellationToken);
+        var hasConsent = await dbContext.PrivacyConsents.AsNoTracking().AnyAsync(
+            consent => consent.UserProfileId == userProfile.Id
+                && consent.PolicyVersion == PrivacyPolicy.CurrentVersion,
+            cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return MapContext(userProfile, personalHousehold.Id);
+        return MapContext(userProfile, personalHousehold.Id) with
+        {
+            HasCurrentPrivacyConsent = hasConsent
+        };
     }
 
     public async Task<UserSettingsModel> GetSettingsAsync(
@@ -46,8 +53,7 @@ internal sealed class PostgresAppUserProfileService(
         UpdateUserSettingsCommand command,
         CancellationToken cancellationToken)
     {
-        var userProfile = await GetOrCreateUserProfileAsync(identity, cancellationToken);
-        await GetOrCreatePersonalHouseholdAsync(userProfile, cancellationToken);
+        var (userProfile, _) = await ProvisionAsync(identity, cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(command.CurrencyCode))
         {
@@ -56,12 +62,12 @@ internal sealed class PostgresAppUserProfileService(
 
         if (!string.IsNullOrWhiteSpace(command.TimeZone))
         {
-            userProfile.TimeZone = command.TimeZone.Trim();
-        }
+            if (!UserTimeZone.TryNormalize(command.TimeZone, out var normalizedTimeZone))
+            {
+                throw new ArgumentException("TimeZone must be a valid IANA time-zone identifier.", nameof(command));
+            }
 
-        if (command.Plan is not null)
-        {
-            userProfile.Plan = command.Plan.Value;
+            userProfile.TimeZone = normalizedTimeZone;
         }
 
         if (command.RequireMerchantForExpenses is not null)
@@ -74,7 +80,7 @@ internal sealed class PostgresAppUserProfileService(
             userProfile.DefaultTransactionVisibility = command.DefaultTransactionVisibility.Value;
         }
 
-        userProfile.UpdatedAt = DateTimeOffset.UtcNow;
+        userProfile.UpdatedAt = timeProvider.GetUtcNow();
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -87,6 +93,37 @@ internal sealed class PostgresAppUserProfileService(
             userProfile.Plan,
             userProfile.RequireMerchantForExpenses,
             userProfile.DefaultTransactionVisibility);
+    }
+
+    private async Task<(UserProfile UserProfile, Household PersonalHousehold)> ProvisionAsync(
+        AppUserIdentity identity,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var userProfile = await GetOrCreateUserProfileAsync(identity, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                var personalHousehold = await GetOrCreatePersonalHouseholdAsync(userProfile, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return (userProfile, personalHousehold);
+            }
+            catch (DbUpdateException exception)
+                when (exception.InnerException is PostgresException
+                {
+                    SqlState: PostgresErrorCodes.UniqueViolation
+                } && attempt < 2)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                dbContext.ChangeTracker.Clear();
+                MoneyMentorTelemetry.ProvisioningRetries.Add(1);
+            }
+        }
+
+        throw new InvalidOperationException("User profile provisioning could not be completed.");
     }
 
     private async Task<UserProfile> GetOrCreateUserProfileAsync(
@@ -106,6 +143,7 @@ internal sealed class PostgresAppUserProfileService(
 
         if (userProfile is null)
         {
+            var now = timeProvider.GetUtcNow();
             userProfile = new UserProfile
             {
                 AuthProvider = authProvider,
@@ -113,11 +151,13 @@ internal sealed class PostgresAppUserProfileService(
                 Email = NormalizeEmail(identity.Email, authSubject),
                 DisplayName = NormalizeDisplayName(identity.DisplayName, identity.Email),
                 CurrencyCode = DefaultCurrencyCode,
-                TimeZone = DefaultTimeZone,
+                TimeZone = UserTimeZone.DefaultId,
                 Plan = UserPlan.Free,
                 DefaultTransactionVisibility = TransactionVisibility.Private,
                 RequireMerchantForExpenses = false,
-                IsOnboardingCompleted = true
+                IsOnboardingCompleted = true,
+                CreatedAt = now,
+                UpdatedAt = now
             };
 
             dbContext.UserProfiles.Add(userProfile);
@@ -148,13 +188,19 @@ internal sealed class PostgresAppUserProfileService(
 
         if (string.IsNullOrWhiteSpace(userProfile.TimeZone))
         {
-            userProfile.TimeZone = DefaultTimeZone;
+            userProfile.TimeZone = UserTimeZone.DefaultId;
+            changed = true;
+        }
+        else if (UserTimeZone.TryNormalize(userProfile.TimeZone, out var normalizedTimeZone)
+            && !string.Equals(userProfile.TimeZone, normalizedTimeZone, StringComparison.Ordinal))
+        {
+            userProfile.TimeZone = normalizedTimeZone;
             changed = true;
         }
 
         if (changed)
         {
-            userProfile.UpdatedAt = DateTimeOffset.UtcNow;
+            userProfile.UpdatedAt = timeProvider.GetUtcNow();
         }
 
         return userProfile;
@@ -181,11 +227,16 @@ internal sealed class PostgresAppUserProfileService(
             return personalHousehold;
         }
 
+        var now = timeProvider.GetUtcNow();
         personalHousehold = new Household
         {
             Name = $"{userProfile.DisplayName}'s workspace",
             Kind = HouseholdKind.Personal,
-            CreatedByUserProfileId = userProfile.Id
+            CurrencyCode = userProfile.CurrencyCode,
+            TimeZone = userProfile.TimeZone,
+            CreatedByUserProfileId = userProfile.Id,
+            CreatedAt = now,
+            UpdatedAt = now
         };
 
         var member = new HouseholdMember
@@ -193,7 +244,8 @@ internal sealed class PostgresAppUserProfileService(
             HouseholdId = personalHousehold.Id,
             UserProfileId = userProfile.Id,
             Role = HouseholdRole.Owner,
-            Status = HouseholdMemberStatus.Active
+            Status = HouseholdMemberStatus.Active,
+            JoinedAt = now
         };
 
         dbContext.Households.Add(personalHousehold);
@@ -202,7 +254,7 @@ internal sealed class PostgresAppUserProfileService(
         return personalHousehold;
     }
 
-    private static AppUserContext MapContext(UserProfile userProfile, Guid personalHouseholdId) =>
+    private AppUserContext MapContext(UserProfile userProfile, Guid personalHouseholdId) =>
         new(
             userProfile.Id,
             personalHouseholdId,
@@ -212,7 +264,10 @@ internal sealed class PostgresAppUserProfileService(
             userProfile.TimeZone,
             userProfile.Plan,
             userProfile.RequireMerchantForExpenses,
-            userProfile.DefaultTransactionVisibility);
+            userProfile.DefaultTransactionVisibility)
+        {
+            CurrentDate = UserTimeZone.GetCurrentDate(userProfile.TimeZone, timeProvider)
+        };
 
     private static string NormalizeEmail(string? email, string authSubject)
     {
@@ -236,6 +291,6 @@ internal sealed class PostgresAppUserProfileService(
             return email.Split('@', StringSplitOptions.RemoveEmptyEntries)[0];
         }
 
-        return "MoneyMentor user";
+        return "Spndrr user";
     }
 }

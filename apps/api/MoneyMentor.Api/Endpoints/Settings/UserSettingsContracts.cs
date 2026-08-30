@@ -1,7 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace MoneyMentor.Api.Endpoints.Settings;
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class UpdateUserSettingsRequest
 {
     [MinLength(3)]
@@ -10,9 +12,6 @@ public sealed class UpdateUserSettingsRequest
 
     [MaxLength(128)]
     public string? TimeZone { get; init; }
-
-    [MaxLength(32)]
-    public string? Plan { get; init; }
 
     public bool? RequireMerchantForExpenses { get; init; }
 

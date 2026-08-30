@@ -38,6 +38,42 @@ public sealed class MoneyMentorDbContext : DbContext
 
     public DbSet<FinancialGoal> FinancialGoals => Set<FinancialGoal>();
 
+    public DbSet<GoalContribution> GoalContributions => Set<GoalContribution>();
+
+    public DbSet<GoalPlan> GoalPlans => Set<GoalPlan>();
+
+    public DbSet<GoalPlanVersion> GoalPlanVersions => Set<GoalPlanVersion>();
+
+    public DbSet<GoalPlanOption> GoalPlanOptions => Set<GoalPlanOption>();
+
+    public DbSet<GoalPlanningRun> GoalPlanningRuns => Set<GoalPlanningRun>();
+
+    public DbSet<GoalPlanParticipantConsent> GoalPlanParticipantConsents => Set<GoalPlanParticipantConsent>();
+
+    public DbSet<Commitment> Commitments => Set<Commitment>();
+
+    public DbSet<JudgementRule> JudgementRules => Set<JudgementRule>();
+
+    public DbSet<Judgement> Judgements => Set<Judgement>();
+
+    public DbSet<SpendingSummary> SpendingSummaries => Set<SpendingSummary>();
+
+    public DbSet<SpendingSummaryCategory> SpendingSummaryCategories => Set<SpendingSummaryCategory>();
+
+    public DbSet<JudgementSchedule> JudgementSchedules => Set<JudgementSchedule>();
+
+    public DbSet<JudgementWorkItem> JudgementWorkItems => Set<JudgementWorkItem>();
+
+    public DbSet<JudgementEvaluationRun> JudgementEvaluationRuns => Set<JudgementEvaluationRun>();
+
+    public DbSet<JudgementUserState> JudgementUserStates => Set<JudgementUserState>();
+
+    public DbSet<CommitmentOccurrence> CommitmentOccurrences => Set<CommitmentOccurrence>();
+
+    public DbSet<PrivacyConsent> PrivacyConsents => Set<PrivacyConsent>();
+
+    public DbSet<EntitlementChange> EntitlementChanges => Set<EntitlementChange>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(AppSchema);

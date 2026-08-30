@@ -7,19 +7,43 @@ public sealed record HouseholdSummaryModel(
     Guid Id,
     string Name,
     HouseholdKind Kind,
+    string CurrencyCode,
+    string TimeZone,
     HouseholdRole Role,
     HouseholdMemberStatus Status,
+    bool CanWrite,
     int MemberCount,
     DateTimeOffset CreatedAt);
 
 public sealed record HouseholdDashboardModel(
     UserPlan Plan,
     bool CanUseHouseholds,
+    Guid DefaultHouseholdId,
     IReadOnlyCollection<HouseholdSummaryModel> Households);
 
 public sealed record CreateHouseholdCommand(
     AppUserContext UserContext,
     string Name);
+
+public sealed record UpdateHouseholdSettingsCommand(
+    AppUserContext UserContext,
+    Guid HouseholdId,
+    string CurrencyCode,
+    string TimeZone);
+
+public enum UpdateHouseholdSettingsStatus
+{
+    Succeeded,
+    Forbidden,
+    NotFound,
+    CurrencyLocked,
+    InvalidCurrency,
+    InvalidTimeZone
+}
+
+public sealed record UpdateHouseholdSettingsResult(
+    UpdateHouseholdSettingsStatus Status,
+    HouseholdSummaryModel? Household = null);
 
 public sealed record HouseholdInvitationModel(
     Guid Id,
@@ -31,7 +55,11 @@ public sealed record HouseholdInvitationModel(
     string InvitedByDisplayName,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
-    DateTimeOffset? RespondedAt);
+    DateTimeOffset? RespondedAt,
+    InvitationDeliveryStatus DeliveryStatus,
+    int DeliveryAttemptCount,
+    DateTimeOffset? SentAt,
+    string? LastDeliveryError);
 
 public enum HouseholdInvitationResultStatus
 {

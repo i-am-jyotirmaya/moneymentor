@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MoneyMentor",
-  description: "Sign in to MoneyMentor, your AI-centric finance copilot.",
+  title: "Spndrr",
+  description: "Spndrr is your assistant-first personal finance guide.",
 };
 
 export default function RootLayout({

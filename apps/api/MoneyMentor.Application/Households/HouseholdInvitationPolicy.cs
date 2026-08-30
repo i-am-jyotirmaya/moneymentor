@@ -7,11 +7,10 @@ public static class HouseholdInvitationPolicy
     public static readonly TimeSpan Lifetime = TimeSpan.FromDays(7);
 
     public static bool CanManageInvitations(
-        UserPlan plan,
+        UserPlan _,
         HouseholdRole? role,
         HouseholdMemberStatus? status) =>
-        plan == UserPlan.Premium
-        && status == HouseholdMemberStatus.Active
+        status == HouseholdMemberStatus.Active
         && role is HouseholdRole.Owner or HouseholdRole.Admin;
 
     public static bool CanAssignRole(HouseholdRole role) =>

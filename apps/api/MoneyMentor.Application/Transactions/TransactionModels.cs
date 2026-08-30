@@ -7,7 +7,7 @@ namespace MoneyMentor.Application.Transactions;
 public sealed record TransactionModel(
     Guid Id,
     Guid HouseholdId,
-    Guid UserProfileId,
+    Guid? UserProfileId,
     decimal Amount,
     string CurrencyCode,
     TransactionType Type,
@@ -26,6 +26,14 @@ public sealed record TransactionModel(
     public string? SenderName { get; init; }
 
     public string? Reason { get; init; }
+
+    public DateTimeOffset? DeletedAt { get; init; }
+
+    public DateTimeOffset? PurgeAfter { get; init; }
+
+    public string? ParentCategoryName { get; init; }
+
+    public CategoryClassification? CategoryClassification { get; init; }
 }
 
 public sealed record UpdateTransactionCommand(
@@ -52,7 +60,13 @@ public sealed record TransactionPageModel(
     int Page,
     int PageSize,
     int TotalCount,
-    int TotalPages);
+    int TotalPages)
+{
+    public string Month { get; init; } = string.Empty;
+}
+
+public sealed record TransactionTrashModel(
+    IReadOnlyCollection<TransactionModel> Items);
 
 public sealed record SaveExpenseCommand(
     AppUserContext UserContext,

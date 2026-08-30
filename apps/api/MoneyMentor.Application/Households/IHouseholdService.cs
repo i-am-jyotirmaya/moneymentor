@@ -12,6 +12,10 @@ public interface IHouseholdService
         CreateHouseholdCommand command,
         CancellationToken cancellationToken);
 
+    Task<UpdateHouseholdSettingsResult> UpdateSettingsAsync(
+        UpdateHouseholdSettingsCommand command,
+        CancellationToken cancellationToken);
+
     Task<HouseholdInvitationResult> InviteMemberAsync(
         CreateHouseholdInvitationCommand command,
         CancellationToken cancellationToken);
@@ -19,6 +23,12 @@ public interface IHouseholdService
     Task<IReadOnlyCollection<HouseholdInvitationModel>> ListPendingInvitationsAsync(
         AppUserContext userContext,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<HouseholdInvitationModel>?> ListSentInvitationsAsync(
+        AppUserContext userContext,
+        Guid householdId,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyCollection<HouseholdInvitationModel>?>(null);
 
     Task<HouseholdInvitationResult> AcceptInvitationAsync(
         RespondToHouseholdInvitationCommand command,
