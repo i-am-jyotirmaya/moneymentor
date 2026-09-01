@@ -40,7 +40,7 @@ internal sealed class InvitationEmailDispatcher(
         }
     }
 
-    private async Task DispatchAvailableAsync(CancellationToken cancellationToken)
+    internal async Task DispatchAvailableAsync(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
         {

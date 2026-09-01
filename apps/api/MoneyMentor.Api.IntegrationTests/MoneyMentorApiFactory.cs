@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Domain.Enums;
+using MoneyMentor.Infrastructure.Email;
 using MoneyMentor.Infrastructure.Identity;
 using MoneyMentor.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
@@ -53,8 +54,6 @@ public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsy
                 ["Resend:ApiKey"] = "test-key",
                 ["Resend:FromAddress"] = "MoneyMentor <noreply@moneymentor.test>",
                 ["Resend:ReplyTo"] = "support@moneymentor.test",
-                ["Resend:DispatcherEnabled"] = "true",
-                ["Resend:DispatcherInterval"] = "00:00:00.050",
                 ["RateLimits:AuthenticatedPerMinute"] = "10000",
                 ["RateLimits:AnonymousPerMinute"] = "10000",
                 ["RateLimits:SignupsPerHour"] = "10000",
@@ -112,6 +111,12 @@ public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsy
         var result = await userManager.CreateAsync(user, password);
         Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Description)));
         return user.Id;
+    }
+
+    public async Task DispatchInvitationsAsync(CancellationToken cancellationToken = default)
+    {
+        using var dispatcher = ActivatorUtilities.CreateInstance<InvitationEmailDispatcher>(Services);
+        await dispatcher.DispatchAvailableAsync(cancellationToken);
     }
 }
 
