@@ -134,6 +134,7 @@ public sealed class ExternalBetaReadinessTests(MoneyMentorApiFactory factory)
         invitationResponse.EnsureSuccessStatusCode();
         var invitationId = (await invitationResponse.Content.ReadFromJsonAsync<JsonObject>())!["id"]!.GetValue<Guid>();
 
+        await factory.DispatchInvitationsAsync();
         var received = await viewerClient.GetFromJsonAsync<JsonArray>("/api/households/invitations");
         Assert.Contains(received!, item => item!["id"]!.GetValue<Guid>() == invitationId);
         (await viewerClient.PostAsync($"/api/households/invitations/{invitationId}/accept", null))
@@ -162,13 +163,12 @@ public sealed class ExternalBetaReadinessTests(MoneyMentorApiFactory factory)
             HttpStatusCode.NotFound,
             (await outsiderClient.GetAsync($"/api/transactions?householdId={householdId}")).StatusCode);
 
-        await WaitUntilAsync(async () =>
-        {
-            var sent = await ownerClient.GetFromJsonAsync<JsonArray>(
-                $"/api/households/{householdId}/invitations");
-            return sent!.Any(item => item!["id"]!.GetValue<Guid>() == invitationId
+        var sent = await ownerClient.GetFromJsonAsync<JsonArray>(
+            $"/api/households/{householdId}/invitations");
+        Assert.Contains(
+            sent!,
+            item => item!["id"]!.GetValue<Guid>() == invitationId
                 && item["deliveryStatus"]!.GetValue<string>() == "Sent");
-        });
         Assert.Contains(factory.EmailSender.Messages, message => message.To == viewerEmail);
 
         var export = await ownerClient.GetFromJsonAsync<JsonObject>("/api/privacy/export");
@@ -384,21 +384,6 @@ public sealed class ExternalBetaReadinessTests(MoneyMentorApiFactory factory)
 
     private static string UniqueEmail(string prefix) =>
         $"{prefix}-{Guid.NewGuid():N}@moneymentor.test";
-
-    private static async Task WaitUntilAsync(Func<Task<bool>> condition)
-    {
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            if (await condition())
-            {
-                return;
-            }
-
-            await Task.Delay(50);
-        }
-
-        Assert.Fail("The expected background operation did not complete in time.");
-    }
 
     private sealed record TestSession(
         string AccessToken,
