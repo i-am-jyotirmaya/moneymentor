@@ -185,6 +185,33 @@ public sealed class InvalidProductionApiFactory : WebApplicationFactory<Program>
     }
 }
 
+public sealed class LocalCorsProductionApiFactory(string connectionString) : WebApplicationFactory<Program>
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Production");
+        TestWebHostSettings.Apply(
+            builder,
+            new Dictionary<string, string>
+            {
+                ["ConnectionStrings:MoneyMentorDb"] = connectionString,
+                ["Jwt:Issuer"] = "MoneyMentor.Tests",
+                ["Jwt:Audience"] = "MoneyMentor.Api.IntegrationTests",
+                ["Jwt:SigningKey"] = "integration-tests-signing-key-at-least-32-bytes-long",
+                ["AuthCookie:Secure"] = "true",
+                ["AllowedHosts"] = "localhost",
+                ["Cors:AllowedOrigins:0"] = "https://app.moneymentor.test",
+                ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000",
+                ["CORS_ALLOW_LOCALHOST"] = "true",
+                ["Product:PublicWebUrl"] = "https://app.moneymentor.test",
+                ["Product:SupportEmail"] = "support@moneymentor.test",
+                ["JudgementReports:SchedulerEnabled"] = "false",
+                ["JudgementReports:CalculationWorkerEnabled"] = "false",
+                ["JudgementReports:NarrationWorkerEnabled"] = "false"
+            });
+    }
+}
+
 internal static class TestWebHostSettings
 {
     public static void Apply(IWebHostBuilder builder, IReadOnlyDictionary<string, string> settings)

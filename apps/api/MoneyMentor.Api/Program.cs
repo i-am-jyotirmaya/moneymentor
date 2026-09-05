@@ -34,7 +34,9 @@ if (int.TryParse(platformPort, out var parsedPort) && parsedPort is > 0 and <= 6
 
 var builder = WebApplication.CreateBuilder(args);
 const string WebCorsPolicy = "MoneyMentorWeb";
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+var allowedOrigins = ResolveAllowedOrigins(builder.Configuration);
+var allowLocalhostCors = builder.Configuration.GetValue<bool>("Cors:AllowLocalhost")
+    || builder.Configuration.GetValue<bool>("CORS_ALLOW_LOCALHOST");
 if (builder.Environment.IsDevelopment() && allowedOrigins.Length == 0)
 {
     allowedOrigins =
@@ -46,7 +48,7 @@ if (builder.Environment.IsDevelopment() && allowedOrigins.Length == 0)
     ];
 }
 
-ValidateProductionConfiguration(builder, allowedOrigins);
+ValidateProductionConfiguration(builder, allowedOrigins, allowLocalhostCors);
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<MonthlyDashboardBuilder>();
@@ -259,9 +261,33 @@ static string? HashRefreshCookie(HttpContext context)
 static string GetClientPartition(HttpContext context) =>
     context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
+static string[] ResolveAllowedOrigins(IConfiguration configuration)
+{
+    var indexedOrigins = configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>() ?? [];
+    var environmentOrigins = new[]
+        {
+            configuration["CORS_ALLOWED_ORIGINS"],
+            configuration["CORS_ORIGIN"]
+        }
+        .Where(value => !string.IsNullOrWhiteSpace(value))
+        .SelectMany(value => value!.Split(
+            [',', ';'],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    return indexedOrigins
+        .Concat(environmentOrigins)
+        .Where(origin => !string.IsNullOrWhiteSpace(origin))
+        .Select(origin => origin.Trim())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+}
+
 static void ValidateProductionConfiguration(
     WebApplicationBuilder builder,
-    IReadOnlyCollection<string> allowedOrigins)
+    IReadOnlyCollection<string> allowedOrigins,
+    bool allowLocalhostCors)
 {
     if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
     {
@@ -271,11 +297,15 @@ static void ValidateProductionConfiguration(
     if (allowedOrigins.Count == 0
         || allowedOrigins.Any(origin =>
             !Uri.TryCreate(origin, UriKind.Absolute, out var uri)
-            || uri.Scheme != Uri.UriSchemeHttps
-            || uri.IsLoopback
-            || origin.Contains('*', StringComparison.Ordinal)))
+            || origin.Contains('*', StringComparison.Ordinal)
+            || (uri.IsLoopback
+                ? !allowLocalhostCors
+                    || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+                : uri.Scheme != Uri.UriSchemeHttps)))
     {
-        throw new InvalidOperationException("Production CORS origins must be explicit HTTPS origins.");
+        throw new InvalidOperationException(
+            "Production CORS origins must be explicit HTTPS origins. "
+            + "Loopback origins require CORS_ALLOW_LOCALHOST=true.");
     }
 
     if (string.IsNullOrWhiteSpace(builder.Configuration["Product:SupportEmail"])
