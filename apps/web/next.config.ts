@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(process.cwd(), "../.."),
   },
+  allowedDevOrigins: ["potter-further-tel-covers.trycloudflare.com"],
 };
 
 export default nextConfig;
