@@ -53,6 +53,26 @@ public sealed class ExternalBetaReadinessTests(MoneyMentorApiFactory factory)
     }
 
     [Fact]
+    public async Task Production_configuration_accepts_environment_localhost_cors_when_enabled()
+    {
+        await using var localCorsFactory = new LocalCorsProductionApiFactory(factory.ConnectionString);
+        using var client = localCorsFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/health/live");
+        request.Headers.Add("Origin", "http://localhost:3000");
+        request.Headers.Add("Access-Control-Request-Method", "GET");
+
+        using var response = await client.SendAsync(request);
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal(
+            "http://localhost:3000",
+            response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+    }
+
+    [Fact]
     public async Task Parallel_first_logins_provision_one_profile_personal_household_and_membership()
     {
         var email = UniqueEmail("parallel");

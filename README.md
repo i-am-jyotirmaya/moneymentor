@@ -208,13 +208,15 @@ Never expose a server secret through a `NEXT_PUBLIC_*` variable; those values ar
 | `Jwt__Issuer`, `Jwt__Audience` | No | Token issuer/audience; Railway template uses Spndrr names |
 | `AllowedHosts` | No | Actual API hostname plus `healthcheck.railway.app`, separated by `;` |
 | `Cors__AllowedOrigins__0` | No | Exact HTTPS web origin, including scheme and no trailing path |
+| `CORS_ALLOWED_ORIGINS` | No | Additional exact CORS origins, separated by commas or semicolons |
+| `CORS_ALLOW_LOCALHOST` | No | Set to `true` only when a local loopback frontend must call the production API |
 | `Product__PublicWebUrl` | No | Exact HTTPS web URL used in links |
 | `Product__SupportEmail` | No | User-facing support address |
 | `AuthCookie__Secure` | No | Must be `true` in production |
 | `AuthCookie__SameSite` | No | `None` for generated cross-site Railway domains; reassess with custom sibling domains |
 | `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | No | Must be `true` behind Railway's TLS-terminating proxy |
 
-Production startup intentionally fails for wildcard/localhost CORS, wildcard hosts, a short JWT key, insecure cookies, or a missing HTTPS public URL/support address.
+Production startup intentionally fails for wildcard CORS, localhost CORS without `CORS_ALLOW_LOCALHOST=true`, wildcard hosts, a short JWT key, insecure cookies, or a missing HTTPS public URL/support address.
 
 Generate separate high-entropy values for the JWT key and, if AI is enabled, the OpenAI safety-identifier key:
 
@@ -328,7 +330,7 @@ Investment recommendations remain out of scope without explicit product requirem
 
 ## Troubleshooting
 
-- **API will not start in production:** inspect the first exception. Production validation rejects placeholder/wildcard host settings, non-HTTPS CORS/public URLs, an insecure cookie, or a short JWT key.
+- **API will not start in production:** inspect the first exception. Production validation rejects placeholder/wildcard host settings, non-HTTPS public URLs, non-HTTPS CORS origins except explicitly enabled loopback origins, an insecure cookie, or a short JWT key.
 - **`/health/ready` fails:** confirm PostgreSQL references and the pre-deploy migration succeeded. `/health/live` proves only that the process is running.
 - **Login works but reload logs the user out:** verify exact CORS origin, `credentials: include`, HTTPS, and `AuthCookie__SameSite=None` for generated Railway domains.
 - **Browser calls localhost after deployment:** `NEXT_PUBLIC_API_BASE_URL` was missing during the web build. Set it and redeploy/rebuild the web service.

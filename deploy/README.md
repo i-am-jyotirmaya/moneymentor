@@ -128,10 +128,21 @@ Product__PublicWebUrl=https://<web-hostname>
 Product__SupportEmail=<monitored-support-email>
 ```
 
+To connect a local frontend directly to the production API, add these API variables:
+
+```dotenv
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+CORS_ALLOW_LOCALHOST=true
+```
+
+`CORS_ALLOWED_ORIGINS` accepts multiple comma-separated origins and is merged with
+the indexed `Cors__AllowedOrigins__0`, `Cors__AllowedOrigins__1`, ... values. Keep
+the localhost override disabled when it is not actively needed.
+
 Rules that commonly prevent startup:
 
 - `AllowedHosts` contains hostnames only, not `https://` or paths.
-- `Cors__AllowedOrigins__0` and `Product__PublicWebUrl` contain an explicit, non-local HTTPS origin.
+- Public CORS origins and `Product__PublicWebUrl` use explicit, non-local HTTPS URLs. Loopback CORS origins are allowed only when `CORS_ALLOW_LOCALHOST=true`.
 - Do not add a trailing path to an origin.
 - The JWT signing key is at least 32 bytes and not a placeholder.
 - Keep `AuthCookie__Secure=true`.
@@ -361,7 +372,7 @@ The generic scripts under `ops/backups` create encrypted `pg_dump` backups with 
 | Readiness fails after migration | Database reachability and pending migrations in either EF context |
 | HTTPS redirect loop | `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` and Railway proxy path |
 | Web calls `localhost:5267` | Set build-time `NEXT_PUBLIC_API_BASE_URL`, then rebuild web |
-| CORS error | Exact `https://<web-host>` in `Cors__AllowedOrigins__0`; no path or wildcard |
+| CORS error | Use an exact public HTTPS origin in `Cors__AllowedOrigins__0` or `CORS_ALLOWED_ORIGINS`; local HTTP also requires `CORS_ALLOW_LOCALHOST=true` |
 | Login succeeds but reload fails | Secure cookie, `SameSite=None`, exact origin, browser third-party-cookie policy |
 | Health check returns invalid host | Include `healthcheck.railway.app` in `AllowedHosts` |
 | Invitation remains queued | Expected while dispatcher is disabled; use in-app acceptance or configure Resend |
