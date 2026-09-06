@@ -101,6 +101,7 @@ import {
 import {
   clearAuthSession,
   getAuthSessionSnapshot,
+  isAccessTokenExpired,
   saveAuthSession,
   subscribeToAuthSession,
 } from "@/lib/auth-session";
@@ -388,6 +389,12 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
   );
 
   useEffect(() => {
+    const existingSession = getAuthSessionSnapshot();
+    if (existingSession && !isAccessTokenExpired(existingSession)) {
+      const timeoutId = window.setTimeout(() => setSessionReady(true), 0);
+      return () => window.clearTimeout(timeoutId);
+    }
+
     let active = true;
     void refreshSession()
       .catch(() => clearAuthSession())
