@@ -505,6 +505,26 @@ test("login posts credentials to the API without putting them in the URL", async
   expect(page.url()).not.toContain("dummy-secret");
 });
 
+test("mobile login keeps the fresh access-token session without an immediate refresh", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
+  let refreshRequestCount = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/auth/refresh")) {
+      refreshRequestCount += 1;
+    }
+  });
+
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("demo@example.com");
+  await page.getByLabel("Password").fill("dummy-secret");
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect(page).toHaveURL("http://127.0.0.1:3000/");
+  await expect(page.getByRole("heading", { name: "What did you spend or receive?" })).toBeVisible();
+  await expect(page.getByText("Sign in to use the assistant input workspace.")).toHaveCount(0);
+  expect(refreshRequestCount).toBe(0);
+});
+
 test("desktop dashboard is the default authenticated screen", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
 
