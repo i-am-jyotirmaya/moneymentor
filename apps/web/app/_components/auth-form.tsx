@@ -3,26 +3,31 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, MouseEvent, useState } from "react";
-import { ApiError, createUser, login } from "@/lib/api";
+import { ApiError, createUser, login, requestMvpAccess } from "@/lib/api";
 import { saveAuthSession } from "@/lib/auth-session";
 import { ArrowRightIcon, BrandMarkIcon } from "./icons";
+import { RegistrationLink } from "./registration-link";
 
-type AuthMode = "login" | "signup";
+type AuthMode = "login" | "signup" | "request";
 
 type AuthFormProps = {
   mode: AuthMode;
+  invitation?: { token: string; name: string; email: string };
 };
 
-export function AuthForm({ mode }: AuthFormProps) {
+export function AuthForm({ mode, invitation }: AuthFormProps) {
   const router = useRouter();
-  const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState(invitation?.name ?? "");
+  const [email, setEmail] = useState(invitation?.email ?? "");
+  const [reason, setReason] = useState("");
+  const [requestSent, setRequestSent] = useState(false);
   const [password, setPassword] = useState("");
   const [acceptPrivacyPolicy, setAcceptPrivacyPolicy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isSignup = mode === "signup";
+  const isRequest = mode === "request";
 
   async function submitCredentials() {
     if (isSubmitting) {
@@ -33,8 +38,14 @@ export function AuthForm({ mode }: AuthFormProps) {
     setIsSubmitting(true);
 
     try {
+      if (isRequest) {
+        await requestMvpAccess({ name: displayName.trim(), email: email.trim(), reason: reason.trim() || undefined });
+        setRequestSent(true);
+        return;
+      }
       const session = isSignup
         ? await createUser({
+            invitationToken: invitation?.token,
             displayName: displayName.trim(),
             email: email.trim(),
             password,
@@ -47,6 +58,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           });
 
       saveAuthSession(session);
+      if (invitation) window.history.replaceState(null, "", "/signup");
       router.push("/");
     } catch (caughtError) {
       if (caughtError instanceof ApiError) {
@@ -123,29 +135,34 @@ export function AuthForm({ mode }: AuthFormProps) {
               <span className="text-lg font-semibold">Spndrr</span>
             </Link>
             <span className="hidden text-sm font-semibold text-[var(--muted)] lg:block">
-              {isSignup ? "Create account" : "Welcome back"}
+              {isRequest ? "MVP access" : isSignup ? "Create account" : "Welcome back"}
             </span>
           </div>
 
           <div className="mb-7">
             <h2 className="text-3xl font-semibold tracking-normal text-[var(--ink)]">
-              {isSignup ? "Create your account" : "Sign in"}
+              {isRequest ? "Request MVP access" : isSignup ? "Create your account" : "Sign in"}
             </h2>
             <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted)]">
-              {isSignup
+              {isRequest
+                ? "Spndrr is currently available by approval. Tell us a little about yourself to request access."
+                : isSignup
                 ? "Start with the assistant input, then build the rest around real data."
                 : "Continue to your Spndrr workspace."}
             </p>
           </div>
 
-          <form className="space-y-4" method="post" onSubmit={handleSubmit}>
-            {isSignup ? (
+          {requestSent ? <p role="status" className="rounded-lg bg-[var(--accent-soft)] p-4 text-sm leading-6">
+            Your request has been received. We’ll email you if access is approved.
+          </p> : <form className="space-y-4" method="post" onSubmit={handleSubmit}>
+            {isSignup || isRequest ? (
               <Field
                 autoComplete="name"
                 label="Display name"
                 onChange={setDisplayName}
                 placeholder="Aarav Shah"
                 value={displayName}
+                maxLength={128}
               />
             ) : null}
 
@@ -156,16 +173,25 @@ export function AuthForm({ mode }: AuthFormProps) {
               placeholder="name@example.com"
               type="email"
               value={email}
+              readOnly={!!invitation}
+              maxLength={256}
             />
 
-            <Field
+            {!isRequest && <Field
               autoComplete={isSignup ? "new-password" : "current-password"}
               label="Password"
               onChange={setPassword}
               placeholder="At least 8 characters"
               type="password"
               value={password}
-            />
+            />}
+
+            {isRequest && <label className="block space-y-2 text-sm font-semibold">
+              <span>Why would you like access? (optional)</span>
+              <textarea className="min-h-24 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-base outline-none focus:border-[var(--accent)]"
+                value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} />
+            </label>}
+            {isRequest && <p className="text-sm text-[var(--muted)]">We’ll use these details to review your request and contact you about access. <Link className="underline" href="/privacy">Privacy policy</Link></p>}
 
             {isSignup ? (
               <label className="flex items-start gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-sm font-medium leading-6 text-[var(--muted)]">
@@ -187,7 +213,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             ) : null}
 
             {error ? (
-              <p className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm font-medium leading-6 text-[var(--danger)]">
+              <p role="alert" className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm font-medium leading-6 text-[var(--danger)]">
                 {error}
               </p>
             ) : null}
@@ -198,13 +224,13 @@ export function AuthForm({ mode }: AuthFormProps) {
               onClick={handleSubmitClick}
               type="button"
             >
-              <span>{isSubmitting ? "Working..." : isSignup ? "Create account" : "Sign in"}</span>
+              <span>{isSubmitting ? "Working..." : isRequest ? "Request MVP access" : isSignup ? "Create account" : "Sign in"}</span>
               <ArrowRightIcon className="h-4 w-4" />
             </button>
-          </form>
+          </form>}
 
           <div className="mt-6 flex justify-center text-sm font-semibold">
-            {isSignup ? (
+            {isSignup || isRequest ? (
               <Link
                 className="rounded-lg px-3 py-2 text-[var(--accent)] outline-none transition hover:bg-[var(--accent-soft)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                 href="/login"
@@ -212,12 +238,9 @@ export function AuthForm({ mode }: AuthFormProps) {
                 I already have an account
               </Link>
             ) : (
-              <Link
+              <RegistrationLink
                 className="rounded-lg px-3 py-2 text-[var(--accent)] outline-none transition hover:bg-[var(--accent-soft)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                href="/signup"
-              >
-                Create a new account
-              </Link>
+              />
             )}
           </div>
         </section>
@@ -233,6 +256,8 @@ type FieldProps = {
   placeholder: string;
   type?: string;
   value: string;
+  readOnly?: boolean;
+  maxLength?: number;
 };
 
 function Field({
@@ -242,12 +267,16 @@ function Field({
   placeholder,
   type = "text",
   value,
+  readOnly,
+  maxLength,
 }: FieldProps) {
   return (
     <label className="block space-y-2 text-sm font-semibold text-[var(--ink)]">
       <span>{label}</span>
       <input
         autoComplete={autoComplete}
+        readOnly={readOnly}
+        maxLength={maxLength}
         className="h-13 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 text-base font-medium text-[var(--ink)] outline-none transition placeholder:text-[var(--muted-2)] focus:border-[var(--accent)] focus:bg-white focus:ring-4 focus:ring-[var(--accent-ring)]"
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}

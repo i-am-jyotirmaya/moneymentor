@@ -5,6 +5,9 @@ namespace MoneyMentor.Api.Endpoints.Auth;
 
 public sealed class CreateUserRequest
 {
+    [MaxLength(128)]
+    public string? InvitationToken { get; init; }
+
     [Required]
     [EmailAddress]
     public string Email { get; init; } = string.Empty;
@@ -56,3 +59,21 @@ public sealed record AuthUserResponse(
     IReadOnlyCollection<string> Roles);
 
 public sealed record AuthErrorResponse(IReadOnlyCollection<string> Errors);
+
+public sealed class MvpAccessRequestBody
+{
+    [Required, MaxLength(128)]
+    public string Name { get; init; } = string.Empty;
+
+    [Required, EmailAddress, MaxLength(256)]
+    public string Email { get; init; } = string.Empty;
+
+    [MaxLength(1000)]
+    public string? Reason { get; init; }
+}
+
+public sealed class SignupInvitationValidationRequest
+{
+    [Required, MaxLength(128)]
+    public string Token { get; init; } = string.Empty;
+}

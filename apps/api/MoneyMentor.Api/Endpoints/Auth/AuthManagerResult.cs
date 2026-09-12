@@ -8,6 +8,7 @@ public enum AuthFailureKind
     InvalidCredentials,
     Unauthorized,
     NotFound,
+    Forbidden,
     LockedOut
 }
 

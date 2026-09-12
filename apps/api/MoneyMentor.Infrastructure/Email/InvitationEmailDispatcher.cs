@@ -8,6 +8,8 @@ using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
+using Microsoft.Extensions.Options;
+using MoneyMentor.Application.Registration;
 using MoneyMentor.Infrastructure.Persistence;
 
 namespace MoneyMentor.Infrastructure.Email;
@@ -18,7 +20,7 @@ internal sealed class InvitationEmailDispatcher(
     TimeProvider timeProvider,
     ILogger<InvitationEmailDispatcher> logger) : BackgroundService
 {
-    private const string DispatcherIntervalKey = "Resend:DispatcherInterval";
+    private const string DispatcherIntervalKey = "SES:DispatcherInterval";
     private static readonly TimeSpan[] RetryDelays =
     [
         TimeSpan.FromMinutes(1),
@@ -121,10 +123,15 @@ internal sealed class InvitationEmailDispatcher(
             cancellationToken);
         var publicWebUrl = configuration["Product:PublicWebUrl"]?.TrimEnd('/')
             ?? "http://localhost:3000";
-        var signupUrl = $"{publicWebUrl}/signup?invite={invitation.Id}";
+        var registration = scope.ServiceProvider.GetRequiredService<IOptions<RegistrationOptions>>().Value;
+        var signupUrl = registration.IsOpen
+            ? $"{publicWebUrl}/signup?invite={invitation.Id}"
+            : $"{publicWebUrl}/request-access";
+        var signupLabel = registration.IsOpen ? "Create an account" : "Request MVP access";
+        var approvalNote = registration.IsOpen ? "" : " New accounts require MVP approval before accepting this household invitation.";
         var loginUrl = $"{publicWebUrl}/login?invite={invitation.Id}";
-        var text = $"{inviter.DisplayName} invited you to {household.Name} as {invitation.Role}. Create an account: {signupUrl} or sign in: {loginUrl}.";
-        var html = $"<p><strong>{WebUtility.HtmlEncode(inviter.DisplayName)}</strong> invited you to <strong>{WebUtility.HtmlEncode(household.Name)}</strong> as {invitation.Role}.</p><p><a href=\"{WebUtility.HtmlEncode(signupUrl)}\">Create an account</a> or <a href=\"{WebUtility.HtmlEncode(loginUrl)}\">sign in</a>.</p>";
+        var text = $"{inviter.DisplayName} invited you to {household.Name} as {invitation.Role}. {signupLabel}: {signupUrl} or sign in: {loginUrl}.{approvalNote}";
+        var html = $"<p><strong>{WebUtility.HtmlEncode(inviter.DisplayName)}</strong> invited you to <strong>{WebUtility.HtmlEncode(household.Name)}</strong> as {invitation.Role}.</p><p><a href=\"{WebUtility.HtmlEncode(signupUrl)}\">{signupLabel}</a> or <a href=\"{WebUtility.HtmlEncode(loginUrl)}\">sign in</a>.{approvalNote}</p>";
         EmailSendResult result;
         try
         {

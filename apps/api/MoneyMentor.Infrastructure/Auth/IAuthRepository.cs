@@ -8,7 +8,8 @@ public interface IAuthRepository
         string email,
         string password,
         string displayName,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        string? invitationToken = null);
 
     Task<ApplicationUser?> FindUserByEmailAsync(string email, CancellationToken cancellationToken);
 

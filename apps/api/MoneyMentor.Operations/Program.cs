@@ -5,6 +5,8 @@ using Microsoft.Extensions.Hosting;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Application.JudgementReports;
+using MoneyMentor.Application.Registration;
+using System.Text.Json;
 using MoneyMentor.Infrastructure;
 using MoneyMentor.Infrastructure.Persistence;
 
@@ -17,7 +19,8 @@ public static class Program
 
 public static class OperationsCommand
 {
-    public static async Task<int> RunAsync(string[] args, string? connectionString = null)
+    public static async Task<int> RunAsync(string[] args, string? connectionString = null,
+        Action<IServiceCollection>? configureServices = null)
     {
         if (args.Length == 0)
         {
@@ -39,6 +42,7 @@ public static class OperationsCommand
             }
 
             builder.Services.AddInfrastructure(builder.Configuration);
+            configureServices?.Invoke(builder.Services);
             await using var services = builder.Services.BuildServiceProvider();
             await using var scope = services.CreateAsyncScope();
 
@@ -46,6 +50,7 @@ public static class OperationsCommand
             {
                 "migrate" => await MigrateAsync(scope.ServiceProvider),
                 "entitlement" => await ChangeEntitlementAsync(scope.ServiceProvider, args[1..]),
+                "access-requests" => await ManageAccessRequestsAsync(scope.ServiceProvider, args[1..]),
                 "judgement-reports" => await ManageJudgementReportsAsync(scope.ServiceProvider, args[1..]),
                 _ => UnknownCommand(args[0])
             };
@@ -55,6 +60,26 @@ public static class OperationsCommand
             Console.Error.WriteLine($"Operation failed: {exception.Message}");
             return 1;
         }
+    }
+
+    private static async Task<int> ManageAccessRequestsAsync(IServiceProvider services, string[] args)
+    {
+        if (args.Length == 0) { WriteUsage(); return 2; }
+        var options = ParseOptions(args[1..]);
+        var service = services.GetRequiredService<IMvpAccessService>();
+        if (args[0] == "list")
+        {
+            var requests = await service.ListAsync(options.GetValueOrDefault("status", "pending"), CancellationToken.None);
+            Console.WriteLine(JsonSerializer.Serialize(requests, new JsonSerializerOptions { WriteIndented = true }));
+            return 0;
+        }
+        if (!Guid.TryParse(Required(options, "id"), out var id))
+            throw new ArgumentException("--id must be a request GUID.");
+        await service.ReviewAsync(id, args[0], Required(options, "operator"), CancellationToken.None);
+        Console.WriteLine(args[0] == "reject"
+            ? $"Request {id} rejected; any unused signup link is invalid."
+            : $"Request {id} approved; signup email sent. The link expires in seven days.");
+        return 0;
     }
 
     private static async Task<int> MigrateAsync(IServiceProvider services)
@@ -334,6 +359,8 @@ public static class OperationsCommand
     {
         Console.Error.WriteLine("Usage:");
         Console.Error.WriteLine("  MoneyMentor.Operations migrate");
+        Console.Error.WriteLine("  MoneyMentor.Operations access-requests list [--status pending|approved|rejected|registered|all]");
+        Console.Error.WriteLine("  MoneyMentor.Operations access-requests approve|reject|resend --id <request-id> --operator <name>");
         Console.Error.WriteLine("  MoneyMentor.Operations entitlement grant|revoke --email <email> --operator <name> --reason <reason>");
         Console.Error.WriteLine("  MoneyMentor.Operations judgement-reports backfill [--dry-run true|false]");
         Console.Error.WriteLine("Set ConnectionStrings__MoneyMentorDb outside a local source checkout.");

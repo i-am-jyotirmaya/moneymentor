@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using MoneyMentor.Api.Endpoints;
 using MoneyMentor.Application.Privacy;
 using MoneyMentor.Api.Production;
+using MoneyMentor.Application.Registration;
 
 namespace MoneyMentor.Api.Endpoints.Auth;
 
@@ -14,6 +15,20 @@ public static class AuthEndpoints
             .MapGroup("/api/auth")
             .WithTags("Auth");
 
+        group.MapGet("/registration", (IOptions<RegistrationOptions> options, HttpContext context) =>
+            {
+                context.Response.Headers.CacheControl = "no-store";
+                return Results.Ok(new { options.Value.Mode });
+            }).AllowAnonymous();
+
+        group.MapPost("/access-requests", RequestAccessAsync)
+            .AllowAnonymous().RequireRateLimiting(RateLimitPolicyNames.AccessRequest)
+            .Produces(StatusCodes.Status202Accepted).ProducesValidationProblem();
+        group.MapPost("/signup-invitations/validate", ValidateInvitationAsync)
+            .AllowAnonymous().RequireRateLimiting(RateLimitPolicyNames.Session)
+            .Produces<SignupInvitation>().Produces<AuthErrorResponse>(StatusCodes.Status403Forbidden)
+            .ProducesValidationProblem();
+
         group.MapPost("/users", CreateUserAsync)
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitPolicyNames.Signup)
@@ -21,6 +36,7 @@ public static class AuthEndpoints
             .Produces<AuthSessionResponse>()
             .Produces<AuthErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<AuthErrorResponse>(StatusCodes.Status409Conflict)
+            .Produces<AuthErrorResponse>(StatusCodes.Status403Forbidden)
             .ProducesValidationProblem();
 
         group.MapPost("/login", LoginAsync)
@@ -63,6 +79,28 @@ public static class AuthEndpoints
             .Produces<AuthErrorResponse>(StatusCodes.Status404NotFound);
 
         return group;
+    }
+
+    private static async Task<IResult> RequestAccessAsync(
+        MvpAccessRequestBody request, IMvpAccessService service, CancellationToken cancellationToken)
+    {
+        var validation = EndpointValidation.Validate(request);
+        if (validation is not null) return validation;
+        await service.RequestAsync(request.Name, request.Email, request.Reason, cancellationToken);
+        return Results.Accepted(value: new { Message = "Your request has been received. We’ll email you if access is approved." });
+    }
+
+    private static async Task<IResult> ValidateInvitationAsync(
+        SignupInvitationValidationRequest request, IMvpAccessService service,
+        HttpContext context, CancellationToken cancellationToken)
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        var validation = EndpointValidation.Validate(request);
+        if (validation is not null) return validation;
+        var invitation = await service.ValidateAsync(request.Token, cancellationToken);
+        return invitation is null
+            ? Results.Json(new AuthErrorResponse(["This signup link is invalid, expired, or already used. Contact support for help."]), statusCode: StatusCodes.Status403Forbidden)
+            : Results.Ok(invitation);
     }
 
     private static async Task<IResult> CreateUserAsync(

@@ -8,4 +8,8 @@
 .vscode
 TestResults
 .env
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
 backups

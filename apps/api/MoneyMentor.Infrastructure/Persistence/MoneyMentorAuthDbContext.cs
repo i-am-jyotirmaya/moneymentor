@@ -19,6 +19,8 @@ public sealed class MoneyMentorAuthDbContext
 
     public DbSet<AuthSession> AuthSessions => Set<AuthSession>();
 
+    public DbSet<MvpAccessRequest> MvpAccessRequests => Set<MvpAccessRequest>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -28,6 +30,7 @@ public sealed class MoneyMentorAuthDbContext
         ConfigureApplicationRole(builder);
         ConfigureRefreshToken(builder);
         ConfigureAuthSession(builder);
+        builder.ApplyConfiguration(new Auth.MvpAccessRequestConfiguration());
     }
 
     private static void ConfigureIdentityTables(ModelBuilder builder)

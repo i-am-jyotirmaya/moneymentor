@@ -121,6 +121,8 @@ builder.Services.AddRateLimiter(options =>
             TimeSpan.FromMinutes(1)));
     options.AddPolicy(RateLimitPolicyNames.Signup, context =>
         CreateFixedWindowPartition(GetClientPartition(context), rateLimits.SignupsPerHour, TimeSpan.FromHours(1)));
+    options.AddPolicy(RateLimitPolicyNames.AccessRequest, context =>
+        CreateFixedWindowPartition(GetClientPartition(context), rateLimits.AccessRequestsPerHour, TimeSpan.FromHours(1)));
     options.AddPolicy(RateLimitPolicyNames.Login, context =>
         CreateFixedWindowPartition(GetClientPartition(context), rateLimits.LoginsPerFiveMinutes, TimeSpan.FromMinutes(5)));
     options.AddPolicy(RateLimitPolicyNames.Session, context =>
@@ -313,15 +315,6 @@ static void ValidateProductionConfiguration(
         || publicWebUri.Scheme != Uri.UriSchemeHttps)
     {
         throw new InvalidOperationException("Production public URL and support email are required.");
-    }
-
-    if (builder.Configuration.GetValue<bool>("Resend:DispatcherEnabled")
-        && (string.IsNullOrWhiteSpace(builder.Configuration["Resend:ApiKey"])
-            || string.IsNullOrWhiteSpace(builder.Configuration["Resend:FromAddress"])
-            || string.IsNullOrWhiteSpace(builder.Configuration["Resend:ReplyTo"])))
-    {
-        throw new InvalidOperationException(
-            "Production Resend settings are required when invitation email delivery is enabled.");
     }
 
     var signingKey = builder.Configuration["Jwt:SigningKey"];
