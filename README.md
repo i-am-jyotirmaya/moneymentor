@@ -1,5 +1,7 @@
 # Spndrr
 
+Registration currently defaults to MVP approval. See [MVP access operations](docs/MVP_ACCESS.md) for reviewing requests, sending signup links, and reopening public signup.
+
 Spndrr is an assistant-first personal finance guide. Users can record expenses and income in natural language, ask focused questions about their spending, review deterministic financial summaries, and coordinate household finances without learning an accounting workflow.
 
 This repository still uses the legacy internal names `MoneyMentor.*` for .NET projects, namespaces, database contexts, and some operational identifiers. The user-facing product is **Spndrr**. Renaming the internals is deliberately deferred because it would add migration and deployment risk without changing the product.

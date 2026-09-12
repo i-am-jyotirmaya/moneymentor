@@ -21,7 +21,8 @@ The custom build directory is `.next-moneymentor`. It is a legacy internal name 
 | --- | --- |
 | `/` | Signed-out entry or authenticated application shell; desktop starts on Dashboard, mobile starts on Assistant |
 | `/login` | Email/password login |
-| `/signup` | Account creation plus required privacy-policy acceptance |
+| `/request-access` | MVP access request with name, email, and optional reason |
+| `/signup` | Approved-link account creation plus privacy-policy acceptance; public signup when registration mode is Open |
 | `/transactions` | Application shell opened to Transactions |
 | `/planning` | Application shell opened to Goals and planning |
 | `/household` | Application shell opened to household management |

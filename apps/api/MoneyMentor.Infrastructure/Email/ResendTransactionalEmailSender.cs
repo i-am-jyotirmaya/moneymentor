@@ -24,7 +24,7 @@ internal sealed class ResendTransactionalEmailSender(
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "emails");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
-        request.Headers.TryAddWithoutValidation("Idempotency-Key", $"household-invite/{message.DeliveryId:N}");
+        request.Headers.TryAddWithoutValidation("Idempotency-Key", $"transactional-email/{message.DeliveryId:N}");
         request.Headers.UserAgent.ParseAdd("MoneyMentor/1.0");
         request.Content = JsonContent.Create(new ResendEmailRequest(
             settings.FromAddress,

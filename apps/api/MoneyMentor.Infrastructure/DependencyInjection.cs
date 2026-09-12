@@ -28,6 +28,7 @@ using MoneyMentor.Application.Privacy;
 using MoneyMentor.Infrastructure.Privacy;
 using MoneyMentor.Infrastructure.Transactions;
 using MoneyMentor.Infrastructure.Email;
+using MoneyMentor.Application.Registration;
 
 namespace MoneyMentor.Infrastructure;
 
@@ -40,6 +41,11 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.TryAddSingleton(TimeProvider.System);
+        services.AddOptions<RegistrationOptions>()
+            .Bind(configuration.GetSection(RegistrationOptions.SectionName))
+            .Validate(options => options.Mode is "RequestOnly" or "Open", "Registration:Mode must be RequestOnly or Open.")
+            .ValidateOnStart();
+        services.AddScoped<IMvpAccessService, PostgresMvpAccessService>();
 
         var connectionString = configuration.GetConnectionString(ConnectionStringName);
 

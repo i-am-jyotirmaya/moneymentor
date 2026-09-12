@@ -631,6 +631,7 @@ async function apiRequest<TResponse>(
 }
 
 export function createUser(input: {
+  invitationToken?: string;
   email: string;
   password: string;
   displayName: string;
@@ -640,6 +641,20 @@ export function createUser(input: {
   return apiRequest<AuthSession>("/api/auth/users", {
     method: "POST",
     body: input,
+  });
+}
+
+export function getRegistration() {
+  return apiRequest<{ mode: "RequestOnly" | "Open" }>("/api/auth/registration");
+}
+
+export function requestMvpAccess(input: { name: string; email: string; reason?: string }) {
+  return apiRequest<{ message: string }>("/api/auth/access-requests", { method: "POST", body: input });
+}
+
+export function validateSignupInvitation(token: string) {
+  return apiRequest<{ name: string; email: string }>("/api/auth/signup-invitations/validate", {
+    method: "POST", body: { token },
   });
 }
 

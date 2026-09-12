@@ -19,6 +19,7 @@ services:
     command: ["migrate"]
     environment: &api-environment
       ASPNETCORE_ENVIRONMENT: Production
+      Registration__Mode: ${REGISTRATION_MODE:-RequestOnly}
       ConnectionStrings__MoneyMentorDb: ${CONNECTION_STRING}
       Jwt__Issuer: MoneyMentor
       Jwt__Audience: MoneyMentor.Api

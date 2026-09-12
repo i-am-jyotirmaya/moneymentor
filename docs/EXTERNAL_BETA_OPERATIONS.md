@@ -1,5 +1,7 @@
 # Spndrr external beta operations
 
+For request-only registration, CLI approvals, email retries, and reopening signup, see [Temporary MVP access](MVP_ACCESS.md).
+
 Spndrr runs as one modular-monolith API, one Next.js web process, and PostgreSQL. Authentication and application data remain in separate EF Core DbContexts and migration histories, even though the initial beta uses one PostgreSQL database. Internal projects retain their `MoneyMentor.*` names.
 
 For the Railway-specific three-service setup, pre-deploy migration, health checks, and variables, use `deploy/README.md`. This document also covers the generic self-hosted image/Compose path.
@@ -41,7 +43,7 @@ Runtime images run as non-root users. The API never applies migrations on startu
 4. Deploy the new API image.
 5. Wait for `/health/ready` to pass; `/health/live` only proves the process is running.
 6. Deploy the web image.
-7. Smoke-test signup/login, privacy consent, refresh/logout, personal household reads, family invitation acceptance, Viewer denial, capture/delete/undo, export, and support links.
+7. Smoke-test MVP request/approval/signup, login, privacy consent, refresh/logout, personal household reads, family invitation acceptance, Viewer denial, capture/delete/undo, export, and support links.
 8. Keep the previous images available until the beta observation window ends.
 
 The two generated migrations are:
@@ -81,7 +83,7 @@ Every actual change writes an `entitlement_changes` row in the same application 
 
 ## Invitation delivery
 
-Invitation email is optional for the initial two-user smoke test. With `Resend:DispatcherEnabled` false, invitations are persisted but no email worker runs; the invited user can sign up with the exact invited address and accept in-app.
+Household invitation email is optional for the initial two-user smoke test. With `Resend:DispatcherEnabled` false, household invitations are persisted but no email worker runs. New users must first receive MVP approval for the exact invited address, create their account, and then accept the household invitation in-app. MVP approval emails are sent directly by the operations command regardless of the household dispatcher setting.
 
 To enable delivery, verify a sender domain in Resend, configure its API key, from address, reply-to address, and public web URL as deployment secrets, then set `Resend:DispatcherEnabled` to true. The dispatcher uses a delivery GUID as its idempotency key, sends outside the claim transaction, and retries failures with bounded backoff. Owners/Admins can inspect queued, sent, and failed history.
 

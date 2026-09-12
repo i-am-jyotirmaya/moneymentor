@@ -42,6 +42,7 @@ public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsy
             new Dictionary<string, string>
             {
                 ["ConnectionStrings:MoneyMentorDb"] = ConnectionString,
+                ["Registration:Mode"] = "Open",
                 ["Jwt:Issuer"] = "MoneyMentor.Tests",
                 ["Jwt:Audience"] = "MoneyMentor.Api.IntegrationTests",
                 ["Jwt:SigningKey"] = "integration-tests-signing-key-at-least-32-bytes-long",
