@@ -29,6 +29,7 @@ using MoneyMentor.Infrastructure.Privacy;
 using MoneyMentor.Infrastructure.Transactions;
 using MoneyMentor.Infrastructure.Email;
 using MoneyMentor.Application.Registration;
+using MoneyMentor.Infrastructure.Aws;
 
 namespace MoneyMentor.Infrastructure;
 
@@ -40,6 +41,7 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddAwsIntegration(configuration);
         services.TryAddSingleton(TimeProvider.System);
         services.AddOptions<RegistrationOptions>()
             .Bind(configuration.GetSection(RegistrationOptions.SectionName))

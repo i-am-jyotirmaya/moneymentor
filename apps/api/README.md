@@ -2,7 +2,7 @@
 
 The Spndrr backend is a .NET 10 modular monolith. The solution and internal projects retain the `MoneyMentor.*` name; Spndrr is the public product name.
 
-For end-to-end setup start with the [root README](../../README.md). For production, use the [Railway deployment runbook](../../deploy/README.md).
+For end-to-end setup start with the [root README](../../README.md). For production, use the [AWS / EC2 deployment runbook](../../deploy/aws/README.md).
 
 ## Projects and dependency direction
 
@@ -148,28 +148,28 @@ dotnet run --project apps/api/MoneyMentor.Operations -- judgement-reports backfi
 dotnet run --project apps/api/MoneyMentor.Operations -- judgement-reports backfill --dry-run false
 ```
 
-On Railway the same executable is embedded in the API image at `/app/operations`. The exact pre-deploy command is documented in [deploy/README.md](../../deploy/README.md).
+The same executable is embedded in the API image at `/app/operations`. The EC2 Compose migration service uses that exact release image; see [deploy/README.md](../../deploy/README.md).
 
 ## Production configuration
 
-Use [deploy/railway/api.env.example](../../deploy/railway/api.env.example) as the checklist. Important rules:
+Use [deploy/aws/.env.example](../../deploy/aws/.env.example) and its Compose mapping as the checklist. Important rules:
 
-- `ConnectionStrings__MoneyMentorDb` must use Npgsql's `Host=...;Port=...` format. Do not pass Railway's raw `postgresql://` `DATABASE_URL` to this setting.
+- `ConnectionStrings__MoneyMentorDb` must use Npgsql's `Host=...;Port=...` format. Do not pass a raw `postgresql://` `DATABASE_URL` to this setting.
 - Production CORS must contain an exact HTTPS web origin and no wildcard.
-- `AllowedHosts` must contain the deployed API hostname and Railway health-check hostname, with no scheme.
+- `AllowedHosts` must contain the deployed API hostname (the health probe sends the same Host header), with no scheme.
 - `Jwt__SigningKey` must contain at least 32 random bytes and remain server-only.
-- Set `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` behind Railway so HTTPS redirection understands the edge proxy.
-- Generated Railway frontend/API domains require `AuthCookie__SameSite=None` with `AuthCookie__Secure=true`. If both move to sibling custom domains under the same apex, retest and consider returning to `Strict`.
-- The API reads Railway's `PORT`; the image defaults to 8080.
+- The EC2 template uses sibling HTTPS domains, `AuthCookie__SameSite=Strict`, and secure cookies. Trust only the explicit Nginx address using `ReverseProxy__KnownProxies__0`; do not enable blanket forwarded-header trust.
+- The API image listens on internal port 8080; only Nginx publishes host ports.
+- AWS options are disabled by default. Set `AWS__Enabled=true` and `AWS__Region` to enable shared configuration; credentials are resolved only when a service client needs them. See [local SSO and EC2 roles](../../deploy/aws/README.md#aws-configuration-and-credentials).
 - Production validation fails fast when required security/origin settings are unsafe.
 
 ### Optional workers and providers
 
-| Capability | Initial Railway setting | Notes |
+| Capability | Initial EC2 setting | Notes |
 | --- | --- | --- |
 | Deleted transaction purge | Enabled | Runs in the API process; deleted records are retained for 30 days |
 | Commitment due processing | Enabled | Runs in the API process |
-| Judgement scheduler/calculation/narration | Disabled by Railway template | Enable deliberately after core smoke testing |
+| Judgement scheduler/calculation/narration | Disabled by EC2 template | Enable deliberately after core smoke testing |
 | Invitation email dispatcher | `Resend__DispatcherEnabled=false` | Enabling requires valid Resend key/from/reply-to values |
 | AI goal planning worker | Disabled in code | Planning rows can remain pending; treat as upcoming |
 | OTLP export | Off unless endpoint supplied | Do not emit finance text or identity/secrets |

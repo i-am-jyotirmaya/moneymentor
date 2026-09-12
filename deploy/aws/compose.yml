@@ -1,0 +1,91 @@
+name: moneymentor
+
+x-api-environment: &api-environment
+  ASPNETCORE_ENVIRONMENT: Production
+  DOTNET_ENVIRONMENT: Production
+  ASPNETCORE_HTTP_PORTS: "8080"
+  AWS__Enabled: ${AWS_ENABLED:-true}
+  AWS__Region: ${AWS_REGION:?Set AWS_REGION}
+  Registration__Mode: ${REGISTRATION_MODE:-RequestOnly}
+  ConnectionStrings__MoneyMentorDb: ${CONNECTION_STRING:?Set the Neon Npgsql connection string}
+  Jwt__Issuer: ${JWT_ISSUER:-MoneyMentor}
+  Jwt__Audience: ${JWT_AUDIENCE:-MoneyMentor.Api}
+  Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY}
+  AuthCookie__Secure: "true"
+  AuthCookie__SameSite: Strict
+  AllowedHosts: ${API_HOST:?Set API_HOST}
+  Cors__AllowedOrigins__0: https://${WEB_HOST:?Set WEB_HOST}
+  Product__PublicWebUrl: https://${WEB_HOST}
+  Product__SupportEmail: ${SUPPORT_EMAIL:?Set SUPPORT_EMAIL}
+  ReverseProxy__KnownProxies__0: 172.30.0.10
+  Resend__DispatcherEnabled: ${RESEND_DISPATCHER_ENABLED:-false}
+  Resend__ApiKey: ${RESEND_API_KEY:-}
+  Resend__FromAddress: ${RESEND_FROM_ADDRESS:-}
+  Resend__ReplyTo: ${RESEND_REPLY_TO:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_SAFETY_IDENTIFIER_KEY: ${OPENAI_SAFETY_IDENTIFIER_KEY:-}
+  OpenAI__Model: ${OPENAI_MODEL:-gpt-5.6-terra}
+  JudgementReports__SchedulerEnabled: ${JUDGEMENT_REPORT_SCHEDULER_ENABLED:-false}
+  JudgementReports__CalculationWorkerEnabled: ${JUDGEMENT_REPORT_CALCULATION_ENABLED:-false}
+  JudgementReports__NarrationWorkerEnabled: ${JUDGEMENT_REPORT_NARRATION_ENABLED:-false}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+
+services:
+  migrate:
+    image: ${API_IMAGE:?Set API_IMAGE to a release tag}
+    entrypoint: ["dotnet", "/app/operations/MoneyMentor.Operations.dll"]
+    command: ["migrate"]
+    environment: *api-environment
+    restart: "no"
+    networks: [backend]
+
+  api:
+    image: ${API_IMAGE}
+    restart: unless-stopped
+    environment: *api-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--header", "Host: ${API_HOST}", "--header", "X-Forwarded-Proto: https", "http://127.0.0.1:8080/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks: [backend]
+
+  web:
+    image: ${WEB_IMAGE:?Set WEB_IMAGE to a release tag}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [backend]
+
+  ingress:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    environment:
+      WEB_HOST: ${WEB_HOST}
+      API_HOST: ${API_HOST}
+      NGINX_ENVSUBST_FILTER: '^(WEB_HOST|API_HOST)$$'
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ${TLS_CERTS_PATH:?Set TLS_CERTS_PATH}:/etc/nginx/certs:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
+    networks:
+      backend:
+        ipv4_address: 172.30.0.10
+
+networks:
+  backend:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

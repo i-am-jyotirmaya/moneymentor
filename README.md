@@ -6,7 +6,7 @@ Spndrr is an assistant-first personal finance guide. Users can record expenses a
 
 This repository still uses the legacy internal names `MoneyMentor.*` for .NET projects, namespaces, database contexts, and some operational identifiers. The user-facing product is **Spndrr**. Renaming the internals is deliberately deferred because it would add migration and deployment risk without changing the product.
 
-> Beta status: the repository is prepared for a small, two-user Railway test. Read the [deployment runbook](deploy/README.md) and complete every item in the [owner checklist](#owner-todos-before-inviting-a-tester) before sharing it.
+> Beta status: the repository includes EC2 deployment templates for a small, two-user test with Neon. Read the [deployment runbook](deploy/README.md) and complete every item in the [owner checklist](#owner-todos-before-inviting-a-tester) before sharing it.
 
 ## What works today
 
@@ -27,7 +27,7 @@ Financial amounts and classifications are calculated by trusted backend code usi
 - Run exactly **one API replica**. Clarification drafts and rate limits are currently in memory, while background workers share the API process. A restart loses only unfinished clarification conversations, not committed transactions.
 - Asynchronous AI goal-plan processing is not enabled yet. Goal CRUD and deterministic contribution calculations work, but AI planning/review runs can remain pending.
 - Invitation email delivery is disabled by default. Invitations are stored and can be accepted in-app by a user who signs up with the invited email. Enable Resend only after verifying a sender domain and completing an email smoke test.
-- Railway starts judgement report scheduling, calculation, and narration disabled for the first smoke test. Dashboard calculations continue to work. Enable the workers deliberately after the core two-user flow is stable.
+- The EC2 template starts judgement report scheduling, calculation, and narration disabled for the first smoke test. Dashboard calculations continue to work. Enable the workers deliberately after the core two-user flow is stable.
 - The public privacy policy is a beta draft and requires legal review before a broader launch.
 - Category and recurring-commitment APIs exist, while the current web UI primarily lists those records rather than offering the full management experience.
 - The workspace mentions a future mobile app, but no `apps/mobile` implementation exists today.
@@ -69,7 +69,7 @@ The initial deployment uses one PostgreSQL database, but authentication and appl
 | Authentication | ASP.NET Identity, JWT access tokens, rotating refresh cookies |
 | Tests | xUnit v3, Testcontainers PostgreSQL, Playwright |
 | Build | pnpm 10, Turborepo, Docker multi-stage images, GitHub Actions |
-| Beta hosting | Railway: web + API + managed PostgreSQL |
+| Beta hosting target | EC2: web + API behind Nginx; Neon PostgreSQL |
 | Optional integrations | OpenAI Responses API, Resend, OpenTelemetry/OTLP |
 
 ## Repository handbook
@@ -86,7 +86,8 @@ apps/
     MoneyMentor.Api.IntegrationTests/
   web/                            Next.js application and Playwright tests
 deploy/
-  railway/                        copyable Railway variable templates
+  aws/                            EC2 runbook, Compose, Nginx, IAM trust policy
+  railway/                        legacy Railway runbook and variable templates
   compose.production.example.yml generic self-hosted production example
 docs/                              calculations and beta operations notes
 ops/backups/                       encrypted backup and restore-check scripts
@@ -95,7 +96,7 @@ scripts/                           local demo/test-data helpers
 
 - [Backend handbook](apps/api/README.md)
 - [Frontend handbook](apps/web/README.md)
-- [Railway deployment runbook](deploy/README.md)
+- [AWS / EC2 deployment runbook](deploy/aws/README.md)
 - [Financial judgement calculations](docs/JUDGEMENT_CALCULATIONS.md)
 - [Goal-planning privacy boundary](GOAL_PLANNING.md)
 - [External beta operations](docs/EXTERNAL_BETA_OPERATIONS.md)
@@ -194,10 +195,10 @@ The API integration tests use Testcontainers and therefore need a running Docker
 
 ## Configuration and secrets
 
-ASP.NET Core maps a double underscore to a nested configuration key, so `Jwt__SigningKey` configures `Jwt:SigningKey`. The authoritative Railway templates are:
+ASP.NET Core maps a double underscore to a nested configuration key, so `Jwt__SigningKey` configures `Jwt:SigningKey`. The primary deployment target is EC2 with Neon. Use:
 
-- [API variables](deploy/railway/api.env.example)
-- [Web variables](deploy/railway/web.env.example)
+- [EC2 environment template](deploy/aws/.env.example)
+- [AWS / EC2 runbook](deploy/aws/README.md)
 
 Never expose a server secret through a `NEXT_PUBLIC_*` variable; those values are compiled into browser JavaScript.
 
@@ -205,18 +206,19 @@ Never expose a server secret through a `NEXT_PUBLIC_*` variable; those values ar
 
 | Variable | Secret? | Purpose |
 | --- | --- | --- |
-| `ConnectionStrings__MoneyMentorDb` | Yes | Npgsql keyword/value connection string assembled from Railway PostgreSQL references |
+| `ConnectionStrings__MoneyMentorDb` | Yes | Existing Neon Npgsql connection string with TLS verification |
 | `Jwt__SigningKey` | Yes | Independent random signing key of at least 32 UTF-8 bytes |
-| `Jwt__Issuer`, `Jwt__Audience` | No | Token issuer/audience; Railway template uses Spndrr names |
-| `AllowedHosts` | No | Actual API hostname plus `healthcheck.railway.app`, separated by `;` |
+| `Jwt__Issuer`, `Jwt__Audience` | No | Preserve existing token issuer/audience when migrating hosts |
+| `AllowedHosts` | No | Actual API hostname, without scheme |
 | `Cors__AllowedOrigins__0` | No | Exact HTTPS web origin, including scheme and no trailing path |
 | `CORS_ALLOWED_ORIGINS` | No | Additional exact CORS origins, separated by commas or semicolons |
 | `CORS_ALLOW_LOCALHOST` | No | Set to `true` only when a local loopback frontend must call the production API |
 | `Product__PublicWebUrl` | No | Exact HTTPS web URL used in links |
 | `Product__SupportEmail` | No | User-facing support address |
 | `AuthCookie__Secure` | No | Must be `true` in production |
-| `AuthCookie__SameSite` | No | `None` for generated cross-site Railway domains; reassess with custom sibling domains |
-| `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | No | Must be `true` behind Railway's TLS-terminating proxy |
+| `AuthCookie__SameSite` | No | `Strict` for the template's sibling HTTPS app/API domains |
+| `ReverseProxy__KnownProxies__0` | No | Explicit Nginx address from the EC2 Compose network |
+| `AWS__Enabled`, `AWS__Region` | No | Enable shared AWS SDK options; region required when enabled |
 
 Production startup intentionally fails for wildcard CORS, localhost CORS without `CORS_ALLOW_LOCALHOST=true`, wildcard hosts, a short JWT key, insecure cookies, or a missing HTTPS public URL/support address.
 
@@ -240,6 +242,7 @@ Do not reuse the PostgreSQL password or either generated key for another purpose
 - **Resend:** leave `Resend__DispatcherEnabled=false` for the first smoke test. To enable invitations, set it to `true` and provide `Resend__ApiKey`, `Resend__FromAddress`, and `Resend__ReplyTo`. Verify the sender domain first.
 - **OpenAI:** deterministic capture, totals, dashboards, and reports work without an API key. `OPENAI_API_KEY`, `OPENAI_SAFETY_IDENTIFIER_KEY`, and `OpenAI__Model` are server-only. Async goal-planning execution is still disabled in code.
 - **OpenTelemetry:** set `OTEL_EXPORTER_OTLP_ENDPOINT` only when a protected collector is available. Never attach finance text, tokens, email addresses, or request bodies to telemetry.
+- **AWS:** disabled by default; the EC2 template enables shared configuration. Use an EC2 instance role in production or an SSO profile locally. There is no STS identity check or startup AWS call. See [AWS setup](deploy/aws/README.md#aws-configuration-and-credentials).
 
 ## Docker
 
@@ -250,38 +253,23 @@ docker build -f apps/api/MoneyMentor.Api/Dockerfile -t spndrr-api:local .
 docker build -f apps/web/Dockerfile -t spndrr-web:local --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:5267 --build-arg NEXT_PUBLIC_SUPPORT_EMAIL=support@example.com .
 ```
 
-The API image includes the Operations executable at `/app/operations`, allowing Railway to run migrations from the exact release image before it starts the API. Both runtime images use non-root users.
+The API image includes the Operations executable at `/app/operations`, allowing migrations from the exact release image before starting the API. Both runtime images use non-root users.
 
-## Railway deployment summary
+## AWS / EC2 deployment
 
-The beta topology is:
+The deployment topology is one API container and one Next.js container behind Nginx on EC2, using the existing Neon database. Future AWS service clients will use the attached EC2 instance role. The separate landing site will later use S3 and CloudFront.
 
-```text
-Railway project
-  |-- Postgres  managed, private networking only
-  |-- api       repo root + apps/api/MoneyMentor.Api/Dockerfile, 1 replica
-  `-- web       repo root + apps/web/Dockerfile
-```
-
-Railway settings are configured in the dashboard rather than a committed `railway.toml`. Follow the complete [Railway runbook](deploy/README.md), including the pre-deploy migration command, health checks, cookie/CORS setup, deployment order, and two-user smoke test.
+Follow the [AWS / EC2 runbook](deploy/aws/README.md) for instance-profile setup, TLS, environment configuration, release builds, migrations, and smoke tests. The [legacy Railway runbook](deploy/railway/README.md) remains available for existing installations.
 
 ## GitHub Actions and deployment gating
 
-The committed [CI workflow](.github/workflows/ci.yml) runs on pull requests, pushes to `main`, and manual dispatch. It performs secret scanning, a .NET Release build, unit and PostgreSQL integration tests, frontend lint/build/Playwright tests, and production Docker builds for both services.
+The committed [CI workflow](.github/workflows/ci.yml) runs secret scanning, the .NET Release build, unit/PostgreSQL integration tests, frontend lint/build/Playwright tests, and production Docker builds.
 
-Recommended setup:
-
-1. Push the repository to GitHub and run the `ci` workflow once from the Actions tab.
-2. In GitHub Settings, create a branch rule/ruleset for `main`, require pull requests if desired, and require the `verify`, `container (api)`, and `container (web)` checks.
-3. Connect the same GitHub repository and `main` branch to the Railway `api` and `web` services.
-4. Enable Railway's **Wait for CI** option for both services so a failed workflow does not deploy.
-5. Keep Railway autodeploy enabled for `main`. The Railway integration performs the deployment after CI passes.
-
-This path needs no Railway token and no GitHub deployment secret. Do not add a second token-based deploy workflow unless you intentionally replace Railway's GitHub integration. If that becomes necessary, prefer an environment-scoped Railway project token stored as a GitHub Environment secret and protect that environment with reviewers.
+Require the `verify`, `container (api)`, and `container (web)` checks on the deployment revision. EC2 deployment is manual for this phase: build or transfer both images from the same passing revision, run migrations from the API image, then start the release using the AWS runbook. Image publication and deployment automation are deferred.
 
 ## First two-user demo
 
-After the first user signs up and accepts the privacy policy, grant that profile Premium access with the audited Operations command. From a Railway API shell:
+After the first user signs up and accepts the privacy policy, grant that profile Premium access with the audited Operations command. From the API container shell (in `deploy/aws`, run `docker compose exec api sh`):
 
 ```bash
 dotnet /app/operations/MoneyMentor.Operations.dll entitlement grant --email owner@example.com --operator your-name --reason "Two-user beta demo"
@@ -300,19 +288,19 @@ Then:
 ## Owner TODOs before inviting a tester
 
 - [ ] Choose the final Spndrr web and API hostnames; do not leave any `replace-with-*` values.
-- [ ] Create the Railway project, managed PostgreSQL, API service, and web service using [deploy/README.md](deploy/README.md).
+- [ ] Prepare EC2, its instance role, TLS, and the API/web release using [deploy/README.md](deploy/README.md).
 - [ ] Generate and store a unique JWT signing key. Never commit it.
-- [ ] Keep PostgreSQL private and reference its Railway variables from the API service.
-- [ ] Configure the API pre-deploy migration command and both health checks exactly as documented.
+- [ ] Keep the existing Neon database and configure its direct endpoint with TLS verification.
+- [ ] Run migrations from the release image and verify readiness before starting the public ingress.
 - [ ] Confirm the web build contains the real API URL and support email.
 - [ ] Verify signup, consent, refresh, logout, and a page reload in a clean browser session; these catch cookie/CORS mistakes.
 - [ ] Grant Premium only to the intended demo owner through the audited operator command.
 - [ ] Decide whether manual in-app invitation acceptance is sufficient. If not, verify a Resend sender domain, add its secrets, enable the dispatcher, and test delivery.
 - [ ] Keep OpenAI and judgement narration disabled until core data capture is stable; then add separate keys and evaluate privacy/retention settings before enabling them.
 - [ ] Replace the draft privacy policy only after legal review and set a monitored support address.
-- [ ] Configure Railway backup/export coverage and perform a restore drill before storing irreplaceable data. The repository scripts require `pg_dump`, `age`, `rclone`, and external object storage.
-- [ ] Turn on GitHub branch protection and Railway **Wait for CI**.
-- [ ] Monitor Railway logs and spending during the beta; keep the API at one replica.
+- [ ] Configure Neon backup/export coverage and perform a restore drill before storing irreplaceable data. The repository scripts require `pg_dump`, `age`, `rclone`, and external object storage.
+- [ ] Turn on GitHub branch protection and deploy only CI-verified revisions.
+- [ ] Monitor EC2 logs, disk/memory, Neon availability, and hosting costs during the beta; keep the API at one replica.
 
 ## Roadmap
 
@@ -333,8 +321,8 @@ Investment recommendations remain out of scope without explicit product requirem
 ## Troubleshooting
 
 - **API will not start in production:** inspect the first exception. Production validation rejects placeholder/wildcard host settings, non-HTTPS public URLs, non-HTTPS CORS origins except explicitly enabled loopback origins, an insecure cookie, or a short JWT key.
-- **`/health/ready` fails:** confirm PostgreSQL references and the pre-deploy migration succeeded. `/health/live` proves only that the process is running.
-- **Login works but reload logs the user out:** verify exact CORS origin, `credentials: include`, HTTPS, and `AuthCookie__SameSite=None` for generated Railway domains.
+- **`/health/ready` fails:** confirm the Neon connection string and release migration succeeded. `/health/live` proves only that the process is running.
+- **Login works but reload logs the user out:** verify exact CORS origin, `credentials: include`, HTTPS, and `AuthCookie__SameSite=Strict` for the configured sibling HTTPS domains.
 - **Browser calls localhost after deployment:** `NEXT_PUBLIC_API_BASE_URL` was missing during the web build. Set it and redeploy/rebuild the web service.
 - **Invitation remains queued:** expected while `Resend__DispatcherEnabled=false`; have the invited address sign up and accept in-app or configure Resend.
 - **AI plan stays pending:** the goal-planning worker is not enabled yet. Use deterministic goal data for the demo.
