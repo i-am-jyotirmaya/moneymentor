@@ -26,7 +26,7 @@ Financial amounts and classifications are calculated by trusted backend code usi
 
 - Run exactly **one API replica**. Clarification drafts and rate limits are currently in memory, while background workers share the API process. A restart loses only unfinished clarification conversations, not committed transactions.
 - Asynchronous AI goal-plan processing is not enabled yet. Goal CRUD and deterministic contribution calculations work, but AI planning/review runs can remain pending.
-- Invitation email delivery is disabled by default. Invitations are stored and can be accepted in-app by a user who signs up with the invited email. Enable Resend only after verifying a sender domain and completing an email smoke test.
+- Invitation email delivery is disabled by default. Invitations are stored and can be accepted in-app by a user who signs up with the invited email. Enable SES only after verifying a sender identity in the configured AWS region and completing an email smoke test.
 - The EC2 template starts judgement report scheduling, calculation, and narration disabled for the first smoke test. Dashboard calculations continue to work. Enable the workers deliberately after the core two-user flow is stable.
 - The public privacy policy is a beta draft and requires legal review before a broader launch.
 - Category and recurring-commitment APIs exist, while the current web UI primarily lists those records rather than offering the full management experience.
@@ -54,7 +54,7 @@ ASP.NET Core modular-monolith API
        `-- app boundary:  MoneyMentorDbContext (schema `app`)
 
 Operations executable --> migrations, entitlements, report backfills
-Optional providers     --> OpenAI, Resend, OTLP collector
+Optional providers     --> OpenAI, SES, OTLP collector
 ```
 
 The initial deployment uses one PostgreSQL database, but authentication and application data have separate EF Core contexts and migration histories. Domain entities reference `UserProfile`, never ASP.NET Identity's `ApplicationUser`.
@@ -70,7 +70,7 @@ The initial deployment uses one PostgreSQL database, but authentication and appl
 | Tests | xUnit v3, Testcontainers PostgreSQL, Playwright |
 | Build | pnpm 10, Turborepo, Docker multi-stage images, GitHub Actions |
 | Beta hosting target | EC2: web + API behind Nginx; Neon PostgreSQL |
-| Optional integrations | OpenAI Responses API, Resend, OpenTelemetry/OTLP |
+| Optional integrations | OpenAI Responses API, SES, OpenTelemetry/OTLP |
 
 ## Repository handbook
 
@@ -239,10 +239,10 @@ Do not reuse the PostgreSQL password or either generated key for another purpose
 
 ### Optional integrations
 
-- **Resend:** leave `Resend__DispatcherEnabled=false` for the first smoke test. To enable invitations, set it to `true` and provide `Resend__ApiKey`, `Resend__FromAddress`, and `Resend__ReplyTo`. Verify the sender domain first.
+- **SES:** set `AWS__Enabled=true`, `AWS__Region`, and `SES__FromAddress` for email delivery. Verify the sender identity and grant the instance role `ses:SendEmail`. Set `SES__DispatcherEnabled=true` for household invitations; approval emails send directly regardless of that flag. `SES__ReplyTo` and `SES__ConfigurationSetName` are optional. Follow [SES setup](deploy/aws/README.md#ses-email-delivery).
 - **OpenAI:** deterministic capture, totals, dashboards, and reports work without an API key. `OPENAI_API_KEY`, `OPENAI_SAFETY_IDENTIFIER_KEY`, and `OpenAI__Model` are server-only. Async goal-planning execution is still disabled in code.
 - **OpenTelemetry:** set `OTEL_EXPORTER_OTLP_ENDPOINT` only when a protected collector is available. Never attach finance text, tokens, email addresses, or request bodies to telemetry.
-- **AWS:** disabled by default; the EC2 template enables shared configuration. Use an EC2 instance role in production or an SSO profile locally. There is no STS identity check or startup AWS call. See [AWS setup](deploy/aws/README.md#aws-configuration-and-credentials).
+- **AWS:** disabled by default; the EC2 template enables shared configuration. Use an EC2 instance role in production or an SSO profile locally. There is no STS identity check; credentials are resolved when an AWS client is used. See [AWS setup](deploy/aws/README.md#aws-configuration-and-credentials).
 
 ## Docker
 
@@ -295,7 +295,7 @@ Then:
 - [ ] Confirm the web build contains the real API URL and support email.
 - [ ] Verify signup, consent, refresh, logout, and a page reload in a clean browser session; these catch cookie/CORS mistakes.
 - [ ] Grant Premium only to the intended demo owner through the audited operator command.
-- [ ] Decide whether manual in-app invitation acceptance is sufficient. If not, verify a Resend sender domain, add its secrets, enable the dispatcher, and test delivery.
+- [ ] Configure SES sender verification, IAM permission, and sandbox/production access; enable the household dispatcher if needed and test delivery.
 - [ ] Keep OpenAI and judgement narration disabled until core data capture is stable; then add separate keys and evaluate privacy/retention settings before enabling them.
 - [ ] Replace the draft privacy policy only after legal review and set a monitored support address.
 - [ ] Configure Neon backup/export coverage and perform a restore drill before storing irreplaceable data. The repository scripts require `pg_dump`, `age`, `rclone`, and external object storage.
@@ -324,7 +324,7 @@ Investment recommendations remain out of scope without explicit product requirem
 - **`/health/ready` fails:** confirm the Neon connection string and release migration succeeded. `/health/live` proves only that the process is running.
 - **Login works but reload logs the user out:** verify exact CORS origin, `credentials: include`, HTTPS, and `AuthCookie__SameSite=Strict` for the configured sibling HTTPS domains.
 - **Browser calls localhost after deployment:** `NEXT_PUBLIC_API_BASE_URL` was missing during the web build. Set it and redeploy/rebuild the web service.
-- **Invitation remains queued:** expected while `Resend__DispatcherEnabled=false`; have the invited address sign up and accept in-app or configure Resend.
+- **Invitation remains queued:** expected while `SES__DispatcherEnabled=false`; have the invited address sign up and accept in-app or configure SES.
 - **AI plan stays pending:** the goal-planning worker is not enabled yet. Use deterministic goal data for the demo.
 - **Integration tests cannot start PostgreSQL:** start Docker and confirm `docker version` can reach the daemon.
 - **Windows build reports locked API DLLs:** stop the running API process before rebuilding.

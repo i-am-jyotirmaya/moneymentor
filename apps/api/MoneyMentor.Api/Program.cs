@@ -317,15 +317,6 @@ static void ValidateProductionConfiguration(
         throw new InvalidOperationException("Production public URL and support email are required.");
     }
 
-    if (builder.Configuration.GetValue<bool>("Resend:DispatcherEnabled")
-        && (string.IsNullOrWhiteSpace(builder.Configuration["Resend:ApiKey"])
-            || string.IsNullOrWhiteSpace(builder.Configuration["Resend:FromAddress"])
-            || string.IsNullOrWhiteSpace(builder.Configuration["Resend:ReplyTo"])))
-    {
-        throw new InvalidOperationException(
-            "Production Resend settings are required when invitation email delivery is enabled.");
-    }
-
     var signingKey = builder.Configuration["Jwt:SigningKey"];
     if (string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32)
     {

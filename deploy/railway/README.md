@@ -1,5 +1,7 @@
 # Legacy Railway deployment runbook
 
+This runbook preserves the earlier Railway/Resend release for historical reference. The current application sends through SES and ignores all `Resend__*` settings. Use the [current SES setup](../aws/README.md#ses-email-delivery) and updated API environment template for the current release; Railway does not provide an EC2 instance role.
+
 New accounts default to request-only access. Follow [MVP access deployment and approvals](../../docs/MVP_ACCESS.md) to migrate, configure the operations email environment, and approve your test users before signup.
 
 This runbook deploys the current Spndrr beta to Railway for a two-user test. It is intentionally conservative: one API replica, one web service, one private managed PostgreSQL service, automatic migrations before API rollout, and optional providers disabled until the core flow is verified.

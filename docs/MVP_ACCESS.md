@@ -18,14 +18,15 @@ Set these values on both the API and the operations environment (use deployment 
 Registration__Mode=RequestOnly
 ConnectionStrings__MoneyMentorDb=<deployment database connection string>
 Product__PublicWebUrl=https://<app hostname>
-Resend__ApiKey=<existing Resend API key>
-Resend__FromAddress=<existing verified sender>
-Resend__ReplyTo=<support address>
+AWS__Enabled=true
+AWS__Region=<SES region>
+SES__FromAddress=<SES verified sender>
+SES__ReplyTo=<support address>
 ```
 
 The web build needs its existing `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_SUPPORT_EMAIL`. API configuration is the source of truth for registration mode. An unavailable settings endpoint leaves public signup hidden. `RateLimits__AccessRequestsPerHour` defaults to five per client IP; invitation validation uses the existing session rate limit.
 
-The operations executable reads environment configuration; running it from a source checkout only falls back to the development JSON file for the database connection. Configure the email credentials and public web URL explicitly in its environment. `Resend__DispatcherEnabled` controls household email processing only; it does not disable approval-command emails.
+The operations executable reads environment configuration; running it from a source checkout only falls back to the development JSON file for the database connection. Configure the AWS region, SES sender, and public web URL explicitly in its environment. Credentials come from the EC2 instance role or a local SSO profile. `SES__DispatcherEnabled` controls household email processing only; it does not disable approval-command emails. Complete [SES setup](../deploy/aws/README.md#ses-email-delivery) before approving users.
 
 ## Review requests
 
@@ -44,7 +45,7 @@ For a local source checkout, substitute `dotnet run --project apps/api/MoneyMent
 
 `list` returns JSON containing request IDs, names, emails, reasons, status, review metadata, expiry, and latest delivery outcome. It accepts `pending` (default), `approved`, `rejected`, `registered`, or `all`. It never prints signup tokens.
 
-Approval persists the decision, then sends an email using the existing Resend sender. The private URL is `/signup#token=...`; the browser validates the fragment token through the API before revealing the form. The approved email is fixed, the user selects a password and accepts the privacy policy, and the existing signup/session flow continues. The link is valid for seven days and one account creation. Possession of the email link confirms the approved address.
+Approval persists the decision, then sends an email using the SES sender. The private URL is `/signup#token=...`; the browser validates the fragment token through the API before revealing the form. The approved email is fixed, the user selects a password and accepts the privacy policy, and the existing signup/session flow continues. The link is valid for seven days and one account creation. Possession of the email link confirms the approved address.
 
 Reject sends no email and invalidates an unused link. A rejected request can later be approved explicitly. Duplicate form submissions never reset a review. Registered requests cannot be resent or rejected; existing account management remains separate.
 
@@ -52,7 +53,7 @@ Reject sends no email and invalidates an unused link. A rejected request can lat
 
 Approval returns exit code `0` only after the provider reports success. A delivery failure returns `1`, leaves the request approved, and records `Failed` plus a provider error. An interrupted command may leave delivery `Pending`. Provider acceptance means the email was submitted; it is not an inbox-delivery guarantee.
 
-Use `list --status approved` to inspect failures, verify provider configuration, and run `resend`. Resend generates a new delivery ID and token, resets the seven-day expiry, and invalidates every older link. Repeating `approve` on an already approved request returns an error directing you to `resend`. If a recipient clicked an older email after a resend, they need the latest email.
+Use `list --status approved` to inspect failures, verify provider configuration, and run `resend`. The resend command generates a new delivery ID and token, resets the seven-day expiry, and invalidates every older link. Repeating `approve` on an already approved request returns an error directing you to `resend`. If a recipient clicked an older email after a resend, they need the latest email. An SES message ID confirms provider acceptance, not inbox delivery; timeouts can leave delivery uncertain.
 
 The commands store only token hashes. Sending happens outside the database transaction; simultaneous administrative changes can cause an older email to arrive, but only the latest unrevoked link works. Review and resend one request at a time. No background retries, admin notification emails, or admin dashboard are included.
 

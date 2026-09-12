@@ -18,10 +18,10 @@ x-api-environment: &api-environment
   Product__PublicWebUrl: https://${WEB_HOST}
   Product__SupportEmail: ${SUPPORT_EMAIL:?Set SUPPORT_EMAIL}
   ReverseProxy__KnownProxies__0: 172.30.0.10
-  Resend__DispatcherEnabled: ${RESEND_DISPATCHER_ENABLED:-false}
-  Resend__ApiKey: ${RESEND_API_KEY:-}
-  Resend__FromAddress: ${RESEND_FROM_ADDRESS:-}
-  Resend__ReplyTo: ${RESEND_REPLY_TO:-}
+  SES__DispatcherEnabled: ${SES_DISPATCHER_ENABLED:-false}
+  SES__FromAddress: ${SES_FROM_ADDRESS:-}
+  SES__ReplyTo: ${SES_REPLY_TO:-}
+  SES__ConfigurationSetName: ${SES_CONFIGURATION_SET_NAME:-}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   OPENAI_SAFETY_IDENTIFIER_KEY: ${OPENAI_SAFETY_IDENTIFIER_KEY:-}
   OpenAI__Model: ${OPENAI_MODEL:-gpt-5.6-terra}

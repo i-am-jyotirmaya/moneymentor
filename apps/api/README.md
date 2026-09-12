@@ -170,7 +170,7 @@ Use [deploy/aws/.env.example](../../deploy/aws/.env.example) and its Compose map
 | Deleted transaction purge | Enabled | Runs in the API process; deleted records are retained for 30 days |
 | Commitment due processing | Enabled | Runs in the API process |
 | Judgement scheduler/calculation/narration | Disabled by EC2 template | Enable deliberately after core smoke testing |
-| Invitation email dispatcher | `Resend__DispatcherEnabled=false` | Enabling requires valid Resend key/from/reply-to values |
+| Invitation email dispatcher | `SES__DispatcherEnabled=false` | Requires AWS enabled, region, verified SES sender, and IAM permission; approval emails send directly |
 | AI goal planning worker | Disabled in code | Planning rows can remain pending; treat as upcoming |
 | OTLP export | Off unless endpoint supplied | Do not emit finance text or identity/secrets |
 

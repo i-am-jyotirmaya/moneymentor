@@ -6,12 +6,12 @@ Run one API and one Next.js server on a Linux EC2 instance, with Nginx terminati
 app.example.com  ---> EC2 Nginx ---> Next.js
 api.example.com  ---> EC2 Nginx ---> API ---> Neon (TLS)
                                     |
-                                    +-- EC2 instance role ---> future AWS services
+                                    +-- EC2 instance role ---> SES / other AWS services
 
 Later: landing site ---> CloudFront ---> private S3 bucket
 ```
 
-The pending `apps/landing` PR is separate. Do not statically export `apps/web`; its current standalone Next.js image continues running on EC2. Resend remains the email provider. RDS migration, SES, Secrets Manager, CloudFront provisioning, and deployment automation are future work.
+The pending `apps/landing` PR is separate. Do not statically export `apps/web`; its current standalone Next.js image continues running on EC2. SES is the email provider. RDS migration, Secrets Manager, CloudFront provisioning, and deployment automation are future work.
 
 ## AWS configuration and credentials
 
@@ -21,7 +21,7 @@ The pending `apps/landing` PR is separate. Do not statically export `apps/web`; 
 | `AWS__Region` | unset | Required when enabled; choose the region used by the instance/services |
 | `AWS__Profile` | unset | Optional named local profile; omit on EC2 |
 
-The module binds configuration only. It does not resolve credentials, call STS, verify an account, or add an AWS health check. Startup succeeds without AWS access when the region is configured. A future AWS service client will resolve credentials through the SDK and surface authentication/authorization errors when used.
+AWS registration binds configuration without resolving credentials, calling STS, verifying an account, or adding an AWS health check. The SES client is resolved only when sending an email. Startup requires no AWS identity check; an enabled invitation worker may send queued emails as part of its normal work.
 
 On EC2, the SDK obtains and refreshes temporary credentials from the attached instance role. Do not set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, or a profile in production containers: credential sources earlier in the SDK chain can override the instance role. Do not copy a developer's `.aws` directory into an image. The EC2 role's account determines the application's AWS identity; application users and ASP.NET Identity are independent.
 
@@ -38,13 +38,29 @@ dotnet run --project apps/api/MoneyMentor.Api
 
 Choose your actual region. Use the same environment settings when running Operations. The `AWSSDK.SSO` and `AWSSDK.SSOOIDC` packages support this profile; sign in again when your SSO session expires. These instructions use `aws sso login`, not the separate console `aws login` mechanism.
 
-When implementing SES or another service, add its SDK v4 package and register its SDK interface through `AddAWSService<T>()` inside the enabled AWS registration block. Implement the provider behind an application interface in Infrastructure (for email, the existing `ITransactionalEmailSender`). Reuse the shared options and SDK-managed client lifetime; add only the service's required IAM permissions. Do not introduce a custom credential cache or AWS types into Application/Domain.
+SES uses SDK v4 and the shared AWS configuration behind `ITransactionalEmailSender` in Infrastructure. Other service integrations should reuse this configuration and SDK-managed client lifetime, adding only their required IAM permissions. Do not introduce a custom credential cache or AWS types into Application/Domain.
 
 References: [SDK configuration and DI](https://docs.aws.amazon.com/sdk-for-net/v4/developer-guide/net-dg-config-netcore.html), [credential resolution](https://docs.aws.amazon.com/sdk-for-net/v4/developer-guide/creds-assign.html), and [local SSO](https://docs.aws.amazon.com/sdk-for-net/v4/developer-guide/creds-idc.html).
 
+## SES email delivery
+
+All transactional emails use SES API v2 over HTTPS, including MVP approvals and household invitations. There is no SMTP password, SES API key, or Resend fallback.
+
+1. In `AWS_REGION`, verify the sender email/domain in SES and complete the domain's DNS/DKIM setup. The identity must exist in the same region the application uses. See [verified identities](https://docs.aws.amazon.com/ses/latest/dg/verify-addresses-and-domains.html).
+2. Attach [ses-send-policy.json](ses-send-policy.json) to the EC2 instance role, replacing `REGION`, `ACCOUNT_ID`, `example.com`, and `hello@example.com` with the verified identity and actual sender. The example grants only `ses:SendEmail`, restricted to that identity and from address. Local SSO permissions must allow the same action. See [SES IAM permissions](https://docs.aws.amazon.com/ses/latest/dg/control-user-access.html).
+3. If the account is still in the SES sandbox in this region, test only with verified recipients or the SES mailbox simulator. Request production access before sending to normal unverified users. See [sandbox restrictions](https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html).
+4. In the EC2 `.env`, set `AWS_ENABLED=true`, `AWS_REGION`, and `SES_FROM_ADDRESS` (for example, `Spndrr <hello@example.com>`). Optionally set `SES_REPLY_TO`. Set `SES_DISPATCHER_ENABLED=true` to deliver queued household invitations. MVP approval/resend commands send directly even when that flag is false. These map to `AWS__*` and `SES__*` on both the API and Operations container.
+5. Optionally configure an SES configuration set and set `SES_CONFIGURATION_SET_NAME` to its name in the same region. Add that specific `arn:aws:ses:REGION:ACCOUNT_ID:configuration-set/NAME` to the sending policy's resource list when using it; [SES v2 resource permissions](https://docs.aws.amazon.com/service-authorization/latest/reference/list_sesv2.html) cover configuration sets as well as identities. Configure its event destinations to monitor deliveries, bounces, and complaints. SES events include the `delivery-id` correlation tag. This change does not add a webhook or change stored delivery status in response to those events.
+
+Remove the old `RESEND_*` / `Resend__*` variables from deployment configuration; they are no longer read. If you customized the worker interval, rename `Resend:DispatcherInterval` to `SES:DispatcherInterval` (default 15 seconds). No database migration is needed: existing unsent invitations use SES on their next attempt, and previously sent messages retain their historical provider IDs.
+
+The sender times out requests after 15 seconds and records sanitized failures. The invitation worker retains its existing retry schedule and attempt limit; operator approval failures remain available for explicit resend. SDK automatic retries are disabled because [SES SendEmail](https://docs.aws.amazon.com/ses/latest/APIReference-V2/API_SendEmail.html) has no idempotency token. A timeout, connection loss, or crash after SES acceptance can still result in duplicate emails when the application retries. The delivery tag does not prevent duplicates. A provider message ID means accepted by SES, not confirmed inbox delivery.
+
+After deployment, approve an intended test access request using the existing Operations command and confirm receipt. Enable the invitation worker and test one intended household invitation. Check SES event destinations and application delivery history. HTTP 403 usually points to IAM permission, 429 to throttling, and 400 to rejected content, identity/sandbox, or configuration-set settings; investigate in SES without logging message bodies, signup tokens, or recipient details.
+
 ## EC2 host and instance profile
 
-1. In the intended AWS account, create an IAM role named `MoneyMentorEc2Role` using [ec2-trust-policy.json](ec2-trust-policy.json). Its `sts:AssumeRole` trust action allows the EC2 service to assume the role; it is not an application STS check. No SES/S3 or administrator policy is needed for this foundation.
+1. In the intended AWS account, create an IAM role named `MoneyMentorEc2Role` using [ec2-trust-policy.json](ec2-trust-policy.json). Its `sts:AssumeRole` trust action allows the EC2 service to assume the role; it is not an application STS check. Attach the restricted SES sending policy described below for email delivery.
 2. Create an instance profile containing that role and attach it to the instance. The IAM console normally creates the profile when creating an EC2 service role. If using the CLI from your operator session:
 
    ```bash
@@ -72,9 +88,9 @@ chmod 600 deploy/aws/.env
 Edit `.env` and replace the example hosts, region, database connection, JWT key, support email, image tags, and certificate directory. Keep secrets in this private file for this phase; Secrets Manager integration is deferred. Do not put AWS credentials in it. Keep `.env` values containing `$` in single quotes so Compose does not interpolate them. Do not source this file into a shell.
 
 - Preserve the existing Neon database. Use Npgsql keyword/value syntax with a direct Neon endpoint and TLS verification, as shown in the template. The same connection string feeds the separate auth and finance DbContexts and the migration process. No database is created on EC2. A later move to RDS PostgreSQL can retain these boundaries but requires a planned data migration and TLS configuration.
-- For an existing deployment, preserve JWT signing key, issuer, audience, registration mode, Resend settings, and whichever optional workers are currently enabled. Defaults disable optional workers for a fresh smoke test. Changing issuer/audience/key invalidates existing access tokens.
+- For an existing deployment, preserve JWT signing key, issuer, audience, registration mode, and whichever optional workers are currently enabled. Replace Resend variables with the SES settings above; existing queued invitations will send through SES. Defaults disable optional workers for a fresh smoke test. Changing issuer/audience/key invalidates existing access tokens.
 - `WEB_HOST` and `API_HOST` must be sibling domains under the same site, with no scheme or path. The template uses secure `SameSite=Strict` cookies and exact HTTPS CORS. Moving between unrelated sites requires a separate cookie/CORS review.
-- Request-only signup remains enabled. Set the existing Resend key and verified sender/reply-to addresses for access-approval emails even if household email dispatch is disabled. See [MVP access operations](../../docs/MVP_ACCESS.md).
+- Request-only signup remains enabled. Configure SES for access-approval emails even if household email dispatch is disabled. See [MVP access operations](../../docs/MVP_ACCESS.md).
 - The private Docker subnet is `172.30.0.0/24`; Nginx has address `172.30.0.10`, which is explicitly trusted by the API. If this overlaps your VPC/VPN/Docker networks, change the subnet, ingress address, and `ReverseProxy__KnownProxies__0` together. Do not set `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` for this deployment. Nginx replaces inbound forwarded headers; only Nginx publishes ports.
 
 Build both images from the same CI-verified revision. Substitute the exact release tags stored in `.env`, your real API URL, and support address:
@@ -122,9 +138,9 @@ Nginx resolves container names when loading its configuration. On every release,
    docker compose exec api dotnet /app/operations/MoneyMentor.Operations.dll access-requests approve --id REQUEST_ID --operator YOUR_NAME
    ```
 
-4. Confirm the approval email arrives through Resend. If household dispatch was already enabled, verify an invitation email too. Test two household members' Private/Household visibility boundaries.
+4. Confirm the approval email arrives through SES. If household dispatch was already enabled, verify an invitation email too. Test two household members' Private/Household visibility boundaries.
 5. Capture a transaction, reload the app, and compare a supported spending question with the stored data. Confirm data survives an API restart.
-6. Inspect the instance's attached role/profile and metadata settings in EC2. There is deliberately no startup identity probe: validate service permissions with an actual service operation when SES or another client is implemented.
+6. Inspect the instance's attached role/profile and metadata settings in EC2. There is deliberately no startup identity probe: validate SES permission by the approval/invitation send above and inspect SES delivery events.
 
 Follow logs with `docker compose logs -f api ingress`; configure host log retention and monitor Neon availability, API readiness, EC2 disk/memory, and certificate expiry. AWS calls do not influence current health endpoints.
 
