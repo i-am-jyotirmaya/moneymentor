@@ -1,3 +1,4 @@
+using Amazon.SimpleEmailV2;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -28,6 +29,8 @@ using MoneyMentor.Application.Privacy;
 using MoneyMentor.Infrastructure.Privacy;
 using MoneyMentor.Infrastructure.Transactions;
 using MoneyMentor.Infrastructure.Email;
+using MoneyMentor.Application.Registration;
+using MoneyMentor.Infrastructure.Aws;
 
 namespace MoneyMentor.Infrastructure;
 
@@ -39,7 +42,13 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddAwsIntegration(configuration);
         services.TryAddSingleton(TimeProvider.System);
+        services.AddOptions<RegistrationOptions>()
+            .Bind(configuration.GetSection(RegistrationOptions.SectionName))
+            .Validate(options => options.Mode is "RequestOnly" or "Open", "Registration:Mode must be RequestOnly or Open.")
+            .ValidateOnStart();
+        services.AddScoped<IMvpAccessService, PostgresMvpAccessService>();
 
         var connectionString = configuration.GetConnectionString(ConnectionStringName);
 
@@ -114,14 +123,20 @@ public static class DependencyInjection
             client.DefaultRequestHeaders.UserAgent.ParseAdd("MoneyMentor/1.0");
         });
         //services.AddHostedService<GoalPlanningWorker>();
-        services.Configure<ResendOptions>(configuration.GetSection(ResendOptions.SectionName));
-        services.AddHttpClient<ITransactionalEmailSender, ResendTransactionalEmailSender>(client =>
-        {
-            client.BaseAddress = new Uri("https://api.resend.com/");
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("MoneyMentor/1.0");
-            client.Timeout = TimeSpan.FromSeconds(15);
-        });
-        if (configuration.GetValue<bool>($"{ResendOptions.SectionName}:DispatcherEnabled"))
+        services.AddOptions<SesOptions>()
+            .Bind(configuration.GetSection(SesOptions.SectionName))
+            .Validate(options => !options.DispatcherEnabled || configuration.GetValue<bool>("AWS:Enabled"),
+                "AWS:Enabled must be true when SES:DispatcherEnabled is true.")
+            .Validate(options => !options.DispatcherEnabled || !string.IsNullOrWhiteSpace(options.FromAddress),
+                "SES:FromAddress is required when SES:DispatcherEnabled is true.")
+            .ValidateOnStart();
+        // Resolve the SDK client only while sending, so startup needs no AWS access.
+        // A factory also allows later attempts to recover from credential setup failures.
+        services.AddSingleton<ITransactionalEmailSender>(provider => new SesTransactionalEmailSender(
+            provider.GetRequiredService<IAmazonSimpleEmailServiceV2>,
+            provider.GetRequiredService<IOptions<SesOptions>>(),
+            provider.GetRequiredService<IOptions<AwsIntegrationOptions>>()));
+        if (configuration.GetValue<bool>($"{SesOptions.SectionName}:DispatcherEnabled"))
         {
             services.AddHostedService<InvitationEmailDispatcher>();
         }

@@ -77,6 +77,7 @@ public sealed class MoneyMentorDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(AppSchema);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(MoneyMentorDbContext).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(MoneyMentorDbContext).Assembly,
+            type => type.Namespace == typeof(Configurations.TransactionConfiguration).Namespace);
     }
 }

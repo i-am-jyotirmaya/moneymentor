@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using MoneyMentor.Application.Registration;
 using MoneyMentor.Infrastructure.Identity;
 using MoneyMentor.Infrastructure.Persistence;
 
@@ -9,32 +11,73 @@ internal sealed class PostgresAuthRepository : IAuthRepository
 {
     private readonly MoneyMentorAuthDbContext _dbContext;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly RegistrationOptions _registration;
+    private readonly TimeProvider _clock;
 
     public PostgresAuthRepository(
         MoneyMentorAuthDbContext dbContext,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        IOptions<RegistrationOptions> registration,
+        TimeProvider clock)
     {
         _dbContext = dbContext;
         _userManager = userManager;
+        _registration = registration.Value;
+        _clock = clock;
     }
 
     public async Task<AuthRepositoryResult<ApplicationUser>> CreateUserAsync(
         string email,
         string password,
         string displayName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? invitationToken = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        // Keep invitation redemption and Identity creation in one auth transaction.
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        MvpAccessRequest? invitation = null;
+        if (!_registration.IsOpen || invitationToken is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(invitationToken) && invitationToken.Length <= 128)
+            {
+                var hash = MvpInvitationToken.Hash(invitationToken);
+                invitation = await _dbContext.MvpAccessRequests
+                    .FromSqlInterpolated($"SELECT * FROM auth.mvp_access_requests WHERE \"TokenHash\" = {hash} FOR UPDATE")
+                    .SingleOrDefaultAsync(cancellationToken);
+            }
+            if (invitation is null || invitation.Status != "Approved" || invitation.ExpiresAt <= _clock.GetUtcNow()
+                || invitation.ExpiresAt is null
+                || invitation.NormalizedEmail != _userManager.NormalizeEmail(email.Trim()))
+            {
+                return AuthRepositoryResult<ApplicationUser>.Failure([
+                    new AuthRepositoryError("MvpApprovalRequired", "A valid MVP approval link is required. Request MVP access or contact support for a replacement link.")]);
+            }
+        }
 
         var normalizedEmail = email.Trim();
         var user = new ApplicationUser
         {
             Email = normalizedEmail,
             UserName = normalizedEmail,
-            DisplayName = displayName.Trim()
+            DisplayName = displayName.Trim(),
+            EmailConfirmed = invitation is not null
         };
 
         var result = await _userManager.CreateAsync(user, password);
+
+        if (result.Succeeded)
+        {
+            if (invitation is not null)
+            {
+                invitation.Status = "Registered";
+                invitation.RegisteredAt = _clock.GetUtcNow();
+                invitation.TokenHash = null;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            await transaction.CommitAsync(cancellationToken);
+        }
 
         return result.Succeeded
             ? AuthRepositoryResult<ApplicationUser>.Success(user)
