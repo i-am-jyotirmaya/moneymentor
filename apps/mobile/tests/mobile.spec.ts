@@ -19,7 +19,7 @@ test("an untrusted invitation cannot navigate outside the app", async ({ page })
   await page.getByText("Already approved? Open your invitation").click();
   await page.getByLabel("Approved signup link").fill("https://evil.example/signup#token=abc");
   await page.getByRole("button", { name: "Open invitation", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("complete approved signup link");
+  await expect(page.locator("details").getByRole("alert")).toContainText("complete approved signup link");
   await expect(page).toHaveURL(/\/request-access\/$/);
 });
 
