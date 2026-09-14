@@ -48,7 +48,8 @@ internal sealed class PostgresAuthManager : IAuthManager
             request.Email,
             request.Password,
             request.DisplayName,
-            cancellationToken);
+            cancellationToken,
+            request.InvitationToken);
 
         if (!result.Succeeded || result.Value is null)
         {
@@ -428,6 +429,9 @@ internal sealed class PostgresAuthManager : IAuthManager
     private static AuthFailureKind GetCreateUserFailureKind(
         IReadOnlyCollection<AuthRepositoryError> errors)
     {
+        if (errors.Any(error => error.Code == "MvpApprovalRequired"))
+            return AuthFailureKind.Forbidden;
+
         return errors.Any(error =>
             error.Code.Equals("DuplicateUserName", StringComparison.OrdinalIgnoreCase) ||
             error.Code.Equals("DuplicateEmail", StringComparison.OrdinalIgnoreCase))

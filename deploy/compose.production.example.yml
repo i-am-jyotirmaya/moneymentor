@@ -19,6 +19,7 @@ services:
     command: ["migrate"]
     environment: &api-environment
       ASPNETCORE_ENVIRONMENT: Production
+      Registration__Mode: ${REGISTRATION_MODE:-RequestOnly}
       ConnectionStrings__MoneyMentorDb: ${CONNECTION_STRING}
       Jwt__Issuer: MoneyMentor
       Jwt__Audience: MoneyMentor.Api
@@ -29,10 +30,12 @@ services:
       Cors__AllowedOrigins__0: ${CORS_ORIGIN}
       Product__PublicWebUrl: ${PUBLIC_WEB_URL}
       Product__SupportEmail: ${SUPPORT_EMAIL}
-      Resend__DispatcherEnabled: ${RESEND_DISPATCHER_ENABLED:-false}
-      Resend__ApiKey: ${RESEND_API_KEY}
-      Resend__FromAddress: ${RESEND_FROM_ADDRESS}
-      Resend__ReplyTo: ${RESEND_REPLY_TO}
+      AWS__Enabled: ${AWS_ENABLED:-false}
+      AWS__Region: ${AWS_REGION:-}
+      SES__DispatcherEnabled: ${SES_DISPATCHER_ENABLED:-false}
+      SES__FromAddress: ${SES_FROM_ADDRESS:-}
+      SES__ReplyTo: ${SES_REPLY_TO:-}
+      SES__ConfigurationSetName: ${SES_CONFIGURATION_SET_NAME:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_SAFETY_IDENTIFIER_KEY: ${OPENAI_SAFETY_IDENTIFIER_KEY}
       OpenAI__Model: ${OPENAI_MODEL}

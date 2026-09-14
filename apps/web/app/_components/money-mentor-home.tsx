@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { getSpeechRecognition, saveExport, type SpeechRecognitionLike } from "@/lib/platform";
+import { RegistrationLink } from "./registration-link";
 import { useRouter } from "next/navigation";
 import {
   BarChart3,
@@ -134,27 +136,6 @@ type SettingsForm = {
   requireMerchantForExpenses: boolean;
   defaultTransactionVisibility: TransactionVisibility;
 };
-
-type SpeechRecognitionEventLike = {
-  results: ArrayLike<{
-    0?: {
-      transcript: string;
-    };
-  }>;
-};
-
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 const promptIdeas = [
   "groceries for 110 from local market",
@@ -466,15 +447,6 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
   function closeTransactionEditor() {
     setSelectedTransactionId(null);
     setEditForm(null);
-  }
-
-  function getSpeechRecognition() {
-    const speechWindow = window as typeof window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-
-    return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
   }
 
   function startVoiceInput() {
@@ -927,12 +899,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
     setError(null);
     try {
       const exported = await downloadPrivacyExport(session.accessToken);
-      const url = URL.createObjectURL(exported.blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = exported.fileName;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      await saveExport(exported.blob, exported.fileName);
     } catch (caughtError) {
       handleApiError(caughtError, "Could not export your data.");
     } finally {
@@ -951,7 +918,7 @@ export function MoneyMentorHome({ initialSection = "home" }: MoneyMentorHomeProp
         confirmation: deletionConfirmation,
       });
       clearAuthSession();
-      router.push("/signup");
+      router.push("/");
     } catch (caughtError) {
       handleApiError(caughtError, "Could not delete your account.");
     } finally {
@@ -3654,12 +3621,9 @@ function SignedOutHome() {
           >
             Login
           </Link>
-          <Link
+          <RegistrationLink
             className="inline-flex h-11 items-center justify-center rounded-lg border border-[var(--border)] bg-white px-4 text-sm font-bold text-[var(--ink)]"
-            href="/signup"
-          >
-            Sign up
-          </Link>
+          />
         </div>
       </section>
     </main>

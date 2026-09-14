@@ -42,6 +42,7 @@ public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsy
             new Dictionary<string, string>
             {
                 ["ConnectionStrings:MoneyMentorDb"] = ConnectionString,
+                ["Registration:Mode"] = "Open",
                 ["Jwt:Issuer"] = "MoneyMentor.Tests",
                 ["Jwt:Audience"] = "MoneyMentor.Api.IntegrationTests",
                 ["Jwt:SigningKey"] = "integration-tests-signing-key-at-least-32-bytes-long",
@@ -51,9 +52,8 @@ public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsy
                 ["AuthCookie:SameSite"] = "Lax",
                 ["Product:PublicWebUrl"] = "http://localhost",
                 ["Product:SupportEmail"] = "support@moneymentor.test",
-                ["Resend:ApiKey"] = "test-key",
-                ["Resend:FromAddress"] = "MoneyMentor <noreply@moneymentor.test>",
-                ["Resend:ReplyTo"] = "support@moneymentor.test",
+                ["SES:FromAddress"] = "MoneyMentor <noreply@moneymentor.test>",
+                ["SES:ReplyTo"] = "support@moneymentor.test",
                 ["RateLimits:AuthenticatedPerMinute"] = "10000",
                 ["RateLimits:AnonymousPerMinute"] = "10000",
                 ["RateLimits:SignupsPerHour"] = "10000",

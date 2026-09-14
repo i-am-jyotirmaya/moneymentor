@@ -1,0 +1,36 @@
+@import "../../web/app/globals.css";
+@source "../../web/app";
+@source "../components";
+
+/* All screen styles and tokens come from the web app. Only device insets differ. */
+body {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  overscroll-behavior-y: none;
+}
+
+main.h-dvh {
+  height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+main.min-h-screen {
+  min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+body > .mobile-connection-status {
+  position: fixed;
+  top: env(safe-area-inset-top);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--ink);
+  padding: 0.5rem 1rem;
+  text-align: center;
+  color: white;
+  font-size: 0.875rem;
+}
+
+[role="presentation"].fixed.inset-0 {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}

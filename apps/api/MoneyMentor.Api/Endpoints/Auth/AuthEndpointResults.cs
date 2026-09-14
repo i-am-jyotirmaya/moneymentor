@@ -34,6 +34,7 @@ internal static class AuthEndpointResults
             AuthFailureKind.InvalidCredentials => Results.Json(response, statusCode: StatusCodes.Status401Unauthorized),
             AuthFailureKind.Unauthorized => Results.Json(response, statusCode: StatusCodes.Status401Unauthorized),
             AuthFailureKind.NotFound => Results.NotFound(response),
+            AuthFailureKind.Forbidden => Results.Json(response, statusCode: StatusCodes.Status403Forbidden),
             AuthFailureKind.LockedOut => Results.Json(response, statusCode: StatusCodes.Status401Unauthorized),
             _ => Results.BadRequest(response)
         };

@@ -1,0 +1,66 @@
+name: mobile
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['apps/mobile/**', 'apps/web/**', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.github/workflows/mobile.yml']
+  push:
+    branches: [main]
+    paths: ['apps/mobile/**', 'apps/web/**', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.github/workflows/mobile.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Compile/test configuration only. Release builds must use the real API URL.
+  NEXT_PUBLIC_API_BASE_URL: https://api.spndrr.example
+  NEXT_PUBLIC_WEB_APP_URL: https://mvp.spndrr.com
+  NEXT_PUBLIC_SUPPORT_EMAIL: support@spndrr.com
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/setup@v2
+        with:
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          runtime: node@24
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter mobile lint
+      - run: pnpm --filter mobile test
+      - run: pnpm --filter mobile build
+      - run: pnpm --filter mobile exec playwright install --with-deps chromium
+      - run: pnpm --filter mobile test:e2e
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: pnpm --filter mobile exec cap sync android
+      - name: Compile Android debug app
+        run: ./gradlew assembleDebug --no-daemon
+        working-directory: apps/mobile/android
+
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/setup@v2
+        with:
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          runtime: node@24
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter mobile build
+      - run: pnpm --filter mobile exec cap sync ios
+      - name: Compile unsigned iOS simulator app
+        run: xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+        working-directory: apps/mobile/ios/App
