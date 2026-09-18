@@ -121,7 +121,7 @@ async function mockBackend(page: Page) {
     },
   ];
 
-  await page.route("http://localhost:5267/api/**", async (route) => {
+  await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const method = route.request().method();
 
@@ -478,7 +478,7 @@ test.beforeEach(async ({ page }) => {
   await mockBackend(page);
 });
 
-test("login posts credentials to the API without putting them in the URL", async ({ page }) => {
+test("login posts credentials to the API without putting them in the URL", async ({ page, baseURL }) => {
   await page.goto("/login");
 
   await expect(page.getByRole("button", { name: "Sign in" })).toHaveAttribute("type", "button");
@@ -487,7 +487,7 @@ test("login posts credentials to the API without putting them in the URL", async
 
   const loginRequest = page.waitForRequest(
     (request) =>
-      request.url() === "http://localhost:5267/api/auth/login" &&
+      request.url().endsWith("/api/auth/login") &&
       request.method() === "POST",
   );
 
@@ -500,12 +500,12 @@ test("login posts credentials to the API without putting them in the URL", async
     email: "demo@example.com",
     password: "dummy-secret",
   });
-  await expect(page).toHaveURL("http://127.0.0.1:3000/");
+  await expect(page).toHaveURL(new URL("/", baseURL).href);
   expect(page.url()).not.toContain("password");
   expect(page.url()).not.toContain("dummy-secret");
 });
 
-test("mobile login keeps the fresh access-token session without an immediate refresh", async ({ page }, testInfo) => {
+test("mobile login keeps the fresh access-token session without an immediate refresh", async ({ page, baseURL }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
   let refreshRequestCount = 0;
   page.on("request", (request) => {
@@ -519,7 +519,7 @@ test("mobile login keeps the fresh access-token session without an immediate ref
   await page.getByLabel("Password").fill("dummy-secret");
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page).toHaveURL("http://127.0.0.1:3000/");
+  await expect(page).toHaveURL(new URL("/", baseURL).href);
   await expect(page.getByRole("heading", { name: "What did you spend or receive?" })).toBeVisible();
   await expect(page.getByText("Sign in to use the assistant input workspace.")).toHaveCount(0);
   expect(refreshRequestCount).toBe(0);
@@ -698,7 +698,7 @@ test("silent refresh restores the session and logout calls the server", async ({
 
 test("privacy consent gate blocks finance UI until accepted", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
-  await page.route("http://localhost:5267/api/auth/refresh", async (route) => {
+  await page.route("**/api/auth/refresh", async (route) => {
     await json(route, { ...mockSession, requiresPrivacyConsent: true });
   });
   await page.goto("/");
@@ -725,7 +725,7 @@ test("delete offers undo and Premium remains read-only", async ({ page }, testIn
 
 test("Viewer household selection disables transaction writes", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
-  await page.route("http://localhost:5267/api/households", async (route) => {
+  await page.route("**/api/households", async (route) => {
     await json(route, {
       plan: "Premium",
       canUseHouseholds: true,

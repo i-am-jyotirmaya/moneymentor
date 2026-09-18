@@ -8,12 +8,12 @@ async function registration(page: Page, mode = "RequestOnly") {
 test("public entry points offer MVP requests and direct signup redirects", async ({ page }) => {
   await registration(page);
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Request MVP access" })).toHaveAttribute("href", "/request-access");
+  await expect(page.getByRole("link", { name: "Request MVP access" })).toHaveAttribute("href", /^\/request-access\/?$/);
   await expect(page.getByRole("link", { name: "Sign up", exact: true })).toHaveCount(0);
   await page.goto("/login");
   await expect(page.getByRole("link", { name: "Request MVP access" })).toBeVisible();
   await page.goto("/signup?invite=household-invitation");
-  await expect(page).toHaveURL(/\/request-access$/);
+  await expect(page).toHaveURL(/\/request-access\/?$/);
   await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
 });
 
@@ -76,13 +76,13 @@ test("registration settings failures keep signup closed", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByRole("link", { name: "Request MVP access" })).toBeVisible();
   await page.goto("/signup");
-  await expect(page).toHaveURL(/\/request-access$/);
+  await expect(page).toHaveURL(/\/request-access\/?$/);
 });
 
 test("open mode restores public signup", async ({ page }) => {
   await registration(page, "Open");
   await page.goto("/login");
-  await expect(page.getByRole("link", { name: "Create a new account" })).toHaveAttribute("href", "/signup");
+  await expect(page.getByRole("link", { name: "Create a new account" })).toHaveAttribute("href", /^\/signup\/?$/);
   await page.getByRole("link", { name: "Create a new account" }).click();
   await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
   await expect(page.getByLabel("Email", { exact: true })).toBeEditable();

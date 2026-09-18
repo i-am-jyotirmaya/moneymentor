@@ -1,0 +1,14 @@
+next-env.d.ts
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor*.json
+android/capacitor-cordova-android-plugins/
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/Pods/
+ios/DerivedData/
+*.xcuserstate
+
+*.jks
+*.keystore

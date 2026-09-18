@@ -14,20 +14,25 @@ export function SignupGate() {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
+    let version = 0;
     async function load() {
+      const requestVersion = ++version;
+      const isCurrent = () => active && requestVersion === version;
+      setState(null);
+      setError(null);
       const token = new URLSearchParams(window.location.hash.slice(1)).get("token");
       try {
         if (token) {
           const invitation = await validateSignupInvitation(token);
-          if (active) setState({ ready: true, invitation: { ...invitation, token } });
+          if (isCurrent()) setState({ ready: true, invitation: { ...invitation, token } });
         } else {
           const settings = await getRegistration();
-          if (!active) return;
+          if (!isCurrent()) return;
           if (settings.mode === "Open") setState({ ready: true });
           else router.replace("/request-access");
         }
       } catch (caught) {
-        if (!active) return;
+        if (!isCurrent()) return;
         if (!token) router.replace("/request-access");
         else setError(caught instanceof ApiError && caught.status === 403
           ? "This signup link is invalid, expired, or already used. Contact support for a replacement link."
@@ -35,7 +40,9 @@ export function SignupGate() {
       }
     }
     void load();
-    return () => { active = false; };
+    const onHashChange = () => { void load(); };
+    window.addEventListener("hashchange", onHashChange);
+    return () => { active = false; window.removeEventListener("hashchange", onHashChange); };
   }, [router]);
 
   if (state) return <AuthForm mode="signup" invitation={state.invitation} />;

@@ -6,8 +6,26 @@
       "persistent": true
     },
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**", "dist/**", "build/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "dist/**",
+        "build/**",
+        ".next-moneymentor/**",
+        "out/**"
+      ],
+      "env": [
+        "NEXT_PUBLIC_API_BASE_URL",
+        "NEXT_PUBLIC_SUPPORT_EMAIL",
+        "NEXT_PUBLIC_WEB_APP_URL"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "$TURBO_ROOT$/apps/web/**"
+      ]
     },
     "lint": {},
     "test": {},

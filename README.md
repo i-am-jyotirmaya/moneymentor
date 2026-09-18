@@ -30,7 +30,7 @@ Financial amounts and classifications are calculated by trusted backend code usi
 - The EC2 template starts judgement report scheduling, calculation, and narration disabled for the first smoke test. Dashboard calculations continue to work. Enable the workers deliberately after the core two-user flow is stable.
 - The public privacy policy is a beta draft and requires legal review before a broader launch.
 - Category and recurring-commitment APIs exist, while the current web UI primarily lists those records rather than offering the full management experience.
-- The workspace mentions a future mobile app, but no `apps/mobile` implementation exists today.
+- Android and iOS apps now live in `apps/mobile`, reusing the web UI with Capacitor. See the [mobile setup and validation guide](apps/mobile/README.md). Native device validation and store signing are still required before distribution.
 
 ## Architecture
 
@@ -314,7 +314,7 @@ The following items are product direction, not promises of shipped behavior:
 - Replace in-memory clarification state and rate limits with distributed mechanisms before scaling API replicas.
 - Add richer household privacy controls and, later, optional third-party authentication providers.
 - Establish automated encrypted backups, restore verification, alerting, and protected OTLP observability.
-- Consider a mobile client after the assistant and data-capture workflows are reliable.
+- Validate the mobile client on physical Android/iOS devices before tester distribution.
 
 Investment recommendations remain out of scope without explicit product requirements and safety review.
 

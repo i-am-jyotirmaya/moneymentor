@@ -12,7 +12,11 @@
     "build:api": "dotnet build MoneyMentor.slnx",
     "test": "turbo test && dotnet test MoneyMentor.slnx",
     "test:web:e2e": "pnpm --filter web test:e2e",
-    "lint": "turbo lint"
+    "lint": "turbo lint",
+    "build:mobile": "pnpm --filter mobile build",
+    "test:mobile": "pnpm --filter mobile test && pnpm --filter mobile test:e2e",
+    "mobile:android": "pnpm --filter mobile android",
+    "mobile:ios": "pnpm --filter mobile ios"
   },
   "keywords": [],
   "author": "",
