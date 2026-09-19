@@ -1,3 +1,4 @@
+using MoneyMentor.Infrastructure.Logging;
 using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,6 +17,7 @@ internal sealed class JudgementReportSchedulerWorker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        using var workerScope = logger.BeginJobRun(GetType().Name);
         if (!options.Value.SchedulerEnabled)
         {
             logger.LogInformation("Judgement report scheduling is disabled.");
@@ -27,6 +29,7 @@ internal sealed class JudgementReportSchedulerWorker(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            using var iterationScope = logger.BeginJobRun(GetType().Name);
             try
             {
                 var now = timeProvider.GetUtcNow();
@@ -92,6 +95,7 @@ internal abstract class JudgementReportStageWorker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        using var workerScope = logger.BeginJobRun(GetType().Name);
         if (!enabled(options.Value))
         {
             logger.LogInformation("Judgement report {JudgementWorkStage} worker is disabled.", stage);
@@ -100,6 +104,7 @@ internal abstract class JudgementReportStageWorker(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            using var iterationScope = logger.BeginJobRun(GetType().Name);
             var processed = 0;
             try
             {
@@ -129,6 +134,7 @@ internal abstract class JudgementReportStageWorker(
 
     private async Task<bool> ProcessNextAsync(CancellationToken cancellationToken)
     {
+        using var runScope = logger.BeginJobRun(GetType().Name);
         await using var scope = scopeFactory.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<IJudgementReportWorkStore>();
         var now = timeProvider.GetUtcNow();
@@ -138,6 +144,12 @@ internal abstract class JudgementReportStageWorker(
             return false;
         }
 
+        using var itemScope = logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["JudgementWorkItemId"] = claim.Id,
+            ["JudgementWorkStage"] = stage.ToString(),
+            ["Generation"] = claim.RequestedGeneration
+        });
         using var leaseCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var renewal = RenewLeaseAsync(claim, leaseCancellation.Token);
         var startedAt = Stopwatch.GetTimestamp();

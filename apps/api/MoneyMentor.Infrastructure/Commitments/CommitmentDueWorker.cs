@@ -1,3 +1,4 @@
+using MoneyMentor.Infrastructure.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -23,6 +24,7 @@ internal sealed class CommitmentDueWorker(
 
     private async Task RunOnceAsync(CancellationToken cancellationToken)
     {
+        using var runScope = logger.BeginJobRun(nameof(CommitmentDueWorker));
         try
         {
             using var scope = scopeFactory.CreateScope();

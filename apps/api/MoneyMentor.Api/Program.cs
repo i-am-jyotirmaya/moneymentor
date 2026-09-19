@@ -1,3 +1,5 @@
+using MoneyMentor.Api.Logging;
+using MoneyMentor.Infrastructure.Logging;
 using System.Globalization;
 using System.Diagnostics;
 using System.Net;
@@ -33,6 +35,7 @@ if (int.TryParse(platformPort, out var parsedPort) && parsedPort is > 0 and <= 6
 }
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.AddCloudWatchConsole();
 const string WebCorsPolicy = "MoneyMentorWeb";
 var allowedOrigins = ResolveAllowedOrigins(builder.Configuration);
 var allowLocalhostCors = builder.Configuration.GetValue<bool>("Cors:AllowLocalhost")
@@ -89,7 +92,7 @@ builder.Services.AddCors(options =>
             .WithOrigins(allowedOrigins)
             .WithHeaders("Authorization", "Content-Type")
             .WithMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
-            .WithExposedHeaders("Retry-After", "Content-Disposition")
+            .WithExposedHeaders("Retry-After", "Content-Disposition", "X-Request-ID")
             .AllowCredentials());
 });
 var rateLimits = builder.Configuration.GetSection(RateLimitSettings.SectionName).Get<RateLimitSettings>()
@@ -175,6 +178,8 @@ builder.Logging.AddOpenTelemetry(options =>
 });
 
 var app = builder.Build();
+
+app.UseMiddleware<RequestLoggingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
