@@ -1,20 +1,35 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
 import { getRegistration } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { ProgressLink as Link } from "./navigation-progress";
 
-export function RegistrationLink({ className }: { className?: string }) {
-  const [isOpen, setIsOpen] = useState(false);
+export function RegistrationLink({
+  className,
+  initialIsOpen,
+}: {
+  className?: string;
+  initialIsOpen?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(initialIsOpen ?? false);
   useEffect(() => {
+    if (initialIsOpen !== undefined) return;
     let active = true;
-    getRegistration().then(settings => {
-      if (active) setIsOpen(settings.mode === "Open");
-    }).catch(() => { /* Fail closed: keep the access request link. */ });
-    return () => { active = false; };
-  }, []);
+    getRegistration()
+      .then((settings) => {
+        if (active) setIsOpen(settings.mode === "Open");
+      })
+      .catch(() => {
+        /* Fail closed: keep the access request link. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [initialIsOpen]);
 
-  return <Link className={className} href={isOpen ? "/signup" : "/request-access"}>
-    {isOpen ? "Create a new account" : "Request MVP access"}
-  </Link>;
+  return (
+    <Link className={className} href={isOpen ? "/signup" : "/request-access"}>
+      {isOpen ? "Create a new account" : "Request MVP access"}
+    </Link>
+  );
 }

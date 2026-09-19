@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import type {
-  HouseholdDashboard,
-  HouseholdInvitation,
-  HouseholdRole,
+HouseholdDashboard,
+HouseholdInvitation,
+HouseholdRole,
 } from "@/lib/api";
+import { useState } from "react";
 
 export function useHouseholdScopeState() {
   const [households, setHouseholds] = useState<HouseholdDashboard | null>(null);

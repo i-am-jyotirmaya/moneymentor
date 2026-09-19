@@ -105,3 +105,15 @@ test("request failures allow retry and the reason is optional", async ({ page })
   await page.getByRole("button", { name: "Request MVP access" }).click();
   await expect(page.getByRole("status")).toContainText("Your request has been received");
 });
+
+test("public sign-in content is rendered without JavaScript", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  const page = await context.newPage();
+  try {
+    await page.goto("/login");
+    await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+    await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});

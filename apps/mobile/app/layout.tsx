@@ -1,3 +1,4 @@
+import { NavigationProgress } from "../../web/app/_components/navigation-progress";
 import type { Metadata, Viewport } from "next";
 import { MobileRuntime } from "../components/mobile-runtime";
 import "./mobile.css";
@@ -14,8 +15,17 @@ export const viewport: Viewport = {
   themeColor: "#f4f7f6",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en" className="h-full antialiased">
-    <body className="min-h-full"><MobileRuntime />{children}</body>
-  </html>;
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" className="h-full antialiased">
+      <body className="min-h-full">
+        <MobileRuntime />
+        <NavigationProgress>{children}</NavigationProgress>
+      </body>
+    </html>
+  );
 }
