@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using MoneyMentor.Infrastructure.Logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +33,7 @@ public static class OperationsCommand
         try
         {
             var builder = Host.CreateApplicationBuilder();
+            builder.Logging.AddCloudWatchConsole();
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
                 builder.Configuration[$"ConnectionStrings:{DependencyInjection.ConnectionStringName}"] =
@@ -46,14 +49,24 @@ public static class OperationsCommand
             await using var services = builder.Services.BuildServiceProvider();
             await using var scope = services.CreateAsyncScope();
 
-            return args[0].ToLowerInvariant() switch
+            var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("MoneyMentor.Operations");
+            using var runScope = logger.BeginJobRun($"Operations.{args[0].ToLowerInvariant()}");
+            try
             {
-                "migrate" => await MigrateAsync(scope.ServiceProvider),
-                "entitlement" => await ChangeEntitlementAsync(scope.ServiceProvider, args[1..]),
-                "access-requests" => await ManageAccessRequestsAsync(scope.ServiceProvider, args[1..]),
-                "judgement-reports" => await ManageJudgementReportsAsync(scope.ServiceProvider, args[1..]),
-                _ => UnknownCommand(args[0])
-            };
+                return args[0].ToLowerInvariant() switch
+                {
+                    "migrate" => await MigrateAsync(scope.ServiceProvider),
+                    "entitlement" => await ChangeEntitlementAsync(scope.ServiceProvider, args[1..]),
+                    "access-requests" => await ManageAccessRequestsAsync(scope.ServiceProvider, args[1..]),
+                    "judgement-reports" => await ManageJudgementReportsAsync(scope.ServiceProvider, args[1..]),
+                    _ => UnknownCommand(args[0])
+                };
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(exception, "Operation failed.");
+                return 1;
+            }
         }
         catch (Exception exception)
         {
@@ -61,6 +74,9 @@ public static class OperationsCommand
             return 1;
         }
     }
+
+    private static ILogger GetLogger(IServiceProvider services) =>
+        services.GetRequiredService<ILoggerFactory>().CreateLogger("MoneyMentor.Operations");
 
     private static async Task<int> ManageAccessRequestsAsync(IServiceProvider services, string[] args)
     {
@@ -76,9 +92,7 @@ public static class OperationsCommand
         if (!Guid.TryParse(Required(options, "id"), out var id))
             throw new ArgumentException("--id must be a request GUID.");
         await service.ReviewAsync(id, args[0], Required(options, "operator"), CancellationToken.None);
-        Console.WriteLine(args[0] == "reject"
-            ? $"Request {id} rejected; any unused signup link is invalid."
-            : $"Request {id} approved; signup email sent. The link expires in seven days.");
+        GetLogger(services).LogInformation("Access request {AccessRequestId} action {Action} completed.", id, args[0]);
         return 0;
     }
 
@@ -89,7 +103,7 @@ public static class OperationsCommand
 
         await authDbContext.Database.MigrateAsync();
         await appDbContext.Database.MigrateAsync();
-        Console.WriteLine("Auth and application migrations completed.");
+        GetLogger(services).LogInformation("Auth and application migrations completed.");
         return 0;
     }
 
@@ -123,7 +137,7 @@ public static class OperationsCommand
 
         if (profile.Plan == newPlan)
         {
-            Console.WriteLine($"Profile is already on the {newPlan} plan; no change was recorded.");
+            GetLogger(services).LogInformation("Profile is already on the {Plan} plan; no change was recorded.", newPlan);
             await transaction.RollbackAsync();
             return 0;
         }
@@ -144,7 +158,7 @@ public static class OperationsCommand
 
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
-        Console.WriteLine($"Changed entitlement from {previousPlan} to {newPlan} for profile {profile.Id}.");
+        GetLogger(services).LogInformation("Changed entitlement from {PreviousPlan} to {NewPlan} for profile {ProfileId}.", previousPlan, newPlan, profile.Id);
         return 0;
     }
 
@@ -184,7 +198,7 @@ public static class OperationsCommand
             }
         }
 
-        Console.WriteLine($"Judgement report backfill would enqueue {desired.Count} calculation window(s). Dry run: {dryRun}.");
+        GetLogger(services).LogInformation("Judgement report backfill would enqueue {WindowCount} calculation window(s). Dry run: {DryRun}.", desired.Count, dryRun);
         if (dryRun)
         {
             return 0;
@@ -220,7 +234,7 @@ public static class OperationsCommand
             }
         }
         await dbContext.SaveChangesAsync();
-        Console.WriteLine("Judgement report backfill calculations were queued oldest-first.");
+        GetLogger(services).LogInformation("Judgement report backfill calculations were queued oldest-first.");
         return 0;
     }
 

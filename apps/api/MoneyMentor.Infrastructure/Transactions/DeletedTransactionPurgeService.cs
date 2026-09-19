@@ -1,3 +1,4 @@
+using MoneyMentor.Infrastructure.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,7 @@ internal sealed class DeletedTransactionPurgeService(
 
     private async Task PurgeAsync(CancellationToken cancellationToken)
     {
+        using var runScope = logger.BeginJobRun(nameof(DeletedTransactionPurgeService));
         try
         {
             await using var scope = scopeFactory.CreateAsyncScope();
