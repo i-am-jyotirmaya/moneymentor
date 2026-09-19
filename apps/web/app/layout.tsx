@@ -1,3 +1,4 @@
+import { NavigationProgress } from "./_components/navigation-progress";
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <NavigationProgress>{children}</NavigationProgress>
+      </body>
     </html>
   );
 }

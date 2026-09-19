@@ -531,7 +531,7 @@ test("desktop dashboard is the default authenticated screen", async ({ page }, t
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-  await expect(page.getByText("Backend data")).toBeVisible();
+  await expect(page.getByText("Backend data")).toHaveCount(0);
   await expect(page.getByText("Income", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Spends", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Groceries", { exact: true }).first()).toBeVisible();
@@ -629,7 +629,7 @@ test("desktop assistant sends a finance question to the backend", async ({ page 
   test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await page.getByRole("link", { name: "Assistant", exact: true }).click();
   await page.getByLabel("Message Spndrr").first().fill("where did I spend most this month?");
   await page.getByRole("button", { name: "Send message" }).first().click();
 
@@ -640,7 +640,7 @@ test("assistant tracks income with sender and reason terminology", async ({ page
   test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await page.getByRole("link", { name: "Assistant", exact: true }).click();
   await page.getByLabel("Message Spndrr").first().fill("Joe sent me 300 Rs for chips");
   await page.getByRole("button", { name: "Send message" }).first().click();
   await expect(page.getByText("Tracked ₹300 received from Joe for chips.").first()).toBeVisible();
@@ -764,10 +764,10 @@ test("mobile hamburger menu can open the dashboard", async ({ page }, testInfo) 
   await page.goto("/");
   await page.getByRole("button", { name: "Open menu" }).click();
   await expect(page.getByLabel("Mobile menu")).toBeVisible();
-  await page.getByRole("button", { name: "Dashboard" }).click();
+  await page.getByRole("navigation", { name: "Mobile navigation", exact: true }).getByRole("link", { name: "Dashboard" }).click();
 
   await expect(page.getByRole("heading", { name: "Dashboard" }).last()).toBeVisible();
-  await expect(page.getByText("Backend data").last()).toBeVisible();
+  await expect(page.getByText("Backend data")).toHaveCount(0);
 });
 
 test("voice interaction shows wave feedback and sends captured speech", async ({ page }, testInfo) => {
@@ -916,3 +916,85 @@ function createTransaction({
     purgeAfter,
   };
 }
+
+test("navigation has real URLs and keeps an unsent tracking draft", async ({ page }, testInfo) => {
+  await page.goto("/assistant");
+  await page.getByLabel("Message Spndrr").fill("coffee 120");
+  const navigation = page.getByRole("navigation", { name: testInfo.project.name === "mobile-chromium" ? "Quick navigation" : "Desktop navigation" });
+  await navigation.getByRole("link", { name: "Transactions", exact: true }).click();
+  await expect(page).toHaveURL(/\/transactions\/?$/);
+  await expect(page.getByRole("heading", { name: "Transactions", exact: true }).last()).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/assistant\/?$/);
+  await expect(page.getByLabel("Message Spndrr")).toHaveValue("coffee 120");
+  await expect(page.getByLabel("Message Spndrr")).toHaveCount(1);
+});
+
+test("transaction filters and editor survive reload and Back", async ({ page }) => {
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await expect(page.getByLabel("Transaction month", { exact: true })).toHaveValue(previousMonthKey);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  await expect(page).toHaveURL(/edit=/);
+  await page.reload();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: "Close transaction editor" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("dashboard drawer is represented by a fragment", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop drawer");
+  await page.goto("/dashboard#assistant");
+  await expect(page.getByRole("dialog", { name: "Assistant chat" })).toBeVisible();
+  await page.getByRole("button", { name: "Close assistant chat" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goBack();
+  await expect(page.getByRole("dialog", { name: "Assistant chat" })).toBeVisible();
+});
+
+test("invalid URL filters fall back to a usable transaction view", async ({ page }) => {
+  await page.goto("/transactions?month=2026-99&page=-12");
+  await expect(page.getByLabel("Transaction month", { exact: true })).toHaveValue(currentMonthKey);
+  await expect(page.getByRole("button", { name: "Previous transaction page" })).toBeDisabled();
+});
+
+test("slow workspace requests show skeletons and a loading bar", async ({ page }) => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/dashboard/**", async route => {
+    await gate;
+    await route.fallback();
+  });
+  await page.goto("/dashboard");
+  await expect(page.getByRole("status", { name: "Loading content" })).toBeVisible();
+  await expect(page.getByRole("progressbar", { name: "Loading page" })).toBeVisible();
+  release();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true }).last()).toBeVisible();
+  await expect(page.getByRole("progressbar", { name: "Loading page" })).toHaveCount(0);
+});
+
+test("report filters restore from URLs and browser history", async ({ page }) => {
+  await page.route("**/api/judgement-reports**", route => new URL(route.request().url()).pathname.endsWith("history") ? json(route, []) : route.fulfill({ status: 404, body: "No completed report" }));
+  await page.route("**/api/judgements/active**", route => json(route, []));
+  await page.goto("/reports?cadence=Monthly&scope=Personal");
+  await expect(page.getByRole("button", { name: "Monthly", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Weekly", exact: true }).click();
+  await expect(page).toHaveURL(/cadence=Weekly/);
+  await page.goBack();
+  await expect(page.getByRole("button", { name: "Monthly", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Monthly", exact: true })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("goal deep links load the selected goal", async ({ page }) => {
+  const goal = { id: "goal-emergency", name: "Emergency reserve", userProfileId: "profile", remainingAmount: 50000, currentAmount: 1000, targetAmount: 51000, goalType: "Saving", priority: "Medium", status: "Active" };
+  await page.route("**/api/goals?**", route => json(route, [goal]));
+  await page.route("**/api/goals/goal-emergency", route => json(route, { goal, plan: null, currentUserConsent: null }));
+  await page.goto("/planning?goal=goal-emergency#goal-plan");
+  await expect(page.locator("#goal-plan").getByText("Emergency reserve", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.locator("#goal-plan").getByText("Emergency reserve", { exact: true })).toBeVisible();
+});

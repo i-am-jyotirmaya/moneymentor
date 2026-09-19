@@ -1,4 +1,4 @@
-const routes = new Set(["/", "/login", "/signup", "/request-access", "/transactions", "/planning", "/household", "/settings", "/privacy"]);
+const routes = new Set(["/", "/login", "/signup", "/request-access", "/transactions", "/dashboard", "/assistant", "/reports", "/planning", "/household", "/settings", "/privacy"]);
 
 // Return only a known local route, never an arbitrary URL or script.
 export function mobileLinkTarget(value, webOrigin = "https://mvp.spndrr.com") {

@@ -20,10 +20,10 @@
   --danger: #9b1c1c;
   --danger-bg: #fff1f0;
   --danger-border: #f3c2bd;
-  --app-font-sans: "Inter", "SF Pro Display", "Segoe UI", ui-sans-serif,
-    system-ui, sans-serif;
-  --app-font-mono: "SFMono-Regular", "Cascadia Code", "Liberation Mono", Menlo,
-    monospace;
+  --app-font-sans:
+    "Inter", "SF Pro Display", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --app-font-mono:
+    "SFMono-Regular", "Cascadia Code", "Liberation Mono", Menlo, monospace;
 }
 
 @theme inline {
@@ -139,7 +139,11 @@ textarea {
 
 .chat-panel {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.72)),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.86),
+      rgba(255, 255, 255, 0.72)
+    ),
     var(--chat-panel);
 }
 
@@ -193,7 +197,11 @@ textarea {
   isolation: isolate;
   border: 1px solid rgba(15, 143, 123, 0.22);
   background:
-    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.96), rgba(228, 246, 241, 0.86)),
+    radial-gradient(
+      circle at 35% 30%,
+      rgba(255, 255, 255, 0.96),
+      rgba(228, 246, 241, 0.86)
+    ),
     var(--accent-soft);
   box-shadow:
     0 0 0 4px rgba(15, 143, 123, 0.06),
@@ -219,7 +227,11 @@ textarea {
   inset: -8px;
   z-index: -2;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(15, 143, 123, 0.18), transparent 62%);
+  background: radial-gradient(
+    circle,
+    rgba(15, 143, 123, 0.18),
+    transparent 62%
+  );
   opacity: 0.76;
   animation: ai-pulse 2.2s ease-in-out infinite;
 }
@@ -385,5 +397,28 @@ textarea {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+}
+
+.page-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  height: 3px;
+  z-index: 100;
+  overflow: hidden;
+  background: var(--accent-soft);
+}
+.page-progress > div {
+  height: 100%;
+  width: 40%;
+  background: var(--accent);
+  animation: page-progress 1.2s ease-in-out infinite;
+}
+@keyframes page-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(350%);
   }
 }

@@ -1,21 +1,28 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, MouseEvent, useState } from "react";
 import { ApiError, createUser, login, requestMvpAccess } from "@/lib/api";
 import { saveAuthSession } from "@/lib/auth-session";
+import { FormEvent, MouseEvent, useState } from "react";
 import { ArrowRightIcon, BrandMarkIcon } from "./icons";
+import {
+  ProgressLink as Link,
+  useProgressRouter as useRouter,
+} from "./navigation-progress";
 import { RegistrationLink } from "./registration-link";
 
 type AuthMode = "login" | "signup" | "request";
 
 type AuthFormProps = {
   mode: AuthMode;
+  registrationLink?: React.ReactNode;
   invitation?: { token: string; name: string; email: string };
 };
 
-export function AuthForm({ mode, invitation }: AuthFormProps) {
+export function AuthForm({
+  mode,
+  invitation,
+  registrationLink,
+}: AuthFormProps) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState(invitation?.name ?? "");
   const [email, setEmail] = useState(invitation?.email ?? "");
@@ -39,7 +46,11 @@ export function AuthForm({ mode, invitation }: AuthFormProps) {
 
     try {
       if (isRequest) {
-        await requestMvpAccess({ name: displayName.trim(), email: email.trim(), reason: reason.trim() || undefined });
+        await requestMvpAccess({
+          name: displayName.trim(),
+          email: email.trim(),
+          reason: reason.trim() || undefined,
+        });
         setRequestSent(true);
         return;
       }
@@ -64,7 +75,7 @@ export function AuthForm({ mode, invitation }: AuthFormProps) {
       if (caughtError instanceof ApiError) {
         setError(caughtError.errors.join(" "));
       } else {
-        setError("Could not reach the Spndrr API. Check that the backend is running.");
+        setError("Could not connect to Spndrr. Please try again in a moment.");
       }
     } finally {
       setIsSubmitting(false);
@@ -86,166 +97,175 @@ export function AuthForm({ mode, invitation }: AuthFormProps) {
   }
 
   return (
-    <main className="auth-shell min-h-screen px-5 py-6 text-[var(--ink)] sm:px-8 lg:px-10">
-      <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(360px,460px)]">
-        <section className="hidden lg:block">
-          <Link
-            className="inline-flex items-center gap-3 rounded-lg text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-            href="/login"
-          >
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
-              <BrandMarkIcon className="h-6 w-6" />
-            </span>
-            <span className="text-lg font-semibold">Spndrr</span>
-          </Link>
+    <section className="mx-auto w-full max-w-md rounded-lg border border-[var(--border)] bg-white p-5 shadow-[0_24px_80px_rgba(16,43,38,0.12)] sm:p-7">
+      <div className="mb-8 flex items-center justify-between gap-4">
+        <Link
+          className="inline-flex items-center gap-3 rounded-lg text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] lg:hidden"
+          href="/login"
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
+            <BrandMarkIcon className="h-6 w-6" />
+          </span>
+          <span className="text-lg font-semibold">Spndrr</span>
+        </Link>
+        <span className="hidden text-sm font-semibold text-[var(--muted)] lg:block">
+          {isRequest
+            ? "MVP access"
+            : isSignup
+              ? "Create account"
+              : "Welcome back"}
+        </span>
+      </div>
 
-          <div className="mt-16 max-w-xl">
-            <h1 className="text-5xl font-semibold leading-tight tracking-normal text-[var(--ink)]">
-              A calm place to tell your money what happened.
-            </h1>
-            <p className="mt-5 max-w-lg text-lg font-medium leading-8 text-[var(--muted)]">
-              Sign in, type naturally, and let Spndrr turn quick notes into
-              clear finance drafts before anything is saved.
-            </p>
-          </div>
+      <div className="mb-7">
+        <h2 className="text-3xl font-semibold tracking-normal text-[var(--ink)]">
+          {isRequest
+            ? "Request MVP access"
+            : isSignup
+              ? "Create your account"
+              : "Sign in"}
+        </h2>
+        <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted)]">
+          {isRequest
+            ? "Spndrr is currently available by approval. Tell us a little about yourself to request access."
+            : isSignup
+              ? "Start with the assistant input, then build the rest around real data."
+              : "Continue to your Spndrr workspace."}
+        </p>
+      </div>
 
-          <div className="mt-12 grid max-w-xl grid-cols-3 gap-3">
-            {["Natural input", "Draft first", "Private by default"].map(
-              (item) => (
-                <div
-                  className="rounded-lg border border-[var(--border)] bg-white p-4 text-sm font-semibold text-[var(--ink)] shadow-sm"
-                  key={item}
-                >
-                  {item}
-                </div>
-              ),
-            )}
-          </div>
-        </section>
-
-        <section className="mx-auto w-full max-w-md rounded-lg border border-[var(--border)] bg-white p-5 shadow-[0_24px_80px_rgba(16,43,38,0.12)] sm:p-7">
-          <div className="mb-8 flex items-center justify-between gap-4">
-            <Link
-              className="inline-flex items-center gap-3 rounded-lg text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] lg:hidden"
-              href="/login"
-            >
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
-                <BrandMarkIcon className="h-6 w-6" />
-              </span>
-              <span className="text-lg font-semibold">Spndrr</span>
-            </Link>
-            <span className="hidden text-sm font-semibold text-[var(--muted)] lg:block">
-              {isRequest ? "MVP access" : isSignup ? "Create account" : "Welcome back"}
-            </span>
-          </div>
-
-          <div className="mb-7">
-            <h2 className="text-3xl font-semibold tracking-normal text-[var(--ink)]">
-              {isRequest ? "Request MVP access" : isSignup ? "Create your account" : "Sign in"}
-            </h2>
-            <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted)]">
-              {isRequest
-                ? "Spndrr is currently available by approval. Tell us a little about yourself to request access."
-                : isSignup
-                ? "Start with the assistant input, then build the rest around real data."
-                : "Continue to your Spndrr workspace."}
-            </p>
-          </div>
-
-          {requestSent ? <p role="status" className="rounded-lg bg-[var(--accent-soft)] p-4 text-sm leading-6">
-            Your request has been received. We’ll email you if access is approved.
-          </p> : <form className="space-y-4" method="post" onSubmit={handleSubmit}>
-            {isSignup || isRequest ? (
-              <Field
-                autoComplete="name"
-                label="Display name"
-                onChange={setDisplayName}
-                placeholder="Aarav Shah"
-                value={displayName}
-                maxLength={128}
-              />
-            ) : null}
-
+      {requestSent ? (
+        <p
+          role="status"
+          className="rounded-lg bg-[var(--accent-soft)] p-4 text-sm leading-6"
+        >
+          Your request has been received. We’ll email you if access is approved.
+        </p>
+      ) : (
+        <form className="space-y-4" method="post" onSubmit={handleSubmit}>
+          {isSignup || isRequest ? (
             <Field
-              autoComplete="email"
-              label="Email"
-              onChange={setEmail}
-              placeholder="name@example.com"
-              type="email"
-              value={email}
-              readOnly={!!invitation}
-              maxLength={256}
+              autoComplete="name"
+              label="Display name"
+              onChange={setDisplayName}
+              placeholder="Aarav Shah"
+              value={displayName}
+              maxLength={128}
             />
+          ) : null}
 
-            {!isRequest && <Field
+          <Field
+            autoComplete="email"
+            label="Email"
+            onChange={setEmail}
+            placeholder="name@example.com"
+            type="email"
+            value={email}
+            readOnly={!!invitation}
+            maxLength={256}
+          />
+
+          {!isRequest && (
+            <Field
               autoComplete={isSignup ? "new-password" : "current-password"}
               label="Password"
               onChange={setPassword}
               placeholder="At least 8 characters"
               type="password"
               value={password}
-            />}
+            />
+          )}
 
-            {isRequest && <label className="block space-y-2 text-sm font-semibold">
+          {isRequest && (
+            <label className="block space-y-2 text-sm font-semibold">
               <span>Why would you like access? (optional)</span>
-              <textarea className="min-h-24 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-base outline-none focus:border-[var(--accent)]"
-                value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} />
-            </label>}
-            {isRequest && <p className="text-sm text-[var(--muted)]">We’ll use these details to review your request and contact you about access. <Link className="underline" href="/privacy">Privacy policy</Link></p>}
-
-            {isSignup ? (
-              <label className="flex items-start gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-sm font-medium leading-6 text-[var(--muted)]">
-                <input
-                  checked={acceptPrivacyPolicy}
-                  className="mt-1 h-4 w-4 accent-[var(--accent)]"
-                  onChange={(event) => setAcceptPrivacyPolicy(event.target.checked)}
-                  required
-                  type="checkbox"
-                />
-                <span>
-                  I accept the{" "}
-                  <Link className="font-bold text-[var(--accent)] underline" href="/privacy" target="_blank">
-                    beta privacy policy
-                  </Link>
-                  {" "}(version 2026-07-26-ai-planning.1).
-                </span>
-              </label>
-            ) : null}
-
-            {error ? (
-              <p role="alert" className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm font-medium leading-6 text-[var(--danger)]">
-                {error}
-              </p>
-            ) : null}
-
-            <button
-              className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-5 text-sm font-bold text-white shadow-[0_14px_35px_rgba(16,43,38,0.22)] transition hover:-translate-y-0.5 hover:bg-[#173d36] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
-              disabled={isSubmitting}
-              onClick={handleSubmitClick}
-              type="button"
-            >
-              <span>{isSubmitting ? "Working..." : isRequest ? "Request MVP access" : isSignup ? "Create account" : "Sign in"}</span>
-              <ArrowRightIcon className="h-4 w-4" />
-            </button>
-          </form>}
-
-          <div className="mt-6 flex justify-center text-sm font-semibold">
-            {isSignup || isRequest ? (
-              <Link
-                className="rounded-lg px-3 py-2 text-[var(--accent)] outline-none transition hover:bg-[var(--accent-soft)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                href="/login"
-              >
-                I already have an account
-              </Link>
-            ) : (
-              <RegistrationLink
-                className="rounded-lg px-3 py-2 text-[var(--accent)] outline-none transition hover:bg-[var(--accent-soft)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              <textarea
+                className="min-h-24 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-base outline-none focus:border-[var(--accent)]"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                maxLength={1000}
               />
-            )}
-          </div>
-        </section>
+            </label>
+          )}
+          {isRequest && (
+            <p className="text-sm text-[var(--muted)]">
+              We’ll use these details to review your request and contact you
+              about access.{" "}
+              <Link className="underline" href="/privacy">
+                Privacy policy
+              </Link>
+            </p>
+          )}
+
+          {isSignup ? (
+            <label className="flex items-start gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-sm font-medium leading-6 text-[var(--muted)]">
+              <input
+                checked={acceptPrivacyPolicy}
+                className="mt-1 h-4 w-4 accent-[var(--accent)]"
+                onChange={(event) =>
+                  setAcceptPrivacyPolicy(event.target.checked)
+                }
+                required
+                type="checkbox"
+              />
+              <span>
+                I accept the{" "}
+                <Link
+                  className="font-bold text-[var(--accent)] underline"
+                  href="/privacy"
+                  target="_blank"
+                >
+                  beta privacy policy
+                </Link>{" "}
+                (version 2026-07-26-ai-planning.1).
+              </span>
+            </label>
+          ) : null}
+
+          {error ? (
+            <p
+              role="alert"
+              className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm font-medium leading-6 text-[var(--danger)]"
+            >
+              {error}
+            </p>
+          ) : null}
+
+          <button
+            className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-5 text-sm font-bold text-white shadow-[0_14px_35px_rgba(16,43,38,0.22)] transition hover:-translate-y-0.5 hover:bg-[#173d36] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
+            disabled={isSubmitting}
+            onClick={handleSubmitClick}
+            type="button"
+          >
+            <span>
+              {isSubmitting
+                ? "Working..."
+                : isRequest
+                  ? "Request MVP access"
+                  : isSignup
+                    ? "Create account"
+                    : "Sign in"}
+            </span>
+            <ArrowRightIcon className="h-4 w-4" />
+          </button>
+        </form>
+      )}
+
+      <div className="mt-6 flex justify-center text-sm font-semibold">
+        {isSignup || isRequest ? (
+          <Link
+            className="rounded-lg px-3 py-2 text-[var(--accent)] outline-none transition hover:bg-[var(--accent-soft)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            href="/login"
+          >
+            I already have an account
+          </Link>
+        ) : (
+          (registrationLink ?? (
+            <RegistrationLink className="rounded-lg px-3 py-2 text-[var(--accent)] outline-none transition hover:bg-[var(--accent-soft)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]" />
+          ))
+        )}
       </div>
-    </main>
+    </section>
   );
 }
 
