@@ -157,3 +157,42 @@ docker compose --env-file deploy/aws/.env.example -f deploy/aws/compose.yml conf
 ```
 
 Integration tests need Docker for disposable PostgreSQL. AWS tests use isolated configuration and require no AWS account. Build both images with the commands above; real EC2/Neon smoke tests remain a deployment step.
+
+### Resend live smoke test
+
+After a successful API deployment, the Deploy API workflow runs `email-smoke-test`
+inside the single running container matching the immutable deployed image. This uses
+that container's `Resend__ApiKey`, `Resend__FromAddress`, and optional
+`Resend__ReplyTo`; no additional GitHub secret is required. The remote deploy script
+must return only after the API is running. Missing/ambiguous containers or a failed
+send fail the workflow, but do not roll back an already completed deployment.
+
+The command sends only to `jyotirmayasahu38@gmail.com`. It uses the production sender,
+requires a non-empty provider message ID, and logs that ID for tracing. Acceptance
+by Resend does not prove inbox delivery: check the inbox/spam folder or Resend delivery
+events. It does not create accounts or change database records.
+
+Manual test inside the running API container:
+
+```bash
+docker compose exec -T api dotnet /app/operations/MoneyMentor.Operations.dll email-smoke-test --delivery-id YOUR_GUID
+```
+
+Generate a new GUID for a new test; reuse it when retrying the same test. The workflow
+derives it from the workflow run ID so reruns use the same payload/idempotency key.
+Resend deduplicates within its 24-hour window; retries later can send another email.
+
+The regular test suite covers command success, failure, missing provider ID, and
+invalid delivery ID without sending mail. To explicitly run the live integration test
+with a .NET 10 SDK, configure `Resend__ApiKey`, `Resend__FromAddress` (verified sender),
+and optionally `Resend__ReplyTo` in your environment, then run:
+
+```bash
+export RUN_RESEND_LIVE_TEST=true
+export RESEND_TEST_DELIVERY_ID=YOUR_GUID
+dotnet test apps/api/MoneyMentor.Api.IntegrationTests/MoneyMentor.Api.IntegrationTests.csproj --filter 'Category=LiveEmail'
+```
+
+Do not enable the live test in ordinary PR CI. When explicitly enabled, missing
+credentials or an invalid delivery ID fail the test. Keep API keys out of shell
+history and source control.

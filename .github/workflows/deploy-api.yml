@@ -65,9 +65,21 @@ jobs:
           INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
           IMAGE: ${{ steps.image.outputs.uri }}
         run: |
-          PARAMS=$(jq -nc \
-            --arg cmd "/opt/spndrr/deploy.sh '$IMAGE'" \
-            '{commands:[$cmd]}')
+          # Stable across workflow retries, with a stable email payload.
+          DELIVERY_ID=$(printf '%s' "$GITHUB_RUN_ID" | sha256sum | cut -c1-32)
+          REMOTE_SCRIPT=$(cat <<EOF
+          set -eu
+          /opt/spndrr/deploy.sh '$IMAGE'
+          CONTAINERS=\$(docker ps --filter 'ancestor=$IMAGE' --format '{{.ID}}')
+          set -- \$CONTAINERS
+          if [ \$# -ne 1 ]; then
+            echo 'Expected exactly one running container for the deployed API image.'
+            exit 1
+          fi
+          docker exec "\$1" dotnet /app/operations/MoneyMentor.Operations.dll email-smoke-test --delivery-id '$DELIVERY_ID'
+          EOF
+          )
+          PARAMS=$(jq -nc --arg cmd "$REMOTE_SCRIPT" '{commands:[$cmd]}')
 
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
