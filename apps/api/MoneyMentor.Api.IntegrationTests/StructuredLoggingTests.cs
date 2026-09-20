@@ -71,7 +71,7 @@ public sealed class StructuredLoggingTests
             var runId = Assert.Single(events.Select(record => record.GetProperty("RunId").GetString()).Distinct());
             Assert.True(runs.Add(runId!));
             Assert.All(events, record => Assert.Equal("Job", record.GetProperty("LogType").GetString()));
-            var child = Assert.Single(events.Where(record => record.GetProperty("SourceContext").GetString() == "Dependency"));
+            var child = Assert.Single(events, record => record.GetProperty("SourceContext").GetString() == "Dependency");
             Assert.Equal(child.GetProperty("Properties").GetProperty("ExpectedThreadId").GetInt32(), child.GetProperty("ThreadId").GetInt32());
         }
         Assert.Equal("System", records[^1].GetProperty("LogType").GetString());
@@ -138,7 +138,7 @@ public sealed class StructuredLoggingTests
         {
             var requestEvents = records.Where(record => record.GetProperty("RequestId").GetString() == id).ToArray();
             Assert.Contains(requestEvents, record => record.GetProperty("SourceContext").GetString() == "Endpoint");
-            var completion = Assert.Single(requestEvents.Where(record => record.GetProperty("SourceContext").GetString() == typeof(RequestLoggingMiddleware).FullName));
+            var completion = Assert.Single(requestEvents, record => record.GetProperty("SourceContext").GetString() == typeof(RequestLoggingMiddleware).FullName);
             Assert.Equal(fail ? 500 : 204, completion.GetProperty("Properties").GetProperty("StatusCode").GetInt32());
             Assert.All(requestEvents, record => Assert.Equal("Request", record.GetProperty("LogType").GetString()));
             if (fail) Assert.Contains(requestEvents, record => record.GetProperty("Exception").ValueKind == JsonValueKind.String);
