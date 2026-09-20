@@ -56,6 +56,7 @@ public static class OperationsCommand
                 return args[0].ToLowerInvariant() switch
                 {
                     "migrate" => await MigrateAsync(scope.ServiceProvider),
+                    "email-smoke-test" => await RunEmailSmokeTestAsync(scope.ServiceProvider, args[1..]),
                     "entitlement" => await ChangeEntitlementAsync(scope.ServiceProvider, args[1..]),
                     "access-requests" => await ManageAccessRequestsAsync(scope.ServiceProvider, args[1..]),
                     "judgement-reports" => await ManageJudgementReportsAsync(scope.ServiceProvider, args[1..]),
@@ -73,6 +74,16 @@ public static class OperationsCommand
             Console.Error.WriteLine($"Operation failed: {exception.Message}");
             return 1;
         }
+    }
+
+    private static Task<int> RunEmailSmokeTestAsync(IServiceProvider services, string[] args)
+    {
+        var options = ParseOptions(args);
+        if (!Guid.TryParse(Required(options, "delivery-id"), out var deliveryId) || deliveryId == Guid.Empty)
+            throw new ArgumentException("--delivery-id must be a non-empty GUID; reuse it for retries.");
+        return EmailSmokeTest.RunAsync(
+            services.GetRequiredService<MoneyMentor.Application.Households.ITransactionalEmailSender>(),
+            GetLogger(services), deliveryId, CancellationToken.None);
     }
 
     private static ILogger GetLogger(IServiceProvider services) =>
@@ -373,6 +384,7 @@ public static class OperationsCommand
     {
         Console.Error.WriteLine("Usage:");
         Console.Error.WriteLine("  MoneyMentor.Operations migrate");
+        Console.Error.WriteLine("  MoneyMentor.Operations email-smoke-test --delivery-id <guid>");
         Console.Error.WriteLine("  MoneyMentor.Operations access-requests list [--status pending|approved|rejected|registered|all]");
         Console.Error.WriteLine("  MoneyMentor.Operations access-requests approve|reject|resend --id <request-id> --operator <name>");
         Console.Error.WriteLine("  MoneyMentor.Operations entitlement grant|revoke --email <email> --operator <name> --reason <reason>");
