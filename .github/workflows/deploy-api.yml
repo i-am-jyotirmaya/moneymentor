@@ -1,13 +1,9 @@
 name: Deploy API
 
 on:
-  workflow_run:
-    workflows:
-      - ci
-    types:
-      - completed
-    branches:
-      - main
+  # Called by ci only after verification and container builds pass, and only
+  # when the push changes API image inputs or the deployment workflows.
+  workflow_call:
 
 permissions:
   contents: read
@@ -19,9 +15,7 @@ env:
 
 jobs:
   deploy:
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     runs-on: ubuntu-latest
 
@@ -29,7 +23,7 @@ jobs:
       - name: Checkout tested revision
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.sha }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -51,7 +45,7 @@ jobs:
         id: image
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
+          SHA: ${{ github.sha }}
         run: |
           echo "uri=${REGISTRY}/${ECR_REPOSITORY}:${SHA}" >> "$GITHUB_OUTPUT"
 

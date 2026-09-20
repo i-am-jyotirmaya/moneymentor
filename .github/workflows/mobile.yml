@@ -1,12 +1,9 @@
 name: mobile
 
 on:
+  # Automatic mobile CI is paused. Keep manual runs available for validation.
+  # Restore push/pull_request path filters when mobile CI is ready to resume.
   workflow_dispatch:
-  pull_request:
-    paths: ['apps/mobile/**', 'apps/web/**', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.github/workflows/mobile.yml']
-  push:
-    branches: [main]
-    paths: ['apps/mobile/**', 'apps/web/**', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.github/workflows/mobile.yml']
 
 permissions:
   contents: read
@@ -43,6 +40,9 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+        with:
+          # Override the action's default: the legacy "tools" package is gone.
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
       - run: pnpm --filter mobile exec cap sync android
       - name: Compile Android debug app
         run: ./gradlew assembleDebug --no-daemon
