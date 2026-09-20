@@ -1,3 +1,4 @@
+using MoneyMentor.Infrastructure.Logging;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -32,6 +33,7 @@ internal sealed class InvitationEmailDispatcher(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        using var workerScope = logger.BeginJobRun(nameof(InvitationEmailDispatcher));
         await DispatchAvailableAsync(stoppingToken);
         var dispatcherInterval = configuration.GetValue<TimeSpan?>(DispatcherIntervalKey)
             ?? TimeSpan.FromSeconds(15);
@@ -46,12 +48,17 @@ internal sealed class InvitationEmailDispatcher(
     {
         while (!cancellationToken.IsCancellationRequested)
         {
+            using var runScope = logger.BeginJobRun(nameof(InvitationEmailDispatcher));
             var invitationId = await ClaimAsync(cancellationToken);
             if (invitationId is null)
             {
                 return;
             }
 
+            using var itemScope = logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["InvitationId"] = invitationId.Value
+            });
             try
             {
                 await DeliverAsync(invitationId.Value, cancellationToken);

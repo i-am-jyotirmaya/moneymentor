@@ -1,3 +1,4 @@
+using MoneyMentor.Infrastructure.Logging;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +24,7 @@ internal sealed class GoalPlanningWorker(
     {
         while (!stoppingToken.IsCancellationRequested)
         {
+            using var runScope = logger.BeginJobRun(nameof(GoalPlanningWorker));
             try
             {
                 var processed = await ProcessNextAsync(stoppingToken);
@@ -57,6 +59,10 @@ internal sealed class GoalPlanningWorker(
             return false;
         }
 
+        using var itemScope = logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["GoalPlanningRunId"] = pendingId.Value
+        });
         var now = timeProvider.GetUtcNow();
         var claimed = await dbContext.GoalPlanningRuns
             .Where(item => item.Id == pendingId.Value
@@ -160,6 +166,7 @@ internal sealed class GoalPlanningWorker(
         }
         catch (GoalPlanningProviderException exception)
         {
+            logger.LogWarning(exception, "Goal planning provider failed for {GoalPlanningRunId} at retry {RetryCount}.", run.Id, run.RetryCount);
             if (exception.IsTransient && run.RetryCount < MaxRetries)
             {
                 run.RetryCount++;
@@ -181,7 +188,7 @@ internal sealed class GoalPlanningWorker(
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Goal planning run {RunId} failed.", run.Id);
+            logger.LogWarning(exception, "Goal planning run {GoalPlanningRunId} failed.", run.Id);
             run.Status = GoalPlanningRunStatus.Failed;
             run.FailureCategory = "invalid_plan";
             run.Error = "The generated plan could not be validated.";
