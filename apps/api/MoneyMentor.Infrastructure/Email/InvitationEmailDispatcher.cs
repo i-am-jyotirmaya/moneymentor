@@ -21,7 +21,7 @@ internal sealed class InvitationEmailDispatcher(
     TimeProvider timeProvider,
     ILogger<InvitationEmailDispatcher> logger) : BackgroundService
 {
-    private const string DispatcherIntervalKey = "SES:DispatcherInterval";
+    private const string DispatcherIntervalKey = "Resend:DispatcherInterval";
     private static readonly TimeSpan[] RetryDelays =
     [
         TimeSpan.FromMinutes(1),

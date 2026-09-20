@@ -1,6 +1,6 @@
 # Legacy Railway deployment runbook
 
-This runbook preserves the earlier Railway/Resend release for historical reference. The current application sends through SES and ignores all `Resend__*` settings. Use the [current SES setup](../aws/README.md#ses-email-delivery) and updated API environment template for the current release; Railway does not provide an EC2 instance role.
+This runbook covers the legacy Railway hosting topology. All transactional email uses Resend. See [Resend setup](../aws/README.md#resend-email-delivery) and the updated API environment template; approval emails require the key and sender even when household dispatch is disabled.
 
 New accounts default to request-only access. Follow [MVP access deployment and approvals](../../docs/MVP_ACCESS.md) to migrate, configure the operations email environment, and approve your test users before signup.
 
@@ -325,7 +325,7 @@ Do this only after the manual flow works:
 1. Create/verify a sending domain in Resend.
 2. Set `Resend__ApiKey`, `Resend__FromAddress`, and `Resend__ReplyTo` on the API service.
 3. Set `Resend__DispatcherEnabled=true`.
-4. Redeploy the API. Production startup will reject an enabled dispatcher with missing values.
+4. Redeploy the API. Production startup will reject an enabled dispatcher with missing API key or sender.
 5. Send a new invitation to a test address and verify delivery, link destination, duplicate protection, and queued/sent/failed status.
 
 Do not put the Resend API key in the web service or any `NEXT_PUBLIC_*` variable.

@@ -32,10 +32,10 @@ services:
       Product__SupportEmail: ${SUPPORT_EMAIL}
       AWS__Enabled: ${AWS_ENABLED:-false}
       AWS__Region: ${AWS_REGION:-}
-      SES__DispatcherEnabled: ${SES_DISPATCHER_ENABLED:-false}
-      SES__FromAddress: ${SES_FROM_ADDRESS:-}
-      SES__ReplyTo: ${SES_REPLY_TO:-}
-      SES__ConfigurationSetName: ${SES_CONFIGURATION_SET_NAME:-}
+      Resend__DispatcherEnabled: ${RESEND_DISPATCHER_ENABLED:-false}
+      Resend__FromAddress: ${RESEND_FROM_ADDRESS:-}
+      Resend__ReplyTo: ${RESEND_REPLY_TO:-}
+      Resend__ApiKey: ${RESEND_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_SAFETY_IDENTIFIER_KEY: ${OPENAI_SAFETY_IDENTIFIER_KEY}
       OpenAI__Model: ${OPENAI_MODEL}

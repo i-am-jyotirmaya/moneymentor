@@ -1,4 +1,3 @@
-using Amazon.SimpleEmailV2;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -123,20 +122,19 @@ public static class DependencyInjection
             client.DefaultRequestHeaders.UserAgent.ParseAdd("MoneyMentor/1.0");
         });
         //services.AddHostedService<GoalPlanningWorker>();
-        services.AddOptions<SesOptions>()
-            .Bind(configuration.GetSection(SesOptions.SectionName))
-            .Validate(options => !options.DispatcherEnabled || configuration.GetValue<bool>("AWS:Enabled"),
-                "AWS:Enabled must be true when SES:DispatcherEnabled is true.")
+        services.AddOptions<ResendOptions>()
+            .Bind(configuration.GetSection(ResendOptions.SectionName))
+            .Validate(options => !options.DispatcherEnabled || !string.IsNullOrWhiteSpace(options.ApiKey),
+                "Resend:ApiKey is required when Resend:DispatcherEnabled is true.")
             .Validate(options => !options.DispatcherEnabled || !string.IsNullOrWhiteSpace(options.FromAddress),
-                "SES:FromAddress is required when SES:DispatcherEnabled is true.")
+                "Resend:FromAddress is required when Resend:DispatcherEnabled is true.")
             .ValidateOnStart();
-        // Resolve the SDK client only while sending, so startup needs no AWS access.
-        // A factory also allows later attempts to recover from credential setup failures.
-        services.AddSingleton<ITransactionalEmailSender>(provider => new SesTransactionalEmailSender(
-            provider.GetRequiredService<IAmazonSimpleEmailServiceV2>,
-            provider.GetRequiredService<IOptions<SesOptions>>(),
-            provider.GetRequiredService<IOptions<AwsIntegrationOptions>>()));
-        if (configuration.GetValue<bool>($"{SesOptions.SectionName}:DispatcherEnabled"))
+        services.AddHttpClient<ITransactionalEmailSender, ResendTransactionalEmailSender>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.resend.com/");
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+        if (configuration.GetValue<bool>($"{ResendOptions.SectionName}:DispatcherEnabled"))
         {
             services.AddHostedService<InvitationEmailDispatcher>();
         }

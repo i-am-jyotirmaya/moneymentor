@@ -16,7 +16,7 @@ Copy `.env.example` into the deployment secret store; do not commit a populated 
 - JWT keys shorter than 32 bytes;
 - insecure refresh cookies;
 - missing support email;
-- missing AWS enablement/region or SES sender when `SES:DispatcherEnabled` is true.
+- missing Resend API key or sender when `Resend:DispatcherEnabled` is true.
 
 Only configure reverse-proxy IPs actually controlled by the deployment. The API trusts forwarded client addresses only from those entries. The initial beta is limited to one API instance; multiple instances require distributed or edge rate limiting and coordinated background-worker leases.
 
@@ -83,9 +83,9 @@ Every actual change writes an `entitlement_changes` row in the same application 
 
 ## Invitation delivery
 
-Household invitation email is optional for the initial two-user smoke test. With `SES:DispatcherEnabled` false, household invitations are persisted but no email worker runs. New users must first receive MVP approval for the exact invited address, create their account, and then accept the household invitation in-app. MVP approval emails are sent directly by the operations command regardless of the household dispatcher setting.
+Household invitation email is optional for the initial two-user smoke test. With `Resend:DispatcherEnabled` false, household invitations are persisted but no email worker runs. New users must first receive MVP approval for the exact invited address, create their account, and then accept the household invitation in-app. MVP approval emails are sent directly by the operations command regardless of the household dispatcher setting.
 
-To enable delivery, complete [SES setup](../deploy/aws/README.md#ses-email-delivery), configure AWS enablement/region, sender, optional reply-to, and public web URL, then set `SES:DispatcherEnabled` to true. The dispatcher sends outside the claim transaction and retries failures with bounded backoff. The delivery GUID is an SES correlation tag, not an idempotency key: SDK retries are disabled, but application retries after an ambiguous failure or a crash can duplicate an email. Owners/Admins can inspect queued, sent, and failed history. A sent status means SES accepted the message; monitor SES events for actual delivery, bounces, and complaints.
+To enable delivery, complete [Resend setup](../deploy/aws/README.md#resend-email-delivery), configure the API key, verified sender, optional reply-to, and public web URL, then set `Resend:DispatcherEnabled` to true. The dispatcher sends outside the claim transaction and retries with bounded backoff, using the delivery GUID as its idempotency key. Resend deduplicates identical requests for 24 hours; retries beyond that window may duplicate an email. Owners/Admins can inspect queued, sent, and failed history. A sent status means provider acceptance; monitor the Resend dashboard for delivery, bounces, and complaints.
 
 ## Backups and restore drills
 
