@@ -11,16 +11,43 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push must not interrupt an API deployment already in progress.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      api_changed: ${{ steps.api-changes.outputs.changed }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Detect API deployment changes
+        id: api-changes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # Compare the entire push, including multi-commit pushes and deletions.
+          if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]]; then
+            BEFORE=$(git hash-object -t tree /dev/null)
+          elif ! git cat-file -e "${BEFORE}^{commit}"; then
+            git fetch --no-tags origin "$BEFORE"
+          fi
+
+          changed=false
+          git diff --quiet "$BEFORE" "$GITHUB_SHA" -- \
+            apps/api MoneyMentor.slnx .dockerignore \
+            global.json Directory.Build.props Directory.Build.targets \
+            Directory.Packages.props NuGet.Config nuget.config \
+            .github/workflows/ci.yml .github/workflows/deploy-api.yml || {
+              status=$?
+              if [[ "$status" -ne 1 ]]; then exit "$status"; fi
+              changed=true
+            }
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
       - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -73,3 +100,15 @@ jobs:
           --file ${{ matrix.dockerfile }}
           --tag spndrr-${{ matrix.name }}:ci
           .
+
+  deploy-api:
+    name: Deploy API
+    needs: [verify, containers]
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.verify.outputs.api_changed == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-api.yml
