@@ -1,6 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function workspace(page: Page) {
+async function workspace(page: Page, whileLoading?: () => Promise<void>) {
+  let releaseLoad: () => void = () => {};
+  const loadGate = new Promise<void>(resolve => { releaseLoad = resolve; });
+  if (!whileLoading) releaseLoad();
   const requests: Record<string, unknown>[] = [];
   const month = new Date().toISOString().slice(0, 7);
   await page.route("**/api/**", async route => {
@@ -25,10 +28,13 @@ async function workspace(page: Page) {
         parsedDebug: image ? { amount: 649, merchantName: "Swiggy", categoryGuess: "Food Delivery", transactionDate: "2026-09-20", sourceText: body.text, inputMode: "Image", confidence: 0.9, missingFields: [] } : null,
         confirmationToken: preview ? "server-token" : null, paymentState: "Success", errors: [] };
     }
+    if (path === "/api/households") await loadGate;
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(response) });
   });
   await page.goto("/assistant");
   await expect(page.getByLabel("Message Spndrr")).toBeVisible();
+  try { await whileLoading?.(); } finally { releaseLoad(); }
+  await expect(page.getByRole("button", { name: "Attach image", exact: true })).toBeEnabled();
   return requests;
 }
 async function screenshotImage(page: Page) {
@@ -118,4 +124,14 @@ for (const method of ["select", "paste"] as const) test(`${method}: local OCR pr
   await expect(page.getByTestId("image-preview")).toHaveCount(0);
   expect(requests.at(-1)).toMatchObject({ inputMode: "Image", processingMode: "Execute", confirmationToken: "server-token" });
   expect(await page.evaluate(() => (window as unknown as { revokedImages: string[] }).revokedImages.length)).toBeGreaterThan(0);
+});
+
+test("composer waits for household initialization before accepting input", async ({ page }) => {
+  await workspace(page, async () => {
+    await expect(page.getByRole("button", { name: "Attach image", exact: true })).toBeDisabled();
+    await expect(page.getByLabel("Choose screenshot")).toBeDisabled();
+    await expect(page.getByLabel("Message Spndrr")).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Start voice input" })).toBeDisabled();
+  });
+  await expect(page.getByLabel("Message Spndrr")).toBeEditable();
 });

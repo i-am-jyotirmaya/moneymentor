@@ -26,6 +26,7 @@ export type ImagePreview = {
   error?: string;
 };
 export type ImageComposerProps = {
+  isInputReady: boolean;
   imagePreview: ImagePreview | null;
   onImage: (image: Blob) => void;
   onConfirmImage: () => void;

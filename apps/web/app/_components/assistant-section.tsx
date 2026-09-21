@@ -8,7 +8,7 @@ import { promptIdeas } from "./workspace-config";
 import { InputMode, Message, type ImageComposerProps } from "./workspace-types";
 
 export function AssistantSection({
-  imagePreview, onImage, onConfirmImage, onEditImage, onDismissImage,
+  isInputReady, imagePreview, onImage, onConfirmImage, onEditImage, onDismissImage,
   chatEndRef,
   inputMode,
   isListening,
@@ -36,7 +36,7 @@ export function AssistantSection({
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5">
       <ChatSurface
-        imagePreview={imagePreview} onImage={onImage} onConfirmImage={onConfirmImage} onEditImage={onEditImage} onDismissImage={onDismissImage}
+        isInputReady={isInputReady} imagePreview={imagePreview} onImage={onImage} onConfirmImage={onConfirmImage} onEditImage={onEditImage} onDismissImage={onDismissImage}
         chatEndRef={chatEndRef}
         inputMode={inputMode}
         isListening={isListening}
@@ -70,7 +70,7 @@ export function AssistantSection({
 }
 
 export function ChatSurface({
-  imagePreview, onImage, onConfirmImage, onEditImage, onDismissImage,
+  isInputReady, imagePreview, onImage, onConfirmImage, onEditImage, onDismissImage,
   chatEndRef,
   compact = false,
   inputMode,
@@ -101,7 +101,7 @@ export function ChatSurface({
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const readingImage = imagePreview?.status === "reading" || imagePreview?.status === "selected";
-  const imageBusy = isSubmitting || isListening || readingImage;
+  const imageBusy = !isInputReady || isSubmitting || isListening || readingImage;
   return (
     <div
       className={`chat-panel flex min-h-0 flex-1 flex-col overflow-hidden ${compact ? "rounded-lg" : ""}`}
@@ -180,11 +180,12 @@ export function ChatSurface({
         <form className="flex items-end gap-2" onSubmit={onSubmit}
           onDragOver={event => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
           onDrop={event => { event.preventDefault(); const file = Array.from(event.dataTransfer.files).find(item => item.type.startsWith("image/")); if (file && !imageBusy) onImage(file); }}>
-          <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" aria-label="Choose screenshot" className="hidden"
+          <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" aria-label="Choose screenshot" className="hidden" disabled={imageBusy}
             onChange={event => { const file = event.target.files?.[0]; if (file && !imageBusy) onImage(file); event.target.value = ""; }} />
           <div className="chat-text-bar flex min-h-14 flex-1 items-end gap-2 rounded-full border border-[var(--border)] bg-white px-2 py-2 shadow-inner transition">
             <textarea
               aria-label="Message Spndrr"
+              disabled={!isInputReady}
               className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-3 py-2 text-base font-medium leading-6 text-[var(--ink)] outline-none placeholder:text-[var(--muted-2)]"
               onChange={(event) => onTextChange(event.target.value)}
               onPaste={event => { const item = Array.from(event.clipboardData.items).find(value => value.type.startsWith("image/")); if (item) { event.preventDefault(); const file = item.getAsFile(); if (file && !imageBusy) onImage(file); } }}
@@ -194,13 +195,13 @@ export function ChatSurface({
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder="spent 500 on groceries or got salary 50000"
+              placeholder={isInputReady ? "spent 500 on groceries or got salary 50000" : "Loading workspace…"}
               rows={1}
               value={text}
             />
             <button type="button" aria-label="Attach image" className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[var(--accent)]" disabled={imageBusy} onClick={() => fileInput.current?.click()}><Paperclip className="h-5 w-5" /></button>
             <VoiceAiButton
-              disabled={isSubmitting || !!imagePreview}
+              disabled={!isInputReady || isSubmitting || !!imagePreview}
               isListening={isListening}
               onClick={onToggleVoice}
             />
@@ -209,7 +210,7 @@ export function ChatSurface({
           <button
             aria-label={isSubmitting ? "Sending message" : "Send message"}
             className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_12px_30px_rgba(15,143,123,0.24)] transition hover:-translate-y-0.5 hover:bg-[#0b7d6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
-            disabled={isSubmitting || readingImage || (!!imagePreview && !imagePreview.input)}
+            disabled={!isInputReady || isSubmitting || readingImage || (!!imagePreview && !imagePreview.input)}
             type="submit"
           >
             <Send className="h-5 w-5" />
@@ -221,7 +222,7 @@ export function ChatSurface({
 }
 
 export function DesktopAssistantDock({
-  imagePreview, onImage, onConfirmImage, onEditImage, onDismissImage,
+  isInputReady, imagePreview, onImage, onConfirmImage, onEditImage, onDismissImage,
   chatEndRef,
   inputMode,
   isListening,
@@ -278,7 +279,7 @@ export function DesktopAssistantDock({
             </button>
           </div>
           <ChatSurface
-            imagePreview={imagePreview} onImage={onImage} onConfirmImage={onConfirmImage} onEditImage={onEditImage} onDismissImage={onDismissImage}
+            isInputReady={isInputReady} imagePreview={imagePreview} onImage={onImage} onConfirmImage={onConfirmImage} onEditImage={onEditImage} onDismissImage={onDismissImage}
         chatEndRef={chatEndRef}
             compact
             inputMode={inputMode}
