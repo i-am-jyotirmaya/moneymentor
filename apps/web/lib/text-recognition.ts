@@ -55,7 +55,7 @@ export class TesseractTextRecognitionAdapter implements TextRecognitionAdapter {
       };
       return await Promise.race([work(), cancelled]);
     } catch (error) {
-      void this.dispose();
+      if (generation === this.generation) void this.dispose();
       throw error;
     } finally {
       clearTimeout(timer);
