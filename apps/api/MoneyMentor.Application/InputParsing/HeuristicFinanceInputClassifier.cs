@@ -34,6 +34,9 @@ public sealed class HeuristicFinanceInputClassifier : IFinanceInputClassifier
             return Task.FromResult(FinanceInputIntent.CreateIncome);
         }
 
+        if (PaymentTextSignals.IsPayment(request.SourceText))
+            return Task.FromResult(FinanceInputIntent.CreateExpense);
+
         if (IsLikelyClarification(request.SourceText, terms))
         {
             return Task.FromResult(FinanceInputIntent.ClarificationResponse);

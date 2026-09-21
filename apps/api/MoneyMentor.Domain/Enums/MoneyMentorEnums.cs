@@ -71,7 +71,8 @@ public enum InputMode
 {
     Text,
     Voice,
-    System
+    System,
+    Image
 }
 
 public enum TransactionVisibility
@@ -84,7 +85,8 @@ public enum MessageRole
 {
     User,
     Assistant,
-    System
+    System,
+    Image
 }
 
 public enum InsightSeverity

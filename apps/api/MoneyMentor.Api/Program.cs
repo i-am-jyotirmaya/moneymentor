@@ -59,6 +59,7 @@ builder.Services.AddScoped<IMonthlyDashboardService, MonthlyDashboardService>();
 builder.Services.AddScoped<FinanceQuestionParser>();
 builder.Services.AddScoped<IFinanceQuestionService, FinanceQuestionService>();
 builder.Services.AddScoped<IFinanceInputClassifier, HeuristicFinanceInputClassifier>();
+builder.Services.AddSingleton<AssistantConfirmationStore>();
 builder.Services.AddScoped<IAssistantMessageService, AssistantMessageService>();
 builder.Services.AddSingleton<IGoalInputDraftStore, InMemoryGoalInputDraftStore>();
 builder.Services.AddScoped<IExpenseInputParser, HeuristicExpenseInputParser>();

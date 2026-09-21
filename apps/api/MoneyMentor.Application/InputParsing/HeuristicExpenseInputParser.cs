@@ -78,6 +78,9 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
             merchant?.RemovalSpan,
             date.SourceSpans);
 
+        if (PaymentTextSignals.IsPayment(sourceText) && merchant is not null)
+            description = $"Payment to {merchant.Name}";
+
         var missingFields = GetMissingFields(
             amount,
             category,
@@ -153,6 +156,9 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
         DateOnly? referenceDate)
     {
         var spans = new List<TextSpan>();
+        var written = Regex.Match(sourceText, @"\b\d{1,2}\s+(?:Jan\w*|Feb\w*|Mar\w*|Apr\w*|May|Jun\w*|Jul\w*|Aug\w*|Sep\w*|Oct\w*|Nov\w*|Dec\w*)\s+\d{4}\b", RegexOptions.IgnoreCase);
+        if (written.Success && DateOnly.TryParse(written.Value, InvariantCulture, DateTimeStyles.None, out var writtenDate))
+            return new DateExtraction(writtenDate, [new TextSpan(written.Index, written.Length)], true);
 
         foreach (Match match in IsoDateRegex.Matches(sourceText))
         {
@@ -244,107 +250,9 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
 
     private static AmountMatch? ExtractAmount(string sourceText, IReadOnlyCollection<TextSpan> dateSpans)
     {
-        var matches = AmountRegex.Matches(sourceText);
-        AmountMatch? bestMatch = null;
-
-        for (var index = 0; index < matches.Count; index++)
-        {
-            var match = matches[index];
-            var span = new TextSpan(match.Index, match.Length);
-
-            if (dateSpans.Any(dateSpan => dateSpan.Overlaps(span))
-                || HasDateSeparatorBeside(sourceText, match))
-            {
-                continue;
-            }
-
-            var numberText = match.Groups["number"].Value.Replace(",", string.Empty, StringComparison.Ordinal);
-            numberText = ExpenseInputTextNormalizer.RemoveWhitespace(numberText);
-
-            if (!decimal.TryParse(numberText, NumberStyles.Number, InvariantCulture, out var numericValue)
-                || numericValue <= 0)
-            {
-                continue;
-            }
-
-            var amount = numericValue * GetAmountMultiplier(match.Groups["unit"].Value);
-            if (amount <= 0 || amount > 100_000_000m)
-            {
-                continue;
-            }
-
-            var score = ScoreAmountCandidate(sourceText, match, index == matches.Count - 1);
-            if (score == 0 && bestMatch is not null)
-            {
-                continue;
-            }
-
-            var candidate = new AmountMatch(decimal.Round(amount, 2), span, score);
-            if (bestMatch is null
-                || candidate.Score > bestMatch.Score
-                || (candidate.Score == bestMatch.Score && candidate.Span.Start > bestMatch.Span.Start))
-            {
-                bestMatch = candidate;
-            }
-        }
-
-        return bestMatch;
-    }
-
-    private static bool HasDateSeparatorBeside(string sourceText, Match match)
-    {
-        var beforeIndex = match.Index - 1;
-        var afterIndex = match.Index + match.Length;
-
-        return beforeIndex >= 0 && (sourceText[beforeIndex] == '/' || sourceText[beforeIndex] == '-')
-            || afterIndex < sourceText.Length && (sourceText[afterIndex] == '/' || sourceText[afterIndex] == '-');
-    }
-
-    private static decimal GetAmountMultiplier(string unit)
-    {
-        return unit.ToLowerInvariant() switch
-        {
-            "k" or "thousand" or "thousands" => 1_000m,
-            "lakh" or "lakhs" or "lac" or "lacs" => 100_000m,
-            "crore" or "crores" or "cr" => 10_000_000m,
-            _ => 1m
-        };
-    }
-
-    private static int ScoreAmountCandidate(string sourceText, Match match, bool isLastNumericMatch)
-    {
-        var score = 0;
-
-        if (match.Groups["prefix"].Success || match.Groups["suffix"].Success)
-        {
-            score += 5;
-        }
-
-        if (match.Groups["unit"].Success)
-        {
-            score += 4;
-        }
-
-        var start = Math.Max(0, match.Index - 36);
-        var length = Math.Min(sourceText.Length - start, match.Length + 72);
-        var contextTerms = ExpenseInputTextNormalizer.CreateTermSet(sourceText.Substring(start, length));
-
-        if (ContainsAny(contextTerms, ExpenseInputKeywordSets.AmountContextWords))
-        {
-            score += 3;
-        }
-
-        if (ContainsAny(contextTerms, ExpenseInputKeywordSets.ExpenseSignals))
-        {
-            score += 2;
-        }
-
-        if (isLastNumericMatch)
-        {
-            score += 1;
-        }
-
-        return score;
+        var amount = FinanceAmountExtractor.Extract(sourceText);
+        if (amount is null || dateSpans.Any(span => span.Overlaps(new TextSpan(amount.Start, amount.Length)))) return null;
+        return new AmountMatch(amount.Amount, new TextSpan(amount.Start, amount.Length), amount.Score);
     }
 
     private static CategoryMatch? ExtractCategory(IReadOnlySet<string> searchTerms)

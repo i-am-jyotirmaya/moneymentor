@@ -1,4 +1,5 @@
 using MoneyMentor.Domain.Enums;
+using MoneyMentor.Application.Assistant;
 
 namespace MoneyMentor.Application.InputParsing;
 
@@ -13,4 +14,10 @@ public sealed record ExpenseInputParseRequest(
     string? Locale,
     string? Email = null,
     string? DisplayName = null,
-    DateOnly? ReferenceDate = null);
+    DateOnly? ReferenceDate = null)
+{
+    public AssistantProcessingMode ProcessingMode { get; init; }
+    internal ExpenseDraft? ConfirmedDraft { get; init; }
+    internal bool IsPreview => ProcessingMode == AssistantProcessingMode.Preview
+        || (InputMode == InputMode.Image && ConfirmedDraft is null);
+}
