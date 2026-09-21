@@ -85,8 +85,7 @@ public enum MessageRole
 {
     User,
     Assistant,
-    System,
-    Image
+    System
 }
 
 public enum InsightSeverity

@@ -21,7 +21,7 @@ export type AuthSession = {
   requiresPrivacyConsent: boolean;
 };
 
-export type InputMode = "Text" | "Voice" | "System";
+export type InputMode = import("./assistant-input").AssistantInputMode | "System";
 export type TransactionVisibility = "Private" | "Household";
 export type UserPlan = "Free" | "Premium";
 export type HouseholdRole = "Owner" | "Admin" | "Member" | "Viewer";
@@ -202,6 +202,8 @@ export type FinanceQuestionAnswer = {
 };
 
 export type AssistantMessageResponse = {
+  confirmationToken?: string | null;
+  paymentState?: "Unknown" | "Success" | "Failed" | "Pending" | null;
   status: AssistantMessageStatus;
   intent:
     | "CreateExpense"
@@ -686,7 +688,9 @@ export function submitAssistantMessage(
   accessToken: string,
   input: {
     text: string;
-    inputMode: "Text" | "Voice";
+    inputMode: import("./assistant-input").AssistantInputMode;
+    processingMode?: import("./assistant-input").AssistantProcessingMode;
+    confirmationToken?: string;
     householdId?: string;
     transactionDate?: string;
     currencyCode?: string;

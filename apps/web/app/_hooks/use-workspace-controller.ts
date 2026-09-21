@@ -43,10 +43,16 @@ import {
   subscribeToAuthSession,
 } from "@/lib/auth-session";
 import {
-  getSpeechRecognition,
+  getSpeechTranscription,
+  getTextRecognition,
+  getProcessingLocation,
   saveExport,
-  type SpeechRecognitionLike,
+
 } from "@/lib/platform";
+import { assistantInputRequest, inputModes, typedAssistantInput, type AssistantInput } from "@/lib/assistant-input";
+import type { SpeechTranscriptionAdapter } from "@/lib/speech-transcription";
+import { sanitizeImageText } from "@/lib/image-text-privacy";
+import type { ImagePreview } from "../_components/workspace-types";
 import {
   FormEvent,
   useCallback,
@@ -181,8 +187,23 @@ export function useWorkspaceController() {
   const isLoadingDashboard = isLoadingData;
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recognitionRef = useRef<SpeechTranscriptionAdapter | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const submissionRef = useRef(false);
+  const imageAbort = useRef<AbortController | null>(null);
+  const imageUrl = useRef<string | null>(null);
+  const imageRun = useRef(0);
+  const [imageState, setImageState] = useState<ImagePreview | null>(null);
+  const imageScope = `${session?.user.id ?? ""}:${selectedHouseholdId ?? ""}`;
+  const imagePreview = imageState?.scope === imageScope ? imageState : null;
+  useEffect(() => () => {
+    imageRun.current++;
+    imageAbort.current?.abort();
+    if (imageUrl.current) URL.revokeObjectURL(imageUrl.current);
+    imageUrl.current = null;
+    void getTextRecognition().dispose();
+    recognitionRef.current?.stop();
+  }, [imageScope]);
 
   const setSelectedHouseholdId = useCallback(
     (id: string | null) => {
@@ -408,56 +429,28 @@ export function useWorkspaceController() {
   }
 
   function startVoiceInput() {
-    if (isSubmitting) {
+    if (submissionRef.current || imagePreview || isLoadingData) {
       return;
     }
 
     setError(null);
     setInputMode("Voice");
 
-    const Recognition = getSpeechRecognition();
-    if (!Recognition) {
+    const recognition = getSpeechTranscription();
+    if (!recognition) {
       setInputMode("Text");
-      setError(
-        "Voice input is not available in this browser. You can still type your message.",
-      );
+      setError("Voice input is not available in this browser. You can still type your message.");
       return;
     }
-
     recognitionRef.current?.stop();
-    const recognition = new Recognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = "en-IN";
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0]?.transcript ?? "")
-        .join(" ")
-        .trim();
-
-      if (transcript) {
-        setText(transcript);
-        void submitChatMessage(transcript, "Voice");
-      }
-    };
-    recognition.onerror = () => {
-      setIsListening(false);
-      setInputMode("Text");
-      setError("I could not catch that clearly. Try typing it instead.");
-    };
-    recognition.onend = () => {
-      setIsListening(false);
-    };
     recognitionRef.current = recognition;
     setIsListening(true);
-
-    try {
-      recognition.start();
-    } catch {
-      setIsListening(false);
-      setInputMode("Text");
-      setError("Voice input could not start. You can still type your message.");
-    }
+    recognition.start({
+      locale: "en-IN",
+      onResult: input => { setText(input.text); void submitAssistantInput(input); },
+      onError: () => { setIsListening(false); setInputMode("Text"); setError("I could not catch that clearly. Check microphone permission or try typing."); },
+      onEnd: () => setIsListening(false),
+    });
   }
 
   function toggleVoiceInput() {
@@ -470,9 +463,10 @@ export function useWorkspaceController() {
     startVoiceInput();
   }
 
-  async function submitChatMessage(sourceText: string, mode: InputMode) {
-    const normalizedText = sourceText.trim();
-    if (!normalizedText || isSubmitting) {
+  async function submitAssistantInput(input: AssistantInput, confirmationToken?: string) {
+    const normalizedText = (input.source === "image" ? sanitizeImageText(input.text) : input.text).trim();
+    const mode = inputModes[input.source];
+    if (!normalizedText || submissionRef.current) {
       return;
     }
 
@@ -492,6 +486,9 @@ export function useWorkspaceController() {
     }
 
     setError(null);
+    submissionRef.current = true;
+    const run = imageRun.current;
+    const started = performance.now();
     setIsSubmitting(true);
     setText("");
     setInputMode(mode);
@@ -499,12 +496,12 @@ export function useWorkspaceController() {
 
     try {
       const result = await sendAssistantMessage(session.accessToken, {
-        text: normalizedText,
-        inputMode: mode,
+        ...assistantInputRequest({ ...input, text: normalizedText }, confirmationToken),
         householdId: selectedHouseholdId ?? undefined,
         currencyCode,
-        locale: "en-IN",
       });
+      if (input.source === "image" && run !== imageRun.current) return;
+      performance.measure("assistantProcessingMs", { start: started, end: performance.now() });
 
       appendMessage(
         "assistant",
@@ -520,15 +517,84 @@ export function useWorkspaceController() {
         ]);
         await refreshDashboardAndTransactions(session.accessToken);
       }
+      return result;
     } catch (caughtError) {
       handleApiError(
         caughtError,
         "Could not reach the Spndrr API. Check that the backend is running.",
       );
     } finally {
+      submissionRef.current = false;
       setIsSubmitting(false);
       setInputMode("Text");
     }
+  }
+
+  function dismissImage() {
+    imageRun.current++;
+    imageAbort.current?.abort();
+    if (imageUrl.current) URL.revokeObjectURL(imageUrl.current);
+    imageUrl.current = null;
+    setImageState(null);
+    setText("");
+    void getTextRecognition().dispose();
+  }
+
+  async function previewImageInput(input: AssistantInput, run: number) {
+    if (!input.text.trim() || submissionRef.current) return;
+    const sanitized = { ...input, text: sanitizeImageText(input.text) };
+    setImageState(current => current ? { ...current, input: sanitized, result: undefined, status: "parsed", error: undefined } : current);
+    const result = await submitAssistantInput(sanitized);
+    if (run !== imageRun.current) return;
+    setImageState(current => current ? { ...current, result, status: result ? "needs-confirmation" : "failed",
+      error: result ? undefined : "Could not process this text. Edit it or try again." } : current);
+  }
+
+  async function selectImage(image: Blob) {
+    if (submissionRef.current || isListening || isLoadingData) return;
+    dismissImage();
+    const run = imageRun.current;
+    const started = performance.now();
+    const abort = new AbortController();
+    imageAbort.current = abort;
+    if (!/^image\/(png|jpeg|webp)$/.test(image.type) || image.size > 10 * 1024 * 1024) {
+      setImageState({ scope: imageScope, currencyCode, status: "failed", error: "Choose a PNG, JPEG or WebP smaller than 10 MB." });
+      return;
+    }
+    const previewUrl = URL.createObjectURL(image);
+    imageUrl.current = previewUrl;
+    setImageState({ scope: imageScope, currencyCode, status: "selected", previewUrl });
+    try {
+      setImageState({ scope: imageScope, currencyCode, status: "reading", previewUrl });
+      const input = await getTextRecognition().recognize(image, { locale: "en-IN", signal: abort.signal,
+        onProgress: progress => { if (run === imageRun.current) setImageState(current => current ? { ...current, progress } : current); } });
+      if (run !== imageRun.current) return;
+      performance.measure("ocrDurationMs", { start: started, end: performance.now() });
+      await previewImageInput(input, run);
+      performance.measure("totalInputDurationMs", { start: started, end: performance.now() });
+    } catch (error) {
+      if (run === imageRun.current) {
+        if (imageUrl.current) URL.revokeObjectURL(imageUrl.current);
+        imageUrl.current = null;
+        setImageState({ scope: imageScope, currencyCode, status: "failed", error: error instanceof Error ? error.message : "Could not read that image. Try another screenshot or type the expense." });
+      }
+    }
+  }
+
+  async function confirmImage() {
+    if (!imagePreview?.input || !imagePreview.result?.confirmationToken || submissionRef.current) return;
+    const run = imageRun.current;
+    const result = await submitAssistantInput(imagePreview.input, imagePreview.result.confirmationToken);
+    if (run !== imageRun.current) return;
+    if (result?.transaction) dismissImage();
+    else setImageState(current => current ? { ...current, result, status: "failed",
+      error: result?.assistantMessage ?? "Confirmation could not be completed. Check transactions before previewing again." } : current);
+  }
+
+  function editImage() {
+    if (!imagePreview?.input || submissionRef.current) return;
+    setText(imagePreview.input.text);
+    setImageState(current => current ? { ...current, result: undefined, status: "parsed" } : current);
   }
 
   async function refreshDashboardAndTransactions(accessToken: string) {
@@ -564,7 +630,11 @@ export function useWorkspaceController() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void submitChatMessage(text, inputMode);
+    if (imagePreview?.input) {
+      void previewImageInput({ ...imagePreview.input, text }, imageRun.current);
+    } else if (!imagePreview) {
+      void submitAssistantInput(typedAssistantInput(text, getProcessingLocation()));
+    }
   }
 
   async function handleSaveTransaction(event: FormEvent<HTMLFormElement>) {
@@ -965,6 +1035,11 @@ export function useWorkspaceController() {
     selectTransaction,
     closeTransactionEditor,
     toggleVoiceInput,
+    imagePreview,
+    selectImage,
+    confirmImage,
+    editImage,
+    dismissImage,
     changeDashboardMonth,
     changeTransactionMonth,
     changeTransactionPage,
