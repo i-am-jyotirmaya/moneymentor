@@ -29,12 +29,24 @@ internal sealed class PostgresCategoryService(
             .Where(category => category.HouseholdId == null || category.HouseholdId == access.HouseholdId)
             .OrderBy(category => category.SortOrder)
             .ThenBy(category => category.Name)
+            .Select(category => new CategoryModel(
+                category.Id,
+                category.HouseholdId,
+                category.ParentCategoryId,
+                category.Name,
+                category.Type,
+                category.Classification,
+                category.IsSystemCategory,
+                category.Icon,
+                category.SortOrder,
+                category.IsHidden,
+                category.CreatedAt))
             .ToArrayAsync(cancellationToken);
 
         return new CategoryCatalogModel(
             access.HouseholdId,
             access.CanWrite,
-            categories.Select(CategoryPersistence.Map).ToArray());
+            categories);
     }
 
     public async Task<CategoryModel> CreateAsync(

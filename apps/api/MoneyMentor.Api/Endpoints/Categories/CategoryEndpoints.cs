@@ -192,6 +192,7 @@ public static class CategoryEndpoints
         var identity = AppUserIdentityFactory.FromPrincipal(httpContext.User);
         return identity is null
             ? null
-            : await appUserProfileService.ResolveAsync(identity, cancellationToken);
+            : httpContext.Features.Get<AppUserContext>()
+                ?? await appUserProfileService.ResolveAsync(identity, cancellationToken);
     }
 }

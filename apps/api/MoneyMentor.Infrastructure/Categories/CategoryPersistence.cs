@@ -13,9 +13,14 @@ internal static class CategoryPersistence
         MoneyMentorDbContext dbContext,
         CancellationToken cancellationToken)
     {
+        // Load once: database latency must not be multiplied by the catalog size.
+        var systemCategories = await dbContext.Categories
+            .Where(category => category.HouseholdId == null)
+            .ToListAsync(cancellationToken);
+
         foreach (var definition in SystemCategoryCatalog.Definitions.Where(definition => definition.IsGroup))
         {
-            await EnsureSystemCategoryAsync(dbContext, definition, null, cancellationToken);
+            await EnsureSystemCategoryAsync(dbContext, definition, null, cancellationToken, systemCategories);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -24,11 +29,12 @@ internal static class CategoryPersistence
         {
             var parent = definition.ParentName is null
                 ? null
-                : await FindSystemRootAsync(dbContext, definition.ParentName, cancellationToken);
-            await EnsureSystemCategoryAsync(dbContext, definition, parent?.Id, cancellationToken);
+                : systemCategories.FirstOrDefault(category =>
+                    category.ParentCategoryId == null && category.Name == definition.ParentName);
+            await EnsureSystemCategoryAsync(dbContext, definition, parent?.Id, cancellationToken, systemCategories);
         }
 
-        await BackfillFlatSystemCategoriesAsync(dbContext, cancellationToken);
+        BackfillFlatSystemCategories(systemCategories);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -130,9 +136,15 @@ internal static class CategoryPersistence
         MoneyMentorDbContext dbContext,
         SystemCategoryDefinition definition,
         Guid? parentCategoryId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        List<Category>? systemCategories = null)
     {
-        var category = await dbContext.Categories.FirstOrDefaultAsync(
+        var category = systemCategories is not null
+            ? systemCategories.FirstOrDefault(item =>
+                item.ParentCategoryId == parentCategoryId
+                && item.Type == definition.Type
+                && item.Name == definition.Name)
+            : await dbContext.Categories.FirstOrDefaultAsync(
             item => item.HouseholdId == null
                 && item.ParentCategoryId == parentCategoryId
                 && item.Type == definition.Type
@@ -152,6 +164,7 @@ internal static class CategoryPersistence
                 SortOrder = definition.SortOrder
             };
             dbContext.Categories.Add(category);
+            systemCategories?.Add(category);
             return category;
         }
 
@@ -164,13 +177,11 @@ internal static class CategoryPersistence
         return category;
     }
 
-    private static async Task BackfillFlatSystemCategoriesAsync(
-        MoneyMentorDbContext dbContext,
-        CancellationToken cancellationToken)
+    private static void BackfillFlatSystemCategories(List<Category> systemCategories)
     {
-        var flatCategories = await dbContext.Categories
+        var flatCategories = systemCategories
             .Where(category => category.HouseholdId == null && category.ParentCategoryId == null)
-            .ToArrayAsync(cancellationToken);
+            .ToArray();
 
         foreach (var category in flatCategories)
         {
@@ -180,7 +191,8 @@ internal static class CategoryPersistence
                 continue;
             }
 
-            var parent = await FindSystemRootAsync(dbContext, definition.ParentName, cancellationToken);
+            var parent = systemCategories.FirstOrDefault(item =>
+                item.ParentCategoryId == null && item.Name == definition.ParentName);
             if (parent is null || parent.Id == category.Id)
             {
                 continue;
