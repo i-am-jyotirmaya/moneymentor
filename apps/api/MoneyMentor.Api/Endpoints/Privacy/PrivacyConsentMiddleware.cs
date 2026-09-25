@@ -26,6 +26,7 @@ public sealed class PrivacyConsentMiddleware(RequestDelegate next)
         var userContext = await appUserProfileService.ResolveAsync(identity, context.RequestAborted);
         if (userContext.HasCurrentPrivacyConsent)
         {
+            context.Features.Set(userContext);
             await next(context);
             return;
         }
