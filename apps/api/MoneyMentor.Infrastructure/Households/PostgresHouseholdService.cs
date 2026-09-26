@@ -3,6 +3,7 @@ using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
+using MoneyMentor.Infrastructure.Email;
 using MoneyMentor.Infrastructure.Persistence;
 using Npgsql;
 
@@ -10,6 +11,7 @@ namespace MoneyMentor.Infrastructure.Households;
 
 internal sealed class PostgresHouseholdService(
     MoneyMentorDbContext dbContext,
+    IInvitationDispatchSignal invitationDispatchSignal,
     TimeProvider timeProvider) : IHouseholdService
 {
     public async Task<HouseholdDashboardModel> ListAsync(
@@ -265,6 +267,8 @@ internal sealed class PostgresHouseholdService(
         {
             return new HouseholdInvitationResult(HouseholdInvitationResultStatus.Conflict);
         }
+
+        invitationDispatchSignal.Signal();
 
         return new HouseholdInvitationResult(
             HouseholdInvitationResultStatus.Succeeded,
