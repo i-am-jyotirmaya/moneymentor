@@ -41,8 +41,7 @@ public sealed class AddDailyFinancialFacts : Migration
                    coalesce(sum(t."Amount") FILTER (WHERE t."Type" = 'Expense' AND c."Classification" = 'Essential'), 0),
                    coalesce(sum(t."Amount") FILTER (WHERE t."Type" = 'Expense' AND c."Classification" = 'Discretionary'), 0),
                    coalesce(sum(t."Amount") FILTER (WHERE t."Type" = 'Expense' AND c."Classification" = 'Debt'), 0),
-                   coalesce(sum(t."Amount") FILTER (WHERE t."Type" = 'Investment' OR
-                       t."Type" = 'Expense' AND c."Classification" = 'Savings'), 0),
+                   coalesce(sum(t."Amount") FILTER (WHERE t."Type" = 'Investment'), 0),
                    count(*), count(*) FILTER (WHERE t."Type" = 'Expense'),
                    count(*) FILTER (WHERE t."Type" = 'Income'),
                    round(avg(t."Amount"), 2), max(t."Amount"), 'v1', now(), now()

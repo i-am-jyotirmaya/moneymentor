@@ -99,6 +99,14 @@ public static class DependencyInjection
         services.AddScoped<IJudgementReportPipeline, PostgresJudgementReportPipeline>();
         services.AddScoped<IJudgementReportRecalculationQueue, JudgementReportRecalculationQueue>();
         services.AddScoped<DailyFinancialFactStore>();
+        services.AddScoped<JudgmentCandidateAnalysisService>();
+        services.AddOptions<CandidateDetectionOptions>()
+            .Bind(configuration.GetSection(CandidateDetectionOptions.SectionName))
+            .Validate(x => x.AnalysisIntervalHours is >= 1 and <= 168 &&
+                x.MinInterestingness is >= 0m and <= 1m && x.RepeatedSpendCount >= 2 &&
+                x.DeviationWeight + x.FrequencyWeight + x.GoalImpactWeight + x.SpendShareWeight + x.RecencyWeight == 1m)
+            .ValidateOnStart();
+        services.AddHostedService<JudgmentCandidateAnalysisWorker>();
         services.AddScoped<IFinanceTransactionReader, PostgresFinanceTransactionReader>();
         services.AddScoped<IPrivacyService, PostgresPrivacyService>();
         services.AddHostedService<DeletedTransactionPurgeService>();

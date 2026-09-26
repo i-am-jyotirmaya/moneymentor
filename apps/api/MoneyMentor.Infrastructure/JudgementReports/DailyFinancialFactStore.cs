@@ -47,8 +47,7 @@ internal sealed class DailyFinancialFactStore(MoneyMentorDbContext dbContext, Ti
                 EssentialSpend = items.Where(x => x.Type == TransactionType.Expense && x.Classification == CategoryClassification.Essential).Sum(x => x.Amount),
                 DiscretionarySpend = items.Where(x => x.Type == TransactionType.Expense && x.Classification == CategoryClassification.Discretionary).Sum(x => x.Amount),
                 DebtSpend = items.Where(x => x.Type == TransactionType.Expense && x.Classification == CategoryClassification.Debt).Sum(x => x.Amount),
-                InvestmentAmount = items.Where(x => x.Type == TransactionType.Investment ||
-                    x.Type == TransactionType.Expense && x.Classification == CategoryClassification.Savings).Sum(x => x.Amount),
+                InvestmentAmount = items.Where(x => x.Type == TransactionType.Investment).Sum(x => x.Amount),
                 TransactionCount = items.Length,
                 ExpenseTransactionCount = items.Count(x => x.Type == TransactionType.Expense),
                 IncomeTransactionCount = items.Count(x => x.Type == TransactionType.Income),
