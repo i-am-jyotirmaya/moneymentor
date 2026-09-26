@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.JudgementReports;
+using MoneyMentor.Infrastructure.Goals;
 using MoneyMentor.Infrastructure.Persistence;
 using MoneyMentor.Infrastructure.Transactions;
 using Xunit;
@@ -46,7 +47,10 @@ public sealed class JudgmentDecisionServiceTests(MoneyMentorApiFactory factory)
         var context = new JudgmentContextBuilder(db, factStore);
         var jev = new JevJudgmentGate(new HttpClient { BaseAddress = new Uri("https://api.typesafe.ai/") },
             Options.Create(new JevOptions()), NullLogger<JevJudgmentGate>.Instance);
-        var service = new JudgmentDecisionService(db, context, jev, factory.Clock);
+        var explanations = new OpenAiCandidateExplanationClient(new HttpClient
+            { BaseAddress = new Uri("https://api.openai.com/v1/") },
+            Options.Create(new OpenAiGoalPlanningOptions()));
+        var service = new JudgmentDecisionService(db, context, jev, explanations, factory.Clock);
 
         Assert.True(await service.ProcessNextAsync(CancellationToken.None));
         db.ChangeTracker.Clear();
