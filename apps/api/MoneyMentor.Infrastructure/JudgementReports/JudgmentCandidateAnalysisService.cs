@@ -13,6 +13,7 @@ namespace MoneyMentor.Infrastructure.JudgementReports;
 internal sealed class JudgmentCandidateAnalysisService(
     MoneyMentorDbContext dbContext,
     DailyFinancialFactStore facts,
+    JudgmentDecisionWakeup wakeup,
     IOptions<CandidateDetectionOptions> options,
     TimeProvider clock)
 {
@@ -91,6 +92,7 @@ internal sealed class JudgmentCandidateAnalysisService(
         }
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        if (detected.Any(x => x.Status == JudgmentCandidateStatus.Queued)) wakeup.Signal();
     }
 }
 

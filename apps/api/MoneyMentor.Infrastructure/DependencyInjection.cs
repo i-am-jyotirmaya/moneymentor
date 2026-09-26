@@ -100,6 +100,14 @@ public static class DependencyInjection
         services.AddScoped<IJudgementReportRecalculationQueue, JudgementReportRecalculationQueue>();
         services.AddScoped<DailyFinancialFactStore>();
         services.AddScoped<JudgmentCandidateAnalysisService>();
+        services.AddScoped<JudgmentContextBuilder>();
+        services.AddScoped<JudgmentDecisionService>();
+        services.AddSingleton<JudgmentDecisionWakeup>();
+        services.AddHttpClient<JevJudgmentGate>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.typesafe.ai/");
+            client.Timeout = TimeSpan.FromSeconds(8);
+        });
         services.AddOptions<CandidateDetectionOptions>()
             .Bind(configuration.GetSection(CandidateDetectionOptions.SectionName))
             .Validate(x => x.AnalysisIntervalHours is >= 1 and <= 168 &&
@@ -107,6 +115,7 @@ public static class DependencyInjection
                 x.DeviationWeight + x.FrequencyWeight + x.GoalImpactWeight + x.SpendShareWeight + x.RecencyWeight == 1m)
             .ValidateOnStart();
         services.AddHostedService<JudgmentCandidateAnalysisWorker>();
+        services.AddHostedService<JudgmentDecisionWorker>();
         services.AddScoped<IFinanceTransactionReader, PostgresFinanceTransactionReader>();
         services.AddScoped<IPrivacyService, PostgresPrivacyService>();
         services.AddHostedService<DeletedTransactionPurgeService>();

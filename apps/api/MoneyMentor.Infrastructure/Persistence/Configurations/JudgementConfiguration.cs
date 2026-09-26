@@ -114,6 +114,19 @@ internal sealed class JudgementConfiguration : IEntityTypeConfiguration<Judgemen
             .HasMaxLength(32)
             .IsRequired();
 
+        builder.Property(judgement => judgement.DecisionAction).HasConversion<string>().HasMaxLength(32);
+        builder.Property(judgement => judgement.Importance).HasPrecision(5, 2);
+        builder.Property(judgement => judgement.DecisionConfidence).HasPrecision(5, 4);
+        builder.Property(judgement => judgement.Reason).HasMaxLength(1024);
+        builder.Property(judgement => judgement.FollowUpQuestion).HasMaxLength(512);
+        builder.Property(judgement => judgement.ContextSnapshotJson).HasColumnType("jsonb");
+        builder.Property(judgement => judgement.Provider).HasMaxLength(64);
+        builder.Property(judgement => judgement.Model).HasMaxLength(100);
+        builder.Property(judgement => judgement.DecisionSchemaVersion).HasMaxLength(32);
+        builder.HasOne<JudgmentCandidate>().WithMany().HasForeignKey(judgement => judgement.CandidateId)
+            .OnDelete(DeleteBehavior.SetNull);
+        builder.HasIndex(judgement => judgement.CandidateId);
+
         builder.Property(judgement => judgement.CreatedAt)
             .HasDefaultValueSql("now()");
 

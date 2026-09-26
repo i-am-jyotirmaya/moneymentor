@@ -309,7 +309,8 @@ public enum JudgementWorkStatus
 public enum JudgementWorkStage
 {
     Calculation,
-    Narration
+    Narration,
+    CandidateDecision
 }
 
 public enum JudgmentCandidateStatus

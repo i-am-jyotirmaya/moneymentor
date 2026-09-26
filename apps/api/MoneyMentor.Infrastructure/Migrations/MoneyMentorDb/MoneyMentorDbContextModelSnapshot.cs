@@ -1207,7 +1207,29 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<Guid?>("CandidateId").HasColumnType("uuid");
+
+                    b.Property<string>("DecisionAction").HasMaxLength(32).HasColumnType("character varying(32)");
+
+                    b.Property<decimal?>("DecisionConfidence").HasPrecision(5, 4).HasColumnType("numeric(5,4)");
+
+                    b.Property<decimal?>("Importance").HasPrecision(5, 2).HasColumnType("numeric(5,2)");
+
+                    b.Property<string>("Reason").HasMaxLength(1024).HasColumnType("character varying(1024)");
+
+                    b.Property<string>("FollowUpQuestion").HasMaxLength(512).HasColumnType("character varying(512)");
+
+                    b.Property<string>("ContextSnapshotJson").HasColumnType("jsonb");
+
+                    b.Property<string>("Provider").HasMaxLength(64).HasColumnType("character varying(64)");
+
+                    b.Property<string>("Model").HasMaxLength(100).HasColumnType("character varying(100)");
+
+                    b.Property<string>("DecisionSchemaVersion").HasMaxLength(32).HasColumnType("character varying(32)");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("CandidateId");
 
                     b.HasIndex("DismissedByUserProfileId");
 
@@ -1295,7 +1317,7 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<Guid>("SpendingSummaryId")
+                    b.Property<Guid?>("SpendingSummaryId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Stage")
@@ -1309,9 +1331,15 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.Property<bool>("Succeeded")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid?>("CandidateId").HasColumnType("uuid");
+
+                    b.Property<string>("ContextSnapshotJson").HasColumnType("jsonb");
+
                     b.HasKey("Id");
 
                     b.HasIndex("JudgementWorkItemId");
+
+                    b.HasIndex("CandidateId", "Stage", "AttemptNumber").IsUnique();
 
                     b.HasIndex("Stage", "StartedAt");
 
@@ -2622,6 +2650,8 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.Judgement", b =>
                 {
+                    b.HasOne("MoneyMentor.Domain.Entities.JudgmentCandidate", null).WithMany().HasForeignKey("CandidateId").OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
                         .WithMany()
                         .HasForeignKey("DismissedByUserProfileId")
@@ -2661,6 +2691,8 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.JudgementEvaluationRun", b =>
                 {
+                    b.HasOne("MoneyMentor.Domain.Entities.JudgmentCandidate", null).WithMany().HasForeignKey("CandidateId").OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("MoneyMentor.Domain.Entities.JudgementWorkItem", null)
                         .WithMany()
                         .HasForeignKey("JudgementWorkItemId")
@@ -2669,8 +2701,7 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.HasOne("MoneyMentor.Domain.Entities.SpendingSummary", null)
                         .WithMany()
                         .HasForeignKey("SpendingSummaryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.JudgementSchedule", b =>
