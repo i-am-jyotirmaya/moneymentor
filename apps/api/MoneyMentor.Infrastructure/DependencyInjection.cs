@@ -75,6 +75,17 @@ public static class DependencyInjection
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
         services.AddScoped<IAppUserProfileService, PostgresAppUserProfileService>();
         services.AddScoped<ITransactionService, PostgresTransactionService>();
+        services.AddScoped<MerchantResolver>();
+        services.AddOptions<JevOptions>()
+            .Bind(configuration.GetSection(JevOptions.SectionName))
+            .PostConfigure(options => options.ApiKey = configuration["TYPESAFE_API_KEY"] ?? options.ApiKey)
+            .Validate(options => options.CategoryConfidenceThreshold is >= 0m and <= 1m)
+            .ValidateOnStart();
+        services.AddHttpClient<JevTransactionEnricher>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.typesafe.ai/");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
         services.AddScoped<IHouseholdService, PostgresHouseholdService>();
         services.AddScoped<IHouseholdAccessService, PostgresHouseholdAccessService>();
         services.AddScoped<ICategoryService, PostgresCategoryService>();

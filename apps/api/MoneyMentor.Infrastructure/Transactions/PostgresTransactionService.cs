@@ -17,6 +17,8 @@ internal sealed class PostgresTransactionService(
     IHouseholdAccessService householdAccessService,
     IJudgementReportRecalculationQueue judgementReportRecalculationQueue,
     DailyFinancialFactStore dailyFinancialFactStore,
+    MerchantResolver merchantResolver,
+    JevTransactionEnricher jevTransactionEnricher,
     TimeProvider timeProvider) : ITransactionService
 {
     private const int MaxPageSize = 100;
@@ -35,6 +37,17 @@ internal sealed class PostgresTransactionService(
             command.Draft.CategoryGuess,
             CategoryType.Expense,
             cancellationToken);
+        var choices = jevTransactionEnricher.IsEnabled
+            ? await dbContext.Categories.AsNoTracking()
+                .Where(x => (x.HouseholdId == null || x.HouseholdId == householdAccess.HouseholdId)
+                    && x.Type == CategoryType.Expense && !x.IsHidden && x.ParentCategoryId != null)
+                .OrderBy(x => x.SortOrder).ThenBy(x => x.Name).Take(200)
+                .ToArrayAsync(cancellationToken)
+            : [];
+        var enrichment = await jevTransactionEnricher.EnrichAsync(command.Draft, choices, cancellationToken);
+        categoryId = enrichment.SuggestedCategoryId ?? categoryId;
+        var merchantName = NormalizeOptional(command.Draft.MerchantName);
+        var merchantId = await merchantResolver.ResolveAsync(householdAccess.HouseholdId, merchantName, cancellationToken);
         var now = timeProvider.GetUtcNow();
 
         var transaction = new Transaction
@@ -44,7 +57,9 @@ internal sealed class PostgresTransactionService(
             Amount = command.Draft.Amount!.Value,
             Type = TransactionType.Expense,
             CategoryId = categoryId,
-            MerchantName = NormalizeOptional(command.Draft.MerchantName),
+            MerchantName = merchantName,
+            MerchantId = merchantId,
+            EnrichmentJson = enrichment.MetadataJson,
             Description = NormalizeOptional(command.Draft.Description),
             SourceText = command.Draft.SourceText,
             TransactionDate = command.Draft.TransactionDate ?? command.UserContext.CurrentDate,
@@ -81,6 +96,7 @@ internal sealed class PostgresTransactionService(
             CategoryType.Income,
             cancellationToken);
         var now = timeProvider.GetUtcNow();
+        var senderName = NormalizeOptional(command.Draft.SenderName);
 
         var transaction = new Transaction
         {
@@ -91,7 +107,7 @@ internal sealed class PostgresTransactionService(
             CategoryId = categoryId,
             // The existing schema stores a generic counterparty in MerchantName.
             // Income-facing contracts project this value as SenderName instead.
-            MerchantName = NormalizeOptional(command.Draft.SenderName),
+            MerchantName = senderName,
             Description = NormalizeOptional(command.Draft.Reason),
             SourceText = command.Draft.SourceText,
             TransactionDate = command.Draft.TransactionDate ?? command.UserContext.CurrentDate,
@@ -240,6 +256,8 @@ internal sealed class PostgresTransactionService(
         if (transaction.Type != TransactionType.Income && command.MerchantName is not null)
         {
             ApplyStringChange(changes, "merchantName", transaction.MerchantName, NormalizeOptional(command.MerchantName), value => transaction.MerchantName = value);
+            transaction.MerchantId = await merchantResolver.ResolveAsync(transaction.HouseholdId,
+                transaction.MerchantName, cancellationToken);
         }
 
         if (transaction.Type == TransactionType.Income && command.SenderName is not null)

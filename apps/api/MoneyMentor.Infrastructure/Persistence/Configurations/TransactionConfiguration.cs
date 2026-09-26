@@ -27,6 +27,13 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
         builder.Property(transaction => transaction.MerchantName)
             .HasMaxLength(256);
 
+        builder.Property(transaction => transaction.EnrichmentJson).HasColumnType("jsonb");
+
+        builder.HasOne<Merchant>().WithMany().HasForeignKey(transaction => transaction.MerchantId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(transaction => transaction.MerchantId);
+
         builder.Property(transaction => transaction.Description)
             .HasMaxLength(1024);
 

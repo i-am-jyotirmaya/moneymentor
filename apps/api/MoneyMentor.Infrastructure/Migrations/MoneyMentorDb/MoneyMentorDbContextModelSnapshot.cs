@@ -1620,6 +1620,33 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         });
                 });
 
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.Merchant", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<string>("CanonicalName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<Guid>("HouseholdId").HasColumnType("uuid");
+                    b.Property<string>("NormalizedName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                    b.Property<DateTimeOffset>("UpdatedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("HouseholdId", "NormalizedName").IsUnique();
+                    b.ToTable("merchants", "app");
+                });
+
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.MerchantAlias", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<string>("Alias").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                    b.Property<decimal>("Confidence").HasPrecision(5, 4).HasColumnType("numeric(5,4)");
+                    b.Property<Guid>("MerchantId").HasColumnType("uuid");
+                    b.Property<string>("NormalizedAlias").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                    b.Property<string>("Source").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.HasKey("Id");
+                    b.HasIndex("NormalizedAlias");
+                    b.HasIndex("MerchantId", "NormalizedAlias").IsUnique();
+                    b.ToTable("merchant_aliases", "app");
+                });
+
             modelBuilder.Entity("MoneyMentor.Domain.Entities.PendingAction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2079,6 +2106,8 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
+                    b.Property<string>("EnrichmentJson").HasColumnType("jsonb");
+
                     b.Property<Guid>("HouseholdId")
                         .HasColumnType("uuid");
 
@@ -2086,6 +2115,8 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("MerchantId").HasColumnType("uuid");
 
                     b.Property<string>("MerchantName")
                         .HasMaxLength(256)
@@ -2130,6 +2161,8 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.HasIndex("DeletedByUserProfileId");
 
                     b.HasIndex("HouseholdId");
+
+                    b.HasIndex("MerchantId");
 
                     b.HasIndex("PurgeAfter")
                         .HasFilter("\"DeletedAt\" IS NOT NULL");
@@ -2649,6 +2682,16 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.Merchant", b =>
+                {
+                    b.HasOne("MoneyMentor.Domain.Entities.Household", null).WithMany().HasForeignKey("HouseholdId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                });
+
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.MerchantAlias", b =>
+                {
+                    b.HasOne("MoneyMentor.Domain.Entities.Merchant", null).WithMany().HasForeignKey("MerchantId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                });
+
             modelBuilder.Entity("MoneyMentor.Domain.Entities.PendingAction", b =>
                 {
                     b.HasOne("MoneyMentor.Domain.Entities.Household", null)
@@ -2721,6 +2764,11 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
                         .WithMany()
                         .HasForeignKey("DeletedByUserProfileId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyMentor.Domain.Entities.Merchant", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("MoneyMentor.Domain.Entities.Household", null)
