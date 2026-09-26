@@ -101,6 +101,13 @@ public static class DependencyInjection
         services.AddScoped<DailyFinancialFactStore>();
         services.AddScoped<JudgmentCandidateAnalysisService>();
         services.AddScoped<JudgmentContextBuilder>();
+        services.AddScoped<FinancialMemoryStore>();
+        services.AddHttpClient<MemoryEmbeddingClient>((provider, client) =>
+        {
+            var llm = provider.GetRequiredService<IOptions<OpenAiGoalPlanningOptions>>().Value;
+            client.BaseAddress = new Uri("https://api.openai.com/v1/");
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(llm.TimeoutSeconds, 5, 120));
+        });
         services.AddScoped<JudgmentDecisionService>();
         services.AddSingleton<JudgmentDecisionWakeup>();
         services.AddHttpClient<JevJudgmentGate>(client =>

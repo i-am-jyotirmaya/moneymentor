@@ -64,6 +64,10 @@ public sealed class MoneyMentorDbContext : DbContext
 
     public DbSet<JudgmentCandidate> JudgmentCandidates => Set<JudgmentCandidate>();
 
+    public DbSet<FinancialContextMemory> FinancialContextMemories => Set<FinancialContextMemory>();
+
+    public DbSet<JudgmentFeedback> JudgmentFeedback => Set<JudgmentFeedback>();
+
     public DbSet<SpendingSummary> SpendingSummaries => Set<SpendingSummary>();
 
     public DbSet<SpendingSummaryCategory> SpendingSummaryCategories => Set<SpendingSummaryCategory>();

@@ -44,7 +44,11 @@ public sealed class JudgmentDecisionServiceTests(MoneyMentorApiFactory factory)
         db.ChangeTracker.Clear();
 
         var factStore = new DailyFinancialFactStore(db, factory.Clock);
-        var context = new JudgmentContextBuilder(db, factStore);
+        var embeddings = new MemoryEmbeddingClient(new HttpClient
+            { BaseAddress = new Uri("https://api.openai.com/v1/") },
+            Options.Create(new OpenAiGoalPlanningOptions()));
+        var context = new JudgmentContextBuilder(db, factStore,
+            new FinancialMemoryStore(db, embeddings, factory.Clock));
         var jev = new JevJudgmentGate(new HttpClient { BaseAddress = new Uri("https://api.typesafe.ai/") },
             Options.Create(new JevOptions()), NullLogger<JevJudgmentGate>.Instance);
         var explanations = new OpenAiCandidateExplanationClient(new HttpClient

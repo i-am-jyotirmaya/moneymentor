@@ -6,7 +6,8 @@ using MoneyMentor.Infrastructure.Persistence;
 
 namespace MoneyMentor.Infrastructure.JudgementReports;
 
-internal sealed class JudgmentContextBuilder(MoneyMentorDbContext dbContext, DailyFinancialFactStore facts)
+internal sealed class JudgmentContextBuilder(MoneyMentorDbContext dbContext, DailyFinancialFactStore facts,
+    FinancialMemoryStore memoryStore)
 {
     public async Task<string> BuildAsync(JudgmentCandidate candidate, CancellationToken cancellationToken)
     {
@@ -42,6 +43,7 @@ internal sealed class JudgmentContextBuilder(MoneyMentorDbContext dbContext, Dai
             .OrderByDescending(x => x.CreatedAt).Take(3)
             .Select(x => new { x.RuleCode, x.Reason, x.CreatedAt })
             .ToArrayAsync(cancellationToken);
+        var memories = await memoryStore.GetRelevantAsync(candidate, cancellationToken);
 
         using var evidence = JsonDocument.Parse(candidate.EvidenceJson);
         return JsonSerializer.Serialize(new
@@ -57,8 +59,9 @@ internal sealed class JudgmentContextBuilder(MoneyMentorDbContext dbContext, Dai
             },
             financialState = windows,
             goals,
+            memories = memories.Select(x => new
+                { x.Id, x.MemoryType, x.Text, x.Importance, x.ValidUntil }).ToArray(),
             recentJudgments = recent,
-            // Scoped structured and semantic memories are added in the memory phase.
             dataQuality = new { factVersion = candidate.CalculationVersion, detectorVersion = candidate.DetectorVersion }
         });
     }
