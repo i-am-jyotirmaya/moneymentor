@@ -33,6 +33,7 @@ services:
       AWS__Enabled: ${AWS_ENABLED:-false}
       AWS__Region: ${AWS_REGION:-}
       Resend__DispatcherEnabled: ${RESEND_DISPATCHER_ENABLED:-false}
+      Resend__RecoveryInterval: ${RESEND_RECOVERY_INTERVAL:-01:00:00}
       Resend__FromAddress: ${RESEND_FROM_ADDRESS:-}
       Resend__ReplyTo: ${RESEND_REPLY_TO:-}
       Resend__ApiKey: ${RESEND_API_KEY:-}

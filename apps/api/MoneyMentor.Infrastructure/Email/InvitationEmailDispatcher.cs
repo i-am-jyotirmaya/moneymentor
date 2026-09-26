@@ -18,10 +18,12 @@ namespace MoneyMentor.Infrastructure.Email;
 internal sealed class InvitationEmailDispatcher(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
+    IOptions<ResendOptions> options,
+    IInvitationDispatchSignal dispatchSignal,
     TimeProvider timeProvider,
     ILogger<InvitationEmailDispatcher> logger) : BackgroundService
 {
-    private const string DispatcherIntervalKey = "Resend:DispatcherInterval";
+    private static readonly TimeSpan DeliveryLease = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan[] RetryDelays =
     [
         TimeSpan.FromMinutes(1),
@@ -34,46 +36,66 @@ internal sealed class InvitationEmailDispatcher(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var workerScope = logger.BeginJobRun(nameof(InvitationEmailDispatcher));
-        await DispatchAvailableAsync(stoppingToken);
-        var dispatcherInterval = configuration.GetValue<TimeSpan?>(DispatcherIntervalKey)
-            ?? TimeSpan.FromSeconds(15);
-        using var timer = new PeriodicTimer(dispatcherInterval);
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        DateTimeOffset? nextScheduledAttempt = null;
+
+        while (!stoppingToken.IsCancellationRequested)
         {
-            await DispatchAvailableAsync(stoppingToken);
+            if (nextScheduledAttempt is { } dueAttempt
+                && dueAttempt <= timeProvider.GetUtcNow())
+            {
+                nextScheduledAttempt = null;
+            }
+
+            var discoveredAttempt = await DispatchAvailableAsync(stoppingToken);
+            nextScheduledAttempt = Earlier(nextScheduledAttempt, discoveredAttempt);
+
+            var now = timeProvider.GetUtcNow();
+            var wait = options.Value.RecoveryInterval;
+            if (nextScheduledAttempt is { } scheduledAttempt)
+            {
+                wait = Min(wait, scheduledAttempt - now);
+            }
+
+            await WaitForWorkAsync(wait, stoppingToken);
         }
     }
 
-    internal async Task DispatchAvailableAsync(CancellationToken cancellationToken)
+    internal async Task<DateTimeOffset?> DispatchAvailableAsync(CancellationToken cancellationToken)
     {
+        DateTimeOffset? nextScheduledAttempt = null;
         while (!cancellationToken.IsCancellationRequested)
         {
             using var runScope = logger.BeginJobRun(nameof(InvitationEmailDispatcher));
-            var invitationId = await ClaimAsync(cancellationToken);
-            if (invitationId is null)
+            var claim = await ClaimAsync(cancellationToken);
+            if (claim is null)
             {
-                return;
+                var persistedAttempt = await FindNextScheduledAttemptAsync(cancellationToken);
+                return Earlier(nextScheduledAttempt, persistedAttempt);
             }
 
             using var itemScope = logger.BeginScope(new Dictionary<string, object?>
             {
-                ["InvitationId"] = invitationId.Value
+                ["InvitationId"] = claim.InvitationId
             });
             try
             {
-                await DeliverAsync(invitationId.Value, cancellationToken);
+                var retryAt = await DeliverAsync(claim.InvitationId, cancellationToken);
+                nextScheduledAttempt = Earlier(nextScheduledAttempt, retryAt);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 logger.LogError(
                     exception,
                     "Invitation dispatch failed unexpectedly for invitation {InvitationId}; the lease will make it retryable.",
-                    invitationId.Value);
+                    claim.InvitationId);
+                nextScheduledAttempt = Earlier(nextScheduledAttempt, claim.LeaseUntil);
             }
         }
+
+        return nextScheduledAttempt;
     }
 
-    private async Task<Guid?> ClaimAsync(CancellationToken cancellationToken)
+    private async Task<InvitationClaim?> ClaimAsync(CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<MoneyMentorDbContext>();
@@ -102,19 +124,40 @@ internal sealed class InvitationEmailDispatcher(
             .SingleOrDefaultAsync(cancellationToken);
         if (invitation is null)
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return null;
         }
 
+        var leaseUntil = now.Add(DeliveryLease);
         invitation.DeliveryStatus = InvitationDeliveryStatus.Processing;
-        invitation.DeliveryLeaseUntil = now.AddMinutes(2);
+        invitation.DeliveryLeaseUntil = leaseUntil;
         invitation.DeliveryAttemptCount++;
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return invitation.Id;
+        return new InvitationClaim(invitation.Id, leaseUntil);
     }
 
-    private async Task DeliverAsync(Guid invitationId, CancellationToken cancellationToken)
+    private async Task<DateTimeOffset?> FindNextScheduledAttemptAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MoneyMentorDbContext>();
+        var now = timeProvider.GetUtcNow();
+
+        return await dbContext.HouseholdInvitations
+            .Where(invitation => invitation.Status == HouseholdInvitationStatus.Pending
+                && invitation.DeliveryAttemptCount < 6
+                && (invitation.DeliveryStatus == InvitationDeliveryStatus.Processing
+                    && invitation.DeliveryLeaseUntil > now
+                    || (invitation.DeliveryStatus == InvitationDeliveryStatus.Queued
+                            || invitation.DeliveryStatus == InvitationDeliveryStatus.Failed)
+                        && invitation.NextDeliveryAttemptAt > now))
+            .Select(invitation => invitation.DeliveryStatus == InvitationDeliveryStatus.Processing
+                ? invitation.DeliveryLeaseUntil
+                : invitation.NextDeliveryAttemptAt)
+            .MinAsync(cancellationToken);
+    }
+
+    private async Task<DateTimeOffset?> DeliverAsync(Guid invitationId, CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<MoneyMentorDbContext>();
@@ -187,5 +230,45 @@ internal sealed class InvitationEmailDispatcher(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        return invitation.NextDeliveryAttemptAt;
     }
+
+    private async Task WaitForWorkAsync(TimeSpan wait, CancellationToken stoppingToken)
+    {
+        wait = wait <= TimeSpan.Zero ? TimeSpan.Zero : wait;
+        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        var signalTask = dispatchSignal.WaitAsync(waitCancellation.Token).AsTask();
+        var timerTask = Task.Delay(wait, timeProvider, waitCancellation.Token);
+        await Task.WhenAny(signalTask, timerTask);
+        await waitCancellation.CancelAsync();
+
+        try
+        {
+            await Task.WhenAll(signalTask, timerTask);
+        }
+        catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+        {
+            // The losing wait is intentionally cancelled.
+        }
+
+    }
+
+    private static TimeSpan Min(TimeSpan left, TimeSpan right) => left <= right ? left : right;
+
+    private static DateTimeOffset? Earlier(DateTimeOffset? left, DateTimeOffset? right)
+    {
+        if (left is null)
+        {
+            return right;
+        }
+
+        if (right is null)
+        {
+            return left;
+        }
+
+        return left <= right ? left : right;
+    }
+
+    private sealed record InvitationClaim(Guid InvitationId, DateTimeOffset LeaseUntil);
 }

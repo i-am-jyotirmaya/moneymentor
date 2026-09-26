@@ -165,6 +165,20 @@ public sealed class ResendEmailTests
     }
 
     [Theory]
+    [InlineData("00:01:00")]
+    [InlineData("2.00:00:00")]
+    public async Task Dispatcher_recovery_interval_is_bounded(string recoveryInterval)
+    {
+        using var host = CreateHost(
+            "test-key",
+            "hello@example.com",
+            dispatcher: true,
+            recoveryInterval: recoveryInterval);
+        var exception = await Assert.ThrowsAsync<OptionsValidationException>(() => host.StartAsync());
+        Assert.Contains("Resend:RecoveryInterval", exception.Message);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Direct_approval_sender_works_without_aws_and_independently_of_dispatcher(bool dispatcher)
@@ -189,7 +203,12 @@ public sealed class ResendEmailTests
         await host.StopAsync();
     }
 
-    private static IHost CreateHost(string key, string from, bool dispatcher, HttpMessageHandler? handler = null)
+    private static IHost CreateHost(
+        string key,
+        string from,
+        bool dispatcher,
+        HttpMessageHandler? handler = null,
+        string recoveryInterval = "01:00:00")
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
@@ -198,7 +217,8 @@ public sealed class ResendEmailTests
             ["AWS:Enabled"] = "false",
             ["Resend:ApiKey"] = key,
             ["Resend:FromAddress"] = from,
-            ["Resend:DispatcherEnabled"] = dispatcher.ToString()
+            ["Resend:DispatcherEnabled"] = dispatcher.ToString(),
+            ["Resend:RecoveryInterval"] = recoveryInterval
         });
         builder.Services.AddInfrastructure(builder.Configuration);
         if (handler is not null)

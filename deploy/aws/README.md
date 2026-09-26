@@ -48,10 +48,10 @@ All transactional emails use the [Resend HTTPS API](https://resend.com/docs/api-
 
 1. Verify a sending domain in Resend and create a sending API key for that domain.
 2. Set `RESEND_API_KEY` and `RESEND_FROM_ADDRESS` in the EC2 `.env`. Optionally set `RESEND_REPLY_TO` to your support address.
-3. Set `RESEND_DISPATCHER_ENABLED=true` to deliver queued household invitations. MVP approval/resend commands send directly even when this flag is false. Compose maps these values to `Resend__ApiKey`, `Resend__FromAddress`, `Resend__ReplyTo`, and `Resend__DispatcherEnabled` on both API and Operations.
+3. Set `RESEND_DISPATCHER_ENABLED=true` to deliver queued household invitations. Keep `RESEND_RECOVERY_INTERVAL=01:00:00` unless you need a different crash-recovery bound. MVP approval/resend commands send directly even when this flag is false. Compose maps these values to the corresponding `Resend__*` settings on both API and Operations.
 4. Recreate the containers after changing their environment. For direct CLI execution, supply the `Resend__*` variables in the Operations environment. Never expose the API key through frontend variables.
 
-Remove old `SES_*` / `SES__*` variables and the SES sending policy from the instance role if no other application uses it. Email no longer requires AWS credentials or enablement. Rename any custom `SES:DispatcherInterval` to `Resend:DispatcherInterval` (default 15 seconds). No database migration is needed; queued invitations use Resend on their next attempt and historical provider IDs remain unchanged.
+Remove old `SES_*` / `SES__*` variables and the SES sending policy from the instance role if no other application uses it. Email no longer requires AWS credentials or enablement. The invitation dispatcher is event-driven; `Resend:RecoveryInterval` (default 1 hour) controls only the fail-safe sweep for work left behind by a crash. No database migration is needed; queued invitations use Resend on their next attempt and historical provider IDs remain unchanged.
 
 The sender has a 15-second timeout and records sanitized errors. Each delivery GUID supplies a stable `Idempotency-Key`; Resend [retains keys for 24 hours](https://resend.com/docs/dashboard/emails/idempotency-keys). Identical retries within that window are deduplicated, but changed payloads using the same key are rejected and retries after expiry can duplicate delivery. The existing bounded invitation retry schedule remains in place. Approval failures require an explicit operator resend, which creates a new delivery ID and signup token.
 

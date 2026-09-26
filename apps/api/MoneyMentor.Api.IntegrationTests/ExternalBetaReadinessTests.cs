@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Application.Transactions;
+using MoneyMentor.Infrastructure.Email;
 using MoneyMentor.Infrastructure.Persistence;
 using MoneyMentor.Operations;
 using Xunit;
@@ -148,13 +149,25 @@ public sealed class ExternalBetaReadinessTests(MoneyMentorApiFactory factory)
             expiredInvitation.ExpiresAt = factory.Clock.GetUtcNow().AddSeconds(-1);
             await db.SaveChangesAsync();
         }
-        invitationResponse = await ownerClient.PostAsJsonAsync(
-            $"/api/households/{householdId}/invitations",
-            new { email = viewerEmail, role = "Viewer" });
-        invitationResponse.EnsureSuccessStatusCode();
-        var invitationId = (await invitationResponse.Content.ReadFromJsonAsync<JsonObject>())!["id"]!.GetValue<Guid>();
+        Guid invitationId;
+        using (var dispatcher = ActivatorUtilities.CreateInstance<InvitationEmailDispatcher>(factory.Services))
+        {
+            await dispatcher.StartAsync(CancellationToken.None);
+            try
+            {
+                invitationResponse = await ownerClient.PostAsJsonAsync(
+                    $"/api/households/{householdId}/invitations",
+                    new { email = viewerEmail, role = "Viewer" });
+                invitationResponse.EnsureSuccessStatusCode();
+                invitationId = (await invitationResponse.Content.ReadFromJsonAsync<JsonObject>())!["id"]!.GetValue<Guid>();
+                await WaitForEmailAsync(viewerEmail);
+            }
+            finally
+            {
+                await dispatcher.StopAsync(CancellationToken.None);
+            }
+        }
 
-        await factory.DispatchInvitationsAsync();
         var received = await viewerClient.GetFromJsonAsync<JsonArray>("/api/households/invitations");
         Assert.Contains(received!, item => item!["id"]!.GetValue<Guid>() == invitationId);
         (await viewerClient.PostAsync($"/api/households/invitations/{invitationId}/accept", null))
@@ -404,6 +417,15 @@ public sealed class ExternalBetaReadinessTests(MoneyMentorApiFactory factory)
 
     private static string UniqueEmail(string prefix) =>
         $"{prefix}-{Guid.NewGuid():N}@moneymentor.test";
+
+    private async Task WaitForEmailAsync(string email)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (!factory.EmailSender.Messages.Any(message => message.To == email))
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(25), timeout.Token);
+        }
+    }
 
     private sealed record TestSession(
         string AccessToken,

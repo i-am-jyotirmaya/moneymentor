@@ -11,4 +11,6 @@ public sealed class ResendOptions
     public string FromAddress { get; init; } = string.Empty;
 
     public string? ReplyTo { get; init; }
+
+    public TimeSpan RecoveryInterval { get; init; } = TimeSpan.FromHours(1);
 }

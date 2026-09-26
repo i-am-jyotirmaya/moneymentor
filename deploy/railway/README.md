@@ -156,6 +156,7 @@ Initial optional-capability values:
 
 ```dotenv
 Resend__DispatcherEnabled=false
+Resend__RecoveryInterval=01:00:00
 Resend__ApiKey=
 OPENAI_API_KEY=
 OPENAI_SAFETY_IDENTIFIER_KEY=
@@ -324,8 +325,8 @@ Do this only after the manual flow works:
 
 1. Create/verify a sending domain in Resend.
 2. Set `Resend__ApiKey`, `Resend__FromAddress`, and `Resend__ReplyTo` on the API service.
-3. Set `Resend__DispatcherEnabled=true`.
-4. Redeploy the API. Production startup will reject an enabled dispatcher with missing API key or sender.
+3. Set `Resend__DispatcherEnabled=true`. Keep `Resend__RecoveryInterval=01:00:00` unless you need a different crash-recovery bound; normal delivery is signalled immediately and does not wait for this sweep.
+4. Redeploy the API. Production startup will reject an enabled dispatcher with a missing API key, sender, or recovery interval outside 5 minutes to 1 day.
 5. Send a new invitation to a test address and verify delivery, link destination, duplicate protection, and queued/sent/failed status.
 
 Do not put the Resend API key in the web service or any `NEXT_PUBLIC_*` variable.

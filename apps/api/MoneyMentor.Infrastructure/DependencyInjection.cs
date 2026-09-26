@@ -128,12 +128,17 @@ public static class DependencyInjection
                 "Resend:ApiKey is required when Resend:DispatcherEnabled is true.")
             .Validate(options => !options.DispatcherEnabled || !string.IsNullOrWhiteSpace(options.FromAddress),
                 "Resend:FromAddress is required when Resend:DispatcherEnabled is true.")
+            .Validate(options => !options.DispatcherEnabled
+                    || options.RecoveryInterval >= TimeSpan.FromMinutes(5)
+                    && options.RecoveryInterval <= TimeSpan.FromDays(1),
+                "Resend:RecoveryInterval must be between 5 minutes and 1 day when the dispatcher is enabled.")
             .ValidateOnStart();
         services.AddHttpClient<ITransactionalEmailSender, ResendTransactionalEmailSender>(client =>
         {
             client.BaseAddress = new Uri("https://api.resend.com/");
             client.Timeout = TimeSpan.FromSeconds(15);
         });
+        services.AddSingleton<IInvitationDispatchSignal, InvitationDispatchSignal>();
         if (configuration.GetValue<bool>($"{ResendOptions.SectionName}:DispatcherEnabled"))
         {
             services.AddHostedService<InvitationEmailDispatcher>();
