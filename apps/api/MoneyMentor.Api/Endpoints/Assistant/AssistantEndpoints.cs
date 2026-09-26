@@ -79,7 +79,7 @@ public static class AssistantEndpoints
                     request.CurrencyCode,
                     request.Locale,
                     identity.Email,
-                    identity.DisplayName) { ProcessingMode = processingMode, ConfirmationToken = request.ConfirmationToken },
+                    identity.DisplayName) { ProcessingMode = processingMode, ConfirmationToken = request.ConfirmationToken, ClarificationToken = request.ClarificationToken },
                 cancellationToken);
         }
         catch (HouseholdNotFoundException)
@@ -104,6 +104,7 @@ public static class AssistantEndpoints
             result.Errors)
         {
             ConfirmationToken = result.ConfirmationToken,
+            ClarificationToken = result.ClarificationToken,
             PaymentState = result.PaymentState,
             ParsedIncomeDebug = result.ParsedIncomeDebug
         });

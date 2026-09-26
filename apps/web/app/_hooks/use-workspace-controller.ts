@@ -463,7 +463,7 @@ export function useWorkspaceController() {
     startVoiceInput();
   }
 
-  async function submitAssistantInput(input: AssistantInput, confirmationToken?: string) {
+  async function submitAssistantInput(input: AssistantInput, confirmationToken?: string, clarificationToken?: string) {
     const normalizedText = (input.source === "image" ? sanitizeImageText(input.text) : input.text).trim();
     const mode = inputModes[input.source];
     if (!normalizedText || submissionRef.current) {
@@ -497,6 +497,7 @@ export function useWorkspaceController() {
     try {
       const result = await sendAssistantMessage(session.accessToken, {
         ...assistantInputRequest({ ...input, text: normalizedText }, confirmationToken),
+        ...(clarificationToken ? { clarificationToken } : {}),
         householdId: selectedHouseholdId ?? undefined,
         currencyCode,
       });
@@ -540,13 +541,13 @@ export function useWorkspaceController() {
     void getTextRecognition().dispose();
   }
 
-  async function previewImageInput(input: AssistantInput, run: number) {
+  async function previewImageInput(input: AssistantInput, run: number, clarificationToken?: string) {
     if (!input.text.trim() || submissionRef.current) return;
     const sanitized = { ...input, text: sanitizeImageText(input.text) };
     setImageState(current => current ? { ...current, input: sanitized, result: undefined, status: "parsed", error: undefined } : current);
-    const result = await submitAssistantInput(sanitized);
+    const result = await submitAssistantInput(sanitized, undefined, clarificationToken);
     if (run !== imageRun.current) return;
-    setImageState(current => current ? { ...current, result, status: result ? "needs-confirmation" : "failed",
+    setImageState(current => current ? { ...current, input: { ...sanitized, text: result?.parsedDebug?.sourceText ?? result?.parsedIncomeDebug?.sourceText ?? sanitized.text }, result, status: result ? "needs-confirmation" : "failed",
       error: result ? undefined : "Could not process this text. Edit it or try again." } : current);
   }
 
@@ -631,7 +632,7 @@ export function useWorkspaceController() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (imagePreview?.input) {
-      void previewImageInput({ ...imagePreview.input, text }, imageRun.current);
+      void previewImageInput({ ...imagePreview.input, text }, imageRun.current, imagePreview.result?.clarificationToken ?? undefined);
     } else if (!imagePreview) {
       void submitAssistantInput(typedAssistantInput(text, getProcessingLocation()));
     }

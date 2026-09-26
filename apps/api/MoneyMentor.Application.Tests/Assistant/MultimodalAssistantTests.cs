@@ -14,6 +14,56 @@ public sealed class MultimodalAssistantTests
     private static AssistantMessageCommand Command(string text, InputMode mode = InputMode.Image) =>
         new(text, "local", "person", null, mode, null, "INR", "en-IN", null, null);
 
+    [Fact]
+    public async Task ImageClarificationKeepsFieldsAcrossAmountDescriptionAndCorrection()
+    {
+        var f = new Fixture();
+        var initial = await f.Service.ProcessAsync(Command("Payment successful to Mohan Kumar 395 You earned 1.04% cashback 19 September 2026 08:31PM"), TestContext.Current.CancellationToken);
+        Assert.Null(initial.ParsedDebug!.Amount);
+        Assert.NotNull(initial.ClarificationToken);
+        Assert.Null(initial.ConfirmationToken);
+        var amount = await f.Service.ProcessAsync(Command("95") with { ProcessingMode = AssistantProcessingMode.Preview, ClarificationToken = initial.ClarificationToken }, TestContext.Current.CancellationToken);
+        Assert.Equal(95m, amount.ParsedDebug!.Amount);
+        Assert.Equal(initial.ParsedDebug.MerchantName, amount.ParsedDebug.MerchantName);
+        Assert.Equal(initial.ParsedDebug.TransactionDate, amount.ParsedDebug.TransactionDate);
+        var purpose = await f.Service.ProcessAsync(Command("Groceries") with { ProcessingMode = AssistantProcessingMode.Preview, ClarificationToken = amount.ClarificationToken }, TestContext.Current.CancellationToken);
+        Assert.Equal(95m, purpose.ParsedDebug!.Amount);
+        Assert.Contains("groceries", purpose.ParsedDebug.Description!, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(purpose.ConfirmationToken);
+        var correction = await f.Service.ProcessAsync(Command("295") with { ProcessingMode = AssistantProcessingMode.Preview, ClarificationToken = purpose.ClarificationToken }, TestContext.Current.CancellationToken);
+        Assert.Equal(295m, correction.ParsedDebug!.Amount);
+        Assert.Equal(purpose.ParsedDebug.Description, correction.ParsedDebug.Description);
+        Assert.Equal(0, f.Transactions.Saves);
+        var saved = await f.Service.ProcessAsync(Command("confirm") with { ConfirmationToken = correction.ConfirmationToken }, TestContext.Current.CancellationToken);
+        Assert.Equal(295m, saved.Transaction!.Amount);
+        Assert.Equal(1, f.Transactions.Saves);
+    }
+
+    [Fact]
+    public async Task IncompletePreviewTokenCannotExecute()
+    {
+        var f = new Fixture();
+        var preview = await f.Service.ProcessAsync(Command("Payment successful to Mohan Kumar"), TestContext.Current.CancellationToken);
+        Assert.NotNull(preview.ClarificationToken);
+        var result = await f.Service.ProcessAsync(Command("confirm") with { ConfirmationToken = preview.ClarificationToken }, TestContext.Current.CancellationToken);
+        Assert.Null(result.Transaction);
+        Assert.Equal(0, f.Transactions.Saves);
+    }
+
+    [Theory]
+    [InlineData("Payment failed")]
+    [InlineData("Payment pending")]
+    public async Task NegativePaymentClarificationInvalidatesPreview(string reply)
+    {
+        var f = new Fixture();
+        var preview = await f.Service.ProcessAsync(Command(Payment), TestContext.Current.CancellationToken);
+        var result = await f.Service.ProcessAsync(Command(reply) with { ProcessingMode = AssistantProcessingMode.Preview, ClarificationToken = preview.ClarificationToken }, TestContext.Current.CancellationToken);
+        Assert.Null(result.ConfirmationToken);
+        Assert.Equal(0, f.Transactions.Saves);
+        var stale = await f.Service.ProcessAsync(Command("confirm") with { ConfirmationToken = preview.ConfirmationToken }, TestContext.Current.CancellationToken);
+        Assert.Null(stale.Transaction);
+    }
+
     [Theory]
     [InlineData(InputMode.Text, "Spent 850 at Reliance yesterday")]
     [InlineData(InputMode.Voice, "Spent 850 at Reliance yesterday")]

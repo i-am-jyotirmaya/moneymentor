@@ -135,3 +135,32 @@ test("composer waits for household initialization before accepting input", async
   });
   await expect(page.getByLabel("Message Spndrr")).toBeEditable();
 });
+
+test("image replies carry the preview token until explicit confirmation", async ({ page }) => {
+  await workspace(page);
+  const requests: Record<string, unknown>[] = [];
+  await page.route("**/api/assistant/messages", async route => {
+    const body = route.request().postDataJSON(); requests.push(body);
+    const step = requests.length;
+    await route.fulfill({ json: {
+      status: step === 1 ? "NeedsClarification" : "Responded", intent: "CreateExpense",
+      assistantMessage: step === 1 ? "How much did you spend?" : "Review this expense.",
+      parsedDebug: { amount: step === 1 ? null : 95, merchantName: "Swiggy", description: step >= 3 ? "Groceries" : "Payment to Swiggy", sourceText: "Payment successful at Swiggy\n95\nGroceries", missingFields: step === 1 ? ["Amount"] : [] },
+      clarificationToken: `draft-${step}`, confirmationToken: step === 1 ? null : `draft-${step}`,
+      paymentState: "Success", transaction: step === 4 ? { id: "saved", amount: 95, currencyCode: "INR", type: "Expense" } : null, errors: [],
+    } });
+  });
+  await page.getByLabel("Choose screenshot").setInputFiles({ name: "payment.png", mimeType: "image/png", buffer: await screenshotImage(page) });
+  await expect(page.getByText("How much did you spend?", { exact: true })).toBeVisible({ timeout: 70_000 });
+  for (const reply of ["95", "Groceries"]) {
+    await page.getByLabel("Message Spndrr").fill(reply);
+    await page.getByRole("button", { name: "Send message", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Track expense", exact: true })).toBeEnabled();
+  }
+  expect(requests[1]).toMatchObject({ text: "95", clarificationToken: "draft-1", processingMode: "Preview", inputMode: "Image" });
+  expect(requests[2]).toMatchObject({ text: "Groceries", clarificationToken: "draft-2", processingMode: "Preview" });
+  expect(requests.slice(0, 3).every(request => !request.confirmationToken)).toBeTruthy();
+  await page.getByRole("button", { name: "Track expense", exact: true }).click();
+  await expect(page.getByTestId("image-preview")).toHaveCount(0);
+  expect(requests[3]).toMatchObject({ confirmationToken: "draft-3", processingMode: "Execute" });
+});

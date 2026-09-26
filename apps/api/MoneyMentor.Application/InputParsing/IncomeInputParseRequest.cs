@@ -17,6 +17,7 @@ public sealed record IncomeInputParseRequest(
 {
     public AssistantProcessingMode ProcessingMode { get; init; }
     internal IncomeDraft? ConfirmedDraft { get; init; }
+    internal IncomeDraft? PreviewDraft { get; init; }
     internal bool IsPreview => ProcessingMode == AssistantProcessingMode.Preview
         || (InputMode == InputMode.Image && ConfirmedDraft is null);
 }

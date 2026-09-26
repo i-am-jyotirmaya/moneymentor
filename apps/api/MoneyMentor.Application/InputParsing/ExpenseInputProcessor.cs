@@ -29,6 +29,8 @@ public sealed class ExpenseInputProcessor(
         var parseResult = await parser.ParseAsync(request, cancellationToken);
         if (request.IsPreview)
         {
+            if (request.PreviewDraft is { } previous && parseResult.Draft is { } current)
+                parseResult = BuildResultFromMergedDraft(MergeDrafts(previous, current, request));
             if (parseResult.Draft is { } draft)
             {
                 draft = draft with { TransactionDate = draft.TransactionDate ?? userContext.CurrentDate };

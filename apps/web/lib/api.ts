@@ -203,6 +203,7 @@ export type FinanceQuestionAnswer = {
 
 export type AssistantMessageResponse = {
   confirmationToken?: string | null;
+  clarificationToken?: string | null;
   paymentState?: "Unknown" | "Success" | "Failed" | "Pending" | null;
   status: AssistantMessageStatus;
   intent:
@@ -691,6 +692,7 @@ export function submitAssistantMessage(
     inputMode: import("./assistant-input").AssistantInputMode;
     processingMode?: import("./assistant-input").AssistantProcessingMode;
     confirmationToken?: string;
+    clarificationToken?: string;
     householdId?: string;
     transactionDate?: string;
     currencyCode?: string;

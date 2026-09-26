@@ -24,6 +24,8 @@ public sealed class IncomeInputProcessor(
         var parseResult = await parser.ParseAsync(request, cancellationToken);
         if (request.IsPreview)
         {
+            if (request.PreviewDraft is { } previous && parseResult.Draft is { } current)
+                parseResult = BuildResultFromMergedDraft(MergeDrafts(previous, current, request));
             if (parseResult.Draft is { } draft)
             {
                 var context = await appUserProfileService.ResolveAsync(new AppUserIdentity(

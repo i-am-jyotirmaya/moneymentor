@@ -22,6 +22,7 @@ public sealed class AssistantMessageRequest
 
     [MaxLength(64)]
     public string? ConfirmationToken { get; init; }
+    public string? ClarificationToken { get; init; }
 
     public DateOnly? TransactionDate { get; init; }
 
@@ -43,6 +44,7 @@ public sealed record AssistantMessageResponse(
     IReadOnlyCollection<string> Errors)
 {
     public string? ConfirmationToken { get; init; }
+    public string? ClarificationToken { get; init; }
     public PaymentState? PaymentState { get; init; }
     public IncomeDraft? ParsedIncomeDebug { get; init; }
 }

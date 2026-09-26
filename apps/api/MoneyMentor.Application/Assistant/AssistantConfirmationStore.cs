@@ -9,7 +9,7 @@ public sealed class AssistantConfirmationStore(TimeProvider? timeProvider = null
     private readonly Dictionary<string, Entry> entries = new();
     private DateTimeOffset Now => (timeProvider ?? TimeProvider.System).GetUtcNow();
 
-    public string Add(AssistantMessageCommand command, ExpenseDraft? expense, IncomeDraft? income)
+    public string Add(AssistantMessageCommand command, ExpenseDraft? expense, IncomeDraft? income, bool canExecute = true)
     {
         lock (gate)
         {
@@ -18,7 +18,7 @@ public sealed class AssistantConfirmationStore(TimeProvider? timeProvider = null
                 entries.Remove(key);
             if (entries.Count >= 2000) throw new InvalidOperationException("Too many pending previews. Please retry later.");
             var token = Guid.NewGuid().ToString("N");
-            entries.Add(token, new Entry(command, expense, income, Now.AddMinutes(10)));
+            entries.Add(token, new Entry(command, expense, income, Now.AddMinutes(10), canExecute));
             return token;
         }
     }
@@ -36,5 +36,5 @@ public sealed class AssistantConfirmationStore(TimeProvider? timeProvider = null
     private static bool Matches(AssistantMessageCommand a, AssistantMessageCommand b) =>
         a.AuthProvider == b.AuthProvider && a.AuthSubject == b.AuthSubject && a.HouseholdId == b.HouseholdId;
 
-    public sealed record Entry(AssistantMessageCommand Command, ExpenseDraft? Expense, IncomeDraft? Income, DateTimeOffset ExpiresAt);
+    public sealed record Entry(AssistantMessageCommand Command, ExpenseDraft? Expense, IncomeDraft? Income, DateTimeOffset ExpiresAt, bool CanExecute);
 }

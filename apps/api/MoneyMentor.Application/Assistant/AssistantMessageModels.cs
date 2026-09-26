@@ -28,6 +28,7 @@ public sealed record AssistantMessageCommand(
 {
     public AssistantProcessingMode ProcessingMode { get; init; }
     public string? ConfirmationToken { get; init; }
+    public string? ClarificationToken { get; init; }
 }
 
 public sealed record AssistantMessageResult(
@@ -40,6 +41,7 @@ public sealed record AssistantMessageResult(
     IReadOnlyCollection<string> Errors)
 {
     public string? ConfirmationToken { get; init; }
+    public string? ClarificationToken { get; init; }
     public PaymentState? PaymentState { get; init; }
 
     public IncomeDraft? ParsedIncomeDebug { get; init; }

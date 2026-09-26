@@ -18,6 +18,7 @@ public sealed record ExpenseInputParseRequest(
 {
     public AssistantProcessingMode ProcessingMode { get; init; }
     internal ExpenseDraft? ConfirmedDraft { get; init; }
+    internal ExpenseDraft? PreviewDraft { get; init; }
     internal bool IsPreview => ProcessingMode == AssistantProcessingMode.Preview
         || (InputMode == InputMode.Image && ConfirmedDraft is null);
 }

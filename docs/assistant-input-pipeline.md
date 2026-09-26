@@ -99,3 +99,7 @@ NEXT_PUBLIC_API_BASE_URL=https://api.spndrr.example pnpm --filter mobile build
 API integration tests require Docker/PostgreSQL. CI also builds both production containers. `MultimodalAssistantTests` uses the actual shared classifier/parser/processors with recording persistence to verify preview, confirmation, token ownership/expiry/replay, payment states and draft isolation. `PaymentTextParsingTests` covers amount selection. `AssistantPreviewTests` verifies preview/confirmation against the API/database. Acquisition tests cover speech lifecycle, request allowlisting and redaction; browser tests exercise actual local Tesseract selection/paste, edits, confirmation and URL cleanup.
 
 English-only OCR, noisy layouts, multiple payments, ambiguous amounts and dates remain heuristic limitations. Native physical-device microphone/OCR testing remains a release follow-up. This phase adds no image storage, receipt history, server OCR, local NLU, Moonshine/Sherpa engine migration or OS share target.
+
+### Image clarification
+
+Preview responses also carry a scoped, single-use clarification token for incomplete or complete drafts. A composer reply submits that token in Preview mode; the existing expense/income processor merges the answer into the server-held draft without writing transactions or touching ordinary pending drafts. Tokens rotate after every reply. Incomplete draft tokens cannot execute. Edit text starts a fresh preview; Track remains the only execute action. OCR may misread currency symbols as digits: review and correct amounts before tracking.
