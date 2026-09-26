@@ -1,5 +1,5 @@
 using System.Net;
-using System.Text;
+using System.Net.Http.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MoneyMentor.Application.InputParsing;
@@ -22,14 +22,18 @@ public sealed class JevTransactionEnricherTests
             Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent($$"""
-                    {"model":"jev-latest","answers":{
-                      "category":{"type":"choice","choice":"cat_{{category.Id:N}}","confidence":0.91},
-                      "classification":{"type":"choice","choice":"essential","confidence":0.8},
-                      "optionality":{"type":"score","score":1.2,"confidence":0.7},
-                      "recurring":{"type":"noul","noul":0.3},
-                      "reimbursement":{"type":"noul","noul":0.1}}}
-                    """, Encoding.UTF8, "application/json")
+                Content = JsonContent.Create(new
+                {
+                    model = "jev-latest",
+                    answers = new
+                    {
+                        category = new { type = "choice", choice = "cat_" + category.Id.ToString("N"), confidence = 0.91m },
+                        classification = new { type = "choice", choice = "essential", confidence = 0.8m },
+                        optionality = new { type = "score", score = 1.2m, confidence = 0.7m },
+                        recurring = new { type = "noul", noul = 0.3m },
+                        reimbursement = new { type = "noul", noul = 0.1m }
+                    }
+                })
             };
         })) { BaseAddress = new Uri("https://api.typesafe.ai/") };
         var enricher = new JevTransactionEnricher(client,
