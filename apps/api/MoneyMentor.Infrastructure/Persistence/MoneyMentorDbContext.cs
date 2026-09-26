@@ -24,6 +24,8 @@ public sealed class MoneyMentorDbContext : DbContext
 
     public DbSet<Transaction> Transactions => Set<Transaction>();
 
+    public DbSet<DailyFinancialAggregate> DailyFinancialAggregates => Set<DailyFinancialAggregate>();
+
     public DbSet<TransactionAuditEntry> TransactionAuditEntries => Set<TransactionAuditEntry>();
 
     public DbSet<AssistantSession> AssistantSessions => Set<AssistantSession>();

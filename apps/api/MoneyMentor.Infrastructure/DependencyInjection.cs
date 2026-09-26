@@ -87,6 +87,7 @@ public static class DependencyInjection
         services.AddScoped<IJudgementReportWorkStore, PostgresJudgementReportWorkStore>();
         services.AddScoped<IJudgementReportPipeline, PostgresJudgementReportPipeline>();
         services.AddScoped<IJudgementReportRecalculationQueue, JudgementReportRecalculationQueue>();
+        services.AddScoped<DailyFinancialFactStore>();
         services.AddScoped<IFinanceTransactionReader, PostgresFinanceTransactionReader>();
         services.AddScoped<IPrivacyService, PostgresPrivacyService>();
         services.AddHostedService<DeletedTransactionPurgeService>();

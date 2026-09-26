@@ -16,6 +16,7 @@ internal sealed class PostgresTransactionService(
     MoneyMentorDbContext dbContext,
     IHouseholdAccessService householdAccessService,
     IJudgementReportRecalculationQueue judgementReportRecalculationQueue,
+    DailyFinancialFactStore dailyFinancialFactStore,
     TimeProvider timeProvider) : ITransactionService
 {
     private const int MaxPageSize = 100;
@@ -57,7 +58,7 @@ internal sealed class PostgresTransactionService(
 
         dbContext.Transactions.Add(transaction);
         await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("created", "expense");
 
         return await MapTransactionAsync(
@@ -104,7 +105,7 @@ internal sealed class PostgresTransactionService(
 
         dbContext.Transactions.Add(transaction);
         await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("created", "income");
 
         return await MapTransactionAsync(
@@ -291,7 +292,8 @@ internal sealed class PostgresTransactionService(
             await judgementReportRecalculationQueue.EnqueueAsync(
                 [originalReportingSnapshot, ReportingSnapshot(transaction)],
                 cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await SaveAndRebuildAsync(transaction.HouseholdId,
+                [originalReportingSnapshot.TransactionDate, transaction.TransactionDate], cancellationToken);
             RecordLifecycle("updated", transaction.Type.ToString().ToLowerInvariant());
         }
 
@@ -322,7 +324,7 @@ internal sealed class PostgresTransactionService(
         transaction.UpdatedByUserProfileId = userContext.UserProfileId;
         AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", false, true);
         await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("deleted", transaction.Type.ToString().ToLowerInvariant());
         return await MapTransactionAsync(
             transaction,
@@ -353,7 +355,7 @@ internal sealed class PostgresTransactionService(
         transaction.UpdatedByUserProfileId = userContext.UserProfileId;
         AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", true, false);
         await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("restored", transaction.Type.ToString().ToLowerInvariant());
         return await MapTransactionAsync(
             transaction,
@@ -400,6 +402,16 @@ internal sealed class PostgresTransactionService(
         }
 
         return purged;
+    }
+
+    private async Task SaveAndRebuildAsync(Guid householdId, IEnumerable<DateOnly> dates,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        foreach (var date in dates.Distinct().Order())
+            await dailyFinancialFactStore.RebuildAsync(householdId, date, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private static void RecordLifecycle(string operation, string type) =>
