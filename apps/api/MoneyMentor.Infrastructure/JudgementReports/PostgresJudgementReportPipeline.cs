@@ -215,7 +215,8 @@ internal sealed class PostgresJudgementReportPipeline(
             summary.Cadence,
             timeProvider.GetUtcNow(),
             summary.TimeZone).StartDate == summary.WindowStart;
-        if (hasConsent && isLatestCompletedPeriod)
+        if (hasConsent && isLatestCompletedPeriod &&
+            payload.Evaluation.Judgements.Any(x => x.IsMaterial && x.Severity >= JudgementSeverity.Nudge))
         {
             try
             {

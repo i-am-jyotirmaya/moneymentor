@@ -25,10 +25,11 @@ internal sealed class JevJudgmentGate(
         if (string.IsNullOrWhiteSpace(config.ApiKey)) return Fallback(candidate);
         try
         {
+            using var context = JsonDocument.Parse(contextJson);
             var request = new
             {
                 model = config.Model,
-                state = JsonDocument.Parse(contextJson).RootElement,
+                state = context.RootElement,
                 questions = new
                 {
                     action = new { type = "choice", instructions =

@@ -108,6 +108,12 @@ public static class DependencyInjection
             client.BaseAddress = new Uri("https://api.typesafe.ai/");
             client.Timeout = TimeSpan.FromSeconds(8);
         });
+        services.AddHttpClient<OpenAiCandidateExplanationClient>((provider, client) =>
+        {
+            var llm = provider.GetRequiredService<IOptions<OpenAiGoalPlanningOptions>>().Value;
+            client.BaseAddress = new Uri("https://api.openai.com/v1/");
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(llm.TimeoutSeconds, 5, 120));
+        });
         services.AddOptions<CandidateDetectionOptions>()
             .Bind(configuration.GetSection(CandidateDetectionOptions.SectionName))
             .Validate(x => x.AnalysisIntervalHours is >= 1 and <= 168 &&

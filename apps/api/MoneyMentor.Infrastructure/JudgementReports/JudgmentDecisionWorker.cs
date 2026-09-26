@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using MoneyMentor.Application.Privacy;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Persistence;
@@ -34,6 +35,7 @@ internal sealed class JudgmentDecisionService(
     MoneyMentorDbContext dbContext,
     JudgmentContextBuilder contexts,
     JevJudgmentGate gate,
+    OpenAiCandidateExplanationClient explanations,
     TimeProvider clock)
 {
     public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken)
@@ -63,6 +65,18 @@ internal sealed class JudgmentDecisionService(
         {
             var context = await contexts.BuildAsync(candidate, cancellationToken);
             var decision = await gate.DecideAsync(candidate, context, cancellationToken);
+            string? explanation = null;
+            if (decision.NeedsLlm && decision.Importance >= 2.5m
+                && candidate.InterestingnessScore >= 0.45m && explanations.IsEnabled
+                && await HasAiConsentAsync(candidate, cancellationToken))
+            {
+                try
+                {
+                    explanation = await explanations.ExplainAsync(candidate, decision, context, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception) { /* A saved deterministic explanation remains available. */ }
+            }
             await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
             var current = await dbContext.JudgmentCandidates.SingleOrDefaultAsync(x =>
                 x.Id == candidate.Id && x.ClaimToken == token && x.Status == JudgmentCandidateStatus.Evaluating,
@@ -76,7 +90,7 @@ internal sealed class JudgmentDecisionService(
                 var currency = await dbContext.Households.AsNoTracking()
                     .Where(x => x.Id == current.HouseholdId).Select(x => x.CurrencyCode)
                     .SingleAsync(cancellationToken);
-                dbContext.Judgements.Add(CreateJudgement(current, decision, context, currency));
+                dbContext.Judgements.Add(CreateJudgement(current, decision, context, currency, explanation));
             }
             current.Status = decision.Action == JudgmentDecisionAction.Ignore
                 ? JudgmentCandidateStatus.Ignored : JudgmentCandidateStatus.Judged;
@@ -94,8 +108,9 @@ internal sealed class JudgmentDecisionService(
                 NarrationSchemaVersion = decision.SchemaVersion,
                 DeterministicInputJson = current.EvidenceJson,
                 ContextSnapshotJson = context,
-                NarrationOutputJson = JsonSerializer.Serialize(decision),
-                Provider = decision.Provider, Model = decision.Model,
+                NarrationOutputJson = JsonSerializer.Serialize(new { decision, explanation }),
+                Provider = explanation is null ? decision.Provider : "typesafe+openai",
+                Model = decision.Model,
                 DurationMilliseconds = (long)(clock.GetUtcNow() - started).TotalMilliseconds,
                 StartedAt = started, CompletedAt = clock.GetUtcNow()
             });
@@ -118,8 +133,25 @@ internal sealed class JudgmentDecisionService(
         return true;
     }
 
+    private async Task<bool> HasAiConsentAsync(JudgmentCandidate candidate, CancellationToken cancellationToken)
+    {
+        if (candidate.Scope == JudgementReportScope.Personal)
+            return candidate.UserProfileId is Guid userId
+                && await dbContext.PrivacyConsents.AsNoTracking().AnyAsync(x =>
+                    x.UserProfileId == userId && x.PolicyVersion == PrivacyPolicy.CurrentVersion,
+                    cancellationToken);
+        var members = await dbContext.HouseholdMembers.AsNoTracking()
+            .Where(x => x.HouseholdId == candidate.HouseholdId && x.Status == HouseholdMemberStatus.Active)
+            .Select(x => x.UserProfileId).ToArrayAsync(cancellationToken);
+        if (members.Length == 0) return false;
+        var consented = await dbContext.PrivacyConsents.AsNoTracking()
+            .Where(x => members.Contains(x.UserProfileId) && x.PolicyVersion == PrivacyPolicy.CurrentVersion)
+            .Select(x => x.UserProfileId).Distinct().CountAsync(cancellationToken);
+        return consented == members.Distinct().Count();
+    }
+
     private Judgement CreateJudgement(JudgmentCandidate candidate, JudgmentDecision decision,
-        string context, string currency)
+        string context, string currency, string? explanation)
     {
         var label = candidate.CandidateType switch
         {
@@ -154,7 +186,7 @@ internal sealed class JudgmentDecisionService(
                 ? JudgementSeverity.Info : JudgementSeverity.Nudge,
             SeverityRank = decision.Action == JudgmentDecisionAction.Observe ? 1 : 2,
             Tone = SpendingJudgment.Watch,
-            Title = label, Value = currency + " " + amount, Message = reason,
+            Title = label, Value = currency + " " + amount, Message = explanation ?? reason,
             InputsJson = "{}", FocusMetric = "pattern", EvidenceJson = candidate.EvidenceJson,
             ThresholdsJson = "{}", ActionCode = candidate.CandidateType,
             ActionParametersJson = "{}", CalculationVersion = candidate.CalculationVersion,
@@ -163,7 +195,9 @@ internal sealed class JudgmentDecisionService(
             DecisionConfidence = decision.Confidence, Reason = reason,
             FollowUpQuestion = decision.Action == JudgmentDecisionAction.Ask
                 ? "Was this planned, or was there a one-time reason for it?" : null,
-            ContextSnapshotJson = context, Provider = decision.Provider, Model = decision.Model,
+            ContextSnapshotJson = context,
+            Provider = explanation is null ? decision.Provider : "typesafe+openai",
+            Model = decision.Model,
             DecisionSchemaVersion = decision.SchemaVersion
         };
     }

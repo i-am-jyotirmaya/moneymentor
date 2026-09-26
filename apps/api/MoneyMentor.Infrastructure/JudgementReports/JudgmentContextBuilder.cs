@@ -43,6 +43,7 @@ internal sealed class JudgmentContextBuilder(MoneyMentorDbContext dbContext, Dai
             .Select(x => new { x.RuleCode, x.Reason, x.CreatedAt })
             .ToArrayAsync(cancellationToken);
 
+        using var evidence = JsonDocument.Parse(candidate.EvidenceJson);
         return JsonSerializer.Serialize(new
         {
             schemaVersion = "context-v1",
@@ -52,7 +53,7 @@ internal sealed class JudgmentContextBuilder(MoneyMentorDbContext dbContext, Dai
                 candidate.WindowStart, candidate.WindowEndExclusive,
                 candidate.CurrentValue, candidate.BaselineValue, candidate.DeviationRatio,
                 candidate.Frequency, candidate.InterestingnessScore, candidate.DetectorConfidence,
-                evidence = JsonDocument.Parse(candidate.EvidenceJson).RootElement
+                evidence = evidence.RootElement
             },
             financialState = windows,
             goals,
