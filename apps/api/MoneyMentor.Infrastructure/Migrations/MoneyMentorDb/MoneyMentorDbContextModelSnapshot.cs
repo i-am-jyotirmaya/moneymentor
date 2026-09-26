@@ -340,6 +340,37 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         });
                 });
 
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.DailyFinancialAggregate", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid?>("CategoryId").HasColumnType("uuid");
+                    b.Property<string>("CalculationVersion").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateOnly>("Date").HasColumnType("date");
+                    b.Property<Guid>("HouseholdId").HasColumnType("uuid");
+                    b.Property<int>("TransactionCount").HasColumnType("integer");
+                    b.Property<int>("ExpenseTransactionCount").HasColumnType("integer");
+                    b.Property<int>("IncomeTransactionCount").HasColumnType("integer");
+                    b.Property<DateTimeOffset>("UpdatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<Guid?>("UserProfileId").HasColumnType("uuid");
+                    b.Property<string>("Visibility").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.Property<decimal>("Income").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.Property<decimal>("Expense").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.Property<decimal>("EssentialSpend").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.Property<decimal>("DiscretionarySpend").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.Property<decimal>("DebtSpend").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.Property<decimal>("InvestmentAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.Property<decimal>("AverageTransactionAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.Property<decimal>("MaximumTransactionAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.HasKey("Id");
+                    b.HasIndex("CategoryId");
+                    b.HasIndex("UserProfileId");
+                    b.HasIndex("HouseholdId", "Date", "CategoryId");
+                    b.HasIndex("HouseholdId", "UserProfileId", "Date", "Visibility", "CategoryId")
+                        .IsUnique().AreNullsDistinct(false);
+                    b.ToTable("daily_financial_aggregates", "app");
+                });
+
             modelBuilder.Entity("MoneyMentor.Domain.Entities.EntitlementChange", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2308,6 +2339,13 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .WithMany()
                         .HasForeignKey("UserProfileId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.DailyFinancialAggregate", b =>
+                {
+                    b.HasOne("MoneyMentor.Domain.Entities.Category", null).WithMany().HasForeignKey("CategoryId").OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("MoneyMentor.Domain.Entities.Household", null).WithMany().HasForeignKey("HouseholdId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null).WithMany().HasForeignKey("UserProfileId").OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.EntitlementChange", b =>
