@@ -75,6 +75,17 @@ public static class DependencyInjection
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
         services.AddScoped<IAppUserProfileService, PostgresAppUserProfileService>();
         services.AddScoped<ITransactionService, PostgresTransactionService>();
+        services.AddScoped<MerchantResolver>();
+        services.AddOptions<JevOptions>()
+            .Bind(configuration.GetSection(JevOptions.SectionName))
+            .PostConfigure(options => options.ApiKey = configuration["TYPESAFE_API_KEY"] ?? options.ApiKey)
+            .Validate(options => options.CategoryConfidenceThreshold is >= 0m and <= 1m)
+            .ValidateOnStart();
+        services.AddHttpClient<JevTransactionEnricher>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.typesafe.ai/");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
         services.AddScoped<IHouseholdService, PostgresHouseholdService>();
         services.AddScoped<IHouseholdAccessService, PostgresHouseholdAccessService>();
         services.AddScoped<ICategoryService, PostgresCategoryService>();
@@ -87,6 +98,37 @@ public static class DependencyInjection
         services.AddScoped<IJudgementReportWorkStore, PostgresJudgementReportWorkStore>();
         services.AddScoped<IJudgementReportPipeline, PostgresJudgementReportPipeline>();
         services.AddScoped<IJudgementReportRecalculationQueue, JudgementReportRecalculationQueue>();
+        services.AddScoped<DailyFinancialFactStore>();
+        services.AddScoped<JudgmentCandidateAnalysisService>();
+        services.AddScoped<JudgmentContextBuilder>();
+        services.AddScoped<FinancialMemoryStore>();
+        services.AddHttpClient<MemoryEmbeddingClient>((provider, client) =>
+        {
+            var llm = provider.GetRequiredService<IOptions<OpenAiGoalPlanningOptions>>().Value;
+            client.BaseAddress = new Uri("https://api.openai.com/v1/");
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(llm.TimeoutSeconds, 5, 120));
+        });
+        services.AddScoped<JudgmentDecisionService>();
+        services.AddSingleton<JudgmentDecisionWakeup>();
+        services.AddHttpClient<JevJudgmentGate>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.typesafe.ai/");
+            client.Timeout = TimeSpan.FromSeconds(8);
+        });
+        services.AddHttpClient<OpenAiCandidateExplanationClient>((provider, client) =>
+        {
+            var llm = provider.GetRequiredService<IOptions<OpenAiGoalPlanningOptions>>().Value;
+            client.BaseAddress = new Uri("https://api.openai.com/v1/");
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(llm.TimeoutSeconds, 5, 120));
+        });
+        services.AddOptions<CandidateDetectionOptions>()
+            .Bind(configuration.GetSection(CandidateDetectionOptions.SectionName))
+            .Validate(x => x.AnalysisIntervalHours is >= 1 and <= 168 &&
+                x.MinInterestingness is >= 0m and <= 1m && x.RepeatedSpendCount >= 2 &&
+                x.DeviationWeight + x.FrequencyWeight + x.GoalImpactWeight + x.SpendShareWeight + x.RecencyWeight == 1m)
+            .ValidateOnStart();
+        services.AddHostedService<JudgmentCandidateAnalysisWorker>();
+        services.AddHostedService<JudgmentDecisionWorker>();
         services.AddScoped<IFinanceTransactionReader, PostgresFinanceTransactionReader>();
         services.AddScoped<IPrivacyService, PostgresPrivacyService>();
         services.AddHostedService<DeletedTransactionPurgeService>();

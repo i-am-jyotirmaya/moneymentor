@@ -18,6 +18,12 @@ public sealed class Transaction
 
     public string? MerchantName { get; set; }
 
+    public Guid? MerchantId { get; set; }
+
+    // A bounded semantic observation. It cannot override amount, date, type, or
+    // the category classification used by deterministic financial arithmetic.
+    public string? EnrichmentJson { get; set; }
+
     public string? Description { get; set; }
 
     public string SourceText { get; set; } = string.Empty;

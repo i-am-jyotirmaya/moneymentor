@@ -309,7 +309,28 @@ public enum JudgementWorkStatus
 public enum JudgementWorkStage
 {
     Calculation,
-    Narration
+    Narration,
+    CandidateDecision
+}
+
+public enum JudgmentCandidateStatus
+{
+    Pending,
+    Queued,
+    Evaluating,
+    Ignored,
+    Judged,
+    Expired,
+    Superseded
+}
+
+public enum JudgmentDecisionAction
+{
+    Ignore,
+    Observe,
+    Ask,
+    Nudge,
+    Alert
 }
 
 public enum CommitmentOccurrenceStatus

@@ -19,7 +19,7 @@ namespace MoneyMentor.Api.IntegrationTests;
 
 public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17.5-alpine")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("pgvector/pgvector:0.8.6-pg17")
         .WithDatabase("moneymentor_tests")
         .WithUsername("moneymentor")
         .WithPassword("moneymentor-tests")
