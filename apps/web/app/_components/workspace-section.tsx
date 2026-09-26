@@ -52,6 +52,7 @@ export function WorkspaceSection({
         onPromptClick={props.onPromptClick}
         onSubmit={props.onSubmit}
         onTextChange={props.onTextChange}
+        isInputReady={props.isInputReady} imagePreview={props.imagePreview} onImage={props.onImage} onConfirmImage={props.onConfirmImage} onEditImage={props.onEditImage} onDismissImage={props.onDismissImage}
         onToggleVoice={props.onToggleVoice}
         text={props.text}
         transactions={props.transactions}

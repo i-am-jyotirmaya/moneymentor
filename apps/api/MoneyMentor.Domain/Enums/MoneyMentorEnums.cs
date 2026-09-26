@@ -71,7 +71,8 @@ public enum InputMode
 {
     Text,
     Voice,
-    System
+    System,
+    Image
 }
 
 public enum TransactionVisibility

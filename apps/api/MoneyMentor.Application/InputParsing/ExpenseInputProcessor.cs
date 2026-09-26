@@ -14,6 +14,8 @@ public sealed class ExpenseInputProcessor(
         ExpenseInputParseRequest request,
         CancellationToken cancellationToken)
     {
+        if (PaymentTextSignals.IsBlocked(request.SourceText))
+            return ExpenseInputProcessResult.FromParseResult(ExpenseInputParseResult.Unsupported("This payment is failed or pending. Nothing was tracked."));
         var userContext = await appUserProfileService.ResolveAsync(
             new AppUserIdentity(
                 request.AuthProvider,
@@ -22,7 +24,22 @@ public sealed class ExpenseInputProcessor(
                 request.DisplayName),
             cancellationToken);
         request = request with { ReferenceDate = request.ReferenceDate ?? userContext.CurrentDate };
+        if (request.ConfirmedDraft is not null)
+            return await SaveParsedExpenseAsync(request, userContext, request.ConfirmedDraft, cancellationToken);
         var parseResult = await parser.ParseAsync(request, cancellationToken);
+        if (request.IsPreview)
+        {
+            if (request.PreviewDraft is { } previous && parseResult.Draft is { } current)
+                parseResult = BuildResultFromMergedDraft(MergeDrafts(previous, current, request));
+            if (parseResult.Draft is { } draft)
+            {
+                draft = draft with { TransactionDate = draft.TransactionDate ?? userContext.CurrentDate };
+                if (userContext.RequireMerchantForExpenses && string.IsNullOrWhiteSpace(draft.MerchantName))
+                    return ExpenseInputProcessResult.NeedsClarification(draft, "Which merchant was this from? Edit the text and preview again.");
+                parseResult = parseResult with { Draft = draft };
+            }
+            return ExpenseInputProcessResult.FromParseResult(parseResult);
+        }
 
         if (parseResult.Status is ExpenseInputParseStatus.Failed or ExpenseInputParseStatus.Unsupported)
         {
@@ -46,7 +63,7 @@ public sealed class ExpenseInputProcessor(
                     cancellationToken);
             }
 
-            draftStore.Clear(request);
+            if (request.ConfirmedDraft is null) draftStore.Clear(request);
             return await SaveParsedExpenseAsync(
                 request,
                 userContext,
@@ -94,7 +111,7 @@ public sealed class ExpenseInputProcessor(
         if (userContext.RequireMerchantForExpenses
             && string.IsNullOrWhiteSpace(draft.MerchantName))
         {
-            draftStore.Save(request, draft);
+            if (request.ConfirmedDraft is null) draftStore.Save(request, draft);
             return ExpenseInputProcessResult.NeedsClarification(
                 draft,
                 "Which merchant was this from?");
@@ -107,7 +124,7 @@ public sealed class ExpenseInputProcessor(
                 request.HouseholdId),
             cancellationToken);
 
-        draftStore.Clear(request);
+        if (request.ConfirmedDraft is null) draftStore.Clear(request);
         return ExpenseInputProcessResult.Saved(
             draft,
             transaction,

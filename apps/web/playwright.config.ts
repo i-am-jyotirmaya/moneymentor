@@ -8,6 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
+    launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH },
     baseURL: "http://127.0.0.1:3000",
     screenshot: "only-on-failure",
     trace: "on-first-retry",
@@ -26,7 +27,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm exec next dev --hostname 127.0.0.1 --port 3000",
+    command: "node ../../scripts/prepare-ocr-assets.mjs web && pnpm exec next dev --hostname 127.0.0.1 --port 3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
     url: "http://127.0.0.1:3000",

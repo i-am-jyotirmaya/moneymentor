@@ -17,6 +17,13 @@ public sealed class AssistantMessageRequest
     [MaxLength(32)]
     public string InputMode { get; init; } = "Text";
 
+    [MaxLength(16)]
+    public string ProcessingMode { get; init; } = "Execute";
+
+    [MaxLength(64)]
+    public string? ConfirmationToken { get; init; }
+    public string? ClarificationToken { get; init; }
+
     public DateOnly? TransactionDate { get; init; }
 
     [MinLength(3)]
@@ -36,5 +43,8 @@ public sealed record AssistantMessageResponse(
     FinanceQuestionAnswerModel? FinanceAnswer,
     IReadOnlyCollection<string> Errors)
 {
+    public string? ConfirmationToken { get; init; }
+    public string? ClarificationToken { get; init; }
+    public PaymentState? PaymentState { get; init; }
     public IncomeDraft? ParsedIncomeDebug { get; init; }
 }

@@ -17,15 +17,64 @@ public sealed class AssistantMessageService(
     IGoalService? goalService = null,
     IGoalPlanningService? goalPlanningService = null,
     IGoalInputDraftStore? goalDraftStore = null,
-    TimeProvider? timeProvider = null) : IAssistantMessageService
+    TimeProvider? timeProvider = null,
+    AssistantConfirmationStore? confirmationStore = null) : IAssistantMessageService
 {
     public async Task<AssistantMessageResult> ProcessAsync(
         AssistantMessageCommand command,
         CancellationToken cancellationToken)
     {
+        if (command.ConfirmationToken is not null)
+        {
+            var confirmed = command.ProcessingMode == AssistantProcessingMode.Execute
+                ? confirmationStore?.Take(command.ConfirmationToken, command) : null;
+            if (confirmed is null || !confirmed.CanExecute)
+                return new AssistantMessageResult(AssistantMessageStatus.NeedsClarification, FinanceInputIntent.Unknown,
+                    "This preview expired or was already used. Check your transactions before creating a new preview.", null, null, null, []);
+            // Use the exact server draft and original scope, never client-supplied transaction fields.
+            command = confirmed.Command with { ProcessingMode = AssistantProcessingMode.Execute, ConfirmationToken = null, ClarificationToken = null };
+            if (confirmed.Expense is { } expense)
+            {
+                var result = await expenseInputProcessor.ProcessAsync(new ExpenseInputParseRequest(command.Text,
+                    command.AuthProvider, command.AuthSubject, command.HouseholdId, command.InputMode,
+                    command.TransactionDate, command.CurrencyCode, command.Locale, command.Email, command.DisplayName)
+                    { ConfirmedDraft = expense }, cancellationToken);
+                return new AssistantMessageResult(ToAssistantStatus(result.Status), result.Intent, result.AssistantMessage,
+                    result.Transaction, result.ParsedDebug, null, result.Errors);
+            }
+            if (confirmed.Income is { } income)
+            {
+                var result = await incomeInputProcessor.ProcessAsync(new IncomeInputParseRequest(command.Text,
+                    command.AuthProvider, command.AuthSubject, command.HouseholdId, command.InputMode,
+                    command.TransactionDate, command.CurrencyCode, command.Locale, command.Email, command.DisplayName)
+                    { ConfirmedDraft = income }, cancellationToken);
+                return new AssistantMessageResult(ToAssistantStatus(result.Status), result.Intent, result.AssistantMessage,
+                    result.Transaction, null, null, result.Errors) { ParsedIncomeDebug = result.ParsedDebug };
+            }
+        }
+        AssistantConfirmationStore.Entry? continuation = null;
+        if (command.ClarificationToken is not null)
+        {
+            continuation = command.ProcessingMode == AssistantProcessingMode.Preview && command.ConfirmationToken is null
+                ? confirmationStore?.Take(command.ClarificationToken, command) : null;
+            if (continuation is null)
+                return new AssistantMessageResult(AssistantMessageStatus.NeedsClarification, FinanceInputIntent.Unknown,
+                    "This preview expired. Use Edit text to preview the full payment again.", null, null, null, []);
+            command = continuation.Command with { Text = command.Text, ProcessingMode = AssistantProcessingMode.Preview,
+                ConfirmationToken = null, ClarificationToken = null };
+        }
+        var preview = command.InputMode == InputMode.Image || command.ProcessingMode == AssistantProcessingMode.Preview;
         var text = command.Text.Trim();
+        var combinedText = continuation is null ? text : $"{continuation.Command.Text}\n{text}";
+        if (combinedText.Length > 4000)
+            return new AssistantMessageResult(AssistantMessageStatus.NeedsClarification, FinanceInputIntent.Unknown,
+                "This preview is too long. Use Edit text to shorten it and preview again.", null, null, null, []);
+        var paymentState = PaymentTextSignals.GetState(combinedText);
+        if (PaymentTextSignals.IsBlocked(combinedText))
+            return new AssistantMessageResult(AssistantMessageStatus.Unsupported, FinanceInputIntent.Unknown,
+                "This payment is failed or pending. Nothing was tracked.", null, null, null, []) { PaymentState = paymentState };
         GoalInputDraft? pendingGoalDraft = null;
-        if (goalDraftStore?.TryGet(command.AuthProvider, command.AuthSubject, out pendingGoalDraft) == true)
+        if (!preview && goalDraftStore?.TryGet(command.AuthProvider, command.AuthSubject, out pendingGoalDraft) == true)
         {
             if (text.Equals("cancel", StringComparison.OrdinalIgnoreCase))
             {
@@ -45,6 +94,9 @@ public sealed class AssistantMessageService(
                 command.AuthSubject,
                 command.Locale),
             cancellationToken);
+
+        if (continuation is not null)
+            intent = continuation.Income is not null ? FinanceInputIntent.CreateIncome : FinanceInputIntent.CreateExpense;
 
         if (intent == FinanceInputIntent.AskFinanceQuestion)
         {
@@ -76,6 +128,9 @@ public sealed class AssistantMessageService(
 
         if (intent == FinanceInputIntent.AskGoalAdvice)
         {
+            if (preview)
+                return new AssistantMessageResult(AssistantMessageStatus.Unsupported, intent,
+                    "Image previews cannot create goals. Type your goal separately.", null, null, null, []);
             if (goalService is null)
             {
                 return new AssistantMessageResult(
@@ -196,18 +251,20 @@ public sealed class AssistantMessageService(
             command.CurrencyCode,
             command.Locale,
             command.Email,
-            command.DisplayName);
+            command.DisplayName) { ProcessingMode = preview ? AssistantProcessingMode.Preview : AssistantProcessingMode.Execute, PreviewDraft = continuation?.Income };
         var hasExplicitExpensePaymentSignal = ExpenseInputKeywordSets.ExpensePaymentSignals.Any(
             ExpenseInputTextNormalizer.CreateTermSet(text).Contains);
 
         if (intent == FinanceInputIntent.CreateIncome
-            || (!hasExplicitExpensePaymentSignal
+            || (!preview && !hasExplicitExpensePaymentSignal
                 && incomeInputProcessor.HasPendingDraft(incomeRequest)))
         {
             var incomeResult = await incomeInputProcessor.ProcessAsync(
                 incomeRequest,
                 cancellationToken);
 
+            var incomeToken = preview && incomeResult.ParsedDebug is not null
+                ? confirmationStore?.Add(command with { Text = combinedText }, null, incomeResult.ParsedDebug, incomeResult.Status == IncomeInputParseStatus.Parsed) : null;
             return new AssistantMessageResult(
                 ToAssistantStatus(incomeResult.Status),
                 incomeResult.Intent,
@@ -217,6 +274,9 @@ public sealed class AssistantMessageService(
                 null,
                 incomeResult.Errors)
             {
+                ConfirmationToken = incomeResult.Status == IncomeInputParseStatus.Parsed ? incomeToken : null,
+                ClarificationToken = incomeToken,
+                PaymentState = preview ? paymentState : null,
                 ParsedIncomeDebug = incomeResult.ParsedDebug
             };
         }
@@ -232,9 +292,11 @@ public sealed class AssistantMessageService(
                 command.CurrencyCode,
                 command.Locale,
                 command.Email,
-                command.DisplayName),
+                command.DisplayName) { ProcessingMode = preview ? AssistantProcessingMode.Preview : AssistantProcessingMode.Execute, PreviewDraft = continuation?.Expense },
             cancellationToken);
 
+        var expenseToken = preview && expenseResult.ParsedDebug is not null
+            ? confirmationStore?.Add(command with { Text = combinedText }, expenseResult.ParsedDebug, null, expenseResult.Status == ExpenseInputParseStatus.Parsed) : null;
         return new AssistantMessageResult(
             ToAssistantStatus(expenseResult.Status),
             expenseResult.Intent,
@@ -242,7 +304,12 @@ public sealed class AssistantMessageService(
             expenseResult.Transaction,
             expenseResult.ParsedDebug,
             null,
-            expenseResult.Errors);
+            expenseResult.Errors)
+        {
+            ConfirmationToken = expenseResult.Status == ExpenseInputParseStatus.Parsed ? expenseToken : null,
+            ClarificationToken = expenseToken,
+            PaymentState = preview ? paymentState : null
+        };
     }
 
     private static AssistantMessageStatus ToAssistantStatus(

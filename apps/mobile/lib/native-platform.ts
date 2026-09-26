@@ -1,3 +1,4 @@
+import { RecognitionSpeechAdapter } from "../../web/lib/speech-transcription";
 import { Capacitor } from "@capacitor/core";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
@@ -68,4 +69,14 @@ class NativeSpeechRecognition implements SpeechRecognitionLike {
 
 export function getSpeechRecognition() {
   return Capacitor.isNativePlatform() ? NativeSpeechRecognition : getBrowserSpeechRecognition();
+}
+
+export function getSpeechTranscription() {
+  const Recognition = getSpeechRecognition();
+  return Recognition ? new RecognitionSpeechAdapter(Recognition,
+    Capacitor.isNativePlatform() ? "capacitor-community-speech-recognition" : "browser-speech-recognition",
+    getProcessingLocation()) : undefined;
+}
+export function getProcessingLocation(): "browser" | "device" {
+  return Capacitor.isNativePlatform() ? "device" : "browser";
 }

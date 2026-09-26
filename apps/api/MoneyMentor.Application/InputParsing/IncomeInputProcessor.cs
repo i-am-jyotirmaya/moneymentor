@@ -17,7 +17,23 @@ public sealed class IncomeInputProcessor(
         IncomeInputParseRequest request,
         CancellationToken cancellationToken)
     {
+        if (PaymentTextSignals.IsBlocked(request.SourceText))
+            return IncomeInputProcessResult.FromParseResult(IncomeInputParseResult.Unsupported("This payment is failed or pending. Nothing was tracked."));
+        if (request.ConfirmedDraft is not null)
+            return await SaveAsync(request, request.ConfirmedDraft, cancellationToken);
         var parseResult = await parser.ParseAsync(request, cancellationToken);
+        if (request.IsPreview)
+        {
+            if (request.PreviewDraft is { } previous && parseResult.Draft is { } current)
+                parseResult = BuildResultFromMergedDraft(MergeDrafts(previous, current, request));
+            if (parseResult.Draft is { } draft)
+            {
+                var context = await appUserProfileService.ResolveAsync(new AppUserIdentity(
+                    request.AuthProvider, request.AuthSubject, request.Email, request.DisplayName), cancellationToken);
+                parseResult = parseResult with { Draft = draft with { TransactionDate = draft.TransactionDate ?? context.CurrentDate } };
+            }
+            return IncomeInputProcessResult.FromParseResult(parseResult);
+        }
         if (parseResult.Status == IncomeInputParseStatus.Failed)
         {
             return IncomeInputProcessResult.FromParseResult(parseResult);
@@ -69,7 +85,7 @@ public sealed class IncomeInputProcessor(
             new SaveIncomeCommand(userContext, draft, request.HouseholdId),
             cancellationToken);
 
-        draftStore.Clear(request);
+        if (request.ConfirmedDraft is null) draftStore.Clear(request);
         return IncomeInputProcessResult.Saved(
             draft,
             transaction,

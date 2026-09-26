@@ -174,3 +174,6 @@ playwright-report/
 blob-report/
 playwright/.cache/
 playwright/.auth/
+
+# Self-hosted OCR files generated from pinned dependencies
+apps/*/public/ocr/

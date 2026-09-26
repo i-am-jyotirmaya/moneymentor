@@ -9,6 +9,7 @@ RUN corepack enable
 WORKDIR /workspace
 COPY --from=dependencies /workspace/apps/web/node_modules apps/web/node_modules
 COPY apps/web apps/web
+COPY scripts/prepare-ocr-assets.mjs scripts/prepare-ocr-assets.mjs
 WORKDIR /workspace/apps/web
 ARG NEXT_PUBLIC_API_BASE_URL
 ARG NEXT_PUBLIC_SUPPORT_EMAIL

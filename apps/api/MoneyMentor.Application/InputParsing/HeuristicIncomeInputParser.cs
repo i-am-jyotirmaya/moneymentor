@@ -100,37 +100,7 @@ public sealed class HeuristicIncomeInputParser : IIncomeInputParser
             IncomeInputAssistantMessages.BuildParsedMessage(draft)));
     }
 
-    private static decimal? ExtractAmount(string sourceText)
-    {
-        foreach (Match match in AmountRegex.Matches(sourceText))
-        {
-            var numericText = match.Groups["number"].Value.Replace(",", string.Empty, StringComparison.Ordinal)
-                .Replace(" ", string.Empty, StringComparison.Ordinal);
-            if (!decimal.TryParse(
-                    numericText,
-                    NumberStyles.AllowDecimalPoint,
-                    CultureInfo.InvariantCulture,
-                    out var value))
-            {
-                continue;
-            }
-
-            var multiplier = match.Groups["unit"].Value.ToLowerInvariant() switch
-            {
-                "k" or "thousand" or "thousands" => 1_000m,
-                "lakh" or "lakhs" or "lac" or "lacs" => 100_000m,
-                "crore" or "crores" or "cr" => 10_000_000m,
-                _ => 1m
-            };
-            var amount = value * multiplier;
-            if (amount > 0m)
-            {
-                return amount;
-            }
-        }
-
-        return null;
-    }
+    private static decimal? ExtractAmount(string sourceText) => FinanceAmountExtractor.Extract(sourceText)?.Amount;
 
     private static string? ExtractSender(string sourceText)
     {
