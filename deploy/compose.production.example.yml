@@ -38,6 +38,8 @@ services:
       Resend__ReplyTo: ${RESEND_REPLY_TO:-}
       Resend__ApiKey: ${RESEND_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      JEV_API_KEY: ${JEV_API_KEY:-}
+      Jev__Model: ${JEV_MODEL:-jev-latest}
       OPENAI_SAFETY_IDENTIFIER_KEY: ${OPENAI_SAFETY_IDENTIFIER_KEY}
       OpenAI__Model: ${OPENAI_MODEL}
       JudgementReports__SchedulerEnabled: ${JUDGEMENT_REPORT_SCHEDULER_ENABLED:-false}

@@ -12,6 +12,7 @@ using MoneyMentor.Application.Goals;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Judgements;
 using MoneyMentor.Application.JudgementReports;
+using MoneyMentor.Application.Jev;
 using MoneyMentor.Application.Transactions;
 using MoneyMentor.Infrastructure.AppUsers;
 using MoneyMentor.Infrastructure.Auth;
@@ -23,6 +24,7 @@ using MoneyMentor.Infrastructure.Households;
 using MoneyMentor.Infrastructure.Identity;
 using MoneyMentor.Infrastructure.Judgements;
 using MoneyMentor.Infrastructure.JudgementReports;
+using MoneyMentor.Infrastructure.Jev;
 using MoneyMentor.Infrastructure.Persistence;
 using MoneyMentor.Application.Privacy;
 using MoneyMentor.Infrastructure.Privacy;
@@ -75,6 +77,17 @@ public static class DependencyInjection
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
         services.AddScoped<IAppUserProfileService, PostgresAppUserProfileService>();
         services.AddScoped<ITransactionService, PostgresTransactionService>();
+        services.AddScoped<JevTransactionCategorizer>();
+        services.Configure<JevOptions>(options =>
+        {
+            configuration.GetSection(JevOptions.SectionName).Bind(options);
+            options.ApiKey = configuration["JEV_API_KEY"] ?? options.ApiKey;
+        });
+        services.AddHttpClient<IJevClient, JevClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.typesafe.ai/");
+            client.Timeout = TimeSpan.FromSeconds(35);
+        });
         services.AddScoped<IHouseholdService, PostgresHouseholdService>();
         services.AddScoped<IHouseholdAccessService, PostgresHouseholdAccessService>();
         services.AddScoped<ICategoryService, PostgresCategoryService>();
