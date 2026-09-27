@@ -16,6 +16,7 @@ import { type TransactionEditForm } from "../_hooks/use-transaction-state";
 
 export type InputMode = import("@/lib/assistant-input").AssistantInputMode;
 export type ImagePreview = {
+  id: string;
   scope: string;
   currencyCode?: string;
   status: "selected" | "reading" | "parsed" | "needs-confirmation" | "failed";
@@ -27,11 +28,11 @@ export type ImagePreview = {
 };
 export type ImageComposerProps = {
   isInputReady: boolean;
-  imagePreview: ImagePreview | null;
-  onImage: (image: Blob) => void;
-  onConfirmImage: () => void;
-  onEditImage: () => void;
-  onDismissImage: () => void;
+  imagePreviews: ImagePreview[];
+  onImages: (images: File[]) => void;
+  onConfirmImage: (id: string) => void;
+  onEditImage: (id: string) => void;
+  onDismissImage: (id: string) => void;
 };
 
 export type AppSection =
@@ -52,6 +53,8 @@ export type Message = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  imageId?: string;
+  imageUrl?: string;
 };
 
 export type SettingsForm = {

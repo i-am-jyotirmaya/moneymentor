@@ -8,7 +8,7 @@ import { promptIdeas } from "./workspace-config";
 import { InputMode, Message, type ImageComposerProps } from "./workspace-types";
 
 export function AssistantSection({
-  isInputReady, imagePreview, onImage, onConfirmImage, onEditImage, onDismissImage,
+  isInputReady, imagePreviews, onImages, onConfirmImage, onEditImage, onDismissImage,
   chatEndRef,
   inputMode,
   isListening,
@@ -36,7 +36,7 @@ export function AssistantSection({
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5">
       <ChatSurface
-        isInputReady={isInputReady} imagePreview={imagePreview} onImage={onImage} onConfirmImage={onConfirmImage} onEditImage={onEditImage} onDismissImage={onDismissImage}
+        isInputReady={isInputReady} imagePreviews={imagePreviews} onImages={onImages} onConfirmImage={onConfirmImage} onEditImage={onEditImage} onDismissImage={onDismissImage}
         chatEndRef={chatEndRef}
         inputMode={inputMode}
         isListening={isListening}
@@ -70,7 +70,7 @@ export function AssistantSection({
 }
 
 export function ChatSurface({
-  isInputReady, imagePreview, onImage, onConfirmImage, onEditImage, onDismissImage,
+  isInputReady, imagePreviews, onImages, onConfirmImage, onEditImage, onDismissImage,
   chatEndRef,
   compact = false,
   inputMode,
@@ -100,8 +100,8 @@ export function ChatSurface({
   title: string;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
-  const readingImage = imagePreview?.status === "reading" || imagePreview?.status === "selected";
-  const imageBusy = !isInputReady || isSubmitting || isListening || readingImage;
+  const readingImage = imagePreviews.some(item => item.status === "reading" || item.status === "selected");
+  const imageBusy = !isInputReady || isListening || isSubmitting || imagePreviews.length >= 5;
   return (
     <div
       className={`chat-panel flex min-h-0 flex-1 flex-col overflow-hidden ${compact ? "rounded-lg" : ""}`}
@@ -121,44 +121,14 @@ export function ChatSurface({
 
       <div className="chat-scroll min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-5 sm:px-5">
         {messages.map((message) => (
-          <ChatMessageBubble key={message.id} message={message} />
+          <ChatMessageBubble key={message.id} message={message}
+            imagePreview={imagePreviews.find(item => item.id === message.imageId)}
+            imageBusy={isSubmitting || readingImage} onConfirmImage={onConfirmImage} onEditImage={onEditImage} onDismissImage={onDismissImage} />
         ))}
         {isSubmitting ? <TypingBubble /> : null}
         <div ref={chatEndRef} />
       </div>
 
-      {imagePreview ? <div className="mx-3 my-2 rounded-lg border border-[var(--border)] bg-white p-3" aria-live="polite" data-testid="image-preview">
-        <div className="flex gap-3">
-          {imagePreview.previewUrl ? /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={imagePreview.previewUrl} alt="Selected payment screenshot" className="h-20 w-20 rounded object-contain" /> : null}
-          <div className="min-w-0 flex-1 text-sm">
-            <p className="font-semibold">{readingImage ? "Reading screenshot…" : "Review image input"}</p>
-            {readingImage ? <progress aria-label="Reading screenshot" max={1} value={imagePreview.progress ?? 0} /> : null}
-            <p className="text-xs text-[var(--muted)]">Image stays on this device. Sanitized text is processed by the assistant server.</p>
-            {imagePreview.error ? <p role="alert">{imagePreview.error}</p> : null}
-            {imagePreview.result?.parsedDebug ? <p className="mt-2 font-semibold">
-              {imagePreview.result.parsedDebug.amount ?? "Amount needed"} {imagePreview.currencyCode ?? "INR"}
-              {" · "}{imagePreview.result.parsedDebug.merchantName ?? imagePreview.result.parsedDebug.description}
-              <br />{imagePreview.result.parsedDebug.categoryGuess ?? "Uncategorized"}
-              {" · "}{imagePreview.result.parsedDebug.transactionDate}
-            </p> : null}
-            {imagePreview.result?.parsedIncomeDebug ? <p className="mt-2 font-semibold">
-              {imagePreview.result.parsedIncomeDebug.amount ?? "Amount needed"} {imagePreview.currencyCode ?? "INR"}
-              {" · "}{imagePreview.result.parsedIncomeDebug.senderName ?? imagePreview.result.parsedIncomeDebug.reason}
-              {" · "}{imagePreview.result.parsedIncomeDebug.transactionDate}
-            </p> : null}
-            {imagePreview.result?.paymentState === "Unknown" && imagePreview.result.confirmationToken ?
-              <p>Payment completion is unclear. Confirm it completed before tracking.</p> : null}
-          </div>
-        </div>
-        <div className="mt-2 flex flex-wrap gap-3">
-          {imagePreview.result?.confirmationToken ? <button type="button" className="rounded bg-[var(--accent)] px-3 py-2 font-semibold text-white" disabled={imageBusy} onClick={onConfirmImage}>
-            {imagePreview.result.paymentState === "Unknown" ? "Confirm completed & track" : imagePreview.result.parsedIncomeDebug ? "Track income" : "Track expense"}
-          </button> : null}
-          {imagePreview.input ? <button type="button" disabled={imageBusy} onClick={onEditImage}>Edit text</button> : null}
-          <button type="button" onClick={onDismissImage}>Dismiss image</button>
-        </div>
-      </div> : null}
       {isListening ? <VoiceWavePanel /> : null}
 
       <div className="shrink-0 border-t border-[var(--border)] bg-white/90 p-3 backdrop-blur">
@@ -179,16 +149,16 @@ export function ChatSurface({
 
         <form className="flex items-end gap-2" onSubmit={onSubmit}
           onDragOver={event => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
-          onDrop={event => { event.preventDefault(); const file = Array.from(event.dataTransfer.files).find(item => item.type.startsWith("image/")); if (file && !imageBusy) onImage(file); }}>
-          <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" aria-label="Choose screenshot" className="hidden" disabled={imageBusy}
-            onChange={event => { const file = event.target.files?.[0]; if (file && !imageBusy) onImage(file); event.target.value = ""; }} />
+          onDrop={event => { event.preventDefault(); const files = Array.from(event.dataTransfer.files).filter(item => item.type.startsWith("image/")); if (files.length && !imageBusy) onImages(files); }}>
+          <input ref={fileInput} type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label="Choose screenshot" className="hidden" disabled={imageBusy}
+            onChange={event => { const files = Array.from(event.target.files ?? []); if (files.length && !imageBusy) onImages(files); event.target.value = ""; }} />
           <div className="chat-text-bar flex min-h-14 flex-1 items-end gap-2 rounded-full border border-[var(--border)] bg-white px-2 py-2 shadow-inner transition">
             <textarea
               aria-label="Message Spndrr"
               disabled={!isInputReady}
               className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-3 py-2 text-base font-medium leading-6 text-[var(--ink)] outline-none placeholder:text-[var(--muted-2)]"
               onChange={(event) => onTextChange(event.target.value)}
-              onPaste={event => { const item = Array.from(event.clipboardData.items).find(value => value.type.startsWith("image/")); if (item) { event.preventDefault(); const file = item.getAsFile(); if (file && !imageBusy) onImage(file); } }}
+              onPaste={event => { const items = Array.from(event.clipboardData.items).filter(value => value.type.startsWith("image/")); if (items.length) { event.preventDefault(); const files = items.map(item => item.getAsFile()).filter((file): file is File => !!file); if (files.length && !imageBusy) onImages(files); } }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
@@ -201,7 +171,7 @@ export function ChatSurface({
             />
             <button type="button" aria-label="Attach image" className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[var(--accent)]" disabled={imageBusy} onClick={() => fileInput.current?.click()}><Paperclip className="h-5 w-5" /></button>
             <VoiceAiButton
-              disabled={!isInputReady || isSubmitting || !!imagePreview}
+              disabled={!isInputReady || isSubmitting || imagePreviews.length > 0}
               isListening={isListening}
               onClick={onToggleVoice}
             />
@@ -210,7 +180,7 @@ export function ChatSurface({
           <button
             aria-label={isSubmitting ? "Sending message" : "Send message"}
             className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_12px_30px_rgba(15,143,123,0.24)] transition hover:-translate-y-0.5 hover:bg-[#0b7d6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
-            disabled={!isInputReady || isSubmitting || readingImage || (!!imagePreview && !imagePreview.input)}
+            disabled={!isInputReady || isSubmitting || readingImage || (!text.trim() && imagePreviews.length > 0)}
             type="submit"
           >
             <Send className="h-5 w-5" />
@@ -222,7 +192,7 @@ export function ChatSurface({
 }
 
 export function DesktopAssistantDock({
-  isInputReady, imagePreview, onImage, onConfirmImage, onEditImage, onDismissImage,
+  isInputReady, imagePreviews, onImages, onConfirmImage, onEditImage, onDismissImage,
   chatEndRef,
   inputMode,
   isListening,
@@ -279,7 +249,7 @@ export function DesktopAssistantDock({
             </button>
           </div>
           <ChatSurface
-            isInputReady={isInputReady} imagePreview={imagePreview} onImage={onImage} onConfirmImage={onConfirmImage} onEditImage={onEditImage} onDismissImage={onDismissImage}
+            isInputReady={isInputReady} imagePreviews={imagePreviews} onImages={onImages} onConfirmImage={onConfirmImage} onEditImage={onEditImage} onDismissImage={onDismissImage}
         chatEndRef={chatEndRef}
             compact
             inputMode={inputMode}
@@ -307,7 +277,14 @@ export function DesktopAssistantDock({
   );
 }
 
-export function ChatMessageBubble({ message }: { message: Message }) {
+export function ChatMessageBubble({ message, imagePreview, imageBusy, onConfirmImage, onEditImage, onDismissImage }: {
+  message: Message;
+  imagePreview?: import("./workspace-types").ImagePreview;
+  imageBusy?: boolean;
+  onConfirmImage?: (id: string) => void;
+  onEditImage?: (id: string) => void;
+  onDismissImage?: (id: string) => void;
+}) {
   const isUser = message.role === "user";
   return (
     <div
@@ -320,7 +297,35 @@ export function ChatMessageBubble({ message }: { message: Message }) {
             : "chat-message-bubble--assistant rounded-bl-md"
         }`}
       >
-        {message.text}
+        {message.imageUrl ? /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={message.imageUrl} alt="Attached payment screenshot" className="max-h-64 w-auto max-w-full rounded-lg object-contain" /> : null}
+        {message.text ? <p className="whitespace-pre-wrap break-words">{message.text}</p> : null}
+        {imagePreview ? <div className="mt-2 max-w-72 text-xs" aria-live="polite" data-testid="image-preview">
+          <p className="font-semibold">{imagePreview.status === "selected" ? "Queued for reading…" : imagePreview.status === "reading" ? "Reading screenshot…" : "Review image input"}</p>
+          {imagePreview.status === "reading" ? <progress aria-label="Reading screenshot" max={1} value={imagePreview.progress ?? 0} /> : null}
+          <p className="text-[var(--muted)]">Image stays on this device. Sanitized text is processed by the assistant server.</p>
+          {imagePreview.error ? <p role="alert">{imagePreview.error}</p> : null}
+          {imagePreview.result?.parsedDebug ? <p className="mt-2 font-semibold">
+            {imagePreview.result.parsedDebug.amount ?? "Amount needed"} {imagePreview.currencyCode ?? "INR"}
+            {" · "}{imagePreview.result.parsedDebug.merchantName ?? imagePreview.result.parsedDebug.description}
+            <br />{imagePreview.result.parsedDebug.categoryGuess ?? "Uncategorized"}
+            {" · "}{imagePreview.result.parsedDebug.transactionDate}
+          </p> : null}
+          {imagePreview.result?.parsedIncomeDebug ? <p className="mt-2 font-semibold">
+            {imagePreview.result.parsedIncomeDebug.amount ?? "Amount needed"} {imagePreview.currencyCode ?? "INR"}
+            {" · "}{imagePreview.result.parsedIncomeDebug.senderName ?? imagePreview.result.parsedIncomeDebug.reason}
+            {" · "}{imagePreview.result.parsedIncomeDebug.transactionDate}
+          </p> : null}
+          {imagePreview.result?.paymentState === "Unknown" && imagePreview.result.confirmationToken ?
+            <p>Payment completion is unclear. Confirm it completed before tracking.</p> : null}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {imagePreview.result?.confirmationToken ? <button type="button" className="rounded bg-[var(--accent)] px-3 py-2 font-semibold text-white disabled:opacity-60" disabled={imageBusy} onClick={() => onConfirmImage?.(imagePreview.id)}>
+              {imagePreview.result.paymentState === "Unknown" ? "Confirm completed & track" : imagePreview.result.parsedIncomeDebug ? "Track income" : "Track expense"}
+            </button> : null}
+            {imagePreview.input ? <button type="button" disabled={imageBusy} onClick={() => onEditImage?.(imagePreview.id)}>Edit text</button> : null}
+            <button type="button" onClick={() => onDismissImage?.(imagePreview.id)}>Dismiss image</button>
+          </div>
+        </div> : null}
       </div>
     </div>
   );

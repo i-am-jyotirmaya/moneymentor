@@ -13,8 +13,7 @@ public sealed class AssistantConfirmationStore(TimeProvider? timeProvider = null
     {
         lock (gate)
         {
-            foreach (var key in entries.Where(pair => pair.Value.ExpiresAt <= Now
-                || Matches(pair.Value.Command, command)).Select(pair => pair.Key).ToArray())
+            foreach (var key in entries.Where(pair => pair.Value.ExpiresAt <= Now).Select(pair => pair.Key).ToArray())
                 entries.Remove(key);
             if (entries.Count >= 2000) throw new InvalidOperationException("Too many pending previews. Please retry later.");
             var token = Guid.NewGuid().ToString("N");

@@ -191,16 +191,26 @@ export function useWorkspaceController() {
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const submissionRef = useRef(false);
   const imageAbort = useRef<AbortController | null>(null);
-  const imageUrl = useRef<string | null>(null);
+  const imageUrls = useRef(new Set<string>());
+  const imageQueue = useRef<{ id: string; image: File; scope: string }[]>([]);
+  const imageProcessing = useRef(false);
+  const activeImageId = useRef<string | null>(null);
+  const canceledImageIds = useRef(new Set<string>());
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
   const imageRun = useRef(0);
-  const [imageState, setImageState] = useState<ImagePreview | null>(null);
+  const [imageStates, setImageStates] = useState<ImagePreview[]>([]);
   const imageScope = `${session?.user.id ?? ""}:${selectedHouseholdId ?? ""}`;
-  const imagePreview = imageState?.scope === imageScope ? imageState : null;
+  const imageScopeRef = useRef(imageScope);
+  imageScopeRef.current = imageScope;
+  const imagePreviews = imageStates.filter(item => item.scope === imageScope);
+  const imagePreview = imagePreviews.find(item => item.id === editingImageId) ??
+    (imagePreviews.length === 1 ? imagePreviews[0] : null);
   useEffect(() => () => {
     imageRun.current++;
     imageAbort.current?.abort();
-    if (imageUrl.current) URL.revokeObjectURL(imageUrl.current);
-    imageUrl.current = null;
+    imageQueue.current = [];
+    for (const url of imageUrls.current) URL.revokeObjectURL(url);
+    imageUrls.current.clear();
     void getTextRecognition().dispose();
     recognitionRef.current?.stop();
   }, [imageScope]);
@@ -407,13 +417,14 @@ export function useWorkspaceController() {
     }
   }
 
-  function appendMessage(role: Message["role"], messageText: string) {
+  function appendMessage(role: Message["role"], messageText: string, image?: Pick<Message, "imageId" | "imageUrl">) {
     setMessages((current) => [
       ...current,
       {
         id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         role,
         text: messageText,
+        ...image,
       },
     ]);
   }
@@ -429,7 +440,7 @@ export function useWorkspaceController() {
   }
 
   function startVoiceInput() {
-    if (submissionRef.current || imagePreview || isLoadingData) {
+    if (submissionRef.current || imagePreviews.length || isLoadingData) {
       return;
     }
 
@@ -463,7 +474,7 @@ export function useWorkspaceController() {
     startVoiceInput();
   }
 
-  async function submitAssistantInput(input: AssistantInput, confirmationToken?: string, clarificationToken?: string) {
+  async function submitAssistantInput(input: AssistantInput, confirmationToken?: string, clarificationToken?: string, imageId?: string, showImageText = false) {
     const normalizedText = (input.source === "image" ? sanitizeImageText(input.text) : input.text).trim();
     const mode = inputModes[input.source];
     if (!normalizedText || submissionRef.current) {
@@ -492,7 +503,7 @@ export function useWorkspaceController() {
     setIsSubmitting(true);
     setText("");
     setInputMode(mode);
-    appendMessage("user", normalizedText);
+    if (input.source !== "image" || showImageText) appendMessage("user", normalizedText);
 
     try {
       const result = await sendAssistantMessage(session.accessToken, {
@@ -501,7 +512,7 @@ export function useWorkspaceController() {
         householdId: selectedHouseholdId ?? undefined,
         currencyCode,
       });
-      if (input.source === "image" && run !== imageRun.current) return;
+      if (input.source === "image" && (run !== imageRun.current || (imageId && canceledImageIds.current.has(imageId)))) return;
       performance.measure("assistantProcessingMs", { start: started, end: performance.now() });
 
       appendMessage(
@@ -531,71 +542,103 @@ export function useWorkspaceController() {
     }
   }
 
-  function dismissImage() {
-    imageRun.current++;
-    imageAbort.current?.abort();
-    if (imageUrl.current) URL.revokeObjectURL(imageUrl.current);
-    imageUrl.current = null;
-    setImageState(null);
-    setText("");
-    void getTextRecognition().dispose();
+  function updateImage(id: string, update: (current: ImagePreview) => ImagePreview) {
+    setImageStates(current => current.map(item => item.id === id ? update(item) : item));
   }
 
-  async function previewImageInput(input: AssistantInput, run: number, clarificationToken?: string) {
+  function dismissImage(id: string, keepMessage = false) {
+    canceledImageIds.current.add(id);
+    imageQueue.current = imageQueue.current.filter(item => item.id !== id);
+    if (activeImageId.current === id) {
+      imageAbort.current?.abort();
+      void getTextRecognition().dispose();
+    }
+    if (editingImageId === id) { setEditingImageId(null); setText(""); }
+    if (!keepMessage) {
+      setMessages(current => current.filter(message => message.imageId !== id));
+      const url = imagePreviews.find(item => item.id === id)?.previewUrl;
+      if (url) { URL.revokeObjectURL(url); imageUrls.current.delete(url); }
+      setImageStates(current => current.filter(item => item.id !== id));
+    } else setImageStates(current => current.filter(item => item.id !== id));
+  }
+
+  async function previewImageInput(input: AssistantInput, id: string, run: number, clarificationToken?: string, showImageText = false) {
     if (!input.text.trim() || submissionRef.current) return;
     const sanitized = { ...input, text: sanitizeImageText(input.text) };
-    setImageState(current => current ? { ...current, input: sanitized, result: undefined, status: "parsed", error: undefined } : current);
-    const result = await submitAssistantInput(sanitized, undefined, clarificationToken);
-    if (run !== imageRun.current) return;
-    setImageState(current => current ? { ...current, input: { ...sanitized, text: result?.parsedDebug?.sourceText ?? result?.parsedIncomeDebug?.sourceText ?? sanitized.text }, result, status: result ? "needs-confirmation" : "failed",
-      error: result ? undefined : "Could not process this text. Edit it or try again." } : current);
+    updateImage(id, current => ({ ...current, input: sanitized, result: undefined, status: "parsed", error: undefined }));
+    const result = await submitAssistantInput(sanitized, undefined, clarificationToken, id, showImageText);
+    if (run !== imageRun.current || canceledImageIds.current.has(id)) return;
+    updateImage(id, current => ({ ...current, input: { ...sanitized, text: result?.parsedDebug?.sourceText ?? result?.parsedIncomeDebug?.sourceText ?? sanitized.text }, result, status: result ? "needs-confirmation" : "failed",
+      error: result ? undefined : "Could not process this text. Edit it or try again." }));
   }
 
-  async function selectImage(image: Blob) {
-    if (submissionRef.current || isListening || isLoadingData) return;
-    dismissImage();
-    const run = imageRun.current;
-    const started = performance.now();
-    const abort = new AbortController();
-    imageAbort.current = abort;
-    if (!/^image\/(png|jpeg|webp)$/.test(image.type) || image.size > 10 * 1024 * 1024) {
-      setImageState({ scope: imageScope, currencyCode, status: "failed", error: "Choose a PNG, JPEG or WebP smaller than 10 MB." });
-      return;
-    }
-    const previewUrl = URL.createObjectURL(image);
-    imageUrl.current = previewUrl;
-    setImageState({ scope: imageScope, currencyCode, status: "selected", previewUrl });
+  async function processImageQueue() {
+    if (imageProcessing.current) return;
+    imageProcessing.current = true;
     try {
-      setImageState({ scope: imageScope, currencyCode, status: "reading", previewUrl });
-      const input = await getTextRecognition().recognize(image, { locale: "en-IN", signal: abort.signal,
-        onProgress: progress => { if (run === imageRun.current) setImageState(current => current ? { ...current, progress } : current); } });
-      if (run !== imageRun.current) return;
-      performance.measure("ocrDurationMs", { start: started, end: performance.now() });
-      await previewImageInput(input, run);
-      performance.measure("totalInputDurationMs", { start: started, end: performance.now() });
-    } catch (error) {
-      if (run === imageRun.current) {
-        if (imageUrl.current) URL.revokeObjectURL(imageUrl.current);
-        imageUrl.current = null;
-        setImageState({ scope: imageScope, currencyCode, status: "failed", error: error instanceof Error ? error.message : "Could not read that image. Try another screenshot or type the expense." });
+      while (imageQueue.current.length) {
+        const job = imageQueue.current.shift()!;
+        if (job.scope !== imageScopeRef.current || canceledImageIds.current.has(job.id)) continue;
+        activeImageId.current = job.id;
+        const run = imageRun.current;
+        const started = performance.now();
+        const abort = new AbortController();
+        imageAbort.current = abort;
+        try {
+          updateImage(job.id, current => ({ ...current, status: "reading" }));
+          const input = await getTextRecognition().recognize(job.image, { locale: "en-IN", signal: abort.signal,
+            onProgress: progress => { if (run === imageRun.current && !canceledImageIds.current.has(job.id)) updateImage(job.id, current => ({ ...current, progress })); } });
+          if (run !== imageRun.current || canceledImageIds.current.has(job.id)) continue;
+          performance.measure("ocrDurationMs", { start: started, end: performance.now() });
+          await previewImageInput(input, job.id, run);
+          performance.measure("totalInputDurationMs", { start: started, end: performance.now() });
+        } catch (error) {
+          if (run === imageRun.current && !canceledImageIds.current.has(job.id))
+            updateImage(job.id, current => ({ ...current, status: "failed", error: error instanceof Error ? error.message : "Could not read that image. Try another screenshot or type the expense." }));
+        } finally {
+          activeImageId.current = null;
+          imageAbort.current = null;
+        }
       }
+    } finally {
+      imageProcessing.current = false;
+      if (imageQueue.current.length) void processImageQueue();
     }
   }
 
-  async function confirmImage() {
-    if (!imagePreview?.input || !imagePreview.result?.confirmationToken || submissionRef.current) return;
-    const run = imageRun.current;
-    const result = await submitAssistantInput(imagePreview.input, imagePreview.result.confirmationToken);
-    if (run !== imageRun.current) return;
-    if (result?.transaction) dismissImage();
-    else setImageState(current => current ? { ...current, result, status: "failed",
-      error: result?.assistantMessage ?? "Confirmation could not be completed. Check transactions before previewing again." } : current);
+  function selectImages(images: File[]) {
+    if (submissionRef.current || isListening || isLoadingData) return;
+    const available = Math.max(0, 5 - imagePreviews.length);
+    for (const image of images.slice(0, available)) {
+      const id = crypto.randomUUID();
+      const valid = /^image\/(png|jpeg|webp)$/.test(image.type) && image.size > 0 && image.size <= 10 * 1024 * 1024;
+      const previewUrl = valid ? URL.createObjectURL(image) : undefined;
+      if (previewUrl) imageUrls.current.add(previewUrl);
+      setImageStates(current => [...current, { id, scope: imageScope, currencyCode, previewUrl,
+        status: valid ? "selected" : "failed", error: valid ? undefined : "Choose a PNG, JPEG or WebP smaller than 10 MB." }]);
+      appendMessage("user", "", { imageId: id, imageUrl: previewUrl });
+      if (valid) imageQueue.current.push({ id, image, scope: imageScope });
+    }
+    void processImageQueue();
   }
 
-  function editImage() {
-    if (!imagePreview?.input || submissionRef.current) return;
-    setText(imagePreview.input.text);
-    setImageState(current => current ? { ...current, result: undefined, status: "parsed" } : current);
+  async function confirmImage(id: string) {
+    const preview = imagePreviews.find(item => item.id === id);
+    if (!preview?.input || !preview.result?.confirmationToken || submissionRef.current) return;
+    const run = imageRun.current;
+    const result = await submitAssistantInput(preview.input, preview.result.confirmationToken, undefined, id);
+    if (run !== imageRun.current || canceledImageIds.current.has(id)) return;
+    if (result?.transaction) dismissImage(id, true);
+    else updateImage(id, current => ({ ...current, result, status: "failed",
+      error: result?.assistantMessage ?? "Confirmation could not be completed. Check transactions before previewing again." }));
+  }
+
+  function editImage(id: string) {
+    const preview = imagePreviews.find(item => item.id === id);
+    if (!preview?.input || submissionRef.current) return;
+    setEditingImageId(id);
+    setText(preview.input.text);
+    updateImage(id, current => ({ ...current, result: undefined, status: "parsed" }));
   }
 
   async function refreshDashboardAndTransactions(accessToken: string) {
@@ -632,8 +675,8 @@ export function useWorkspaceController() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (imagePreview?.input) {
-      void previewImageInput({ ...imagePreview.input, text }, imageRun.current, imagePreview.result?.clarificationToken ?? undefined);
-    } else if (!imagePreview) {
+      void previewImageInput({ ...imagePreview.input, text }, imagePreview.id, imageRun.current, imagePreview.result?.clarificationToken ?? undefined, true);
+    } else {
       void submitAssistantInput(typedAssistantInput(text, getProcessingLocation()));
     }
   }
@@ -1036,8 +1079,8 @@ export function useWorkspaceController() {
     selectTransaction,
     closeTransactionEditor,
     toggleVoiceInput,
-    imagePreview,
-    selectImage,
+    imagePreviews,
+    selectImages,
     confirmImage,
     editImage,
     dismissImage,

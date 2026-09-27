@@ -105,6 +105,7 @@ for (const method of ["select", "paste"] as const) test(`${method}: local OCR pr
     element.dispatchEvent(new ClipboardEvent("paste", { clipboardData, bubbles: true, cancelable: true }));
   }, buffer.toString("base64"));
   await expect(page.getByRole("button", { name: "Track expense", exact: true })).toBeVisible({ timeout: 70_000 });
+  await expect(page.getByRole("img", { name: "Attached payment screenshot" })).toBeVisible();
   expect(requests).toHaveLength(1);
   expect(requests[0]).toMatchObject({ inputMode: "Image", processingMode: "Preview" });
   expect(String(requests[0].text)).toContain("649");
@@ -122,9 +123,33 @@ for (const method of ["select", "paste"] as const) test(`${method}: local OCR pr
   }
   await page.getByRole("button", { name: "Track expense", exact: true }).click();
   await expect(page.getByTestId("image-preview")).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "Attached payment screenshot" })).toBeVisible();
   expect(requests.at(-1)).toMatchObject({ inputMode: "Image", processingMode: "Execute", confirmationToken: "server-token" });
-  expect(await page.evaluate(() => (window as unknown as { revokedImages: string[] }).revokedImages.length)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => (window as unknown as { revokedImages: string[] }).revokedImages.length)).toBe(0);
 });
+
+test("multiple attached images appear in chat and each has its own confirmation", async ({ page }) => {
+  test.setTimeout(120_000);
+  const requests = await workspace(page);
+  const buffer = await screenshotImage(page);
+  await page.getByLabel("Choose screenshot").setInputFiles([
+    { name: "first.png", mimeType: "image/png", buffer },
+    { name: "second.png", mimeType: "image/png", buffer },
+  ]);
+  await expect(page.getByRole("img", { name: "Attached payment screenshot" })).toHaveCount(2);
+  await expect(page.getByTestId("image-preview")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Track expense", exact: true })).toHaveCount(2, { timeout: 90_000 });
+  expect(requests).toHaveLength(2);
+  expect(requests.every(request => request.inputMode === "Image" && request.processingMode === "Preview" && !JSON.stringify(request).includes("data:image"))).toBeTruthy();
+
+  await page.getByRole("button", { name: "Track expense", exact: true }).first().click();
+  await expect(page.getByTestId("image-preview")).toHaveCount(1);
+  await page.getByRole("button", { name: "Track expense", exact: true }).click();
+  await expect(page.getByTestId("image-preview")).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "Attached payment screenshot" })).toHaveCount(2);
+  expect(requests.map(request => request.processingMode)).toEqual(["Preview", "Preview", "Execute", "Execute"]);
+});
+
 
 test("composer waits for household initialization before accepting input", async ({ page }) => {
   await workspace(page, async () => {

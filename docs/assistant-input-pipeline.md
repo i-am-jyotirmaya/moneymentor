@@ -40,7 +40,7 @@ A future Moonshine or Sherpa-ONNX adapter implements this interface and is retur
 
 ## Images and OCR
 
-The assistant page and floating composer support selecting PNG/JPEG/WebP files, pasting an image and dropping an image onto the composer. One image is active at a time; the limit is 10 MB. States are selected, reading, parsed, needs-confirmation and failed. Users can edit recognized text and preview it again.
+The assistant page and floating composer support selecting multiple PNG/JPEG/WebP files, pasting one or more images and dropping images onto the composer. Each attachment appears as a chat message with its own preview and tracking controls. Up to five images can be pending at once (10 MB each); OCR and server previews run sequentially. States are selected, reading, parsed, needs-confirmation and failed. Users can edit recognized text and preview it again.
 
 `TextRecognitionAdapter` in `apps/web/lib/text-recognition.ts` exposes `recognize(image: Blob, options?): Promise<AssistantInput>` and `dispose(): Promise<void>`. Options include locale, cancellation and progress. `TesseractTextRecognitionAdapter` lazily loads Tesseract.js 6.0.1 and an English model, uses Tesseract's Web Worker and reuses it while available. Cancellation, initialization failures and a 90-second timeout release the worker. Empty or excessive OCR text produces an actionable error. No cloud OCR fallback exists.
 
@@ -60,7 +60,7 @@ Text/voice preserve execute behavior. Explicit Preview can also be used for text
 
 The same classifier and existing processors understand both modes. Preview returns ExpenseDraft/IncomeDraft through existing ParsedDebug fields; it never calls transaction persistence, changes financial records or merges/saves/clears another unfinished clarification draft. Goal creation is blocked in preview. Read-only finance question routing remains available.
 
-A complete preview receives a server-generated confirmation token. The store retains the exact parsed draft and original command for ten minutes, bound to the exact authenticated subject/provider and household. Tokens are atomically consumed, expire, and cannot be replayed. A newer complete preview replaces the prior token in that scope. The store is bounded to 2,000 entries.
+A complete preview receives a server-generated confirmation token. The store retains the exact parsed draft and original command for ten minutes, bound to the exact authenticated subject/provider and household. Tokens are atomically consumed, expire, and cannot be replayed. Multiple previews may be pending in the same scope so separate attachments can be confirmed independently. The store is bounded to 2,000 entries.
 
 The user chooses Track expense/Track income; unknown payment status instead requires Confirm completed & track. Only this action sends Execute with the token. Confirmation invokes the existing processor and transaction service with the exact server-held draft, preserving the reviewed amount, merchant and date. Changed client text or transaction fields cannot replace it. Persistence still performs existing authorization and validation. Edited OCR text always requests another Image Preview.
 
@@ -68,7 +68,7 @@ Tokens use an in-memory single-instance store, consistent with existing clarific
 
 ## Privacy and lifecycle
 
-Original image bytes never go to the backend, S3 or a database. The image stays in browser memory with a temporary object URL. Dismissal, confirmation, failure, household/user changes and unmount release the image/URL and dispose OCR work. Image bytes are not stored in assistant history. Sanitized text can remain in chat and the existing transaction SourceText field.
+Original image bytes never go to the backend, S3 or a database. The image stays in browser memory with a temporary object URL, displayed in the current chat until dismissed or the workspace changes. Dismissal, household/user changes and unmount revoke the URL and dispose pending OCR work. Confirmation leaves the image message visible in this browser session; image bytes are not stored on the server or in durable assistant history. Sanitized text may enter the backend preview and the existing transaction SourceText field, but raw OCR text is not displayed as the image message.
 
 `sanitizeImageText` performs Unicode/whitespace normalization and best-effort masking of labeled transaction/reference/account/card IDs, UPI addresses, masked fragments, phone numbers and long identifiers. It runs before OCR-derived submission and after user edits. Useful amounts, merchants, dates and bank names are preserved where recognizable. It is heuristic, not a guarantee that every sensitive identifier will be detected. Crop unnecessary details and review the result for sensitive or misread text.
 
