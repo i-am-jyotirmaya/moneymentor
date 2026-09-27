@@ -1,5 +1,10 @@
 # Financial judgement calculations
 
+> Historical reference: the weekly/monthly report calculation workers are
+> disabled in the contextual Judgment Engine. Existing published summaries
+> remain readable. New judgments come from daily facts, candidates and the
+> contextual decision gate described in [JUDGEMENT_ENGINE.md](JUDGEMENT_ENGINE.md).
+
 Calculation version: `v1`
 
 This document is the source of truth for weekly and monthly financial summaries. The backend persists these calculations and classifications before optional AI narration. AI may rewrite wording, but it must not change amounts, deltas, directions, severities, or action codes.

@@ -57,6 +57,8 @@ public sealed class ContextualJudgementVisibilityTests(MoneyMentorApiFactory fac
         var visible = await reports.ListActiveAsync(new JudgementReportRequest(user, household.Id,
             JudgementReportScope.Personal, JudgementReportCadence.Monthly), CancellationToken.None);
         Assert.Equal(contextual.Id, Assert.Single(visible).Id);
+        Assert.Equal(JudgmentDecisionAction.Ask, visible.Single().DecisionAction);
+        Assert.Equal("Was this planned?", visible.Single().FollowUpQuestion);
 
         Assert.True(await judgments.DismissAsync(user, contextual.Id, CancellationToken.None));
         Assert.Empty(await reports.ListActiveAsync(new JudgementReportRequest(user, household.Id,
@@ -69,6 +71,8 @@ public sealed class ContextualJudgementVisibilityTests(MoneyMentorApiFactory fac
             CandidateId = candidateId, RuleCode = "CANDIDATE_MERCHANT_FREQUENCY",
             DeduplicationKey = Guid.NewGuid().ToString("N"), IssueKey = Guid.NewGuid().ToString("N"),
             Period = new DateOnly(2026, 7, 1), Status = JudgementLifecycleStatus.Active,
+            DecisionAction = candidateId is null ? null : JudgmentDecisionAction.Ask,
+            FollowUpQuestion = candidateId is null ? null : "Was this planned?",
             ExpiresAt = factory.Clock.GetUtcNow().AddDays(14)
         };
     }

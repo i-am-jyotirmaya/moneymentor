@@ -70,7 +70,7 @@ All finance routes require bearer authentication unless stated otherwise.
 | Goals | goal list/detail/create/update, contributions, planning runs, version customization/review/activation, participant consent |
 | Commitments | `GET/POST /api/commitments`, `PATCH /api/commitments/{id}` |
 | Judgements | `GET /api/judgements`, `GET /active`, `POST /{id}/dismiss` |
-| Reports | `GET /api/judgement-reports`, `GET /api/judgement-reports/history` |
+| Historical report snapshots | `GET /api/judgement-reports`, `GET /api/judgement-reports/history` |
 | Privacy | `POST /api/privacy/consents`, `GET /export`, `DELETE /account` |
 
 The development environment exposes `/openapi/v1.json`. Production deliberately does not expose the OpenAPI document or a Swagger UI.

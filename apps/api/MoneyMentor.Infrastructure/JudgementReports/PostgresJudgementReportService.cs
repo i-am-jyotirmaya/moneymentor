@@ -137,7 +137,7 @@ internal sealed class PostgresJudgementReportService(
                 (judgement, states) => new { Judgement = judgement, State = states.FirstOrDefault() })
             .Where(row => row.State == null
                 || row.State.DismissedAt == null && (row.State.SnoozedUntil == null || row.State.SnoozedUntil <= now))
-            .OrderByDescending(row => row.Judgement.SeverityRank)
+            .OrderByDescending(row => row.Judgement.Importance)
             .ThenByDescending(row => row.Judgement.CreatedAt)
             .Take(24)
             .ToArrayAsync(cancellationToken);
@@ -258,7 +258,10 @@ internal sealed class PostgresJudgementReportService(
         item.EvidenceJson,
         item.ResolvedAt,
         item.ExpiresAt,
-        dismissed);
+        dismissed,
+        item.DecisionAction,
+        item.FollowUpQuestion,
+        item.Importance);
 
     private static decimal? Current(SpendingSummary summary, SummaryMetricCode code) => code switch
     {

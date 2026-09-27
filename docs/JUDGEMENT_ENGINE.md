@@ -2,8 +2,9 @@
 
 The engine runs inside the API's modular monolith. Financial amounts and comparisons
 are computed from stored transactions and daily facts; AI only classifies context
-or explains already-calculated evidence. Existing weekly/monthly report work and
-the new candidate-decision work coexist.
+or explains already-calculated evidence. The candidate/decision path is the sole
+active producer of judgments. Earlier weekly/monthly reports remain readable
+as historical snapshots; their independent decision workers are off by default.
 
 ## Flow
 
@@ -19,8 +20,7 @@ the new candidate-decision work coexist.
    or NUDGE only when the relevant user(s) consented. Without a key or consent it
    uses a deterministic bounded fallback. IGNORE records an audit, not a judgment.
 5. Important ASK/NUDGE cases may receive OpenAI wording when configured and
-   consented; numerical evidence remains unchanged. Existing report narration
-   skips immaterial findings.
+   consented; numerical evidence remains unchanged.
 6. `POST /api/judgements/{id}/explanations` queues a user's own explanation.
    Jev may admit durable context, with the original text retained and optional
    `text-embedding-3-small` embedding. Generic acknowledgments are discarded.
@@ -42,6 +42,12 @@ the new candidate-decision work coexist.
   `AnalysisIntervalHours` defaults to 24. The decision and feedback workers have
   durable leases, bounded retries and periodic recovery. Inspect `ManualReview`
   feedback rows if a provider or malformed response repeatedly fails.
+- `JudgementReports:SchedulerEnabled`, `CalculationWorkerEnabled`, and
+  `NarrationWorkerEnabled` default to `false`. The old report work queue is not
+  populated when those workers are retired. Keep all three disabled to avoid
+  competing judgments. Existing `GET /api/judgement-reports` and `/history`
+  read previously published snapshots; `GET /api/judgements/active` reads the
+  contextual candidate decisions regardless of report cadence.
 - Privacy consent is checked before sending financial context or explanations
   externally; household candidate context requires every active member's current
   consent. Shared memory retrieval includes only active authors and explicitly

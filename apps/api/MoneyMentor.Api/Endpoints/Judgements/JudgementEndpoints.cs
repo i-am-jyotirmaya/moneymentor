@@ -122,7 +122,6 @@ public static class JudgementEndpoints
         IJudgementReportService reportService,
         Guid? householdId,
         string? scope,
-        string? cadence,
         CancellationToken cancellationToken)
     {
         if (!Enum.TryParse(scope ?? nameof(JudgementReportScope.Personal), true, out JudgementReportScope parsedScope)
@@ -130,15 +129,6 @@ public static class JudgementEndpoints
         {
             return EndpointValidation.ValidationProblem(nameof(scope), "Scope must be Personal or Household.");
         }
-        if (!Enum.TryParse(cadence ?? nameof(JudgementReportCadence.Monthly), true, out JudgementReportCadence parsedCadence)
-            || !Enum.IsDefined(parsedCadence)
-            || parsedCadence == JudgementReportCadence.Quarterly)
-        {
-            return EndpointValidation.ValidationProblem(
-                nameof(cadence),
-                "Cadence must be Weekly or Monthly. Quarterly is not enabled.");
-        }
-
         var userContext = await ResolveContextAsync(httpContext, appUserProfileService, cancellationToken);
         if (userContext is null)
         {
@@ -148,7 +138,7 @@ public static class JudgementEndpoints
         try
         {
             return Results.Ok(await reportService.ListActiveAsync(
-                new JudgementReportRequest(userContext, householdId, parsedScope, parsedCadence),
+                new JudgementReportRequest(userContext, householdId, parsedScope, JudgementReportCadence.Weekly),
                 cancellationToken));
         }
         catch (HouseholdNotFoundException)
