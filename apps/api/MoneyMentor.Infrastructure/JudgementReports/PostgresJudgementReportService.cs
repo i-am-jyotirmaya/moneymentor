@@ -124,7 +124,7 @@ internal sealed class PostgresJudgementReportService(
         var rows = await dbContext.Judgements.AsNoTracking()
             .Where(item => item.HouseholdId == access.HouseholdId
                 && item.Scope == request.Scope
-                && item.Cadence == request.Cadence
+                && item.CandidateId != null
                 && item.Status == JudgementLifecycleStatus.Active
                 && item.ExpiresAt > now
                 && (request.Scope == JudgementReportScope.Household

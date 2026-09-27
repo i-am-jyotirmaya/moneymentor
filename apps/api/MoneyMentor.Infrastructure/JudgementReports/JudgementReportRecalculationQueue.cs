@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MoneyMentor.Application.JudgementReports;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
@@ -21,13 +22,17 @@ internal interface IJudgementReportRecalculationQueue
 
 internal sealed class JudgementReportRecalculationQueue(
     MoneyMentorDbContext dbContext,
-    TimeProvider timeProvider) : IJudgementReportRecalculationQueue
+    TimeProvider timeProvider,
+    IOptions<JudgementReportWorkerOptions> options) : IJudgementReportRecalculationQueue
 {
     public async Task EnqueueAsync(
         IReadOnlyCollection<TransactionReportingSnapshot> snapshots,
         CancellationToken cancellationToken)
     {
-        if (snapshots.Count == 0)
+        // Historical report rows remain readable, but the contextual engine is
+        // the sole producer of new judgments when legacy scheduling is retired.
+        if (!options.Value.SchedulerEnabled || !options.Value.CalculationWorkerEnabled
+            || snapshots.Count == 0)
         {
             return;
         }

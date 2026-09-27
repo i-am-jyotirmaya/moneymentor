@@ -49,7 +49,7 @@ public sealed class MonthlyDashboardBuilderTests
                 Assert.Equal("Groceries", category.Name);
                 Assert.Equal(200m, category.Amount);
             });
-        Assert.NotEmpty(dashboard.Judgements);
+        Assert.Empty(dashboard.Judgements);
         Assert.NotEmpty(dashboard.Insights);
     }
 
@@ -70,7 +70,7 @@ public sealed class MonthlyDashboardBuilderTests
         Assert.Null(dashboard.SavingsRate);
         Assert.Null(dashboard.InvestedRate);
         Assert.Empty(dashboard.Categories);
-        Assert.Contains(dashboard.Judgements, judgement => judgement.Title == "No tracked data");
+        Assert.Empty(dashboard.Judgements);
         Assert.Contains(dashboard.Insights, insight => insight.Title == "Best next move");
     }
 
