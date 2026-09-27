@@ -52,7 +52,7 @@ ML Kit can later implement `TextRecognitionAdapter` and be returned through `con
 
 `FinanceAmountExtractor` is used by the existing expense and income parsers. Currency/amount units and nearby payment words score candidates. Balance, available, cashback, reward, saved, limit, reference and identifier contexts are excluded; labels on the preceding OCR line are supported. Dates/times are excluded. Equally plausible distinct amounts return no amount and request clarification rather than selecting a balance or guessing.
 
-`PaymentTextSignals` recognizes Success, Failed, Pending and Unknown across all modalities. Negative state evidence wins over contradictory success text. Failed/pending input cannot persist through either the assistant or direct expense/income processors. The shared expense parser handles multiline paid-to merchant text and written dates such as 20 Sep 2026. Existing merchant/category catalogs remain authoritative for heuristic suggestions.
+`PaymentTextSignals` recognizes Success, Failed, Pending and Unknown across all modalities. Negative state evidence wins over contradictory success text. Failed/pending input cannot persist through either the assistant or direct expense/income processors. The shared expense parser handles multiline paid-to merchant text and written dates such as 20 Sep 2026 and 24th Sep 26. Existing merchant/category catalogs remain authoritative for heuristic suggestions.
 
 ## Preview and confirmation
 

@@ -158,9 +158,18 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
         DateOnly? referenceDate)
     {
         var spans = new List<TextSpan>();
-        var written = Regex.Match(sourceText, @"\b\d{1,2}\s+(?:Jan\w*|Feb\w*|Mar\w*|Apr\w*|May|Jun\w*|Jul\w*|Aug\w*|Sep\w*|Oct\w*|Nov\w*|Dec\w*)\s+\d{4}\b", RegexOptions.IgnoreCase);
-        if (written.Success && DateOnly.TryParse(written.Value, InvariantCulture, DateTimeStyles.None, out var writtenDate))
-            return new DateExtraction(writtenDate, [new TextSpan(written.Index, written.Length)], true);
+        var written = Regex.Match(sourceText,
+            @"\b(?<day>\d{1,2})(?:st|nd|rd|th)?\s+(?<month>Jan\w*|Feb\w*|Mar\w*|Apr\w*|May|Jun\w*|Jul\w*|Aug\w*|Sep\w*|Oct\w*|Nov\w*|Dec\w*)\s+(?<year>\d{2}|\d{4})\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (written.Success)
+        {
+            var monthText = written.Groups["month"].Value[..3];
+            var month = Array.FindIndex(InvariantCulture.DateTimeFormat.AbbreviatedMonthNames,
+                name => name.Equals(monthText, StringComparison.OrdinalIgnoreCase)) + 1;
+            if (month > 0 && TryCreateDate(written.Groups["year"].Value,
+                    month.ToString(InvariantCulture), written.Groups["day"].Value, out var writtenDate))
+                return new DateExtraction(writtenDate, [new TextSpan(written.Index, written.Length)], true);
+        }
 
         foreach (Match match in IsoDateRegex.Matches(sourceText))
         {
