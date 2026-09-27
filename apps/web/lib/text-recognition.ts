@@ -1,6 +1,7 @@
 import type { Worker } from "tesseract.js";
 import type { AssistantInput } from "./assistant-input";
 import { sanitizeImageText } from "./image-text-privacy";
+import { recoverRupeeAmount } from "./rupee-ocr";
 
 export interface TextRecognitionOptions {
   locale?: string;
@@ -46,7 +47,22 @@ export class TesseractTextRecognitionAdapter implements TextRecognitionAdapter {
         });
         const worker = await this.worker;
         const { data } = await worker.recognize(image);
-        const text = sanitizeImageText(data.text);
+        let recognizedText = data.text;
+        if (!/(?:₹|\b(?:INR|Rs\.?)\s*)\d{1,7}(?:[.,]\d{1,2})?/i.test(recognizedText)
+            && typeof createImageBitmap === "function") {
+          let bitmap: ImageBitmap | undefined;
+          try {
+            bitmap = await createImageBitmap(image);
+            const amount = await recoverRupeeAmount(worker, image, bitmap.width, bitmap.height, options.signal);
+            if (amount) recognizedText = `${amount}\n${recognizedText}`;
+          } catch (error) {
+            if (options.signal?.aborted) throw error;
+            // Preserve the first OCR result if this optional recovery fails.
+          } finally {
+            bitmap?.close();
+          }
+        }
+        const text = sanitizeImageText(recognizedText);
         if (text.length < 3) throw new Error("I couldn't read enough information from that image. Try another screenshot or type the expense.");
         if (text.length > 4000) throw new Error("That image contains too much text. Crop it to one payment and try again.");
         return { version: 1, source: "image", text, locale: options.locale ?? "en-IN",

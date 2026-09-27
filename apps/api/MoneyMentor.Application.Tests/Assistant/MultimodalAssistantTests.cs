@@ -14,6 +14,20 @@ public sealed class MultimodalAssistantTests
     private static AssistantMessageCommand Command(string text, InputMode mode = InputMode.Image) =>
         new(text, "local", "person", null, mode, null, "INR", "en-IN", null, null);
 
+    [Theory]
+    [InlineData("₹213.00\nBanking Name\nBlinkit\nTransaction ID\n[REDACTED]\n24th Sep 26, 06:50 pm\nBlinkit Payment\nDebited account\nKotak Mahindra Bank Credit Card\nPayment received by Blinkit", 213)]
+    [InlineData("₹95\nPayment successful\nto Mantun Kumar Mandal\n395\nYou earned 1.04% cashback\n19 September 2026", 95)]
+    public async Task RecoveredRupeeTextUsesExistingExpensePreview(string recognizedText, decimal expectedAmount)
+    {
+        var f = new Fixture();
+        var preview = await f.Service.ProcessAsync(Command(recognizedText), TestContext.Current.CancellationToken);
+        Assert.Equal(FinanceInputIntent.CreateExpense, preview.Intent);
+        Assert.Equal(expectedAmount, preview.ParsedDebug!.Amount);
+        Assert.Null(preview.Transaction);
+        Assert.NotNull(preview.ConfirmationToken);
+        Assert.Equal(0, f.Transactions.Saves);
+    }
+
     [Fact]
     public async Task ImageClarificationKeepsFieldsAcrossAmountDescriptionAndCorrection()
     {

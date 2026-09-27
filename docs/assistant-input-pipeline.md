@@ -88,6 +88,7 @@ pnpm --filter mobile lint
 pnpm --filter mobile typecheck
 pnpm --filter mobile test
 pnpm --filter web exec playwright install chromium
+pnpm --filter web test:ocr
 pnpm --filter web exec playwright test --config playwright.unit.config.ts
 pnpm --filter web test:e2e
 dotnet test apps/api/MoneyMentor.Application.Tests
@@ -99,6 +100,10 @@ NEXT_PUBLIC_API_BASE_URL=https://api.spndrr.example pnpm --filter mobile build
 API integration tests require Docker/PostgreSQL. CI also builds both production containers. `MultimodalAssistantTests` uses the actual shared classifier/parser/processors with recording persistence to verify preview, confirmation, token ownership/expiry/replay, payment states and draft isolation. `PaymentTextParsingTests` covers amount selection. `AssistantPreviewTests` verifies preview/confirmation against the API/database. Acquisition tests cover speech lifecycle, request allowlisting and redaction; browser tests exercise actual local Tesseract selection/paste, edits, confirmation and URL cleanup.
 
 English-only OCR, noisy layouts, multiple payments, ambiguous amounts and dates remain heuristic limitations. Native physical-device microphone/OCR testing remains a release follow-up. This phase adds no image storage, receipt history, server OCR, local NLU, Moonshine/Sherpa engine migration or OS share target.
+
+For large portrait payment screenshots, the Tesseract adapter makes a second local read of narrow header bands when the first pass has no recognizable currency amount. It crops an uncertain leading glyph only when rereading the remaining digits is substantially clearer and the leading glyph is not fused with the first digit. The result is still reviewable OCR text; no financial meaning is assigned in this adapter. Ambiguous symbols and unusual layouts can still need manual correction.
+
+PaddleOCR.js can implement `TextRecognitionAdapter` using its browser worker and locally hosted ONNX/WASM assets. Benchmark its PP-OCR mobile models against real payment screenshots (especially ₹ glyphs, dark themes, cold-start time and mobile memory) before changing engines. The default model downloads must be replaced by self-hosted assets for the current privacy/offline boundary. The adapter and assistant/business APIs would stay unchanged.
 
 ### Image clarification
 
