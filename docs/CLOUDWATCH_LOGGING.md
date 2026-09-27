@@ -21,7 +21,7 @@ The API emits one JSON object per stdout line using the existing .NET console pr
 
 Requests and jobs are correlated independently. Thread IDs can change within one run and can be reused across runs: always start with RequestId or RunId. HTTP lifecycle logs emitted by ASP.NET Core use its RequestId scope. Startup/shutdown and other events outside a request or worker are System events and retain a RunId. No artificial request ID is assigned to them.
 
-Workers covered: CommitmentDueWorker, DeletedTransactionPurgeService, GoalPlanningWorker, InvitationEmailDispatcher, JudgmentCandidateAnalysisWorker, JudgmentDecisionWorker, and MemoryAdmissionWorker. Each scheduled execution/poll/processing attempt gets a new RunId. Worker lifecycle events use a worker-level run. Empty polls do not add informational log messages.
+Jobs that create a new RunId for each scheduled execution or processing attempt include CommitmentDueWorker, DeletedTransactionPurgeService, GoalPlanningWorker, and InvitationEmailDispatcher. Worker lifecycle events use a worker-level run. Empty polls do not add informational log messages. The contextual judgment workers currently log under their SourceContext without a per-attempt job scope.
 
 Persisted identifiers are separate from attempt IDs: Scope.GoalPlanningRunId and Scope.InvitationId let you follow an item across attempts. Existing message arguments remain under Properties. Use ILogger<T> and structured templates for new logs; wrap new background execution boundaries with BeginJobRun before resolving/calling dependencies, and keep exception logging inside that scope.
 
@@ -58,8 +58,8 @@ fields @timestamp, JobName, SourceContext, ThreadId, Message
 Find contextual judgment decision worker logs:
 
 ```sql
-fields @timestamp, RunId, JobName, Message
-| filter JobName like /JudgmentDecisionWorker/
+fields @timestamp, SourceContext, Message
+| filter SourceContext like /JudgmentDecisionWorker/
 | sort @timestamp asc
 ```
 
