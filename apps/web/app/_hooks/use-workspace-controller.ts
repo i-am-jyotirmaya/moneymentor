@@ -205,6 +205,15 @@ export function useWorkspaceController() {
   const imagePreviews = imageStates.filter(item => item.scope === imageScope);
   const imagePreview = imagePreviews.find(item => item.id === editingImageId) ??
     (imagePreviews.length === 1 ? imagePreviews[0] : null);
+  const previousImageScope = useRef(imageScope);
+  useEffect(() => {
+    if (previousImageScope.current === imageScope) return;
+    previousImageScope.current = imageScope;
+    setMessages(current => current.filter(message => !message.imageId));
+    setImageStates(current => current.filter(item => item.scope === imageScope));
+    setEditingImageId(null);
+    setText("");
+  }, [imageScope]);
   useEffect(() => () => {
     imageRun.current++;
     imageAbort.current?.abort();
