@@ -49,8 +49,10 @@ public sealed class JudgmentDecisionServiceTests(MoneyMentorApiFactory factory)
             Options.Create(new OpenAiGoalPlanningOptions()));
         var context = new JudgmentContextBuilder(db, factStore,
             new FinancialMemoryStore(db, embeddings, factory.Clock));
-        var jev = new JevJudgmentGate(new HttpClient { BaseAddress = new Uri("https://api.typesafe.ai/") },
-            Options.Create(new JevOptions()), NullLogger<JevJudgmentGate>.Instance);
+        var transport = new CountingHandler();
+        var jev = new JevJudgmentGate(new HttpClient(transport)
+            { BaseAddress = new Uri("https://api.typesafe.ai/") },
+            Options.Create(new JevOptions { ApiKey = "test-key" }), NullLogger<JevJudgmentGate>.Instance);
         var explanations = new OpenAiCandidateExplanationClient(new HttpClient
             { BaseAddress = new Uri("https://api.openai.com/v1/") },
             Options.Create(new OpenAiGoalPlanningOptions()));
@@ -61,7 +63,20 @@ public sealed class JudgmentDecisionServiceTests(MoneyMentorApiFactory factory)
         Assert.Equal(JudgmentCandidateStatus.Ignored,
             (await db.JudgmentCandidates.SingleAsync(x => x.Id == candidate.Id)).Status);
         Assert.False(await db.Judgements.AnyAsync(x => x.CandidateId == candidate.Id));
+        Assert.Equal(0, transport.RequestCount); // No consent: candidate facts never leave the service.
         Assert.True(await db.JudgementEvaluationRuns.AnyAsync(x => x.CandidateId == candidate.Id
             && x.Stage == JudgementWorkStage.CandidateDecision && x.Succeeded));
+    }
+
+    private sealed class CountingHandler : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestCount++;
+            throw new InvalidOperationException("Unconsented facts must not be sent to Jev.");
+        }
     }
 }

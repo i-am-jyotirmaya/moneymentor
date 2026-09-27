@@ -81,7 +81,7 @@ internal sealed class JevJudgmentGate(
         }
     }
 
-    private static JudgmentDecision Fallback(JudgmentCandidate candidate) =>
+    internal static JudgmentDecision Fallback(JudgmentCandidate candidate) =>
         new(candidate.InterestingnessScore >= 0.30m
                 ? JudgmentDecisionAction.Observe : JudgmentDecisionAction.Ignore,
             candidate.InterestingnessScore * 4m, candidate.DetectorConfidence,

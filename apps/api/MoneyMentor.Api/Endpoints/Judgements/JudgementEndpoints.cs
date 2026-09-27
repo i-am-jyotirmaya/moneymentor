@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.AspNetCore.Mvc;
 using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Judgements;
@@ -101,7 +102,7 @@ public static class JudgementEndpoints
         JudgmentExplanationRequest request,
         HttpContext httpContext,
         IAppUserProfileService appUserProfileService,
-        IJudgmentFeedbackService feedbackService,
+        [FromServices] IJudgmentFeedbackService feedbackService,
         CancellationToken cancellationToken)
     {
         var userContext = await ResolveContextAsync(httpContext, appUserProfileService, cancellationToken);

@@ -64,11 +64,14 @@ internal sealed class JudgmentDecisionService(
         try
         {
             var context = await contexts.BuildAsync(candidate, cancellationToken);
-            var decision = await gate.DecideAsync(candidate, context, cancellationToken);
+            var canUseAi = await HasAiConsentAsync(candidate, cancellationToken);
+            var decision = canUseAi
+                ? await gate.DecideAsync(candidate, context, cancellationToken)
+                : JevJudgmentGate.Fallback(candidate);
             string? explanation = null;
             if (decision.NeedsLlm && decision.Importance >= 2.5m
                 && candidate.InterestingnessScore >= 0.45m && explanations.IsEnabled
-                && await HasAiConsentAsync(candidate, cancellationToken))
+                && canUseAi)
             {
                 try
                 {
