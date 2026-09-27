@@ -77,6 +77,55 @@ public sealed class ContextualJudgementVisibilityTests(MoneyMentorApiFactory fac
         };
     }
 
+    [Fact]
+    public async Task Retired_report_reader_returns_only_published_snapshots()
+    {
+        var options = new DbContextOptionsBuilder<MoneyMentorDbContext>()
+            .UseNpgsql(factory.ConnectionString).Options;
+        await using var db = new MoneyMentorDbContext(options);
+        var owner = User();
+        var household = new Household { Name = "Archived reports", CreatedByUserProfileId = owner.Id };
+        db.UserProfiles.Add(owner);
+        db.Households.Add(household);
+        db.HouseholdMembers.Add(new HouseholdMember { HouseholdId = household.Id,
+            UserProfileId = owner.Id, Role = HouseholdRole.Owner, Status = HouseholdMemberStatus.Active });
+        var published = new SpendingSummary
+        {
+            HouseholdId = household.Id, UserProfileId = owner.Id,
+            Scope = JudgementReportScope.Personal, Cadence = JudgementReportCadence.Monthly,
+            WindowStart = new DateOnly(2026, 5, 1), WindowEndExclusive = new DateOnly(2026, 6, 1),
+            TimeZone = "UTC", CurrencyCode = "INR", CalculationVersion = "v1",
+            Status = SpendingSummaryStatus.Published, PublishedAt = factory.Clock.GetUtcNow(),
+            MetricsComparisonJson = "[]"
+        };
+        var pending = new SpendingSummary
+        {
+            HouseholdId = household.Id, UserProfileId = owner.Id,
+            Scope = JudgementReportScope.Personal, Cadence = JudgementReportCadence.Monthly,
+            WindowStart = new DateOnly(2026, 6, 1), WindowEndExclusive = new DateOnly(2026, 7, 1),
+            TimeZone = "UTC", CurrencyCode = "INR", CalculationVersion = "v1",
+            Status = SpendingSummaryStatus.AwaitingNarration, MetricsComparisonJson = "[]"
+        };
+        db.SpendingSummaries.AddRange(published, pending);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var access = new PostgresHouseholdAccessService(db);
+        var user = new AppUserContext(owner.Id, household.Id, owner.Email,
+            owner.DisplayName, "INR", "UTC", UserPlan.Free, false,
+            TransactionVisibility.Private);
+        var reports = new PostgresJudgementReportService(db, access, factory.Clock);
+        var request = new JudgementReportRequest(user, household.Id,
+            JudgementReportScope.Personal, JudgementReportCadence.Monthly);
+
+        var latest = await reports.GetAsync(request, CancellationToken.None);
+        Assert.Equal(published.Id, latest?.Id);
+        Assert.Equal(false, latest?.IsProcessingUpdate);
+        Assert.Null(await reports.GetAsync(request with { Period = "2026-06" }, CancellationToken.None));
+        Assert.Equal(published.Id, Assert.Single(await reports.ListHistoryAsync(request,
+            null, 10, CancellationToken.None)).Id);
+    }
+
     private static UserProfile User() => new()
     {
         AuthProvider = "test", AuthSubject = Guid.NewGuid().ToString(),

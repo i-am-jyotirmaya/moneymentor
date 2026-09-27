@@ -48,24 +48,9 @@ internal sealed class PostgresJudgementReportService(
             .OrderByDescending(item => item.WindowStart)
             .ThenByDescending(item => item.Revision)
             .FirstOrDefaultAsync(cancellationToken);
-        var pendingQuery = scopeQuery
-            .Where(summary => summary.Status == SpendingSummaryStatus.AwaitingNarration);
-        if (requestedStart is not null)
-        {
-            pendingQuery = pendingQuery.Where(summary => summary.WindowStart == requestedStart);
-        }
-        var pending = await pendingQuery
-            .OrderByDescending(item => item.WindowStart)
-            .ThenByDescending(item => item.Revision)
-            .FirstOrDefaultAsync(cancellationToken);
-        var summary = published ?? pending;
-        var isProcessingUpdate = pending is not null
-            && (published is null
-                || pending.WindowStart > published.WindowStart
-                || pending.WindowStart == published.WindowStart && pending.Revision > published.Revision);
-        return summary is null
+        return published is null
             ? null
-            : await MapAsync(summary, request.UserContext.UserProfileId, isProcessingUpdate, cancellationToken);
+            : await MapAsync(published, request.UserContext.UserProfileId, cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<JudgementReportModel>> ListHistoryAsync(
@@ -100,7 +85,7 @@ internal sealed class PostgresJudgementReportService(
         var reports = new List<JudgementReportModel>(summaries.Length);
         foreach (var summary in summaries)
         {
-            reports.Add(await MapAsync(summary, request.UserContext.UserProfileId, false, cancellationToken));
+            reports.Add(await MapAsync(summary, request.UserContext.UserProfileId, cancellationToken));
         }
         return reports;
     }
@@ -157,7 +142,6 @@ internal sealed class PostgresJudgementReportService(
     private async Task<JudgementReportModel> MapAsync(
         SpendingSummary summary,
         Guid viewerId,
-        bool isProcessingUpdate,
         CancellationToken cancellationToken)
     {
         var categories = await dbContext.SpendingSummaryCategories.AsNoTracking()
@@ -217,7 +201,7 @@ internal sealed class PostgresJudgementReportService(
             judgements.Select(row => MapObservation(row.Judgement, row.State?.DismissedAt is not null)).ToArray(),
             narration,
             summary.NarrationStatus,
-            isProcessingUpdate,
+            false,
             summary.CalculatedAt,
             summary.PublishedAt);
     }

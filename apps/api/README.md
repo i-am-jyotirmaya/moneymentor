@@ -12,7 +12,7 @@ For end-to-end setup start with the [root README](../../README.md). For producti
 | `MoneyMentor.Application` | Use cases, orchestration, DTOs, interfaces, parsing, deterministic calculations |
 | `MoneyMentor.Domain` | Persistence-friendly entities, enums, and domain rules; no infrastructure dependency |
 | `MoneyMentor.Infrastructure` | EF Core/Npgsql, Identity, repositories, provider clients, background workers |
-| `MoneyMentor.Operations` | One-shot migrations, audited entitlement changes, judgement-report backfills |
+| `MoneyMentor.Operations` | One-shot migrations and audited entitlement changes |
 | `MoneyMentor.Application.Tests` | Unit tests for parsing, calculations, policies, and workflows |
 | `MoneyMentor.Api.IntegrationTests` | Real API + Testcontainers PostgreSQL integration tests |
 

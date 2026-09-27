@@ -4,7 +4,8 @@ The engine runs inside the API's modular monolith. Financial amounts and compari
 are computed from stored transactions and daily facts; AI only classifies context
 or explains already-calculated evidence. The candidate/decision path is the sole
 active producer of judgments. Earlier weekly/monthly reports remain readable
-as historical snapshots; their independent decision workers are off by default.
+as historical snapshots. Their scheduler, recalculation queue, calculation and
+narration workers, and manual backfill command have been retired.
 
 ## Flow
 
@@ -42,12 +43,11 @@ as historical snapshots; their independent decision workers are off by default.
   `AnalysisIntervalHours` defaults to 24. The decision and feedback workers have
   durable leases, bounded retries and periodic recovery. Inspect `ManualReview`
   feedback rows if a provider or malformed response repeatedly fails.
-- `JudgementReports:SchedulerEnabled`, `CalculationWorkerEnabled`, and
-  `NarrationWorkerEnabled` default to `false`. The old report work queue is not
-  populated when those workers are retired. Keep all three disabled to avoid
-  competing judgments. Existing `GET /api/judgement-reports` and `/history`
-  read previously published snapshots; `GET /api/judgements/active` reads the
-  contextual candidate decisions regardless of report cadence.
+- Historical `GET /api/judgement-reports` and `/history` return previously
+  published snapshots only. Pending legacy revisions will not complete. The
+  contextual candidate decisions shown at `GET /api/judgements/active` do not
+  depend on a report cadence. Do not configure legacy `JudgementReports` flags;
+  they have no effect.
 - Privacy consent is checked before sending financial context or explanations
   externally; household candidate context requires every active member's current
   consent. Shared memory retrieval includes only active authors and explicitly

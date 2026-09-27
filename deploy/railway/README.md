@@ -393,7 +393,7 @@ The generic scripts under `ops/backups` create encrypted `pg_dump` backups with 
 - [ ] API has one replica.
 - [ ] Generated domains use `Secure=true` and `SameSite=None` cookies.
 - [ ] Web public variables were present during its build.
-- [ ] Resend/OpenAI/report workers are disabled unless intentionally configured and tested.
+- [ ] Resend/OpenAI integration settings are configured and tested as intended.
 - [ ] Owner Premium grant is audited and limited to the intended test account.
 - [ ] Both-user privacy, household visibility, and Viewer tests pass.
 - [ ] GitHub branch checks and Railway Wait for CI are enabled.
