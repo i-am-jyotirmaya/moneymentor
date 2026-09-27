@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MoneyMentor.Application.AppUsers;
+using MoneyMentor.Application.Goals;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Goals;
@@ -33,6 +34,12 @@ public sealed class GoalJudgmentSignalReaderTests(MoneyMentorApiFactory factory)
             HouseholdId = household.Id, CreatedByUserProfileId = owner.Id, Name = "Car",
             TargetAmount = 100000m, Status = FinancialGoalStatus.Active
         };
+        var privateGoal = new FinancialGoal
+        {
+            HouseholdId = household.Id, UserProfileId = owner.Id,
+            CreatedByUserProfileId = owner.Id, Name = "Personal reserve",
+            TargetAmount = 5000m, Status = FinancialGoalStatus.Active
+        };
         db.UserProfiles.AddRange(owner, other);
         db.Households.Add(household);
         db.HouseholdMembers.AddRange(
@@ -40,7 +47,7 @@ public sealed class GoalJudgmentSignalReaderTests(MoneyMentorApiFactory factory)
                 Role = HouseholdRole.Owner, Status = HouseholdMemberStatus.Active },
             new HouseholdMember { HouseholdId = household.Id, UserProfileId = other.Id,
                 Role = HouseholdRole.Member, Status = HouseholdMemberStatus.Active });
-        db.FinancialGoals.AddRange(goal, unrelatedGoal);
+        db.FinancialGoals.AddRange(goal, unrelatedGoal, privateGoal);
         db.DailyFinancialAggregates.AddRange(
             Fact(owner.Id, TransactionVisibility.Household, 100m),
             Fact(owner.Id, TransactionVisibility.Private, 900m),
@@ -61,6 +68,9 @@ public sealed class GoalJudgmentSignalReaderTests(MoneyMentorApiFactory factory)
         Assert.Equal(JudgementReportScope.Household, snapshot.Scope);
         Assert.Equal(100m, snapshot.Windows.Single(x => x.Days == 30).Expense);
         Assert.Equal("GOAL_FUNDING_PRESSURE", Assert.Single(snapshot.Judgments).CandidateType);
+        var otherContext = userContext with { UserProfileId = other.Id, Email = other.Email };
+        await Assert.ThrowsAsync<GoalPlanningForbiddenException>(() =>
+            reader.ReadAsync(otherContext, privateGoal.Id, CancellationToken.None));
 
         DailyFinancialAggregate Fact(Guid userId, TransactionVisibility visibility, decimal amount) => new()
         {
