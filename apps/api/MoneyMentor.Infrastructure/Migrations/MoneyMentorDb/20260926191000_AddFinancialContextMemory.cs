@@ -23,7 +23,8 @@ public sealed class AddFinancialContextMemory : Migration
                 "Status" varchar(32) NOT NULL, "AttemptCount" integer NOT NULL,
                 "AvailableAt" timestamptz NOT NULL, "ClaimToken" uuid NULL,
                 "LeaseExpiresAt" timestamptz NULL, "ValidUntil" timestamptz NULL,
-                "CreatedAt" timestamptz NOT NULL, "ProcessedAt" timestamptz NULL
+                "CreatedAt" timestamptz NOT NULL, "ProcessedAt" timestamptz NULL,
+                "AdmissionJson" jsonb NULL
             );
             CREATE INDEX "IX_judgment_feedback_status_available"
                 ON app.judgment_feedback ("Status", "AvailableAt");

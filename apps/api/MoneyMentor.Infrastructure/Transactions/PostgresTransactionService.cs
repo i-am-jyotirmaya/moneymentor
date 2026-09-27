@@ -4,6 +4,7 @@ using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Transactions;
 using MoneyMentor.Application.Telemetry;
+using MoneyMentor.Application.Privacy;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Categories;
@@ -37,14 +38,20 @@ internal sealed class PostgresTransactionService(
             command.Draft.CategoryGuess,
             CategoryType.Expense,
             cancellationToken);
-        var choices = jevTransactionEnricher.IsEnabled
+        var canEnrich = jevTransactionEnricher.IsEnabled
+            && await dbContext.PrivacyConsents.AsNoTracking().AnyAsync(x =>
+                x.UserProfileId == command.UserContext.UserProfileId
+                && x.PolicyVersion == PrivacyPolicy.CurrentVersion, cancellationToken);
+        var choices = canEnrich
             ? await dbContext.Categories.AsNoTracking()
                 .Where(x => (x.HouseholdId == null || x.HouseholdId == householdAccess.HouseholdId)
                     && x.Type == CategoryType.Expense && !x.IsHidden && x.ParentCategoryId != null)
                 .OrderBy(x => x.SortOrder).ThenBy(x => x.Name).Take(200)
                 .ToArrayAsync(cancellationToken)
             : [];
-        var enrichment = await jevTransactionEnricher.EnrichAsync(command.Draft, choices, cancellationToken);
+        var enrichment = canEnrich
+            ? await jevTransactionEnricher.EnrichAsync(command.Draft, choices, cancellationToken)
+            : new TransactionEnrichment(null, null);
         categoryId = enrichment.SuggestedCategoryId ?? categoryId;
         var merchantName = NormalizeOptional(command.Draft.MerchantName);
         var merchantId = await merchantResolver.ResolveAsync(householdAccess.HouseholdId, merchantName, cancellationToken);

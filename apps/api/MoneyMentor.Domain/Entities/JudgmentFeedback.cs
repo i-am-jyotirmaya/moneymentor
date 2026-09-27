@@ -18,4 +18,5 @@ public sealed class JudgmentFeedback
     public DateTimeOffset? ValidUntil { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ProcessedAt { get; set; }
+    public string? AdmissionJson { get; set; }
 }

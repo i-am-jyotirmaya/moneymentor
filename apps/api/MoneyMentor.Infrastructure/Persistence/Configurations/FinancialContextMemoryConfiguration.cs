@@ -40,6 +40,7 @@ internal sealed class JudgmentFeedbackConfiguration : IEntityTypeConfiguration<J
         builder.Property(x => x.Text).HasMaxLength(2000);
         builder.Property(x => x.Visibility).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.Status).HasMaxLength(32);
+        builder.Property(x => x.AdmissionJson).HasColumnType("jsonb");
         builder.HasOne<Household>().WithMany().HasForeignKey(x => x.HouseholdId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<UserProfile>().WithMany().HasForeignKey(x => x.UserProfileId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<Judgement>().WithMany().HasForeignKey(x => x.JudgementId).OnDelete(DeleteBehavior.Cascade);

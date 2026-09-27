@@ -1734,6 +1734,8 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.Property<Guid>("UserProfileId").HasColumnType("uuid");
                     b.Property<DateTimeOffset?>("ValidUntil").HasColumnType("timestamp with time zone");
                     b.Property<string>("Visibility").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.Property<string>("AdmissionJson").HasColumnType("jsonb");
+
                     b.HasKey("Id");
                     b.HasIndex("JudgementId");
                     b.HasIndex("UserProfileId");

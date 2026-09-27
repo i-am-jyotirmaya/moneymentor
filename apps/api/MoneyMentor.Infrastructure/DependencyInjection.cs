@@ -94,6 +94,7 @@ public static class DependencyInjection
         services.AddScoped<IGoalPlanningService, PostgresGoalPlanningService>();
         services.AddScoped<ICommitmentService, PostgresCommitmentService>();
         services.AddScoped<IJudgementService, PostgresJudgementService>();
+        services.AddScoped<IJudgmentFeedbackService, PostgresJudgmentFeedbackService>();
         services.AddScoped<IJudgementReportService, PostgresJudgementReportService>();
         services.AddScoped<IJudgementReportWorkStore, PostgresJudgementReportWorkStore>();
         services.AddScoped<IJudgementReportPipeline, PostgresJudgementReportPipeline>();
@@ -102,6 +103,13 @@ public static class DependencyInjection
         services.AddScoped<JudgmentCandidateAnalysisService>();
         services.AddScoped<JudgmentContextBuilder>();
         services.AddScoped<FinancialMemoryStore>();
+        services.AddScoped<MemoryAdmissionService>();
+        services.AddSingleton<MemoryAdmissionWakeup>();
+        services.AddHttpClient<JevMemoryAdmissionClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.typesafe.ai/");
+            client.Timeout = TimeSpan.FromSeconds(8);
+        });
         services.AddHttpClient<MemoryEmbeddingClient>((provider, client) =>
         {
             var llm = provider.GetRequiredService<IOptions<OpenAiGoalPlanningOptions>>().Value;
@@ -129,6 +137,7 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddHostedService<JudgmentCandidateAnalysisWorker>();
         services.AddHostedService<JudgmentDecisionWorker>();
+        services.AddHostedService<MemoryAdmissionWorker>();
         services.AddScoped<IFinanceTransactionReader, PostgresFinanceTransactionReader>();
         services.AddScoped<IPrivacyService, PostgresPrivacyService>();
         services.AddHostedService<DeletedTransactionPurgeService>();

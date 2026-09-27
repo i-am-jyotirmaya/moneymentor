@@ -36,6 +36,13 @@ public static class JudgementEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status404NotFound);
 
+        group.MapPost("/{judgementId:guid}/explanations", ExplainAsync)
+            .WithName("ExplainJudgement")
+            .Produces(StatusCodes.Status202Accepted)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesValidationProblem();
+
         return group;
     }
 
@@ -87,6 +94,25 @@ public static class JudgementEndpoints
 
         var dismissed = await judgementService.DismissAsync(userContext, judgementId, cancellationToken);
         return dismissed ? Results.NoContent() : Results.NotFound();
+    }
+
+    private static async Task<IResult> ExplainAsync(
+        Guid judgementId,
+        JudgmentExplanationRequest request,
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        IJudgmentFeedbackService feedbackService,
+        CancellationToken cancellationToken)
+    {
+        var userContext = await ResolveContextAsync(httpContext, appUserProfileService, cancellationToken);
+        if (userContext is null) return Results.Unauthorized();
+        if (string.IsNullOrWhiteSpace(request.Text) || request.Text.Trim().Length is < 5 or > 2000)
+            return EndpointValidation.ValidationProblem(nameof(request.Text), "Explanation must be 5 to 2000 characters.");
+        if (request.ValidUntil is DateTimeOffset until &&
+            (until <= DateTimeOffset.UtcNow || until > DateTimeOffset.UtcNow.AddYears(2)))
+            return EndpointValidation.ValidationProblem(nameof(request.ValidUntil), "ValidUntil must be within two years.");
+        var feedbackId = await feedbackService.RecordAsync(userContext, judgementId, request, cancellationToken);
+        return feedbackId is Guid id ? Results.Accepted(value: new { feedbackId = id }) : Results.NotFound();
     }
 
     private static async Task<IResult> ListActiveAsync(
