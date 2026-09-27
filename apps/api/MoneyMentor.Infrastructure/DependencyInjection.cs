@@ -91,6 +91,7 @@ public static class DependencyInjection
         services.AddScoped<ICategoryService, PostgresCategoryService>();
         services.AddScoped<IGoalService, PostgresGoalService>();
         services.AddScoped<IGoalFinancialSnapshotBuilder, PostgresGoalFinancialSnapshotBuilder>();
+        services.AddScoped<IGoalJudgmentSignalReader, PostgresGoalJudgmentSignalReader>();
         services.AddScoped<IGoalPlanningService, PostgresGoalPlanningService>();
         services.AddScoped<ICommitmentService, PostgresCommitmentService>();
         services.AddScoped<IJudgementService, PostgresJudgementService>();
