@@ -20,6 +20,8 @@ public sealed class HeuristicFinanceInputClassifierTests
     [InlineData("credit bill", FinanceInputIntent.CreateExpense)]
     [InlineData("credit card", FinanceInputIntent.CreateExpense)]
     [InlineData("paid 70k in credit card", FinanceInputIntent.CreateExpense)]
+    [InlineData("₹213.00\nDebited account\nPayment received by Blinkit", FinanceInputIntent.CreateExpense)]
+    [InlineData("₹213.00\nReceived from Blinkit", FinanceInputIntent.CreateIncome)]
     [InlineData("I want to save 3 lakh in 8 months", FinanceInputIntent.AskGoalAdvice)]
     [InlineData("hello there", FinanceInputIntent.Unknown)]
     public async Task ClassifyAsync_ReturnsExpectedIntent(

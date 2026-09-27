@@ -56,7 +56,9 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
                 ExpenseInputParseResult.Unsupported("This looks like a finance question rather than a new expense."));
         }
 
-        if (LooksLikeIncomeOrGoalInput(searchTerms) && !HasExpenseSignal(searchTerms))
+        if (LooksLikeIncomeOrGoalInput(searchTerms) && !HasExpenseSignal(searchTerms)
+            && !PaymentTextSignals.IsOutgoing(sourceText)
+            && !ContainsAny(searchTerms, ExpenseInputKeywordSets.ExpensePaymentSignals))
         {
             return Task.FromResult(
                 ExpenseInputParseResult.Unsupported("This input does not look like an expense."));
