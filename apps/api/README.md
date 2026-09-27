@@ -141,13 +141,6 @@ dotnet run --project apps/api/MoneyMentor.Operations -- entitlement grant --emai
 dotnet run --project apps/api/MoneyMentor.Operations -- entitlement revoke --email person@example.com --operator operator-name --reason "Beta access ended"
 ```
 
-Report backfill defaults to a dry run:
-
-```bash
-dotnet run --project apps/api/MoneyMentor.Operations -- judgement-reports backfill --dry-run true
-dotnet run --project apps/api/MoneyMentor.Operations -- judgement-reports backfill --dry-run false
-```
-
 The same executable is embedded in the API image at `/app/operations`. The EC2 Compose migration service uses that exact release image; see [deploy/README.md](../../deploy/README.md).
 
 ## Production configuration

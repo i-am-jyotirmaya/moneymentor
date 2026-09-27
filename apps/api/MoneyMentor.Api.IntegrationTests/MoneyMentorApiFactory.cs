@@ -204,10 +204,7 @@ public sealed class LocalCorsProductionApiFactory(string connectionString) : Web
                 ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000",
                 ["CORS_ALLOW_LOCALHOST"] = "true",
                 ["Product:PublicWebUrl"] = "https://app.moneymentor.test",
-                ["Product:SupportEmail"] = "support@moneymentor.test",
-                ["JudgementReports:SchedulerEnabled"] = "false",
-                ["JudgementReports:CalculationWorkerEnabled"] = "false",
-                ["JudgementReports:NarrationWorkerEnabled"] = "false"
+                ["Product:SupportEmail"] = "support@moneymentor.test"
             });
     }
 }

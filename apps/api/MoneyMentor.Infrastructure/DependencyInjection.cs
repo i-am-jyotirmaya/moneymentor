@@ -97,9 +97,6 @@ public static class DependencyInjection
         services.AddScoped<IJudgementService, PostgresJudgementService>();
         services.AddScoped<IJudgmentFeedbackService, PostgresJudgmentFeedbackService>();
         services.AddScoped<IJudgementReportService, PostgresJudgementReportService>();
-        services.AddScoped<IJudgementReportWorkStore, PostgresJudgementReportWorkStore>();
-        services.AddScoped<IJudgementReportPipeline, PostgresJudgementReportPipeline>();
-        services.AddScoped<IJudgementReportRecalculationQueue, JudgementReportRecalculationQueue>();
         services.AddScoped<DailyFinancialFactStore>();
         services.AddScoped<JudgmentCandidateAnalysisService>();
         services.AddScoped<JudgmentContextBuilder>();
@@ -143,13 +140,6 @@ public static class DependencyInjection
         services.AddScoped<IPrivacyService, PostgresPrivacyService>();
         services.AddHostedService<DeletedTransactionPurgeService>();
         services.AddHostedService<CommitmentDueWorker>();
-        services.AddOptions<JudgementReportWorkerOptions>()
-            .Bind(configuration.GetSection(JudgementReportWorkerOptions.SectionName))
-            .ValidateOnStart();
-        services.AddSingleton<IValidateOptions<JudgementReportWorkerOptions>, JudgementReportWorkerOptionsValidator>();
-        services.AddHostedService<JudgementReportSchedulerWorker>();
-        services.AddHostedService<JudgementReportCalculationWorker>();
-        services.AddHostedService<JudgementReportNarrationWorker>();
         services.Configure<OpenAiGoalPlanningOptions>(options =>
         {
             configuration.GetSection(OpenAiGoalPlanningOptions.SectionName).Bind(options);
@@ -162,13 +152,6 @@ public static class DependencyInjection
         {
             var options = provider.GetRequiredService<
                 Microsoft.Extensions.Options.IOptions<OpenAiGoalPlanningOptions>>().Value;
-            client.BaseAddress = new Uri("https://api.openai.com/v1/");
-            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 120));
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("MoneyMentor/1.0");
-        });
-        services.AddHttpClient<IJudgementNarrationClient, OpenAiJudgementNarrationClient>((provider, client) =>
-        {
-            var options = provider.GetRequiredService<IOptions<OpenAiGoalPlanningOptions>>().Value;
             client.BaseAddress = new Uri("https://api.openai.com/v1/");
             client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 120));
             client.DefaultRequestHeaders.UserAgent.ParseAdd("MoneyMentor/1.0");

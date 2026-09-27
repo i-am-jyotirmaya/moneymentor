@@ -160,10 +160,6 @@ Resend__RecoveryInterval=01:00:00
 Resend__ApiKey=
 OPENAI_API_KEY=
 OPENAI_SAFETY_IDENTIFIER_KEY=
-JudgementReports__SchedulerEnabled=false
-JudgementReports__CalculationWorkerEnabled=false
-JudgementReports__NarrationWorkerEnabled=false
-JudgementReports__MaxNarrationConcurrency=2
 ```
 
 Deterministic capture, dashboard totals, transaction management, and focused finance questions work with these integrations off.

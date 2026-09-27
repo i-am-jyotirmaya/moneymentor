@@ -11,8 +11,7 @@ namespace MoneyMentor.Infrastructure.Categories;
 internal sealed class PostgresCategoryService(
     MoneyMentorDbContext dbContext,
     IHouseholdAccessService householdAccessService,
-    DailyFinancialFactStore dailyFinancialFactStore,
-    IJudgementReportRecalculationQueue reportRecalculationQueue) : ICategoryService
+    DailyFinancialFactStore dailyFinancialFactStore) : ICategoryService
 {
     public async Task<CategoryCatalogModel> ListAsync(
         AppUserContext userContext,
@@ -164,17 +163,15 @@ internal sealed class PostgresCategoryService(
         if (originalName != category.Name || originalParent != category.ParentCategoryId
             || originalClassification != category.Classification)
         {
-            // A category edit changes historical facts and the category labels in completed reports.
+            // A category edit changes the daily facts used by candidate detection.
             await using var edit = await dbContext.Database.BeginTransactionAsync(cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
             var affected = await dbContext.Transactions.AsNoTracking()
                 .Where(item => item.CategoryId == category.Id && item.DeletedAt == null)
-                .Select(item => new TransactionReportingSnapshot(item.HouseholdId, item.UserProfileId,
-                    item.TransactionDate, item.Visibility))
+                .Select(item => item.TransactionDate)
                 .ToArrayAsync(cancellationToken);
-            foreach (var date in affected.Select(item => item.TransactionDate).Distinct().Order())
+            foreach (var date in affected.Distinct().Order())
                 await dailyFinancialFactStore.RebuildAsync(category.HouseholdId.Value, date, cancellationToken);
-            await reportRecalculationQueue.EnqueueAsync(affected.Distinct().ToArray(), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
             await edit.CommitAsync(cancellationToken);
         }

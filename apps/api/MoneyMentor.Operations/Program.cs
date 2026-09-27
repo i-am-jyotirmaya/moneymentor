@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
-using MoneyMentor.Application.JudgementReports;
 using MoneyMentor.Application.Registration;
 using System.Text.Json;
 using MoneyMentor.Infrastructure;
@@ -59,7 +58,6 @@ public static class OperationsCommand
                     "email-smoke-test" => await RunEmailSmokeTestAsync(scope.ServiceProvider, args[1..]),
                     "entitlement" => await ChangeEntitlementAsync(scope.ServiceProvider, args[1..]),
                     "access-requests" => await ManageAccessRequestsAsync(scope.ServiceProvider, args[1..]),
-                    "judgement-reports" => await ManageJudgementReportsAsync(scope.ServiceProvider, args[1..]),
                     _ => UnknownCommand(args[0])
                 };
             }
@@ -173,127 +171,6 @@ public static class OperationsCommand
         return 0;
     }
 
-    private static async Task<int> ManageJudgementReportsAsync(
-        IServiceProvider services,
-        string[] args)
-    {
-        if (args.Length == 0 || !string.Equals(args[0], "backfill", StringComparison.OrdinalIgnoreCase))
-        {
-            WriteUsage();
-            return 2;
-        }
-
-        var options = ParseOptions(args[1..]);
-        var dryRun = !options.TryGetValue("dry-run", out var dryRunValue)
-            || !bool.TryParse(dryRunValue, out var parsedDryRun)
-            || parsedDryRun;
-        var dbContext = services.GetRequiredService<MoneyMentorDbContext>();
-        var timeProvider = services.GetRequiredService<TimeProvider>();
-        var now = timeProvider.GetUtcNow();
-        var memberships = await dbContext.HouseholdMembers.AsNoTracking()
-            .Where(member => member.Status == HouseholdMemberStatus.Active)
-            .Join(
-                dbContext.Households.AsNoTracking(),
-                member => member.HouseholdId,
-                household => household.Id,
-                (member, household) => new { Member = member, Household = household })
-            .ToArrayAsync();
-        var desired = new Dictionary<BackfillKey, JudgementWorkItem>();
-
-        foreach (var row in memberships)
-        {
-            AddBackfillWindows(desired, row.Household, row.Member.UserProfileId, JudgementReportScope.Personal, now);
-            if (row.Household.Kind == HouseholdKind.Family)
-            {
-                AddBackfillWindows(desired, row.Household, null, JudgementReportScope.Household, now);
-            }
-        }
-
-        GetLogger(services).LogInformation("Judgement report backfill would enqueue {WindowCount} calculation window(s). Dry run: {DryRun}.", desired.Count, dryRun);
-        if (dryRun)
-        {
-            return 0;
-        }
-
-        foreach (var pair in desired.OrderBy(item => item.Key.PeriodStart))
-        {
-            var key = pair.Key;
-            var existing = await dbContext.JudgementWorkItems.FirstOrDefaultAsync(item =>
-                item.HouseholdId == key.HouseholdId
-                && item.UserProfileId == key.UserProfileId
-                && item.Scope == key.Scope
-                && item.Cadence == key.Cadence
-                && item.PeriodStart == key.PeriodStart
-                && item.Stage == JudgementWorkStage.Calculation);
-            if (existing is null)
-            {
-                dbContext.JudgementWorkItems.Add(pair.Value);
-            }
-            else
-            {
-                existing.RequestedGeneration++;
-                if (existing.Status != JudgementWorkStatus.Processing)
-                {
-                    existing.Status = JudgementWorkStatus.Pending;
-                    existing.AvailableAt = now;
-                    existing.AttemptCount = 0;
-                    existing.DeadLetteredAt = null;
-                    existing.FailureCategory = null;
-                    existing.LastError = null;
-                }
-                existing.UpdatedAt = now;
-            }
-        }
-        await dbContext.SaveChangesAsync();
-        GetLogger(services).LogInformation("Judgement report backfill calculations were queued oldest-first.");
-        return 0;
-    }
-
-    private static void AddBackfillWindows(
-        IDictionary<BackfillKey, JudgementWorkItem> desired,
-        Household household,
-        Guid? userProfileId,
-        JudgementReportScope scope,
-        DateTimeOffset now)
-    {
-        AddCadence(JudgementReportCadence.Weekly, 8);
-        AddCadence(JudgementReportCadence.Monthly, 6);
-        return;
-
-        void AddCadence(JudgementReportCadence cadence, int count)
-        {
-            var period = ReportingPeriodCalculator.GetLastCompletedPeriod(cadence, now, household.TimeZone);
-            var periods = new List<ReportingPeriod>(count);
-            for (var index = 0; index < count; index++)
-            {
-                periods.Add(period);
-                period = ReportingPeriodCalculator.Previous(period);
-            }
-            foreach (var item in periods.OrderBy(value => value.StartDate))
-            {
-                var key = new BackfillKey(household.Id, userProfileId, scope, cadence, item.StartDate);
-                desired.TryAdd(key, new JudgementWorkItem
-                {
-                    HouseholdId = household.Id,
-                    UserProfileId = userProfileId,
-                    Scope = scope,
-                    Cadence = cadence,
-                    Stage = JudgementWorkStage.Calculation,
-                    PeriodStart = item.StartDate,
-                    PeriodEndExclusive = item.EndDateExclusive,
-                    TimeZone = item.TimeZone,
-                    CurrencyCode = household.CurrencyCode,
-                    Status = JudgementWorkStatus.Pending,
-                    RequestedGeneration = 1,
-                    AvailableAt = item.EndInstant,
-                    MaxAttempts = 4,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                });
-            }
-        }
-    }
-
     private static Dictionary<string, string> ParseOptions(string[] args)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -388,14 +265,7 @@ public static class OperationsCommand
         Console.Error.WriteLine("  MoneyMentor.Operations access-requests list [--status pending|approved|rejected|registered|all]");
         Console.Error.WriteLine("  MoneyMentor.Operations access-requests approve|reject|resend --id <request-id> --operator <name>");
         Console.Error.WriteLine("  MoneyMentor.Operations entitlement grant|revoke --email <email> --operator <name> --reason <reason>");
-        Console.Error.WriteLine("  MoneyMentor.Operations judgement-reports backfill [--dry-run true|false]");
         Console.Error.WriteLine("Set ConnectionStrings__MoneyMentorDb outside a local source checkout.");
     }
 
-    private sealed record BackfillKey(
-        Guid HouseholdId,
-        Guid? UserProfileId,
-        JudgementReportScope Scope,
-        JudgementReportCadence Cadence,
-        DateOnly PeriodStart);
 }

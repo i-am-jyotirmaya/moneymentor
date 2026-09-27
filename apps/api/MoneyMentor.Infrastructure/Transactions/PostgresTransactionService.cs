@@ -16,7 +16,6 @@ namespace MoneyMentor.Infrastructure.Transactions;
 internal sealed class PostgresTransactionService(
     MoneyMentorDbContext dbContext,
     IHouseholdAccessService householdAccessService,
-    IJudgementReportRecalculationQueue judgementReportRecalculationQueue,
     DailyFinancialFactStore dailyFinancialFactStore,
     MerchantResolver merchantResolver,
     JevTransactionEnricher jevTransactionEnricher,
@@ -79,7 +78,6 @@ internal sealed class PostgresTransactionService(
         };
 
         dbContext.Transactions.Add(transaction);
-        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
         await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("created", "expense");
 
@@ -127,7 +125,6 @@ internal sealed class PostgresTransactionService(
         };
 
         dbContext.Transactions.Add(transaction);
-        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
         await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("created", "income");
 
@@ -231,7 +228,7 @@ internal sealed class PostgresTransactionService(
             return null;
         }
 
-        var originalReportingSnapshot = ReportingSnapshot(transaction);
+        var originalTransactionDate = transaction.TransactionDate;
 
         var changes = new Dictionary<string, FieldChange>();
 
@@ -314,11 +311,8 @@ internal sealed class PostgresTransactionService(
                 ChangedFieldsJson = JsonSerializer.Serialize(changes)
             });
 
-            await judgementReportRecalculationQueue.EnqueueAsync(
-                [originalReportingSnapshot, ReportingSnapshot(transaction)],
-                cancellationToken);
             await SaveAndRebuildAsync(transaction.HouseholdId,
-                [originalReportingSnapshot.TransactionDate, transaction.TransactionDate], cancellationToken);
+                [originalTransactionDate, transaction.TransactionDate], cancellationToken);
             RecordLifecycle("updated", transaction.Type.ToString().ToLowerInvariant());
         }
 
@@ -348,7 +342,6 @@ internal sealed class PostgresTransactionService(
         transaction.UpdatedAt = now;
         transaction.UpdatedByUserProfileId = userContext.UserProfileId;
         AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", false, true);
-        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
         await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("deleted", transaction.Type.ToString().ToLowerInvariant());
         return await MapTransactionAsync(
@@ -379,7 +372,6 @@ internal sealed class PostgresTransactionService(
         transaction.UpdatedAt = now;
         transaction.UpdatedByUserProfileId = userContext.UserProfileId;
         AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", true, false);
-        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
         await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("restored", transaction.Type.ToString().ToLowerInvariant());
         return await MapTransactionAsync(
@@ -650,12 +642,6 @@ internal sealed class PostgresTransactionService(
         changes[fieldName] = new FieldChange(currentValue, newValue);
         apply(newValue);
     }
-
-    private static TransactionReportingSnapshot ReportingSnapshot(Transaction transaction) => new(
-        transaction.HouseholdId,
-        transaction.UserProfileId,
-        transaction.TransactionDate,
-        transaction.Visibility);
 
     private async Task<string> GetHouseholdCurrencyAsync(Guid householdId, CancellationToken cancellationToken) =>
         await dbContext.Households.AsNoTracking()

@@ -31,9 +31,6 @@ public sealed class MvpAccessTests(MoneyMentorApiFactory factory)
         {
             builder.UseSetting("Registration:Mode", "RequestOnly");
             builder.UseSetting("RateLimits:AccessRequestsPerHour", requestLimit.ToString());
-            builder.UseSetting("JudgementReports:SchedulerEnabled", "false");
-            builder.UseSetting("JudgementReports:CalculationWorkerEnabled", "false");
-            builder.UseSetting("JudgementReports:NarrationWorkerEnabled", "false");
             if (sender is not null) builder.ConfigureServices(services =>
             {
                 services.RemoveAll<ITransactionalEmailSender>();
