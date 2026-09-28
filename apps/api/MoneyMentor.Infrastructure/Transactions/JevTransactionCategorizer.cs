@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using MoneyMentor.Application.Jev;
+using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Categories;
 
@@ -34,6 +35,8 @@ public sealed class JevTransactionCategorizer(
 
         if (!jev.IsConfigured || string.IsNullOrWhiteSpace(sourceText))
         {
+            MoneyMentorTelemetry.Categorization.Add(1,
+                new KeyValuePair<string, object?>("outcome", "unconfigured_fallback"));
             return knownGuess ?? fallback;
         }
 
@@ -65,9 +68,13 @@ public sealed class JevTransactionCategorizer(
             if (decision.TryGetChoice("category", out var category, out _)
                 && criteria.ContainsKey(category))
             {
+                MoneyMentorTelemetry.Categorization.Add(1,
+                    new KeyValuePair<string, object?>("outcome", "jev_selected"));
                 return category;
             }
 
+            MoneyMentorTelemetry.Categorization.Add(1,
+                new KeyValuePair<string, object?>("outcome", "invalid_choice_fallback"));
             logger.LogInformation("Jev category was invalid or outside the configured catalog; using capture fallback.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -77,6 +84,8 @@ public sealed class JevTransactionCategorizer(
         catch (Exception exception) when (exception is HttpRequestException
             or OperationCanceledException or JsonException or InvalidOperationException)
         {
+            MoneyMentorTelemetry.Categorization.Add(1,
+                new KeyValuePair<string, object?>("outcome", "provider_error_fallback"));
             // No transaction text or provider response is logged.
             logger.LogWarning("Jev category lookup failed ({FailureType}); using capture fallback.",
                 exception.GetType().Name);

@@ -21,6 +21,26 @@ echo "Pulling image..."
 
 docker pull "$IMAGE"
 
+# The collector uses the EC2 instance role and is reachable only on this private Docker network.
+docker network inspect spndrr-observability >/dev/null 2>&1 || docker network create spndrr-observability
+docker pull public.ecr.aws/aws-observability/aws-otel-collector:v0.50.0
+docker rm -f spndrr-otel 2>/dev/null || true
+docker run -d \
+    --name spndrr-otel \
+    --restart unless-stopped \
+    --memory 256m \
+    --network spndrr-observability \
+    --env AWS_REGION="$REGION" \
+    --mount type=bind,source=/opt/spndrr/otel-collector.yaml,target=/etc/otel-collector.yaml,readonly \
+    public.ecr.aws/aws-observability/aws-otel-collector:v0.50.0 \
+    --config=/etc/otel-collector.yaml
+
+sleep 2
+if [ "$(docker inspect --format '{{.State.Running}}' spndrr-otel)" != "true" ]; then
+    docker logs --tail 100 spndrr-otel
+    exit 1
+fi
+
 echo "Running database migrations..."
 
 docker run \
@@ -41,6 +61,9 @@ docker run \
     --name spndrr-api \
     --restart unless-stopped \
     --env-file /opt/spndrr/.env \
+    --env Metrics__OtlpEndpoint=http://spndrr-otel:4317 \
+    --env Metrics__CoreOnly=true \
+    --network spndrr-observability \
     --log-driver=awslogs \
     --log-opt=awslogs-region=ap-south-1 \
     --log-opt=awslogs-group=/spndrr/api \

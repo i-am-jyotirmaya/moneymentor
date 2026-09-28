@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 using MoneyMentor.Application.Goals;
+using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Domain.Enums;
 
 namespace MoneyMentor.Infrastructure.Goals;
@@ -115,6 +116,7 @@ internal sealed class OpenAiGoalPlanningClient(
         };
         message.Content = JsonContent.Create(body, options: JsonOptions);
 
+        using var measurement = new ProviderCallMeasurement("openai", "goal_plan");
         HttpResponseMessage response;
         try
         {
@@ -123,12 +125,14 @@ internal sealed class OpenAiGoalPlanningClient(
         }
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
+            measurement.TimedOut();
             GoalPlanningCircuitBreaker.RecordTransientFailure();
             throw new GoalPlanningProviderException(
                 "OpenAI goal planning timed out.", true, exception);
         }
         catch (HttpRequestException exception)
         {
+            measurement.NetworkError();
             GoalPlanningCircuitBreaker.RecordTransientFailure();
             throw new GoalPlanningProviderException(
                 "OpenAI goal planning could not reach the provider.", true, exception);
@@ -138,6 +142,7 @@ internal sealed class OpenAiGoalPlanningClient(
         var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
+            measurement.HttpError(response.StatusCode);
             var transient = response.StatusCode is HttpStatusCode.RequestTimeout
                 or HttpStatusCode.TooManyRequests
                 or HttpStatusCode.BadGateway
@@ -156,6 +161,7 @@ internal sealed class OpenAiGoalPlanningClient(
         {
             using var document = JsonDocument.Parse(responseText);
             var root = document.RootElement;
+            measurement.RecordOpenAiUsage(root);
             var outputText = ExtractOutputText(root)
                 ?? throw new JsonException("Response did not contain structured output.");
             var payload = JsonSerializer.Deserialize<ModelPayload>(outputText, JsonOptions)
@@ -166,7 +172,7 @@ internal sealed class OpenAiGoalPlanningClient(
             var inputTokens = ReadInt(usage, "input_tokens");
             var outputTokens = ReadInt(usage, "output_tokens");
             GoalPlanningCircuitBreaker.RecordSuccess();
-            return new GoalPlanningModelResult(
+            var result = new GoalPlanningModelResult(
                 settings.Model,
                 inputTokens,
                 outputTokens,
@@ -177,9 +183,12 @@ internal sealed class OpenAiGoalPlanningClient(
                     option.TradeOffs,
                     option.Assumptions,
                     option.Risks)).ToArray());
+            measurement.Succeeded();
+            return result;
         }
         catch (Exception exception) when (exception is JsonException or ArgumentException)
         {
+            measurement.InvalidResponse();
             throw new GoalPlanningProviderException(
                 "OpenAI returned an invalid goal plan.", false, exception);
         }

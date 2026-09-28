@@ -143,6 +143,23 @@ Nginx resolves container names when loading its configuration. On every release,
 
 Follow logs with `docker compose logs -f api ingress`; configure host log retention and monitor Neon availability, API readiness, EC2 disk/memory, and certificate expiry. AWS calls do not influence current health endpoints.
 
+## P0 CloudWatch metrics
+
+The API now emits request latency/count, EF command attempts for both DbContexts, database connection failures, Jev calls and capture fallbacks, OpenAI calls and reported token counts, and a heartbeat. The metrics use the existing .NET `Meter`; logs still go through the existing `awslogs` driver. See [the metric contract](../../docs/CLOUDWATCH_METRICS_PLAN.md) for exact names, outcomes, dashboards, and alert starting points.
+
+The deployment runs a pinned AWS OTel Collector (`v0.50.0`) on a private Docker network and forwards **metrics only** to the regional CloudWatch OTLP endpoint over HTTPS with the EC2 instance role. In the current standalone deployment, GitHub Actions copies the versioned `deploy.sh` and `otel-collector.yaml` to `/opt/spndrr/` before calling the script. For a manual deployment, copy both files to that directory before running the script. The Compose template uses the same collector configuration. No credential or provider payload goes into a metric label. `Metrics__CoreOnly=true` keeps runtime and generic HTTP client metrics out of this initial rollout.
+
+Attach the minimal metrics policy to the existing instance role (from an authorized operator session):
+
+```bash
+aws iam put-role-policy --role-name MoneyMentorEc2Role --policy-name SpndrrMetrics \
+  --policy-document file://deploy/aws/metrics-policy.json
+```
+
+Verify the instance is in the intended region (currently `ap-south-1`) and the instance profile has the policy. To check export, look for `moneymentor.telemetry.heartbeat` in CloudWatch Query Studio after a few minutes, then exercise one API request, one DB query, and a Jev capture. Check `docker logs spndrr-otel` for SigV4, network, or export errors if metrics do not arrive. CloudWatch OTLP uses OTel counters/histograms and PromQL (`increase`, `rate`, `histogram_quantile`); use the metrics endpoint's query tools rather than assuming classic `PutMetricData` statistics. Create the dashboard and alarms from the thresholds in the plan after a baseline; cloud account dashboards, SNS destinations, and external readiness probes are not provisioned by this PR.
+
+References: [CloudWatch OTLP metrics](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/metrics-otel-send.html) and [ADOT collector releases](https://github.com/aws-observability/aws-otel-collector/releases).
+
 ## Rollback
 
 Stop ingress/web/API, restore the previous `API_IMAGE` and `WEB_IMAGE` tags in `.env`, then run `docker compose up -d --no-deps --wait api web ingress` and repeat the smoke tests. This deliberately skips migrations. Only use it if the previous application is compatible with the current schema. Image rollback does not undo migrations; incompatible database changes require a separate reviewed restore/forward-fix decision.

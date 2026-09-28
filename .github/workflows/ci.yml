@@ -39,7 +39,7 @@ jobs:
 
           changed=false
           git diff --quiet "$BEFORE" "$GITHUB_SHA" -- \
-            apps/api MoneyMentor.slnx .dockerignore \
+            apps/api deploy/aws MoneyMentor.slnx .dockerignore \
             global.json Directory.Build.props Directory.Build.targets \
             Directory.Packages.props NuGet.Config nuget.config \
             .github/workflows/ci.yml .github/workflows/deploy-api.yml || {
