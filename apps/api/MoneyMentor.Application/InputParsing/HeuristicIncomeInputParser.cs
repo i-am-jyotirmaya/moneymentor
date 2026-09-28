@@ -129,7 +129,7 @@ public sealed class HeuristicIncomeInputParser : IIncomeInputParser
             }
         }
 
-        return null;
+        return SpokenAmountParser.Find(sourceText)?.Amount;
     }
 
     private static string? ExtractSender(string sourceText)

@@ -63,7 +63,8 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
         }
 
         var date = ExtractDate(sourceText, request.TransactionDate, request.ReferenceDate);
-        var amount = ExtractAmount(sourceText, date.SourceSpans);
+        var conflictingCurrency = SpokenAmountParser.FindConflictingCurrencyTranscript(sourceText);
+        var amount = conflictingCurrency is null ? ExtractAmount(sourceText, date.SourceSpans) : null;
         var category = ExtractCategory(searchTerms);
         var merchant = ExtractMerchant(sourceText, searchTerms);
 
@@ -74,7 +75,9 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
 
         var description = ExtractDescription(
             sourceText,
-            amount?.Span,
+            conflictingCurrency is null
+                ? amount?.Span
+                : new TextSpan(conflictingCurrency.Index, conflictingCurrency.Length),
             merchant?.RemovalSpan,
             date.SourceSpans);
 
@@ -105,6 +108,13 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
             request.InputMode,
             confidence,
             missingFields);
+
+        if (conflictingCurrency is not null)
+        {
+            return Task.FromResult(ExpenseInputParseResult.NeedsClarification(
+                draft,
+                $"I heard '{conflictingCurrency.Value}'. What was the total amount? Please enter it in digits."));
+        }
 
         if (amount is null && HasAnyExpenseEvidence(category, merchant, description))
         {
@@ -288,7 +298,15 @@ public sealed class HeuristicExpenseInputParser : IExpenseInputParser
             }
         }
 
-        return bestMatch;
+        if (bestMatch is not null)
+        {
+            return bestMatch;
+        }
+
+        var spoken = SpokenAmountParser.Find(sourceText);
+        return spoken is null || dateSpans.Any(span => span.Overlaps(new TextSpan(spoken.Value.Start, spoken.Value.Length)))
+            ? null
+            : new AmountMatch(spoken.Value.Amount, new TextSpan(spoken.Value.Start, spoken.Value.Length), 7);
     }
 
     private static bool HasDateSeparatorBeside(string sourceText, Match match)
