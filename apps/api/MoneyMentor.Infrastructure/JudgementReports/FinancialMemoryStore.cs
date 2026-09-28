@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MoneyMentor.Application.Privacy;
+using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Goals;
@@ -27,15 +28,34 @@ internal sealed class MemoryEmbeddingClient(HttpClient client, IOptions<OpenAiGo
             Content = JsonContent.Create(new { model = Model, input = text, dimensions = Dimensions })
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.Value.ApiKey);
-        using var response = await client.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        using var document = await JsonDocument.ParseAsync(
-            await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-        var values = document.RootElement.GetProperty("data")[0].GetProperty("embedding")
-            .EnumerateArray().Select(x => x.GetSingle()).ToArray();
-        if (values.Length != Dimensions || values.Any(x => !float.IsFinite(x)))
-            throw new JsonException("Embedding provider returned invalid dimensions or values.");
-        return values;
+        using var measurement = new ProviderCallMeasurement("openai", "memory_embedding");
+        try
+        {
+            using var response = await client.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode) measurement.HttpError(response.StatusCode);
+            response.EnsureSuccessStatusCode();
+            using var document = await JsonDocument.ParseAsync(
+                await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+            measurement.RecordOpenAiEmbeddingUsage(document.RootElement);
+            var values = document.RootElement.GetProperty("data")[0].GetProperty("embedding")
+                .EnumerateArray().Select(x => x.GetSingle()).ToArray();
+            if (values.Length != Dimensions || values.Any(x => !float.IsFinite(x)))
+                throw new JsonException("Embedding provider returned invalid dimensions or values.");
+            measurement.Succeeded();
+            return values;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        { measurement.Cancelled(); throw; }
+        catch (OperationCanceledException)
+        { measurement.TimedOut(); throw; }
+        catch (JsonException)
+        { measurement.InvalidResponse(); throw; }
+        catch (KeyNotFoundException)
+        { measurement.InvalidResponse(); throw; }
+        catch (InvalidOperationException)
+        { measurement.InvalidResponse(); throw; }
+        catch (HttpRequestException error)
+        { if (error.StatusCode is null) measurement.NetworkError(); throw; }
     }
 
     public static string ToVectorLiteral(float[] values)

@@ -1,4 +1,6 @@
 using System.Net;
+using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -12,6 +14,40 @@ namespace MoneyMentor.Api.IntegrationTests;
 
 public sealed class JevCategorizationTests
 {
+    [Fact]
+    public async Task Provider_http_failure_is_counted_once_as_a_failed_attempt()
+    {
+        var outcomes = new ConcurrentQueue<(string? Operation, string? Outcome)>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, current) =>
+        {
+            if (instrument.Name == "spndrr.jev.requests") current.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+        {
+            if (value != 1) return;
+            string? operation = null, outcome = null;
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "operation") operation = tag.Value?.ToString();
+                if (tag.Key == "outcome") outcome = tag.Value?.ToString();
+            }
+            outcomes.Enqueue((operation, outcome));
+        });
+        listener.Start();
+
+        var handler = new RecordingHandler { StatusCode = HttpStatusCode.TooManyRequests };
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://api.typesafe.ai/") };
+        var client = new JevClient(http, Options.Create(new JevOptions { ApiKey = "test-key" }));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.DecideAsync(
+            new { description = "coffee" },
+            new Dictionary<string, JevQuestion> { ["category"] = JevQuestion.Noul("coffee?") },
+            CancellationToken.None, "judgment_decision"));
+
+        Assert.Contains(("judgment_decision", "http_429"), outcomes);
+    }
+
     [Fact]
     public async Task Client_sends_authenticated_typed_question_and_reads_choice()
     {
@@ -85,7 +121,7 @@ public sealed class JevCategorizationTests
         public IReadOnlyDictionary<string, JevQuestion>? Questions { get; private set; }
 
         public Task<JevDecision> DecideAsync(object state, IReadOnlyDictionary<string, JevQuestion> questions,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, string operation = "categorization")
         {
             Questions = questions;
             using var body = JsonDocument.Parse(JsonSerializer.Serialize(new
@@ -98,6 +134,7 @@ public sealed class JevCategorizationTests
 
     private sealed class RecordingHandler : HttpMessageHandler
     {
+        public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
         public string? Body { get; private set; }
         public string? Path { get; private set; }
         public string? Authorization { get; private set; }
@@ -108,7 +145,7 @@ public sealed class JevCategorizationTests
             Path = request.RequestUri?.AbsolutePath;
             Authorization = request.Headers.Authorization?.ToString();
             Body = await request.Content!.ReadAsStringAsync(cancellationToken);
-            return new HttpResponseMessage(HttpStatusCode.OK)
+            return new HttpResponseMessage(StatusCode)
             {
                 Content = new StringContent("""
                     {"model":"jev-latest","answers":{"category":{"type":"choice","choice":"Public Transit","confidence":0.91,"probabilities":{"Public Transit":0.91,"Groceries":0.09}},"likely":{"type":"noul","noul":0.8},"priority":{"type":"score","score":1.2,"confidence":0.9,"legend":{"0":"low","1":"high"},"probabilities":{"0":0.2,"1":0.8}}},"usage":{"input_tokens":50,"output_tokens":3}}

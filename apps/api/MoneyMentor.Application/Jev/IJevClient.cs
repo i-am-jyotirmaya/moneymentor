@@ -11,7 +11,7 @@ public interface IJevClient
     Task<JevDecision> DecideAsync(
         object state,
         IReadOnlyDictionary<string, JevQuestion> questions,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken, string operation = "categorization");
 }
 
 public sealed record JevQuestion(string Type, string Instructions, object? Criteria = null)

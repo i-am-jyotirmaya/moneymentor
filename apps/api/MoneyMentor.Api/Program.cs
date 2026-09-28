@@ -139,10 +139,17 @@ builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+var metricsEndpoint = builder.Configuration["Metrics:OtlpEndpoint"] ?? otlpEndpoint;
+// Register the observable gauge even when no request or background job has used the meter yet.
+_ = MoneyMentorTelemetry.TelemetryHeartbeat;
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(
-        serviceName: "MoneyMentor.Api",
-        serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString()))
+        serviceName: "Spndrr.Api",
+        serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString())
+        .AddAttributes(new Dictionary<string, object>
+        {
+            ["deployment.environment.name"] = builder.Environment.EnvironmentName
+        }))
     .WithTracing(tracing =>
     {
         tracing
@@ -159,10 +166,12 @@ builder.Services.AddOpenTelemetry()
     {
         metrics
             .AddMeter(MoneyMentorTelemetry.SourceName)
-            .AddAspNetCoreInstrumentation()
-            .AddHttpClientInstrumentation()
-            .AddRuntimeInstrumentation();
-        if (Uri.TryCreate(otlpEndpoint, UriKind.Absolute, out var endpoint))
+            .AddAspNetCoreInstrumentation();
+        if (!builder.Configuration.GetValue<bool>("Metrics:CoreOnly"))
+        {
+            metrics.AddHttpClientInstrumentation().AddRuntimeInstrumentation();
+        }
+        if (Uri.TryCreate(metricsEndpoint, UriKind.Absolute, out var endpoint))
         {
             metrics.AddOtlpExporter(options => options.Endpoint = endpoint);
         }

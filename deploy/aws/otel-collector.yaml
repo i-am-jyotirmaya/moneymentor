@@ -1,0 +1,40 @@
+# Dedicated metrics pipeline. API JSON logs continue through the existing awslogs driver.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 160
+    spike_limit_mib: 40
+  batch:
+    timeout: 10s
+    send_batch_size: 200
+
+extensions:
+  sigv4auth:
+    service: monitoring
+    region: ${env:AWS_REGION}
+
+exporters:
+  otlphttp/cloudwatch:
+    metrics_endpoint: https://monitoring.${env:AWS_REGION}.amazonaws.com/v1/metrics
+    auth:
+      authenticator: sigv4auth
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+    sending_queue:
+      enabled: true
+      queue_size: 100
+
+service:
+  extensions: [sigv4auth]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/cloudwatch]

@@ -36,7 +36,8 @@ internal sealed class JevMemoryAdmissionClient(IJevClient client)
             ["importance"] = JevQuestion.Score("How useful will this be for future decisions?",
                 ["No value", "Small", "Useful", "Important", "Essential"])
         };
-        var decision = await client.DecideAsync(new { text, candidateType }, questions, cancellationToken);
+        var decision = await client.DecideAsync(new { text, candidateType }, questions, cancellationToken,
+            "memory_admission");
         if (!decision.TryGetNoul("durable", out var durable)
             || !decision.TryGetChoice("memoryType", out var type, out var confidence)
             || !decision.TryGetScore("importance", out var importance, out _)

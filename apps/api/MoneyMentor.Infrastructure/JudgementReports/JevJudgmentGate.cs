@@ -39,7 +39,8 @@ internal sealed class JevJudgmentGate(
                 ["needsIntent"] = JevQuestion.Noul("Would user intent materially change the interpretation?"),
                 ["worthLlm"] = JevQuestion.Noul("Would nuanced explanation benefit from a general language model?")
             };
-            var decision = await client.DecideAsync(context.RootElement, questions, cancellationToken);
+            var decision = await client.DecideAsync(context.RootElement, questions, cancellationToken,
+                "judgment_decision");
             if (!decision.TryGetChoice("action", out var choice, out var confidence)
                 || !decision.TryGetScore("importance", out var importance, out _)
                 || !decision.TryGetNoul("needsIntent", out var needsIntent)

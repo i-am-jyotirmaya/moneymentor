@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
+using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Infrastructure.Goals;
 
@@ -56,22 +57,45 @@ internal sealed class OpenAiCandidateExplanationClient(
                 }
             }
         });
-        using var response = await client.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        using var document = await JsonDocument.ParseAsync(
-            await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-        var root = document.RootElement;
-        string? text = root.TryGetProperty("output_text", out var direct) ? direct.GetString() : null;
-        if (text is null && root.TryGetProperty("output", out var output))
-            text = output.EnumerateArray().SelectMany(x => x.TryGetProperty("content", out var content)
-                    ? content.EnumerateArray().ToArray() : [])
-                .Select(x => x.TryGetProperty("text", out var part) ? part.GetString() : null)
-                .FirstOrDefault(x => x is not null);
-        if (text is null) return null;
-        using var payload = JsonDocument.Parse(text);
-        var message = payload.RootElement.GetProperty("message").GetString()?.Trim();
-        // Values are rendered from stored data by the app; reject numeric text from the model.
-        return message is { Length: > 0 and <= 600 } && !Regex.IsMatch(message, @"\d")
-            ? message : null;
+        using var measurement = new ProviderCallMeasurement("openai", "judgment_explanation");
+        try
+        {
+            using var response = await client.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode) measurement.HttpError(response.StatusCode);
+            response.EnsureSuccessStatusCode();
+            using var document = await JsonDocument.ParseAsync(
+                await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+            var root = document.RootElement;
+            measurement.RecordOpenAiUsage(root);
+            string? text = root.TryGetProperty("output_text", out var direct) ? direct.GetString() : null;
+            if (text is null && root.TryGetProperty("output", out var output))
+                text = output.EnumerateArray().SelectMany(x => x.TryGetProperty("content", out var content)
+                        ? content.EnumerateArray().ToArray() : [])
+                    .Select(x => x.TryGetProperty("text", out var part) ? part.GetString() : null)
+                    .FirstOrDefault(x => x is not null);
+            if (text is null) { measurement.InvalidResponse(); return null; }
+            using var payload = JsonDocument.Parse(text);
+            var message = payload.RootElement.GetProperty("message").GetString()?.Trim();
+            // Values are rendered from stored data by the app; reject numeric text from the model.
+            if (message is not { Length: > 0 and <= 600 } || Regex.IsMatch(message, @"\d"))
+            {
+                measurement.InvalidResponse();
+                return null;
+            }
+            measurement.Succeeded();
+            return message;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        { measurement.Cancelled(); throw; }
+        catch (OperationCanceledException)
+        { measurement.TimedOut(); throw; }
+        catch (JsonException)
+        { measurement.InvalidResponse(); throw; }
+        catch (KeyNotFoundException)
+        { measurement.InvalidResponse(); throw; }
+        catch (InvalidOperationException)
+        { measurement.InvalidResponse(); throw; }
+        catch (HttpRequestException error)
+        { if (error.StatusCode is null) measurement.NetworkError(); throw; }
     }
 }

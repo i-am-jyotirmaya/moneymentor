@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MoneyMentor.Application.Privacy;
+using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Persistence;
@@ -119,6 +120,9 @@ internal sealed class JudgmentDecisionService(
             });
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            MoneyMentorTelemetry.JudgmentDecisions.Add(1,
+                new KeyValuePair<string, object?>("action", decision.Action.ToString().ToLowerInvariant()),
+                new KeyValuePair<string, object?>("provider", decision.Provider == "deterministic" ? "fallback" : "jev"));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch
