@@ -7,7 +7,7 @@ using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Goals;
 using MoneyMentor.Infrastructure.JudgementReports;
 using MoneyMentor.Infrastructure.Persistence;
-using MoneyMentor.Infrastructure.Transactions;
+using MoneyMentor.Infrastructure.Jev;
 using Xunit;
 
 namespace MoneyMentor.Api.IntegrationTests;
@@ -53,9 +53,9 @@ public sealed class MemoryAdmissionTests(MoneyMentorApiFactory factory)
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
-        var jev = new JevMemoryAdmissionClient(new HttpClient(new StubHandler())
+        var jev = new JevMemoryAdmissionClient(new JevClient(new HttpClient(new StubHandler())
             { BaseAddress = new Uri("https://api.typesafe.ai/") },
-            Options.Create(new JevOptions { ApiKey = "test-key" }));
+            Options.Create(new JevOptions { ApiKey = "test-key" })));
         var embeddings = new MemoryEmbeddingClient(new HttpClient(),
             Options.Create(new OpenAiGoalPlanningOptions()));
         var store = new FinancialMemoryStore(db, embeddings, factory.Clock);
@@ -84,7 +84,7 @@ public sealed class MemoryAdmissionTests(MoneyMentorApiFactory factory)
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("""
-                    {"answers":{"durable":{"noul":0.95},"memoryType":{"choice":"PurchaseExplanation","confidence":0.93},"importance":{"score":3}}}
+                    {"answers":{"durable":{"type":"noul","noul":0.95},"memoryType":{"type":"choice","choice":"PurchaseExplanation","confidence":0.93},"importance":{"type":"score","score":3,"confidence":0.9}}}
                     """)
             });
         }

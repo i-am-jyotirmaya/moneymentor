@@ -80,6 +80,29 @@ public sealed class HeuristicExpenseInputParserTests
         Assert.Contains(ExpenseDraftMissingField.Amount, draft.MissingFields);
     }
 
+    [Fact]
+    public async Task ParseAsync_AsksForAmount_WhenSpeechMixesWordAndCurrency()
+    {
+        var result = await parser.ParseAsync(
+            CreateRequest("I bought creatine for six ₹50"), CancellationToken.None);
+
+        Assert.Equal(ExpenseInputParseStatus.NeedsClarification, result.Status);
+        Assert.Null(result.Draft!.Amount);
+        Assert.Equal("creatine", result.Draft.Description);
+        Assert.Contains("six ₹50", result.AssistantMessage);
+    }
+
+    [Theory]
+    [InlineData("I bought creatine for six hundred fifty rupees", 650)]
+    [InlineData("protein powder for two thousand rupees", 2000)]
+    public async Task ParseAsync_RecognizesUnambiguousSpokenAmounts(string text, decimal expected)
+    {
+        var result = await parser.ParseAsync(CreateRequest(text), CancellationToken.None);
+
+        Assert.Equal(ExpenseInputParseStatus.Parsed, result.Status);
+        Assert.Equal(expected, result.Draft!.Amount);
+    }
+
     [Theory]
     [InlineData("sent 70k to credit card", 70000)]
     [InlineData("Credit card bill 70k", 70000)]

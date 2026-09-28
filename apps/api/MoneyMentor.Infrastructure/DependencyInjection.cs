@@ -12,6 +12,7 @@ using MoneyMentor.Application.Goals;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Judgements;
 using MoneyMentor.Application.JudgementReports;
+using MoneyMentor.Application.Jev;
 using MoneyMentor.Application.Transactions;
 using MoneyMentor.Infrastructure.AppUsers;
 using MoneyMentor.Infrastructure.Auth;
@@ -23,6 +24,7 @@ using MoneyMentor.Infrastructure.Households;
 using MoneyMentor.Infrastructure.Identity;
 using MoneyMentor.Infrastructure.Judgements;
 using MoneyMentor.Infrastructure.JudgementReports;
+using MoneyMentor.Infrastructure.Jev;
 using MoneyMentor.Infrastructure.Persistence;
 using MoneyMentor.Application.Privacy;
 using MoneyMentor.Infrastructure.Privacy;
@@ -76,15 +78,16 @@ public static class DependencyInjection
         services.AddScoped<IAppUserProfileService, PostgresAppUserProfileService>();
         services.AddScoped<ITransactionService, PostgresTransactionService>();
         services.AddScoped<MerchantResolver>();
-        services.AddOptions<JevOptions>()
-            .Bind(configuration.GetSection(JevOptions.SectionName))
-            .PostConfigure(options => options.ApiKey = configuration["TYPESAFE_API_KEY"] ?? options.ApiKey)
-            .Validate(options => options.CategoryConfidenceThreshold is >= 0m and <= 1m)
-            .ValidateOnStart();
-        services.AddHttpClient<JevTransactionEnricher>(client =>
+        services.AddScoped<JevTransactionCategorizer>();
+        services.Configure<JevOptions>(options =>
+        {
+            configuration.GetSection(JevOptions.SectionName).Bind(options);
+            options.ApiKey = configuration["JEV_API_KEY"] ?? options.ApiKey;
+        });
+        services.AddHttpClient<IJevClient, JevClient>(client =>
         {
             client.BaseAddress = new Uri("https://api.typesafe.ai/");
-            client.Timeout = TimeSpan.FromSeconds(5);
+            client.Timeout = TimeSpan.FromSeconds(35);
         });
         services.AddScoped<IHouseholdService, PostgresHouseholdService>();
         services.AddScoped<IHouseholdAccessService, PostgresHouseholdAccessService>();
@@ -103,11 +106,7 @@ public static class DependencyInjection
         services.AddScoped<FinancialMemoryStore>();
         services.AddScoped<MemoryAdmissionService>();
         services.AddSingleton<MemoryAdmissionWakeup>();
-        services.AddHttpClient<JevMemoryAdmissionClient>(client =>
-        {
-            client.BaseAddress = new Uri("https://api.typesafe.ai/");
-            client.Timeout = TimeSpan.FromSeconds(8);
-        });
+        services.AddScoped<JevMemoryAdmissionClient>();
         services.AddHttpClient<MemoryEmbeddingClient>((provider, client) =>
         {
             var llm = provider.GetRequiredService<IOptions<OpenAiGoalPlanningOptions>>().Value;
@@ -116,11 +115,7 @@ public static class DependencyInjection
         });
         services.AddScoped<JudgmentDecisionService>();
         services.AddSingleton<JudgmentDecisionWakeup>();
-        services.AddHttpClient<JevJudgmentGate>(client =>
-        {
-            client.BaseAddress = new Uri("https://api.typesafe.ai/");
-            client.Timeout = TimeSpan.FromSeconds(8);
-        });
+        services.AddScoped<JevJudgmentGate>();
         services.AddHttpClient<OpenAiCandidateExplanationClient>((provider, client) =>
         {
             var llm = provider.GetRequiredService<IOptions<OpenAiGoalPlanningOptions>>().Value;

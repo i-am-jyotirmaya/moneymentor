@@ -49,6 +49,18 @@ public sealed class HeuristicIncomeInputParserTests
     }
 
     [Theory]
+    [InlineData("I got two lakhs as salary", 200000)]
+    [InlineData("Got my salary of two lakh rupees", 200000)]
+    [InlineData("received six hundred fifty rupees as bonus", 650)]
+    public async Task ParseAsync_RecognizesSpokenAmounts(string text, decimal expected)
+    {
+        var result = await parser.ParseAsync(CreateRequest(text), CancellationToken.None);
+
+        Assert.Equal(IncomeInputParseStatus.Parsed, result.Status);
+        Assert.Equal(expected, result.Draft!.Amount);
+    }
+
+    [Theory]
     [InlineData("sent 70k to credit card")]
     [InlineData("Credit card bill 70k")]
     [InlineData("credit bill")]

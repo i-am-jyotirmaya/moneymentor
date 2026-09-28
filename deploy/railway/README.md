@@ -159,6 +159,7 @@ Resend__DispatcherEnabled=false
 Resend__RecoveryInterval=01:00:00
 Resend__ApiKey=
 OPENAI_API_KEY=
+JEV_API_KEY=
 OPENAI_SAFETY_IDENTIFIER_KEY=
 ```
 

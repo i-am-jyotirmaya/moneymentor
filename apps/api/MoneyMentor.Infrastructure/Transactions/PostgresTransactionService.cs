@@ -18,7 +18,7 @@ internal sealed class PostgresTransactionService(
     IHouseholdAccessService householdAccessService,
     DailyFinancialFactStore dailyFinancialFactStore,
     MerchantResolver merchantResolver,
-    JevTransactionEnricher jevTransactionEnricher,
+    JevTransactionCategorizer categorizer,
     TimeProvider timeProvider) : ITransactionService
 {
     private const int MaxPageSize = 100;
@@ -33,25 +33,15 @@ internal sealed class PostgresTransactionService(
             command.RequestedHouseholdId,
             requireWrite: true,
             cancellationToken);
+        var categoryName = await HasCurrentAiConsentAsync(command.UserContext.UserProfileId, cancellationToken)
+            ? await categorizer.CategorizeAsync(
+                CategoryType.Expense, command.Draft.Description, command.Draft.MerchantName,
+                command.Draft.SourceText, command.Draft.CategoryGuess, cancellationToken)
+            : command.Draft.CategoryGuess;
         var categoryId = await GetOrCreateCategoryIdAsync(
-            command.Draft.CategoryGuess,
+            categoryName,
             CategoryType.Expense,
             cancellationToken);
-        var canEnrich = jevTransactionEnricher.IsEnabled
-            && await dbContext.PrivacyConsents.AsNoTracking().AnyAsync(x =>
-                x.UserProfileId == command.UserContext.UserProfileId
-                && x.PolicyVersion == PrivacyPolicy.CurrentVersion, cancellationToken);
-        var choices = canEnrich
-            ? await dbContext.Categories.AsNoTracking()
-                .Where(x => (x.HouseholdId == null || x.HouseholdId == householdAccess.HouseholdId)
-                    && x.Type == CategoryType.Expense && !x.IsHidden && x.ParentCategoryId != null)
-                .OrderBy(x => x.SortOrder).ThenBy(x => x.Name).Take(200)
-                .ToArrayAsync(cancellationToken)
-            : [];
-        var enrichment = canEnrich
-            ? await jevTransactionEnricher.EnrichAsync(command.Draft, choices, cancellationToken)
-            : new TransactionEnrichment(null, null);
-        categoryId = enrichment.SuggestedCategoryId ?? categoryId;
         var merchantName = NormalizeOptional(command.Draft.MerchantName);
         var merchantId = await merchantResolver.ResolveAsync(householdAccess.HouseholdId, merchantName, cancellationToken);
         var now = timeProvider.GetUtcNow();
@@ -65,7 +55,6 @@ internal sealed class PostgresTransactionService(
             CategoryId = categoryId,
             MerchantName = merchantName,
             MerchantId = merchantId,
-            EnrichmentJson = enrichment.MetadataJson,
             Description = NormalizeOptional(command.Draft.Description),
             SourceText = command.Draft.SourceText,
             TransactionDate = command.Draft.TransactionDate ?? command.UserContext.CurrentDate,
@@ -96,8 +85,13 @@ internal sealed class PostgresTransactionService(
             command.RequestedHouseholdId,
             requireWrite: true,
             cancellationToken);
+        var categoryName = await HasCurrentAiConsentAsync(command.UserContext.UserProfileId, cancellationToken)
+            ? await categorizer.CategorizeAsync(
+                CategoryType.Income, command.Draft.Reason, command.Draft.SenderName,
+                command.Draft.SourceText, GetIncomeCategoryName(command.Draft.Reason), cancellationToken)
+            : GetIncomeCategoryName(command.Draft.Reason);
         var categoryId = await GetOrCreateCategoryIdAsync(
-            GetIncomeCategoryName(command.Draft.Reason),
+            categoryName,
             CategoryType.Income,
             cancellationToken);
         var now = timeProvider.GetUtcNow();
@@ -642,6 +636,11 @@ internal sealed class PostgresTransactionService(
         changes[fieldName] = new FieldChange(currentValue, newValue);
         apply(newValue);
     }
+
+    private Task<bool> HasCurrentAiConsentAsync(Guid userProfileId, CancellationToken cancellationToken) =>
+        dbContext.PrivacyConsents.AsNoTracking().AnyAsync(consent =>
+            consent.UserProfileId == userProfileId
+            && consent.PolicyVersion == PrivacyPolicy.CurrentVersion, cancellationToken);
 
     private async Task<string> GetHouseholdCurrencyAsync(Guid householdId, CancellationToken cancellationToken) =>
         await dbContext.Households.AsNoTracking()

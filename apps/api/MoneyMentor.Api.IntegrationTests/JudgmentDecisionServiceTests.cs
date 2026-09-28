@@ -6,7 +6,7 @@ using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.JudgementReports;
 using MoneyMentor.Infrastructure.Goals;
 using MoneyMentor.Infrastructure.Persistence;
-using MoneyMentor.Infrastructure.Transactions;
+using MoneyMentor.Infrastructure.Jev;
 using Xunit;
 
 namespace MoneyMentor.Api.IntegrationTests;
@@ -50,9 +50,10 @@ public sealed class JudgmentDecisionServiceTests(MoneyMentorApiFactory factory)
         var context = new JudgmentContextBuilder(db, factStore,
             new FinancialMemoryStore(db, embeddings, factory.Clock));
         var transport = new CountingHandler();
-        var jev = new JevJudgmentGate(new HttpClient(transport)
-            { BaseAddress = new Uri("https://api.typesafe.ai/") },
-            Options.Create(new JevOptions { ApiKey = "test-key" }), NullLogger<JevJudgmentGate>.Instance);
+        var jevOptions = Options.Create(new JevOptions { ApiKey = "test-key" });
+        var jev = new JevJudgmentGate(new JevClient(new HttpClient(transport)
+            { BaseAddress = new Uri("https://api.typesafe.ai/") }, jevOptions),
+            jevOptions, NullLogger<JevJudgmentGate>.Instance);
         var explanations = new OpenAiCandidateExplanationClient(new HttpClient
             { BaseAddress = new Uri("https://api.openai.com/v1/") },
             Options.Create(new OpenAiGoalPlanningOptions()));

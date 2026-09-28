@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.JudgementReports;
-using MoneyMentor.Infrastructure.Transactions;
+using MoneyMentor.Infrastructure.Jev;
 using Xunit;
 
 namespace MoneyMentor.Api.IntegrationTests;
@@ -29,7 +29,7 @@ public sealed class JevJudgmentGateTests
                 }
             })
         })) { BaseAddress = new Uri("https://api.typesafe.ai/") };
-        var gate = new JevJudgmentGate(client, Options.Create(new JevOptions { ApiKey = "test" }),
+        var gate = new JevJudgmentGate(new JevClient(client, Options.Create(new JevOptions { ApiKey = "test" })), Options.Create(new JevOptions { ApiKey = "test" }),
             NullLogger<JevJudgmentGate>.Instance);
 
         var outcome = await gate.DecideAsync(new JudgmentCandidate { InterestingnessScore = 0.8m },

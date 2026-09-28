@@ -10,8 +10,8 @@ narration workers, and manual backfill command have been retired.
 ## Flow
 
 1. Expense ingestion keeps raw merchant text, resolves a merchant alias, and may
-   ask Jev for category/context when `TYPESAFE_API_KEY` and current privacy consent
-   are present. Any category suggestion must clear the configured confidence gate.
+   ask Jev for a validated category when `JEV_API_KEY` and current privacy consent
+   are present. The choice must match a configured category of the transaction type.
 2. Transaction mutations and category classification changes rebuild affected
    daily aggregates. A migration backfills existing transaction days.
 3. Daily analysis examines 7/30/90-day facts and produces versioned, deduplicated
@@ -34,7 +34,7 @@ narration workers, and manual backfill command have been retired.
   requires PostgreSQL with the `vector` extension available; a managed database
   role must be permitted to run `CREATE EXTENSION IF NOT EXISTS vector`. The
   extension is retained on rollback because it may be shared.
-- `TYPESAFE_API_KEY` is optional; unset means no external Jev calls, no memory
+- `JEV_API_KEY` is optional; unset means no external Jev calls, no memory
   admission, and a deterministic judgment gate. Pending user explanations remain
   queued until the integration is enabled. `Jev:Model` defaults to `jev-latest`.
 - `OPENAI_API_KEY` is optional; unset means deterministic explanation and text-only

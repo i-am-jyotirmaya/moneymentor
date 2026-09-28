@@ -15,6 +15,7 @@ export type SpeechRecognitionLike = {
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
   start: () => void;
   stop: () => void;
+  abort?: () => void;
 };
 
 export type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
