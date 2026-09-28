@@ -50,9 +50,10 @@ public sealed class JevCategorizationTests
     [Theory]
     [InlineData(CategoryType.Expense, "Snacks", "Cafes / Coffee", 0.93, "Cafes / Coffee")]
     [InlineData(CategoryType.Income, "Other Income", "Salary / Wages", 0.91, "Salary / Wages")]
-    [InlineData(CategoryType.Expense, "Snacks", "Cafes / Coffee", 0.40, "Snacks")]
+    [InlineData(CategoryType.Expense, "Snacks", "Cafes / Coffee", 0.40, "Cafes / Coffee")]
+    [InlineData(CategoryType.Expense, "Snacks", "Miscellaneous / Uncategorized", 0.40, "Miscellaneous / Uncategorized")]
     [InlineData(CategoryType.Expense, "Snacks", "Salary / Wages", 0.99, "Snacks")]
-    public async Task Categorizer_uses_only_confident_category_of_validated_type(
+    public async Task Categorizer_uses_jev_choice_of_validated_type_regardless_of_confidence(
         CategoryType type, string guess, string selected, double confidence, string expected)
     {
         var provider = new FakeJevClient(selected, confidence);

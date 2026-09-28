@@ -13,7 +13,6 @@ public sealed class JevTransactionCategorizer(
     IJevClient jev,
     ILogger<JevTransactionCategorizer> logger)
 {
-    private const double MinimumConfidence = 0.65;
     private const string ExpenseFallback = "Miscellaneous / Uncategorized";
     private const string IncomeFallback = "Other Income";
 
@@ -30,7 +29,7 @@ public sealed class JevTransactionCategorizer(
             .ToArray();
         var fallback = type == CategoryType.Income ? IncomeFallback : ExpenseFallback;
         // Older capture rules include categories that predate the hierarchical catalog.
-        // Keep those exact guesses when Jev is absent or uncertain.
+        // Keep those exact guesses if Jev is unavailable or returns an invalid answer.
         var knownGuess = string.IsNullOrWhiteSpace(existingGuess) ? null : existingGuess.Trim();
 
         if (!jev.IsConfigured || string.IsNullOrWhiteSpace(sourceText))
@@ -63,14 +62,13 @@ public sealed class JevTransactionCategorizer(
                 },
                 questions,
                 cancellationToken);
-            if (decision.TryGetChoice("category", out var category, out var confidence)
-                && confidence >= MinimumConfidence
+            if (decision.TryGetChoice("category", out var category, out _)
                 && criteria.ContainsKey(category))
             {
                 return category;
             }
 
-            logger.LogInformation("Jev category was uncertain or outside the configured catalog; using capture fallback.");
+            logger.LogInformation("Jev category was invalid or outside the configured catalog; using capture fallback.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
