@@ -1,0 +1,83 @@
+# CloudWatch metrics plan
+
+Status (2026-09-28): **P0 instrumentation and EC2/Compose export configuration implemented on this PR**; **P1 and P2 pending**. Production activation still requires the EC2 IAM policy and deployment, and the actual dashboard/alarm resources remain an operations follow-up. Verify live CloudWatch ingestion before treating P0 as production operational. The worker descriptions reflect `main` at the start of this PR; recheck the active judgement pipeline before P1.
+
+## Purpose and current state
+
+Answer these questions from a dashboard without reading every log: Is capture working? Are database round trips and latency growing? Are Jev or OpenAI requests failing, falling back, or becoming expensive? Are jobs keeping up? Can users reach the API?
+
+The API already has a `Spndrr` .NET `Meter` and OpenTelemetry instrumentation. P0 adds an explicit metrics-only endpoint on EC2/Compose and a collector that signs requests to the regional CloudWatch OTLP endpoint using the EC2 role. The existing JSON console formatter and `awslogs` driver remain the log path; JSON stdout alone does **not** export `Meter` instruments. Without IAM and a restarted API/collector, nothing is published to CloudWatch.
+
+## Metric conventions
+
+- Use `spndrr.*` names in the `Spndrr` meter. The P0 collector uses CloudWatch's **OTLP metrics** endpoint, so use PromQL `increase()`/`rate()` for counters and `histogram_quantile()` for duration percentiles; do not assume the classic metric namespace or `Sum` statistic. Use `Counter<long>` for events/tokens, `Histogram<double>` with `ms` for duration, and an observable gauge or periodic snapshot for current depth. A 60-second export interval limits metric volume.
+- Keep dimensions bounded: P0 uses `deployment.environment.name` and `service.name` as resource attributes, and only `db_context`, `operation`, and `outcome` where applicable. P1 may add `stage` or normalized `route`. Do not add dimensions simply because they are available. Decide the exact set per metric; do not emit every combination.
+- **Never use** user/household/transaction IDs, `RequestId`, `RunId`, work item IDs, raw URL, SQL text, merchant, category free text, input/prompt, IP, exception message, API key, or model response as dimensions. These belong in appropriately protected logs or traces if required. Model name is optional only if it is an allowlisted, small set; use `operation` to distinguish narration from goal planning.
+- Count one application operation separately from its underlying attempts. A Jev categorization that retries twice is one `capture` operation and up to three provider attempts. Define the same distinction for HTTP retries and background work. Do not count a skipped/unconfigured call as an outbound request. Record failures and duration in `finally`/equivalent so exceptions are measured once.
+- Export on a normal 60-second cadence initially. Keep health/heartbeat independent of user traffic. A missing time series can mean no activity, disabled instrumentation, or broken export; it is not automatically zero.
+
+## P0: operational and cost visibility
+
+| Metric (type; unit) | Definition and measurement point | Dimensions | Initial dashboard/alert use |
+| --- | --- | --- | --- |
+| `http.server.request.duration` (existing histogram; ms) and request count | ASP.NET Core instrumentation; use normalized route and status class, excluding health probes from user-traffic views. Verify emitted instrument name in collector. | `environment`, `route`, status class | Request volume, p95 latency, 5xx/total (with a minimum request count). |
+| `spndrr.db.commands` (counter; count) | One per EF Core command attempt (`CommandExecuted` or `CommandFailed`) in **both** `MoneyMentorDbContext` and `MoneyMentorAuthDbContext`, including reads, writes, worker queries, and retry attempts. `operation` is the EF execution method (`reader`/`nonquery`/`scalar`/`other`), not inferred SQL intent; exclude SQL text. `SaveChanges` and transactions are not additional commands. | `db_context`, `operation`, `outcome` | Total DB calls/min, failures, unusual jump in calls/request. |
+| `spndrr.db.command.duration` (histogram; ms) | EF reported duration of each attempted command, including failed commands. The singleton interceptor is registered for both contexts and handles sync and async callbacks. | `db_context`, `operation`, `outcome` | p95 DB round trip and slow command trends; compare to API p95. |
+| `spndrr.db.connections.open_failures` (counter; count) | EF connection-open failure callback, separate from SQL command failures, for both DbContexts. | `db_context` | DB reachability alert. |
+| `spndrr.jev.requests` (counter; count) and `spndrr.jev.request.duration` (histogram; ms) | In `JevClient.DecideAsync`, count actual outbound provider attempts and measure elapsed time through response read/validation; distinguish success, HTTP failure, timeout, invalid response, caller cancellation. A missing API key is `skipped`, not a provider request. | `environment`, `operation=categorization`, `outcome` | Calls/min, success rate, p95, timeout and 429 counts. |
+| `spndrr.capture.categorization` (counter; count) | In `JevTransactionCategorizer`, count categorization decisions once per captured transaction: Jev selected, deterministic fallback, unconfigured fallback, or invalid-choice fallback. Do not include the chosen category as a dimension. | `environment`, `outcome` | Fallback share and regression after deploy. |
+| `spndrr.llm.requests` (counter; count) and `spndrr.llm.request.duration` (histogram; ms) | At each OpenAI client boundary, count actual outbound attempts from judgement narration and goal planning (goal worker is currently disabled); duration spans send, body read, and response validation. Separate cancelled, timeout, 429, 5xx, other 4xx, invalid output, and success with bounded `outcome` values. | `environment`, `operation=narration|goal_plan`, `outcome` | Provider reliability, p95, rate limits. Avoid double counting HTTP client auto-metrics as application calls. |
+| `spndrr.llm.input_tokens` and `spndrr.llm.output_tokens` (counters; tokens) | Add the provider's reported usage after a response, when present. Goal client currently parses usage; extend narration client. Do **not** substitute zero for missing usage: count separately in `spndrr.llm.usage_missing`. Tokens are an estimate of cost, not a currency charge. | `environment`, `operation` | Daily/weekly usage and budget trend; check missing coverage. |
+| `spndrr.telemetry.heartbeat` (periodic gauge; 1) | Emit a single point every minute from the API or a synthetic check through the same metric path, independent of requests. Validate that an API-side heartbeat proves only metric export; pair with an external readiness probe for service availability. | `environment`, `service` | Alarm when missing for 3 consecutive periods; investigate exporter/collector/container. |
+
+For **DB calls per request**, retain the global command counter and add an optional `spndrr.http.db_commands_per_request` histogram (count) computed from the request's command attempts if troubleshooting N+1 queries. Record at request completion with normalized route; background job commands stay in the global counter. Avoid a per-request CloudWatch dimension. Distinguish DB command latency from waiting to obtain a connection. If Npgsql pool instruments expose active/idle/pending connections and wait duration in the installed versions, export those with bounded pool identity (`auth`/`app`) and verify whether both contexts actually share the same pool before summing; never label by full connection string.
+
+## P1: capture, jobs, and dependencies
+
+| Metric (type; unit) | Definition and measurement point | Dimensions | Initial dashboard/alert use |
+| --- | --- | --- | --- |
+| `spndrr.capture.attempts` (counter; count) and `spndrr.capture.duration` (histogram; ms) | One completed user capture attempt, with success/validation/parse/provider/persistence outcome. Start at assistant or transaction capture boundary; avoid counting one attempt twice when one path calls the other. | `environment`, `input=text|voice|image` **only if supported server-side**, `outcome` | End-user success and latency. Do not infer an input mode the backend cannot observe. |
+| `spndrr.judgement.queue_depth` (existing histogram; count) | Current work items waiting by calculation/narration stage. If retaining the existing sampled histogram, graph its latest value; preferably replace with observable gauge emitted on a fixed cadence. Piggyback on the scheduler's queue query and avoid extra high-frequency DB polls. | `environment`, `stage` | Backlog and trend. |
+| `spndrr.judgement.oldest_pending_age` (gauge; seconds) | Age of oldest ready work item by stage, sampled alongside depth. Distinguish from intentionally scheduled future work. | `environment`, `stage` | More useful than depth at low traffic; alert on persistent staleness. |
+| `spndrr.judgement.work_attempts` and `.work_duration_ms` (existing counter/histogram) | Existing per-stage worker attempt and duration instruments; verify bounded result tags and include retry/dead-letter, lease loss, and permanent failure outcomes. Maintain business run identifiers in logs only. | `environment`, `stage`, `outcome` | Worker failures, throughput, latency. |
+| `spndrr.judgement.narration_fallbacks`, `.lifecycle_transitions`, `.rule_configuration_errors` (existing counters) | Keep existing instruments and document their current bounded tags; graph rates and sustained fallback/config errors. | `environment`, relevant bounded existing tags | Insight pipeline correctness. |
+| `spndrr.email.send_attempts` and `.send_duration` (counter/histogram; count/ms) | Per Resend HTTP attempt, not per dispatcher wake-up; outcome success/retryable/permanent. Include approval emails and household invitations at their shared sender. | `environment`, `operation=approval|invitation`, `outcome` | Failure and 429 spikes; delivery attempts are not guaranteed inbox delivery. |
+| `spndrr.email.pending_age` (gauge; seconds) | Oldest due invitation awaiting dispatch; sample with scheduled/recovery work rather than new frequent DB polling. | `environment` | Stuck delivery even if no send attempts occur. |
+| `spndrr.job.runs` and `.run_duration` (counter/histogram; count/ms) | Once per actual run of purge, commitment due, invitation recovery, and judgement scheduler/stage workers; results success/failure/skipped. Exclude empty per-item polls from business throughput, and do not duplicate judgement work attempt metrics. | `environment`, `job` allowlist, `outcome` | Missed/failing work. |
+
+If image OCR or speech transcription executes only in the browser/mobile client, API metrics cannot measure local processing. Add client telemetry later with explicit privacy review; start with API receipt/validation/failure only. Existing `TransactionLifecycle`, `InvitationDeliveries`, `RateLimitRejections`, `AuthFailures`, and `ProvisioningRetries` should appear on the dashboard rather than be recreated under new names.
+
+## P2: resource and financial guardrails
+
+- Runtime: export process CPU, memory, GC heap, exception count, and thread pool indicators from the already registered .NET runtime instrumentation; verify actual instrument names and availability. Add EC2 host memory/disk and Docker/container CPU/memory via the CloudWatch agent if needed, separately from API counters. Disk pressure and OOM/restart count need their own alerts.
+- External dependencies: correlate existing HTTP client duration/request counters with bounded host aliases (`jev`, `openai`, `resend`), never raw URLs. Track outbound retry attempts explicitly if retry policies are added.
+- Approximate OpenAI spend from **reported** input/output tokens × a versioned model rate table outside metrics; rates and discounts can change, so compare with provider invoices. For Jev, count calls and use the provider's reported units/pricing if available; do not invent token usage or cost. Monitor CloudWatch custom metric, ingestion, log retention, and alarm spend through AWS Billing/Budgets separately from app metrics.
+- Product outcomes: optional aggregate transactions tracked, capture correction/undo, and judgement delivered/read counters, with privacy approval. These are aggregate operational indicators, not per-user financial measurements.
+
+## Dashboard and alarm defaults
+
+One dashboard: **API** (traffic, 5xx, p95, ready check), **Postgres** (commands/min, failures, p95, connection waits/pool), **Jev and OpenAI** (calls, failures, fallback, p95, tokens), **workers/email** (queue depth, oldest age, attempts, failures), and **host/export** (CPU/memory/disk, heartbeat). Show rates as sums over 1 or 5 minutes. Do not alarm on p95 until there are enough samples; low-volume failures should have an absolute-count rule as well.
+
+| Alert | Starting condition; adjust after 1–2 weeks of baseline | Missing-data policy |
+| --- | --- | --- |
+| API unreachable / metrics path broken | Independent `/health/ready` synthetic probe fails 3 of 3 one-minute checks; heartbeat absent 3 minutes indicates export fault. | Alarm on missing heartbeat *only while service is expected to run*; keep synthetic probe separate. |
+| DB unhealthy | Readiness probe fails 3 minutes, or DB open/command failures >= 3 in 5 minutes. | Do not interpret silence in DB calls as healthy; use synthetic readiness. |
+| Jev degraded | >= 3 failed attempts in 5 minutes, or fallback ratio > 20% over 15 minutes **with >= 20 categorizations**. | No Jev usage is normal at low traffic. |
+| OpenAI degraded | >= 3 failed attempts in 15 minutes; token usage warning at an explicit team budget threshold. | A missing series is normal while goal planning/narration are disabled or idle. |
+| Judgement queue stalled | Oldest ready item age > 15 minutes for 2 samples while the corresponding worker is enabled. | Alarm on a missing scheduled queue sample only if that sampler is enabled. |
+| Email stuck | Oldest due invitation age > 30 minutes when dispatcher is enabled, or >= 3 send failures in 15 minutes. | No traffic is normal. |
+| Host capacity | Sustained memory > 85%, disk > 80%, or restarts/OOM > 0; tune to EC2 size. | Prefer host-level checks independent of the API process. |
+
+Thresholds are starting hypotheses, not observed service-level objectives. Correlate an alarm to `RequestId`/`RunId` and trace IDs in structured logs, with metric dimensions kept low-cardinality.
+
+## Delivery plan
+
+1. **P0 code: implemented.** The API has the EF, Jev, categorization, OpenAI, usage, and heartbeat instruments; existing ASP.NET Core metrics cover traffic and latency. The versioned EC2/Compose collector exports only metrics to regional CloudWatch OTLP using SigV4, with a 256 MiB container cap, batching, and bounded retry queue. The standalone GitHub deployment copies the collector/script from the tested revision to EC2. JSON logs continue separately. `Metrics__CoreOnly=true` excludes runtime and generic outbound HTTP client metrics in P0.
+2. **P0 activation: pending production access/deployment.** Attach `deploy/aws/metrics-policy.json` to the EC2 role, deploy the branch after review, then verify heartbeat, API requests, DB commands, Jev fallback, token coverage, collector restart, dimensions, and monthly metric costs in CloudWatch. The exporter does not provision the AWS account resources or grant IAM by itself.
+3. **P0 dashboard/alarms: pending operations setup.** Create the dashboard, independent ready probe, and heartbeat/error/latency alarms above in the account; set SNS destinations and tune thresholds after baseline. Do not mark production monitoring operational before this check.
+4. **P1 and P2: pending.** Ship worker/email/capture metrics and later runtime/host/resource metrics after confirming need and spend. Reconcile existing judgement counters with the pipeline actually deployed; retire labels and alarms for retired workers.
+
+## References
+
+- Repo: [`docs/CLOUDWATCH_LOGGING.md`](CLOUDWATCH_LOGGING.md), `MoneyMentorTelemetry.cs`, API `Program.cs`, `deploy/aws/compose.yml`.
+- AWS: [Publish metrics with OpenTelemetry](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/metrics-otel-send.html), [CloudWatch OTLP endpoints and authentication](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-OTLPEndpoint.html), [EMF dimensions and ingestion](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Embedded_Metric_Format.html), [CloudWatch cost controls](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch_billing.html).

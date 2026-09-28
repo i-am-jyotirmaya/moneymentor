@@ -67,8 +67,15 @@ jobs:
         run: |
           # Stable across workflow retries, with a stable email payload.
           DELIVERY_ID=$(printf '%s' "$GITHUB_RUN_ID" | sha256sum | cut -c1-32)
+          DEPLOY_SCRIPT_B64=$(base64 -w0 deploy/aws/deploy.sh)
+          COLLECTOR_CONFIG_B64=$(base64 -w0 deploy/aws/otel-collector.yaml)
           REMOTE_SCRIPT=$(cat <<EOF
           set -eu
+          mkdir -p /opt/spndrr
+          printf '%s' '$DEPLOY_SCRIPT_B64' | base64 -d > /opt/spndrr/deploy.sh
+          printf '%s' '$COLLECTOR_CONFIG_B64' | base64 -d > /opt/spndrr/otel-collector.yaml
+          chmod 755 /opt/spndrr/deploy.sh
+          chmod 644 /opt/spndrr/otel-collector.yaml
           /opt/spndrr/deploy.sh '$IMAGE'
           CONTAINERS=\$(docker ps --filter 'ancestor=$IMAGE' --format '{{.ID}}')
           set -- \$CONTAINERS

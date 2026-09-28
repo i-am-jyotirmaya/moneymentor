@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 using MoneyMentor.Application.JudgementReports;
+using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Infrastructure.Goals;
 
 namespace MoneyMentor.Infrastructure.JudgementReports;
@@ -69,6 +70,7 @@ internal sealed class OpenAiJudgementNarrationClient(
             }
         }, options: JsonOptions);
 
+        using var measurement = new ProviderCallMeasurement("openai", "narration");
         HttpResponseMessage response;
         try
         {
@@ -76,18 +78,35 @@ internal sealed class OpenAiJudgementNarrationClient(
         }
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
+            measurement.TimedOut();
             throw new JudgementNarrationTransientException("The narration provider timed out.", exception);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            measurement.Cancelled();
+            throw;
         }
         catch (HttpRequestException exception)
         {
+            measurement.NetworkError();
             throw new JudgementNarrationTransientException("The narration provider could not be reached.", exception);
         }
 
         using (response)
         {
-            var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
+            string responseText;
+            try
+            {
+                responseText = await response.Content.ReadAsStringAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                measurement.Cancelled();
+                throw;
+            }
             if (!response.IsSuccessStatusCode)
             {
+                measurement.HttpError(response.StatusCode);
                 var transient = response.StatusCode is HttpStatusCode.RequestTimeout
                     or HttpStatusCode.TooManyRequests
                     or HttpStatusCode.BadGateway
@@ -105,11 +124,13 @@ internal sealed class OpenAiJudgementNarrationClient(
             try
             {
                 using var document = JsonDocument.Parse(responseText);
+                measurement.RecordOpenAiUsage(document.RootElement);
                 var output = ExtractOutputText(document.RootElement)
                     ?? throw new JsonException("Narration response did not contain structured output.");
                 var payload = JsonSerializer.Deserialize<NarrationPayload>(output, JsonOptions)
                     ?? throw new JsonException("Narration output was empty.");
                 ValidateReferences(payload, request);
+                measurement.Succeeded();
                 return new JudgementNarration(
                     payload.Headline,
                     payload.Overview,
@@ -120,6 +141,7 @@ internal sealed class OpenAiJudgementNarrationClient(
             }
             catch (JsonException exception)
             {
+                measurement.InvalidResponse();
                 throw new JudgementNarrationPermanentException("Narration provider returned invalid output.", exception);
             }
         }

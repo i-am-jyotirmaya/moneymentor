@@ -59,15 +59,26 @@ public static class DependencyInjection
                 $"Connection string '{ConnectionStringName}' is not configured.");
         }
 
-        services.AddDbContext<MoneyMentorAuthDbContext>(options =>
-            options.UseNpgsql(
-                connectionString,
-                npgsqlOptions => npgsqlOptions.MigrationsAssembly(typeof(MoneyMentorAuthDbContext).Assembly.FullName)));
+        services.AddSingleton<DatabaseCommandMetricsInterceptor>();
+        services.AddSingleton<DatabaseConnectionMetricsInterceptor>();
 
-        services.AddDbContext<MoneyMentorDbContext>(options =>
+        services.AddDbContext<MoneyMentorAuthDbContext>((provider, options) =>
+        {
             options.UseNpgsql(
                 connectionString,
-                npgsqlOptions => npgsqlOptions.MigrationsAssembly(typeof(MoneyMentorDbContext).Assembly.FullName)));
+                npgsqlOptions => npgsqlOptions.MigrationsAssembly(typeof(MoneyMentorAuthDbContext).Assembly.FullName));
+            options.AddInterceptors(provider.GetRequiredService<DatabaseCommandMetricsInterceptor>(),
+                provider.GetRequiredService<DatabaseConnectionMetricsInterceptor>());
+        });
+
+        services.AddDbContext<MoneyMentorDbContext>((provider, options) =>
+        {
+            options.UseNpgsql(
+                connectionString,
+                npgsqlOptions => npgsqlOptions.MigrationsAssembly(typeof(MoneyMentorDbContext).Assembly.FullName));
+            options.AddInterceptors(provider.GetRequiredService<DatabaseCommandMetricsInterceptor>(),
+                provider.GetRequiredService<DatabaseConnectionMetricsInterceptor>());
+        });
 
         services
             .AddIdentityCore<ApplicationUser>(ConfigureIdentityOptions)

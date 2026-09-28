@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using MoneyMentor.Application.Jev;
+using MoneyMentor.Application.Telemetry;
 
 namespace MoneyMentor.Infrastructure.Jev;
 
@@ -40,16 +41,42 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(options.Value.TimeoutSeconds, 1, 30)));
-        using var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-        response.EnsureSuccessStatusCode();
-        using var body = await JsonDocument.ParseAsync(
-            await response.Content.ReadAsStreamAsync(timeout.Token), cancellationToken: timeout.Token);
-        if (!body.RootElement.TryGetProperty("answers", out var answers)
-            || answers.ValueKind != JsonValueKind.Object)
+        using var measurement = new ProviderCallMeasurement("jev", "categorization");
+        try
         {
-            throw new JsonException("Jev response is missing answers.");
-        }
+            using var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                measurement.HttpError(response.StatusCode);
+                response.EnsureSuccessStatusCode();
+            }
+            using var body = await JsonDocument.ParseAsync(
+                await response.Content.ReadAsStreamAsync(timeout.Token), cancellationToken: timeout.Token);
+            if (!body.RootElement.TryGetProperty("answers", out var answers)
+                || answers.ValueKind != JsonValueKind.Object)
+            {
+                throw new JsonException("Jev response is missing answers.");
+            }
 
-        return new JevDecision(answers.Clone());
+            measurement.Succeeded();
+            return new JevDecision(answers.Clone());
+        }
+        catch (OperationCanceledException)
+        {
+            if (cancellationToken.IsCancellationRequested) measurement.Cancelled();
+            else measurement.TimedOut();
+            throw;
+        }
+        catch (JsonException)
+        {
+            measurement.InvalidResponse();
+            throw;
+        }
+        catch (HttpRequestException exception)
+        {
+            // EnsureSuccessStatusCode has already recorded its HTTP outcome.
+            if (exception.StatusCode is null) measurement.NetworkError();
+            throw;
+        }
     }
 }

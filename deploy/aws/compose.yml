@@ -1,4 +1,4 @@
-name: moneymentor
+name: spndrr
 
 x-api-environment: &api-environment
   ASPNETCORE_ENVIRONMENT: Production
@@ -32,8 +32,21 @@ x-api-environment: &api-environment
   JudgementReports__CalculationWorkerEnabled: ${JUDGEMENT_REPORT_CALCULATION_ENABLED:-false}
   JudgementReports__NarrationWorkerEnabled: ${JUDGEMENT_REPORT_NARRATION_ENABLED:-false}
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  Metrics__OtlpEndpoint: http://metrics:4317
+  Metrics__CoreOnly: "true"
 
 services:
+  metrics:
+    image: public.ecr.aws/aws-observability/aws-otel-collector:v0.50.0
+    command: ["--config=/etc/otel-collector.yaml"]
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      AWS_REGION: ${AWS_REGION:?Set AWS_REGION}
+    volumes:
+      - ./otel-collector.yaml:/etc/otel-collector.yaml:ro
+    networks: [backend]
+
   migrate:
     image: ${API_IMAGE:?Set API_IMAGE to a release tag}
     entrypoint: ["dotnet", "/app/operations/MoneyMentor.Operations.dll"]
@@ -49,6 +62,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      metrics:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--header", "Host: ${API_HOST}", "--header", "X-Forwarded-Proto: https", "http://127.0.0.1:8080/health/live"]
       interval: 30s

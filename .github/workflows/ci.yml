@@ -39,7 +39,7 @@ jobs:
 
           changed=false
           git diff --quiet "$BEFORE" "$GITHUB_SHA" -- \
-            apps/api MoneyMentor.slnx .dockerignore \
+            apps/api deploy/aws MoneyMentor.slnx .dockerignore \
             global.json Directory.Build.props Directory.Build.targets \
             Directory.Packages.props NuGet.Config nuget.config \
             .github/workflows/ci.yml .github/workflows/deploy-api.yml || {
@@ -51,6 +51,19 @@ jobs:
       - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check metrics collector starts with production configuration
+        run: |
+          COLLECTOR=$(docker run -d \
+            -e AWS_REGION=ap-south-1 \
+            -e AWS_ACCESS_KEY_ID=collector-config-check \
+            -e AWS_SECRET_ACCESS_KEY=collector-config-check \
+            -v "$PWD/deploy/aws/otel-collector.yaml:/etc/otel-collector.yaml:ro" \
+            amazon/aws-otel-collector:v0.50.0 \
+            --config=/etc/otel-collector.yaml)
+          trap 'docker rm -f "$COLLECTOR" >/dev/null 2>&1 || true' EXIT
+          sleep 5
+          docker logs "$COLLECTOR"
+          test "$(docker inspect --format '{{.State.Running}}' "$COLLECTOR")" = true
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
