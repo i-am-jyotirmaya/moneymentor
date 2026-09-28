@@ -140,6 +140,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
 var metricsEndpoint = builder.Configuration["Metrics:OtlpEndpoint"] ?? otlpEndpoint;
+// Register the observable gauge even when no request or background job has used the meter yet.
+_ = MoneyMentorTelemetry.TelemetryHeartbeat;
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(
         serviceName: "MoneyMentor.Api",
