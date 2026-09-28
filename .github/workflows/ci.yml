@@ -58,7 +58,7 @@ jobs:
             -e AWS_ACCESS_KEY_ID=collector-config-check \
             -e AWS_SECRET_ACCESS_KEY=collector-config-check \
             -v "$PWD/deploy/aws/otel-collector.yaml:/etc/otel-collector.yaml:ro" \
-            public.ecr.aws/aws-observability/aws-otel-collector:v0.50.0 \
+            amazon/aws-otel-collector:v0.50.0 \
             --config=/etc/otel-collector.yaml)
           trap 'docker rm -f "$COLLECTOR" >/dev/null 2>&1 || true' EXIT
           sleep 5
