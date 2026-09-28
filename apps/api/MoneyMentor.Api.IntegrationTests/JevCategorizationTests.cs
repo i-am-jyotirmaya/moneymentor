@@ -21,7 +21,7 @@ public sealed class JevCategorizationTests
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, current) =>
         {
-            if (instrument.Name == "moneymentor.jev.requests") current.EnableMeasurementEvents(instrument);
+            if (instrument.Name == "spndrr.jev.requests") current.EnableMeasurementEvents(instrument);
         };
         listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
         {

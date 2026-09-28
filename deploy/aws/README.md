@@ -28,11 +28,11 @@ On EC2, the SDK obtains and refreshes temporary credentials from the attached in
 For local development with an IAM Identity Center account assignment, install AWS CLI v2 and configure a profile outside this repository:
 
 ```powershell
-aws configure sso --profile moneymentor-dev
-aws sso login --profile moneymentor-dev
+aws configure sso --profile spndrr-dev
+aws sso login --profile spndrr-dev
 $env:AWS__Enabled = 'true'
 $env:AWS__Region = 'ap-south-1'
-$env:AWS__Profile = 'moneymentor-dev'
+$env:AWS__Profile = 'spndrr-dev'
 dotnet run --project apps/api/MoneyMentor.Api
 ```
 
@@ -59,21 +59,21 @@ After deployment, approve an intended test access request and verify receipt, th
 
 ## EC2 host and instance profile
 
-1. In the intended AWS account, create an IAM role named `MoneyMentorEc2Role` using [ec2-trust-policy.json](ec2-trust-policy.json). Its `sts:AssumeRole` trust action allows the EC2 service to assume the role; it is not an application STS check. Email delivery needs no IAM permission.
+1. In the intended AWS account, create an IAM role named `SpndrrEc2Role` using [ec2-trust-policy.json](ec2-trust-policy.json). Its `sts:AssumeRole` trust action allows the EC2 service to assume the role; it is not an application STS check. Email delivery needs no IAM permission.
 2. Create an instance profile containing that role and attach it to the instance. The IAM console normally creates the profile when creating an EC2 service role. If using the CLI from your operator session:
 
    ```bash
-   aws iam create-role --role-name MoneyMentorEc2Role --assume-role-policy-document file://deploy/aws/ec2-trust-policy.json
-   aws iam create-instance-profile --instance-profile-name MoneyMentorEc2Profile
-   aws iam add-role-to-instance-profile --instance-profile-name MoneyMentorEc2Profile --role-name MoneyMentorEc2Role
-   aws ec2 associate-iam-instance-profile --region YOUR_REGION --instance-id YOUR_INSTANCE_ID --iam-instance-profile Name=MoneyMentorEc2Profile
+   aws iam create-role --role-name SpndrrEc2Role --assume-role-policy-document file://deploy/aws/ec2-trust-policy.json
+   aws iam create-instance-profile --instance-profile-name SpndrrEc2Profile
+   aws iam add-role-to-instance-profile --instance-profile-name SpndrrEc2Profile --role-name SpndrrEc2Role
+   aws ec2 associate-iam-instance-profile --region YOUR_REGION --instance-id YOUR_INSTANCE_ID --iam-instance-profile Name=SpndrrEc2Profile
    aws ec2 modify-instance-metadata-options --region YOUR_REGION --instance-id YOUR_INSTANCE_ID --http-endpoint enabled --http-tokens required --http-put-response-hop-limit 2
    ```
 
    For an instance that already has a profile, review and replace the association instead of adding another. Wait for the metadata-options change to finish. IMDSv2 must be required, with hop limit `2` so bridged Docker containers can retrieve role credentials. See [EC2 instance roles](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html) and [metadata options](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-IMDS-existing-instances.html).
 3. Install Docker Engine with the Compose v2 plugin on a supported Linux host, and enable Docker to start at boot. Use matching CPU architectures for the host and built images. Keep the instance to one API replica: clarification drafts and rate limits are process-local, and workers run inside the API.
 4. Assign a stable address and point sibling application/API DNS names at it. Allow inbound TCP 80/443; restrict SSH to operator addresses if used. API port 8080, web port 3000, and PostgreSQL ports are not published. Allow outbound HTTPS, DNS, and PostgreSQL TLS to Neon. Containers use the host's role trust boundary; only run trusted workloads on this instance.
-5. Provision a trusted TLS certificate covering both hostnames. Put `fullchain.pem` and `privkey.pem` in a host directory such as `/opt/moneymentor/certs`. Mount that directory read-only using `TLS_CERTS_PATH`; keep private keys out of Git. If using a certificate tool's symlinks, copy the resolved files into this directory. Configure certificate renewal to update these files and reload Nginx with `docker compose exec ingress nginx -s reload`.
+5. Provision a trusted TLS certificate covering both hostnames. Put `fullchain.pem` and `privkey.pem` in a host directory such as `/opt/spndrr/certs`. Mount that directory read-only using `TLS_CERTS_PATH`; keep private keys out of Git. If using a certificate tool's symlinks, copy the resolved files into this directory. Configure certificate renewal to update these files and reload Nginx with `docker compose exec ingress nginx -s reload`.
 
 ## Configure the release
 
@@ -95,8 +95,8 @@ Edit `.env` and replace the example hosts, region, database connection, JWT key,
 Build both images from the same CI-verified revision. Substitute the exact release tags stored in `.env`, your real API URL, and support address:
 
 ```bash
-docker build -f apps/api/MoneyMentor.Api/Dockerfile -t moneymentor-api:YOUR_RELEASE .
-docker build -f apps/web/Dockerfile -t moneymentor-web:YOUR_RELEASE --build-arg NEXT_PUBLIC_API_BASE_URL=https://api.example.com --build-arg NEXT_PUBLIC_SUPPORT_EMAIL=support@example.com .
+docker build -f apps/api/MoneyMentor.Api/Dockerfile -t spndrr-api:YOUR_RELEASE .
+docker build -f apps/web/Dockerfile -t spndrr-web:YOUR_RELEASE --build-arg NEXT_PUBLIC_API_BASE_URL=https://api.example.com --build-arg NEXT_PUBLIC_SUPPORT_EMAIL=support@example.com .
 ```
 
 Frontend `NEXT_PUBLIC_*` values are compiled into browser assets. Changing a running container's environment cannot change them; rebuild the web image. Alternatively transfer the same immutable images from a build host/registry, keeping architecture and release tags consistent. Registry publication and CI deployment are not automated here.
@@ -149,14 +149,17 @@ The API now emits request latency/count, EF command attempts for both DbContexts
 
 The deployment runs a pinned AWS OTel Collector (`v0.50.0`) on a private Docker network and forwards **metrics only** to the regional CloudWatch OTLP endpoint over HTTPS with the EC2 instance role. In the current standalone deployment, GitHub Actions copies the versioned `deploy.sh` and `otel-collector.yaml` to `/opt/spndrr/` before calling the script. For a manual deployment, copy both files to that directory before running the script. The Compose template uses the same collector configuration. No credential or provider payload goes into a metric label. `Metrics__CoreOnly=true` keeps runtime and generic HTTP client metrics out of this initial rollout.
 
-Attach the minimal metrics policy to the existing instance role (from an authorized operator session):
+Attach the minimal metrics policy to the instance role (from an authorized operator session). For an existing instance, set `SPNDRR_INSTANCE_ROLE` to the role currently attached to its instance profile; for a new installation the role is `SpndrrEc2Role`:
 
 ```bash
-aws iam put-role-policy --role-name MoneyMentorEc2Role --policy-name SpndrrMetrics \
+SPNDRR_INSTANCE_ROLE=SpndrrEc2Role # Set to the existing attached role on an existing instance
+aws iam put-role-policy --role-name "$SPNDRR_INSTANCE_ROLE" --policy-name SpndrrMetrics \
   --policy-document file://deploy/aws/metrics-policy.json
 ```
 
-Verify the instance is in the intended region (currently `ap-south-1`) and the instance profile has the policy. To check export, look for `moneymentor.telemetry.heartbeat` in CloudWatch Query Studio after a few minutes, then exercise one API request, one DB query, and a Jev capture. Check `docker logs spndrr-otel` for SigV4, network, or export errors if metrics do not arrive. CloudWatch OTLP uses OTel counters/histograms and PromQL (`increase`, `rate`, `histogram_quantile`); use the metrics endpoint's query tools rather than assuming classic `PutMetricData` statistics. Create the dashboard and alarms from the thresholds in the plan after a baseline; cloud account dashboards, SNS destinations, and external readiness probes are not provisioned by this PR.
+Renaming the role or profile in these instructions does not rename an existing IAM resource; keep the current attached role/profile and attach this policy there until a separately planned instance-profile migration. Changing the Compose project name from `moneymentor` to `spndrr` also changes Compose-managed resource names; recreate the old Compose stack intentionally when migrating. Existing JWT issuer/audience values remain unchanged to preserve issued tokens.
+
+Verify the instance is in the intended region (currently `ap-south-1`) and the instance profile has the policy. To check export, look for `spndrr.telemetry.heartbeat` in CloudWatch Query Studio after a few minutes, then exercise one API request, one DB query, and a Jev capture. Check `docker logs spndrr-otel` for SigV4, network, or export errors if metrics do not arrive. CloudWatch OTLP uses OTel counters/histograms and PromQL (`increase`, `rate`, `histogram_quantile`); use the metrics endpoint's query tools rather than assuming classic `PutMetricData` statistics. Create the dashboard and alarms from the thresholds in the plan after a baseline; cloud account dashboards, SNS destinations, and external readiness probes are not provisioned by this PR.
 
 References: [CloudWatch OTLP metrics](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/metrics-otel-send.html) and [ADOT collector releases](https://github.com/aws-observability/aws-otel-collector/releases).
 

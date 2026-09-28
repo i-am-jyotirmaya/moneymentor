@@ -17,7 +17,7 @@ public sealed class DatabaseMetricsTests(MoneyMentorApiFactory factory) : IClass
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, current) =>
         {
-            if (instrument.Name == "moneymentor.db.commands") current.EnableMeasurementEvents(instrument);
+            if (instrument.Name == "spndrr.db.commands") current.EnableMeasurementEvents(instrument);
         };
         listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
         {

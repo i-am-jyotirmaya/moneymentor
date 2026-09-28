@@ -144,7 +144,7 @@ var metricsEndpoint = builder.Configuration["Metrics:OtlpEndpoint"] ?? otlpEndpo
 _ = MoneyMentorTelemetry.TelemetryHeartbeat;
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(
-        serviceName: "MoneyMentor.Api",
+        serviceName: "Spndrr.Api",
         serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString())
         .AddAttributes(new Dictionary<string, object>
         {

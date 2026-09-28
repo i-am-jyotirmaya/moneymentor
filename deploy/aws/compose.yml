@@ -1,4 +1,4 @@
-name: moneymentor
+name: spndrr
 
 x-api-environment: &api-environment
   ASPNETCORE_ENVIRONMENT: Production

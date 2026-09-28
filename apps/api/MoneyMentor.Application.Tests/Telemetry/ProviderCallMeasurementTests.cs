@@ -44,10 +44,10 @@ public sealed class ProviderCallMeasurementTests
             attempt.InvalidResponse();
         }
 
-        Assert.Contains(samples, item => item is ("moneymentor.llm.requests", 1, "narration", "http_429"));
-        Assert.Contains(samples, item => item is ("moneymentor.llm.requests", 1, "goal_plan", "invalid_response"));
-        Assert.Contains(samples, item => item is ("moneymentor.llm.input_tokens", 42, "narration", null));
-        Assert.Contains(samples, item => item is ("moneymentor.llm.output_tokens", 9, "narration", null));
-        Assert.Contains(samples, item => item is ("moneymentor.llm.usage_missing", 1, "goal_plan", null));
+        Assert.Contains(samples, item => item is ("spndrr.llm.requests", 1, "narration", "http_429"));
+        Assert.Contains(samples, item => item is ("spndrr.llm.requests", 1, "goal_plan", "invalid_response"));
+        Assert.Contains(samples, item => item is ("spndrr.llm.input_tokens", 42, "narration", null));
+        Assert.Contains(samples, item => item is ("spndrr.llm.output_tokens", 9, "narration", null));
+        Assert.Contains(samples, item => item is ("spndrr.llm.usage_missing", 1, "goal_plan", null));
     }
 }
