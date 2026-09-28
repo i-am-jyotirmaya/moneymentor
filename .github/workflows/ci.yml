@@ -55,6 +55,8 @@ jobs:
         run: |
           COLLECTOR=$(docker run -d \
             -e AWS_REGION=ap-south-1 \
+            -e AWS_ACCESS_KEY_ID=collector-config-check \
+            -e AWS_SECRET_ACCESS_KEY=collector-config-check \
             -v "$PWD/deploy/aws/otel-collector.yaml:/etc/otel-collector.yaml:ro" \
             public.ecr.aws/aws-observability/aws-otel-collector:v0.50.0 \
             --config=/etc/otel-collector.yaml)
