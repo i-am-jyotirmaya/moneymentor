@@ -51,6 +51,13 @@ jobs:
       - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate metrics collector configuration
+        run: |
+          docker run --rm \
+            -e AWS_REGION=ap-south-1 \
+            -v "$PWD/deploy/aws/otel-collector.yaml:/etc/otel-collector.yaml:ro" \
+            public.ecr.aws/aws-observability/aws-otel-collector:v0.50.0 \
+            validate --config=/etc/otel-collector.yaml
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
