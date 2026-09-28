@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "next dev --port 3001",
-    "dev": "next dev --port 3001",
-    "build": "next build",
+    "start": "node ../../scripts/prepare-ocr-assets.mjs mobile && next dev --port 3001",
+    "dev": "node ../../scripts/prepare-ocr-assets.mjs mobile && next dev --port 3001",
+    "build": "node ../../scripts/prepare-ocr-assets.mjs mobile && next build",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
@@ -26,7 +26,8 @@
     "@capacitor/filesystem": "^8.0.0",
     "@capacitor/share": "^8.0.0",
     "@capacitor/keyboard": "^8.0.0",
-    "@capacitor-community/speech-recognition": "7.0.1"
+    "@capacitor-community/speech-recognition": "7.0.1",
+    "tesseract.js": "6.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
@@ -38,6 +39,7 @@
     "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "@capacitor/cli": "^8.0.0"
+    "@capacitor/cli": "^8.0.0",
+    "@tesseract.js-data/eng": "1.0.0"
   }
 }

@@ -24,7 +24,12 @@ public sealed record AssistantMessageCommand(
     string? CurrencyCode,
     string? Locale,
     string? Email,
-    string? DisplayName);
+    string? DisplayName)
+{
+    public AssistantProcessingMode ProcessingMode { get; init; }
+    public string? ConfirmationToken { get; init; }
+    public string? ClarificationToken { get; init; }
+}
 
 public sealed record AssistantMessageResult(
     AssistantMessageStatus Status,
@@ -35,6 +40,10 @@ public sealed record AssistantMessageResult(
     FinanceQuestionAnswerModel? FinanceAnswer,
     IReadOnlyCollection<string> Errors)
 {
+    public string? ConfirmationToken { get; init; }
+    public string? ClarificationToken { get; init; }
+    public PaymentState? PaymentState { get; init; }
+
     public IncomeDraft? ParsedIncomeDebug { get; init; }
 
     public GoalModel? Goal { get; init; }

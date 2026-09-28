@@ -14,7 +14,26 @@ import type {
 import { FormEvent, RefObject } from "react";
 import { type TransactionEditForm } from "../_hooks/use-transaction-state";
 
-export type InputMode = "Text" | "Voice";
+export type InputMode = import("@/lib/assistant-input").AssistantInputMode;
+export type ImagePreview = {
+  id: string;
+  scope: string;
+  currencyCode?: string;
+  status: "selected" | "reading" | "parsed" | "needs-confirmation" | "failed";
+  previewUrl?: string;
+  progress?: number;
+  input?: import("@/lib/assistant-input").AssistantInput;
+  result?: import("@/lib/api").AssistantMessageResponse;
+  error?: string;
+};
+export type ImageComposerProps = {
+  isInputReady: boolean;
+  imagePreviews: ImagePreview[];
+  onImages: (images: File[]) => void;
+  onConfirmImage: (id: string) => void;
+  onEditImage: (id: string) => void;
+  onDismissImage: (id: string) => void;
+};
 
 export type AppSection =
   | "home"
@@ -34,6 +53,8 @@ export type Message = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  imageId?: string;
+  imageUrl?: string;
 };
 
 export type SettingsForm = {
@@ -44,7 +65,7 @@ export type SettingsForm = {
   defaultTransactionVisibility: TransactionVisibility;
 };
 
-export type SectionRenderProps = {
+export type SectionRenderProps = ImageComposerProps & {
   accessToken: string;
   allowHouseholdReportScope: boolean;
   canWriteSelectedHousehold: boolean;

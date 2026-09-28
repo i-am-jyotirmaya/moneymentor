@@ -92,6 +92,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
     selectTransaction,
     closeTransactionEditor,
     toggleVoiceInput,
+    imagePreviews, selectImages, confirmImage, editImage, dismissImage,
     changeDashboardMonth,
     changeTransactionMonth,
     changeTransactionPage,
@@ -237,6 +238,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
                     setText(value);
                     setInputMode("Text");
                   },
+                  isInputReady: !isLoadingData, imagePreviews, onImages: selectImages, onConfirmImage: confirmImage, onEditImage: editImage, onDismissImage: dismissImage,
                   onToggleVoice: toggleVoiceInput,
                   onTransactionMonthChange: (month) =>
                     void changeTransactionMonth(month),
@@ -309,6 +311,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
             setText(value);
             setInputMode("Text");
           }}
+          isInputReady={!isLoadingData} imagePreviews={imagePreviews} onImages={selectImages} onConfirmImage={confirmImage} onEditImage={editImage} onDismissImage={dismissImage}
           onToggleVoice={toggleVoiceInput}
           text={text}
         />

@@ -69,6 +69,8 @@ jobs:
         working-directory: apps/web
       - run: pnpm build
         working-directory: apps/web
+      - run: pnpm test:ocr
+        working-directory: apps/web
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: apps/web
       - run: pnpm test:e2e

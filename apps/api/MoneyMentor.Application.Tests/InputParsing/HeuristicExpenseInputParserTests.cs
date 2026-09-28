@@ -96,6 +96,14 @@ public sealed class HeuristicExpenseInputParserTests
         Assert.Equal("Bills", result.Draft.CategoryGuess);
     }
 
+    [Fact]
+    public async Task DebitedPaymentReceivedByMerchantIsAnExpense()
+    {
+        var result = await parser.ParseAsync(CreateRequest("₹213.00\nDebited account\nPayment received by Blinkit"), TestContext.Current.CancellationToken);
+        Assert.Equal(ExpenseInputParseStatus.Parsed, result.Status);
+        Assert.Equal(213m, result.Draft!.Amount);
+    }
+
     [Theory]
     [InlineData("credit bill")]
     [InlineData("credit card")]

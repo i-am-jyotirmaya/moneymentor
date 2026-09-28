@@ -43,10 +43,16 @@ import {
   subscribeToAuthSession,
 } from "@/lib/auth-session";
 import {
-  getSpeechRecognition,
+  getSpeechTranscription,
+  getTextRecognition,
+  getProcessingLocation,
   saveExport,
-  type SpeechRecognitionLike,
+
 } from "@/lib/platform";
+import { assistantInputRequest, inputModes, typedAssistantInput, type AssistantInput } from "@/lib/assistant-input";
+import type { SpeechTranscriptionAdapter } from "@/lib/speech-transcription";
+import { sanitizeImageText } from "@/lib/image-text-privacy";
+import type { ImagePreview } from "../_components/workspace-types";
 import {
   FormEvent,
   useCallback,
@@ -181,8 +187,42 @@ export function useWorkspaceController() {
   const isLoadingDashboard = isLoadingData;
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recognitionRef = useRef<SpeechTranscriptionAdapter | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const submissionRef = useRef(false);
+  const imageAbort = useRef<AbortController | null>(null);
+  const imageUrls = useRef(new Set<string>());
+  const imageQueue = useRef<{ id: string; image: File; scope: string }[]>([]);
+  const imageProcessing = useRef(false);
+  const activeImageId = useRef<string | null>(null);
+  const canceledImageIds = useRef(new Set<string>());
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
+  const imageRun = useRef(0);
+  const [imageStates, setImageStates] = useState<ImagePreview[]>([]);
+  const imageScope = `${session?.user.id ?? ""}:${selectedHouseholdId ?? ""}`;
+  const imageScopeRef = useRef(imageScope);
+  imageScopeRef.current = imageScope;
+  const imagePreviews = imageStates.filter(item => item.scope === imageScope);
+  const imagePreview = imagePreviews.find(item => item.id === editingImageId) ??
+    (imagePreviews.length === 1 ? imagePreviews[0] : null);
+  const previousImageScope = useRef(imageScope);
+  useEffect(() => {
+    if (previousImageScope.current === imageScope) return;
+    previousImageScope.current = imageScope;
+    setMessages(current => current.filter(message => !message.imageId));
+    setImageStates(current => current.filter(item => item.scope === imageScope));
+    setEditingImageId(null);
+    setText("");
+  }, [imageScope]);
+  useEffect(() => () => {
+    imageRun.current++;
+    imageAbort.current?.abort();
+    imageQueue.current = [];
+    for (const url of imageUrls.current) URL.revokeObjectURL(url);
+    imageUrls.current.clear();
+    void getTextRecognition().dispose();
+    recognitionRef.current?.stop();
+  }, [imageScope]);
 
   const setSelectedHouseholdId = useCallback(
     (id: string | null) => {
@@ -386,13 +426,14 @@ export function useWorkspaceController() {
     }
   }
 
-  function appendMessage(role: Message["role"], messageText: string) {
+  function appendMessage(role: Message["role"], messageText: string, image?: Pick<Message, "imageId" | "imageUrl">) {
     setMessages((current) => [
       ...current,
       {
         id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         role,
         text: messageText,
+        ...image,
       },
     ]);
   }
@@ -408,56 +449,28 @@ export function useWorkspaceController() {
   }
 
   function startVoiceInput() {
-    if (isSubmitting) {
+    if (submissionRef.current || imagePreviews.length || isLoadingData) {
       return;
     }
 
     setError(null);
     setInputMode("Voice");
 
-    const Recognition = getSpeechRecognition();
-    if (!Recognition) {
+    const recognition = getSpeechTranscription();
+    if (!recognition) {
       setInputMode("Text");
-      setError(
-        "Voice input is not available in this browser. You can still type your message.",
-      );
+      setError("Voice input is not available in this browser. You can still type your message.");
       return;
     }
-
     recognitionRef.current?.stop();
-    const recognition = new Recognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = "en-IN";
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0]?.transcript ?? "")
-        .join(" ")
-        .trim();
-
-      if (transcript) {
-        setText(transcript);
-        void submitChatMessage(transcript, "Voice");
-      }
-    };
-    recognition.onerror = () => {
-      setIsListening(false);
-      setInputMode("Text");
-      setError("I could not catch that clearly. Try typing it instead.");
-    };
-    recognition.onend = () => {
-      setIsListening(false);
-    };
     recognitionRef.current = recognition;
     setIsListening(true);
-
-    try {
-      recognition.start();
-    } catch {
-      setIsListening(false);
-      setInputMode("Text");
-      setError("Voice input could not start. You can still type your message.");
-    }
+    recognition.start({
+      locale: "en-IN",
+      onResult: input => { setText(input.text); void submitAssistantInput(input); },
+      onError: () => { setIsListening(false); setInputMode("Text"); setError("I could not catch that clearly. Check microphone permission or try typing."); },
+      onEnd: () => setIsListening(false),
+    });
   }
 
   function toggleVoiceInput() {
@@ -470,9 +483,10 @@ export function useWorkspaceController() {
     startVoiceInput();
   }
 
-  async function submitChatMessage(sourceText: string, mode: InputMode) {
-    const normalizedText = sourceText.trim();
-    if (!normalizedText || isSubmitting) {
+  async function submitAssistantInput(input: AssistantInput, confirmationToken?: string, clarificationToken?: string, imageId?: string, showImageText = false) {
+    const normalizedText = (input.source === "image" ? sanitizeImageText(input.text) : input.text).trim();
+    const mode = inputModes[input.source];
+    if (!normalizedText || submissionRef.current) {
       return;
     }
 
@@ -492,19 +506,23 @@ export function useWorkspaceController() {
     }
 
     setError(null);
+    submissionRef.current = true;
+    const run = imageRun.current;
+    const started = performance.now();
     setIsSubmitting(true);
     setText("");
     setInputMode(mode);
-    appendMessage("user", normalizedText);
+    if (input.source !== "image" || showImageText) appendMessage("user", normalizedText);
 
     try {
       const result = await sendAssistantMessage(session.accessToken, {
-        text: normalizedText,
-        inputMode: mode,
+        ...assistantInputRequest({ ...input, text: normalizedText }, confirmationToken),
+        ...(clarificationToken ? { clarificationToken } : {}),
         householdId: selectedHouseholdId ?? undefined,
         currencyCode,
-        locale: "en-IN",
       });
+      if (input.source === "image" && (run !== imageRun.current || (imageId && canceledImageIds.current.has(imageId)))) return;
+      performance.measure("assistantProcessingMs", { start: started, end: performance.now() });
 
       appendMessage(
         "assistant",
@@ -520,15 +538,116 @@ export function useWorkspaceController() {
         ]);
         await refreshDashboardAndTransactions(session.accessToken);
       }
+      return result;
     } catch (caughtError) {
       handleApiError(
         caughtError,
         "Could not reach the Spndrr API. Check that the backend is running.",
       );
     } finally {
+      submissionRef.current = false;
       setIsSubmitting(false);
       setInputMode("Text");
     }
+  }
+
+  function updateImage(id: string, update: (current: ImagePreview) => ImagePreview) {
+    setImageStates(current => current.map(item => item.id === id ? update(item) : item));
+  }
+
+  function dismissImage(id: string, keepMessage = false) {
+    canceledImageIds.current.add(id);
+    imageQueue.current = imageQueue.current.filter(item => item.id !== id);
+    if (activeImageId.current === id) {
+      imageAbort.current?.abort();
+      void getTextRecognition().dispose();
+    }
+    if (editingImageId === id) { setEditingImageId(null); setText(""); }
+    if (!keepMessage) {
+      setMessages(current => current.filter(message => message.imageId !== id));
+      const url = imagePreviews.find(item => item.id === id)?.previewUrl;
+      if (url) { URL.revokeObjectURL(url); imageUrls.current.delete(url); }
+      setImageStates(current => current.filter(item => item.id !== id));
+    } else setImageStates(current => current.filter(item => item.id !== id));
+  }
+
+  async function previewImageInput(input: AssistantInput, id: string, run: number, clarificationToken?: string, showImageText = false) {
+    if (!input.text.trim() || submissionRef.current) return;
+    const sanitized = { ...input, text: sanitizeImageText(input.text) };
+    updateImage(id, current => ({ ...current, input: sanitized, result: undefined, status: "parsed", error: undefined }));
+    const result = await submitAssistantInput(sanitized, undefined, clarificationToken, id, showImageText);
+    if (run !== imageRun.current || canceledImageIds.current.has(id)) return;
+    updateImage(id, current => ({ ...current, input: { ...sanitized, text: result?.parsedDebug?.sourceText ?? result?.parsedIncomeDebug?.sourceText ?? sanitized.text }, result, status: result ? "needs-confirmation" : "failed",
+      error: result ? undefined : "Could not process this text. Edit it or try again." }));
+  }
+
+  async function processImageQueue() {
+    if (imageProcessing.current) return;
+    imageProcessing.current = true;
+    try {
+      while (imageQueue.current.length) {
+        const job = imageQueue.current.shift()!;
+        if (job.scope !== imageScopeRef.current || canceledImageIds.current.has(job.id)) continue;
+        activeImageId.current = job.id;
+        const run = imageRun.current;
+        const started = performance.now();
+        const abort = new AbortController();
+        imageAbort.current = abort;
+        try {
+          updateImage(job.id, current => ({ ...current, status: "reading" }));
+          const input = await getTextRecognition().recognize(job.image, { locale: "en-IN", signal: abort.signal,
+            onProgress: progress => { if (run === imageRun.current && !canceledImageIds.current.has(job.id)) updateImage(job.id, current => ({ ...current, progress })); } });
+          if (run !== imageRun.current || canceledImageIds.current.has(job.id)) continue;
+          performance.measure("ocrDurationMs", { start: started, end: performance.now() });
+          await previewImageInput(input, job.id, run);
+          performance.measure("totalInputDurationMs", { start: started, end: performance.now() });
+        } catch (error) {
+          if (run === imageRun.current && !canceledImageIds.current.has(job.id))
+            updateImage(job.id, current => ({ ...current, status: "failed", error: error instanceof Error ? error.message : "Could not read that image. Try another screenshot or type the expense." }));
+        } finally {
+          activeImageId.current = null;
+          imageAbort.current = null;
+        }
+      }
+    } finally {
+      imageProcessing.current = false;
+      if (imageQueue.current.length) void processImageQueue();
+    }
+  }
+
+  function selectImages(images: File[]) {
+    if (submissionRef.current || isListening || isLoadingData) return;
+    const available = Math.max(0, 5 - imagePreviews.length);
+    for (const image of images.slice(0, available)) {
+      const id = crypto.randomUUID();
+      const valid = /^image\/(png|jpeg|webp)$/.test(image.type) && image.size > 0 && image.size <= 10 * 1024 * 1024;
+      const previewUrl = valid ? URL.createObjectURL(image) : undefined;
+      if (previewUrl) imageUrls.current.add(previewUrl);
+      setImageStates(current => [...current, { id, scope: imageScope, currencyCode, previewUrl,
+        status: valid ? "selected" : "failed", error: valid ? undefined : "Choose a PNG, JPEG or WebP smaller than 10 MB." }]);
+      appendMessage("user", "", { imageId: id, imageUrl: previewUrl });
+      if (valid) imageQueue.current.push({ id, image, scope: imageScope });
+    }
+    void processImageQueue();
+  }
+
+  async function confirmImage(id: string) {
+    const preview = imagePreviews.find(item => item.id === id);
+    if (!preview?.input || !preview.result?.confirmationToken || submissionRef.current) return;
+    const run = imageRun.current;
+    const result = await submitAssistantInput(preview.input, preview.result.confirmationToken, undefined, id);
+    if (run !== imageRun.current || canceledImageIds.current.has(id)) return;
+    if (result?.transaction) dismissImage(id, true);
+    else updateImage(id, current => ({ ...current, result, status: "failed",
+      error: result?.assistantMessage ?? "Confirmation could not be completed. Check transactions before previewing again." }));
+  }
+
+  function editImage(id: string) {
+    const preview = imagePreviews.find(item => item.id === id);
+    if (!preview?.input || submissionRef.current) return;
+    setEditingImageId(id);
+    setText(preview.input.text);
+    updateImage(id, current => ({ ...current, result: undefined, status: "parsed" }));
   }
 
   async function refreshDashboardAndTransactions(accessToken: string) {
@@ -564,7 +683,11 @@ export function useWorkspaceController() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void submitChatMessage(text, inputMode);
+    if (imagePreview?.input) {
+      void previewImageInput({ ...imagePreview.input, text }, imagePreview.id, imageRun.current, imagePreview.result?.clarificationToken ?? undefined, true);
+    } else {
+      void submitAssistantInput(typedAssistantInput(text, getProcessingLocation()));
+    }
   }
 
   async function handleSaveTransaction(event: FormEvent<HTMLFormElement>) {
@@ -965,6 +1088,11 @@ export function useWorkspaceController() {
     selectTransaction,
     closeTransactionEditor,
     toggleVoiceInput,
+    imagePreviews,
+    selectImages,
+    confirmImage,
+    editImage,
+    dismissImage,
     changeDashboardMonth,
     changeTransactionMonth,
     changeTransactionPage,

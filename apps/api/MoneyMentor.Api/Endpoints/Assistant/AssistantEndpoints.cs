@@ -49,12 +49,15 @@ public static class AssistantEndpoints
                 "HouseholdId must be a non-empty GUID when provided.");
         }
 
-        if (!Enum.TryParse<InputMode>(request.InputMode, ignoreCase: true, out var inputMode))
+        if (!Enum.TryParse<InputMode>(request.InputMode, ignoreCase: true, out var inputMode) || !Enum.IsDefined(inputMode))
         {
             return EndpointValidation.ValidationProblem(
                 nameof(request.InputMode),
-                "InputMode must be Text, Voice, or System.");
+                "InputMode must be Text, Voice, Image, or System.");
         }
+
+        if (!Enum.TryParse<AssistantProcessingMode>(request.ProcessingMode, true, out var processingMode) || !Enum.IsDefined(processingMode))
+            return EndpointValidation.ValidationProblem(nameof(request.ProcessingMode), "ProcessingMode must be Preview or Execute.");
 
         var identity = AppUserIdentityFactory.FromPrincipal(httpContext.User);
         if (identity is null)
@@ -76,7 +79,7 @@ public static class AssistantEndpoints
                     request.CurrencyCode,
                     request.Locale,
                     identity.Email,
-                    identity.DisplayName),
+                    identity.DisplayName) { ProcessingMode = processingMode, ConfirmationToken = request.ConfirmationToken, ClarificationToken = request.ClarificationToken },
                 cancellationToken);
         }
         catch (HouseholdNotFoundException)
@@ -100,6 +103,9 @@ public static class AssistantEndpoints
             result.FinanceAnswer,
             result.Errors)
         {
+            ConfirmationToken = result.ConfirmationToken,
+            ClarificationToken = result.ClarificationToken,
+            PaymentState = result.PaymentState,
             ParsedIncomeDebug = result.ParsedIncomeDebug
         });
     }
