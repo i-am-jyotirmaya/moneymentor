@@ -184,6 +184,20 @@ export function useWorkspaceController() {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
+  const releaseRecognition = useCallback((
+    recognition: SpeechRecognitionLike,
+    method: "stop" | "abort" | "ended",
+  ) => {
+    if (recognitionRef.current !== recognition) return;
+    recognitionRef.current = null;
+    recognition.onresult = null;
+    recognition.onerror = null;
+    recognition.onend = null;
+    if (method === "stop") recognition.stop();
+    if (method === "abort") (recognition.abort ?? recognition.stop).call(recognition);
+    setIsListening(false);
+  }, []);
+
   const setSelectedHouseholdId = useCallback(
     (id: string | null) => {
       updateQuery({ household: id, page: null, edit: null });
@@ -365,9 +379,9 @@ export function useWorkspaceController() {
 
   useEffect(() => {
     return () => {
-      recognitionRef.current?.stop();
+      if (recognitionRef.current) releaseRecognition(recognitionRef.current, "abort");
     };
-  }, []);
+  }, [releaseRecognition]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -424,16 +438,20 @@ export function useWorkspaceController() {
       return;
     }
 
-    recognitionRef.current?.stop();
+    if (recognitionRef.current) releaseRecognition(recognitionRef.current, "abort");
     const recognition = new Recognition();
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = "en-IN";
     recognition.onresult = (event) => {
+      if (recognitionRef.current !== recognition) return;
       const transcript = Array.from(event.results)
         .map((result) => result[0]?.transcript ?? "")
         .join(" ")
         .trim();
+
+      // Safari can keep the microphone active after delivering a final result.
+      releaseRecognition(recognition, "stop");
 
       if (transcript) {
         setText(transcript);
@@ -441,12 +459,13 @@ export function useWorkspaceController() {
       }
     };
     recognition.onerror = () => {
-      setIsListening(false);
+      if (recognitionRef.current !== recognition) return;
+      releaseRecognition(recognition, "abort");
       setInputMode("Text");
       setError("I could not catch that clearly. Try typing it instead.");
     };
     recognition.onend = () => {
-      setIsListening(false);
+      releaseRecognition(recognition, "ended");
     };
     recognitionRef.current = recognition;
     setIsListening(true);
@@ -454,16 +473,15 @@ export function useWorkspaceController() {
     try {
       recognition.start();
     } catch {
-      setIsListening(false);
+      releaseRecognition(recognition, "abort");
       setInputMode("Text");
       setError("Voice input could not start. You can still type your message.");
     }
   }
 
   function toggleVoiceInput() {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+    if (recognitionRef.current) {
+      releaseRecognition(recognitionRef.current, "abort");
       return;
     }
 

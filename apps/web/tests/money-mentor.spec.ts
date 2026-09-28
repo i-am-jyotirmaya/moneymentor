@@ -71,6 +71,8 @@ async function seedAuthSession(page: Page) {
 
 async function seedVoiceRecognition(page: Page) {
   await page.addInitScript(() => {
+    const status = { active: false, stops: 0, aborts: 0 };
+    Object.assign(window, { __speechStatus: status });
     class FakeSpeechRecognition {
       continuous = false;
       interimResults = false;
@@ -80,13 +82,21 @@ async function seedVoiceRecognition(page: Page) {
       onresult: ((event: { results: Array<Array<{ transcript: string }>> }) => void) | null = null;
 
       start() {
+        status.active = true;
         window.setTimeout(() => {
           this.onresult?.({ results: [[{ transcript: "swiggy dinner 540" }]] });
-          this.onend?.();
         }, 1200);
       }
 
       stop() {
+        status.active = false;
+        status.stops++;
+        this.onend?.();
+      }
+
+      abort() {
+        status.active = false;
+        status.aborts++;
         this.onend?.();
       }
     }
@@ -785,6 +795,9 @@ test("voice interaction shows wave feedback and sends captured speech", async ({
   });
   await expect(page.locator(".chat-message-bubble").filter({ hasText: "swiggy dinner 540" })).toBeVisible({ timeout: 3000 });
   await expect(page.getByText("Tracked ₹540 for dinner")).toBeVisible({ timeout: 4000 });
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { __speechStatus: { active: boolean; stops: number; aborts: number } }).__speechStatus,
+  )).toEqual({ active: false, stops: 1, aborts: 0 });
 });
 
 async function json(route: Route, body: unknown) {

@@ -58,6 +58,20 @@ public sealed class IncomeInputProcessorTests
         Assert.False(processor.HasPendingDraft(CreateRequest("unused")));
     }
 
+    [Fact]
+    public async Task ProcessAsync_MergesSpokenAmountIntoPendingSalary()
+    {
+        var transactions = new FakeTransactionService();
+        var processor = CreateProcessor(transactions);
+        await processor.ProcessAsync(CreateRequest("Got my salary"), CancellationToken.None);
+
+        var result = await processor.ProcessAsync(CreateRequest("Two lakh rupees"), CancellationToken.None);
+
+        Assert.Equal(IncomeInputParseStatus.Parsed, result.Status);
+        Assert.Equal(200000m, result.Transaction!.Amount);
+        Assert.Equal(1, transactions.SaveIncomeCount);
+    }
+
     private static IncomeInputProcessor CreateProcessor(FakeTransactionService transactionService) =>
         new(
             new HeuristicIncomeInputParser(),
