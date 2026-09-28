@@ -24,11 +24,11 @@ public sealed class ProviderCallMeasurement : IDisposable
     public void InvalidResponse() => outcome = "invalid_response";
     public void NetworkError() => outcome = "network_error";
 
-    public void HttpError(HttpStatusCode status) => outcome = status switch
+    public void HttpError(HttpStatusCode status) => outcome = (int)status switch
     {
-        HttpStatusCode.TooManyRequests => "http_429",
-        >= HttpStatusCode.InternalServerError => "http_5xx",
-        >= HttpStatusCode.BadRequest => "http_4xx",
+        429 => "http_429",
+        >= 500 => "http_5xx",
+        >= 400 => "http_4xx",
         _ => "http_error"
     };
 

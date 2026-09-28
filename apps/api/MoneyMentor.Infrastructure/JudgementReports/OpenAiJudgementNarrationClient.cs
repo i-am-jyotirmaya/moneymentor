@@ -81,6 +81,11 @@ internal sealed class OpenAiJudgementNarrationClient(
             measurement.TimedOut();
             throw new JudgementNarrationTransientException("The narration provider timed out.", exception);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            measurement.Cancelled();
+            throw;
+        }
         catch (HttpRequestException exception)
         {
             measurement.NetworkError();
@@ -89,7 +94,16 @@ internal sealed class OpenAiJudgementNarrationClient(
 
         using (response)
         {
-            var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
+            string responseText;
+            try
+            {
+                responseText = await response.Content.ReadAsStringAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                measurement.Cancelled();
+                throw;
+            }
             if (!response.IsSuccessStatusCode)
             {
                 measurement.HttpError(response.StatusCode);

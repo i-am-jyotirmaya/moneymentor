@@ -130,6 +130,11 @@ internal sealed class OpenAiGoalPlanningClient(
             throw new GoalPlanningProviderException(
                 "OpenAI goal planning timed out.", true, exception);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            measurement.Cancelled();
+            throw;
+        }
         catch (HttpRequestException exception)
         {
             measurement.NetworkError();
@@ -139,7 +144,16 @@ internal sealed class OpenAiGoalPlanningClient(
         }
         using (response)
         {
-        var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
+        string responseText;
+        try
+        {
+            responseText = await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            measurement.Cancelled();
+            throw;
+        }
         if (!response.IsSuccessStatusCode)
         {
             measurement.HttpError(response.StatusCode);
