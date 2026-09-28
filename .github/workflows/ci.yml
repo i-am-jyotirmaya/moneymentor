@@ -51,13 +51,17 @@ jobs:
       - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Validate metrics collector configuration
+      - name: Check metrics collector starts with production configuration
         run: |
-          docker run --rm \
+          COLLECTOR=$(docker run -d \
             -e AWS_REGION=ap-south-1 \
             -v "$PWD/deploy/aws/otel-collector.yaml:/etc/otel-collector.yaml:ro" \
             public.ecr.aws/aws-observability/aws-otel-collector:v0.50.0 \
-            validate --config=/etc/otel-collector.yaml
+            --config=/etc/otel-collector.yaml)
+          trap 'docker rm -f "$COLLECTOR" >/dev/null 2>&1 || true' EXIT
+          sleep 5
+          docker logs "$COLLECTOR"
+          test "$(docker inspect --format '{{.State.Running}}' "$COLLECTOR")" = true
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
