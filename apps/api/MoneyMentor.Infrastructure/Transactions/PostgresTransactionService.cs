@@ -16,6 +16,7 @@ internal sealed class PostgresTransactionService(
     MoneyMentorDbContext dbContext,
     IHouseholdAccessService householdAccessService,
     IJudgementReportRecalculationQueue judgementReportRecalculationQueue,
+    JevTransactionCategorizer categorizer,
     TimeProvider timeProvider) : ITransactionService
 {
     private const int MaxPageSize = 100;
@@ -30,8 +31,15 @@ internal sealed class PostgresTransactionService(
             command.RequestedHouseholdId,
             requireWrite: true,
             cancellationToken);
-        var categoryId = await GetOrCreateCategoryIdAsync(
+        var categoryName = await categorizer.CategorizeAsync(
+            CategoryType.Expense,
+            command.Draft.Description,
+            command.Draft.MerchantName,
+            command.Draft.SourceText,
             command.Draft.CategoryGuess,
+            cancellationToken);
+        var categoryId = await GetOrCreateCategoryIdAsync(
+            categoryName,
             CategoryType.Expense,
             cancellationToken);
         var now = timeProvider.GetUtcNow();
@@ -75,8 +83,15 @@ internal sealed class PostgresTransactionService(
             command.RequestedHouseholdId,
             requireWrite: true,
             cancellationToken);
-        var categoryId = await GetOrCreateCategoryIdAsync(
+        var categoryName = await categorizer.CategorizeAsync(
+            CategoryType.Income,
+            command.Draft.Reason,
+            command.Draft.SenderName,
+            command.Draft.SourceText,
             GetIncomeCategoryName(command.Draft.Reason),
+            cancellationToken);
+        var categoryId = await GetOrCreateCategoryIdAsync(
+            categoryName,
             CategoryType.Income,
             cancellationToken);
         var now = timeProvider.GetUtcNow();

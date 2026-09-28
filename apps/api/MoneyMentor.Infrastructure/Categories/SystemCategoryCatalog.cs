@@ -34,17 +34,21 @@ internal static class SystemCategoryCatalog
         Leaf("Cafes / Coffee", "Dining & Lifestyle", CategoryType.Expense, CategoryClassification.Discretionary, 402, ["coffee", "cafe"]),
         Leaf("Food Delivery", "Dining & Lifestyle", CategoryType.Expense, CategoryClassification.Discretionary, 403, ["swiggy", "zomato", "takeout"]),
         Leaf("Bars / Alcohol", "Dining & Lifestyle", CategoryType.Expense, CategoryClassification.Discretionary, 404, ["bar", "alcohol"]),
+        Leaf("Snacks", "Dining & Lifestyle", CategoryType.Expense, CategoryClassification.Discretionary, 405, ["snack", "ice cream", "chai"]),
+        Leaf("Dining", "Dining & Lifestyle", CategoryType.Expense, CategoryClassification.Discretionary, 406, ["dinner", "lunch", "breakfast"]),
 
         Group("Transportation", CategoryType.Expense, CategoryClassification.Essential, 500, "car"),
         Leaf("Fuel", "Transportation", CategoryType.Expense, CategoryClassification.Essential, 501, ["fuel", "petrol", "diesel"]),
         Leaf("Public Transit", "Transportation", CategoryType.Expense, CategoryClassification.Essential, 502, ["metro", "bus", "train"]),
         Leaf("Ride-Sharing / Taxi", "Transportation", CategoryType.Expense, CategoryClassification.Essential, 503, ["taxi", "uber", "ola", "rapido"]),
         Leaf("Car Maintenance & Repairs", "Transportation", CategoryType.Expense, CategoryClassification.Essential, 504, ["car service", "vehicle repair"]),
+        Leaf("Transport", "Transportation", CategoryType.Expense, CategoryClassification.Essential, 505, ["toll", "parking", "other transport"]),
 
         Group("Health & Medical", CategoryType.Expense, CategoryClassification.Essential, 600, "heart-pulse"),
         Leaf("Health Insurance", "Health & Medical", CategoryType.Expense, CategoryClassification.Essential, 601, ["health insurance", "medical insurance"]),
         Leaf("Doctor / Consultation", "Health & Medical", CategoryType.Expense, CategoryClassification.Essential, 602, ["doctor", "consultation"]),
         Leaf("Pharmacy / Medication", "Health & Medical", CategoryType.Expense, CategoryClassification.Essential, 603, ["medicine", "pharmacy"]),
+        Leaf("Healthcare", "Health & Medical", CategoryType.Expense, CategoryClassification.Essential, 604, ["hospital", "dentist", "medical test"]),
 
         Group("Shopping", CategoryType.Expense, CategoryClassification.Discretionary, 700, "shopping-bag"),
         Leaf("Clothing & Apparel", "Shopping", CategoryType.Expense, CategoryClassification.Discretionary, 701, ["clothes", "clothing"]),
@@ -55,6 +59,16 @@ internal static class SystemCategoryCatalog
         Leaf("Streaming Subscriptions", "Entertainment", CategoryType.Expense, CategoryClassification.Discretionary, 801, ["netflix", "spotify", "prime"]),
         Leaf("Movies / Events / Concerts", "Entertainment", CategoryType.Expense, CategoryClassification.Discretionary, 802, ["movie", "concert", "event"]),
         Leaf("Gaming", "Entertainment", CategoryType.Expense, CategoryClassification.Discretionary, 803, ["gaming", "game"]),
+
+        Group("Education", CategoryType.Expense, CategoryClassification.Essential, 810, "book"),
+        Leaf("Courses & Tuition", "Education", CategoryType.Expense, CategoryClassification.Essential, 811, ["course", "tuition", "school fees"]),
+        Leaf("Books & Learning", "Education", CategoryType.Expense, CategoryClassification.Essential, 812, ["textbooks", "exam", "books"]),
+        Group("Travel", CategoryType.Expense, CategoryClassification.Discretionary, 820, "plane"),
+        Leaf("Flights & Tickets", "Travel", CategoryType.Expense, CategoryClassification.Discretionary, 821, ["flight", "train ticket"]),
+        Leaf("Hotels & Stays", "Travel", CategoryType.Expense, CategoryClassification.Discretionary, 822, ["hotel booking", "resort"]),
+        Group("Fitness & Personal Care", CategoryType.Expense, CategoryClassification.Discretionary, 830, "activity"),
+        Leaf("Fitness", "Fitness & Personal Care", CategoryType.Expense, CategoryClassification.Discretionary, 831, ["gym", "protein powder", "fitness"]),
+        Leaf("Personal Care", "Fitness & Personal Care", CategoryType.Expense, CategoryClassification.Discretionary, 832, ["salon", "haircut", "cosmetics"]),
 
         Group("Savings & Investments", CategoryType.Expense, CategoryClassification.Savings, 900, "chart-line"),
         Leaf("Emergency Fund", "Savings & Investments", CategoryType.Expense, CategoryClassification.Savings, 901, ["emergency fund"]),
