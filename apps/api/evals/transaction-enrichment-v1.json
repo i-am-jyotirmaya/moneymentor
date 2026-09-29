@@ -1,0 +1,313 @@
+[
+  {
+    "id": "groceries",
+    "input": {
+      "amount": 850,
+      "merchant": "Local Market",
+      "description": "weekly vegetables and staples"
+    },
+    "expected": {
+      "category": "Groceries",
+      "essentialityRange": [
+        3,
+        4
+      ],
+      "planned": "unknown",
+      "impulse": "unknown",
+      "committed": "low"
+    }
+  },
+  {
+    "id": "rent",
+    "input": {
+      "amount": 25000,
+      "description": "monthly apartment rent"
+    },
+    "expected": {
+      "category": "Rent",
+      "essentialityRange": [
+        4,
+        4
+      ],
+      "planned": "high",
+      "impulse": "low",
+      "committed": "high"
+    }
+  },
+  {
+    "id": "medicine",
+    "input": {
+      "amount": 1200,
+      "merchant": "Apollo",
+      "description": "prescribed medicine refill"
+    },
+    "expected": {
+      "category": "Pharmacy / Medication",
+      "essentialityRange": [
+        3,
+        4
+      ],
+      "planned": "unknown",
+      "impulse": "low",
+      "committed": "high"
+    }
+  },
+  {
+    "id": "consultation",
+    "input": {
+      "amount": 1200,
+      "merchant": "Apollo",
+      "description": "doctor consultation"
+    },
+    "expected": {
+      "category": "Doctor / Consultation",
+      "essentialityRange": [
+        3,
+        4
+      ],
+      "planned": "unknown",
+      "impulse": "low",
+      "committed": "unknown"
+    }
+  },
+  {
+    "id": "routine_dinner",
+    "input": {
+      "amount": 450,
+      "description": "dinner"
+    },
+    "expected": {
+      "category": "Dining",
+      "essentialityRange": [
+        0,
+        3
+      ],
+      "planned": "unknown",
+      "impulse": "unknown",
+      "committed": "low"
+    }
+  },
+  {
+    "id": "planned_anniversary",
+    "input": {
+      "amount": 5500,
+      "merchant": "Olive",
+      "description": "anniversary dinner booked last week"
+    },
+    "expected": {
+      "category": "Restaurants",
+      "essentialityRange": [
+        0,
+        2
+      ],
+      "planned": "high",
+      "impulse": "low",
+      "committed": "low"
+    }
+  },
+  {
+    "id": "coffee",
+    "input": {
+      "amount": 220,
+      "merchant": "Third Wave Coffee",
+      "description": "coffee"
+    },
+    "expected": {
+      "category": "Cafes / Coffee",
+      "essentialityRange": [
+        0,
+        2
+      ],
+      "planned": "unknown",
+      "impulse": "unknown",
+      "committed": "low"
+    }
+  },
+  {
+    "id": "alcohol",
+    "input": {
+      "amount": 850,
+      "description": "beer with friends at a bar"
+    },
+    "expected": {
+      "category": "Bars / Alcohol",
+      "essentialityRange": [
+        0,
+        1
+      ],
+      "planned": "unknown",
+      "impulse": "unknown",
+      "committed": "low"
+    }
+  },
+  {
+    "id": "gaming",
+    "input": {
+      "amount": 3000,
+      "description": "bought a new video game on a whim"
+    },
+    "expected": {
+      "category": "Gaming",
+      "essentialityRange": [
+        0,
+        1
+      ],
+      "planned": "low",
+      "impulse": "high",
+      "committed": "low"
+    }
+  },
+  {
+    "id": "subscription",
+    "input": {
+      "amount": 649,
+      "merchant": "Netflix",
+      "description": "monthly streaming subscription"
+    },
+    "expected": {
+      "category": "Streaming Subscriptions",
+      "essentialityRange": [
+        0,
+        2
+      ],
+      "planned": "high",
+      "impulse": "low",
+      "committed": "high"
+    }
+  },
+  {
+    "id": "shopping",
+    "input": {
+      "amount": 1800,
+      "description": "bought a shirt while browsing, unplanned"
+    },
+    "expected": {
+      "category": "Clothing & Apparel",
+      "essentialityRange": [
+        0,
+        2
+      ],
+      "planned": "low",
+      "impulse": "high",
+      "committed": "low"
+    }
+  },
+  {
+    "id": "travel",
+    "input": {
+      "amount": 4200,
+      "description": "flight booked months ahead for vacation"
+    },
+    "expected": {
+      "category": "Flights & Tickets",
+      "essentialityRange": [
+        0,
+        2
+      ],
+      "planned": "high",
+      "impulse": "low",
+      "committed": "low"
+    }
+  },
+  {
+    "id": "fuel",
+    "input": {
+      "amount": 2800,
+      "description": "petrol for commute"
+    },
+    "expected": {
+      "category": "Fuel",
+      "essentialityRange": [
+        2,
+        4
+      ],
+      "planned": "unknown",
+      "impulse": "low",
+      "committed": "unknown"
+    }
+  },
+  {
+    "id": "work_charger",
+    "input": {
+      "amount": 2499,
+      "merchant": "Amazon",
+      "description": "replacement laptop charger needed for work; old one failed"
+    },
+    "expected": {
+      "category": "Electronics & Gadgets",
+      "essentialityRange": [
+        3,
+        4
+      ],
+      "planned": "unknown",
+      "impulse": "low",
+      "committed": "low"
+    }
+  },
+  {
+    "id": "planned_console",
+    "input": {
+      "amount": 50000,
+      "description": "PS5 saved for six months and purchased as planned"
+    },
+    "expected": {
+      "category": "Electronics & Gadgets",
+      "essentialityRange": [
+        0,
+        1
+      ],
+      "planned": "high",
+      "impulse": "low",
+      "committed": "low"
+    }
+  },
+  {
+    "id": "emi",
+    "input": {
+      "amount": 6000,
+      "description": "monthly personal loan EMI installment"
+    },
+    "expected": {
+      "category": "Personal Loan",
+      "essentialityRange": [
+        4,
+        4
+      ],
+      "planned": "high",
+      "impulse": "low",
+      "committed": "high"
+    }
+  },
+  {
+    "id": "emergency",
+    "input": {
+      "amount": 4500,
+      "description": "urgent repair after water pipe burst"
+    },
+    "expected": {
+      "category": "Repairs & Maintenance",
+      "essentialityRange": [
+        3,
+        4
+      ],
+      "planned": "low",
+      "impulse": "low",
+      "committed": "unknown"
+    }
+  },
+  {
+    "id": "ambiguous_apollo",
+    "input": {
+      "amount": 3000,
+      "merchant": "Apollo",
+      "description": "payment at Apollo"
+    },
+    "expected": {
+      "category": null,
+      "essentialityRange": null,
+      "planned": "unknown",
+      "impulse": "unknown",
+      "committed": "unknown"
+    }
+  }
+]

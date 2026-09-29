@@ -81,6 +81,14 @@ public sealed class JevCategorizationTests
         Assert.Equal(0.8, probability);
         Assert.True(decision.TryGetScore("priority", out var score, out _));
         Assert.Equal(1.2, score);
+        Assert.Equal("jev-latest", decision.Model);
+        Assert.Equal(50L, decision.InputTokens);
+        Assert.Equal(3L, decision.OutputTokens);
+        Assert.True(decision.TryGetChoiceProbabilities("category", out var choiceProbabilities));
+        Assert.Equal(0.09, choiceProbabilities["Groceries"]);
+        Assert.True(decision.TryGetScoreDistribution("priority", out var legend, out var scoreProbabilities));
+        Assert.Equal("high", legend.GetProperty("1").GetString());
+        Assert.Equal(0.8, scoreProbabilities["1"]);
     }
 
     [Theory]
