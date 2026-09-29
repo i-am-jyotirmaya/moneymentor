@@ -3,13 +3,15 @@ using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Categories;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Domain.Entities;
+using MoneyMentor.Infrastructure.JudgementReports;
 using MoneyMentor.Infrastructure.Persistence;
 
 namespace MoneyMentor.Infrastructure.Categories;
 
 internal sealed class PostgresCategoryService(
     MoneyMentorDbContext dbContext,
-    IHouseholdAccessService householdAccessService) : ICategoryService
+    IHouseholdAccessService householdAccessService,
+    DailyFinancialFactStore dailyFinancialFactStore) : ICategoryService
 {
     public async Task<CategoryCatalogModel> ListAsync(
         AppUserContext userContext,
@@ -116,6 +118,10 @@ internal sealed class PostgresCategoryService(
             requireWrite: true,
             cancellationToken);
 
+        var originalName = category.Name;
+        var originalParent = category.ParentCategoryId;
+        var originalClassification = category.Classification;
+
         if (command.Name is not null)
         {
             category.Name = CategoryPersistence.NormalizeOptional(command.Name)
@@ -154,7 +160,25 @@ internal sealed class PostgresCategoryService(
             throw new CategoryValidationException("A category with that name already exists in this group.");
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        if (originalName != category.Name || originalParent != category.ParentCategoryId
+            || originalClassification != category.Classification)
+        {
+            // A category edit changes the daily facts used by candidate detection.
+            await using var edit = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            var affected = await dbContext.Transactions.AsNoTracking()
+                .Where(item => item.CategoryId == category.Id && item.DeletedAt == null)
+                .Select(item => item.TransactionDate)
+                .ToArrayAsync(cancellationToken);
+            foreach (var date in affected.Distinct().Order())
+                await dailyFinancialFactStore.RebuildAsync(category.HouseholdId.Value, date, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await edit.CommitAsync(cancellationToken);
+        }
+        else
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
         return CategoryPersistence.Map(category);
     }
 

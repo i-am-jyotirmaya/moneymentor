@@ -17,18 +17,22 @@ internal sealed class JudgementEvaluationRunConfiguration : IEntityTypeConfigura
         builder.Property(run => run.NarrationSchemaVersion).HasMaxLength(32).IsRequired();
         builder.Property(run => run.DeterministicInputJson).HasColumnType("jsonb").IsRequired();
         builder.Property(run => run.NarrationOutputJson).HasColumnType("jsonb");
+        builder.Property(run => run.ContextSnapshotJson).HasColumnType("jsonb");
         builder.Property(run => run.Provider).HasMaxLength(64);
         builder.Property(run => run.Model).HasMaxLength(100);
         builder.Property(run => run.FailureCategory).HasMaxLength(64);
         builder.Property(run => run.Error).HasMaxLength(1000);
 
         builder.HasOne<SpendingSummary>().WithMany().HasForeignKey(run => run.SpendingSummaryId)
-            .OnDelete(DeleteBehavior.Cascade).IsRequired();
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<JudgmentCandidate>().WithMany().HasForeignKey(run => run.CandidateId)
+            .OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<JudgementWorkItem>().WithMany().HasForeignKey(run => run.JudgementWorkItemId)
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(run => new { run.SpendingSummaryId, run.Stage, run.AttemptNumber }).IsUnique();
         builder.HasIndex(run => run.JudgementWorkItemId);
+        builder.HasIndex(run => new { run.CandidateId, run.Stage, run.AttemptNumber }).IsUnique();
         builder.HasIndex(run => new { run.Stage, run.StartedAt });
 
         builder.ToTable(table => table.HasCheckConstraint(

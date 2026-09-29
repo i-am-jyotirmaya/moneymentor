@@ -17,7 +17,7 @@ public sealed class JevCategorizationTests
     [Fact]
     public async Task Provider_http_failure_is_counted_once_as_a_failed_attempt()
     {
-        var outcomes = new ConcurrentQueue<string>();
+        var outcomes = new ConcurrentQueue<(string? Operation, string? Outcome)>();
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, current) =>
         {
@@ -26,8 +26,13 @@ public sealed class JevCategorizationTests
         listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
         {
             if (value != 1) return;
+            string? operation = null, outcome = null;
             foreach (var tag in tags)
-                if (tag.Key == "outcome") outcomes.Enqueue(tag.Value?.ToString() ?? "");
+            {
+                if (tag.Key == "operation") operation = tag.Value?.ToString();
+                if (tag.Key == "outcome") outcome = tag.Value?.ToString();
+            }
+            outcomes.Enqueue((operation, outcome));
         });
         listener.Start();
 
@@ -38,9 +43,9 @@ public sealed class JevCategorizationTests
         await Assert.ThrowsAsync<HttpRequestException>(() => client.DecideAsync(
             new { description = "coffee" },
             new Dictionary<string, JevQuestion> { ["category"] = JevQuestion.Noul("coffee?") },
-            CancellationToken.None));
+            CancellationToken.None, "judgment_decision"));
 
-        Assert.Contains("http_429", outcomes);
+        Assert.Contains(("judgment_decision", "http_429"), outcomes);
     }
 
     [Fact]
@@ -116,7 +121,7 @@ public sealed class JevCategorizationTests
         public IReadOnlyDictionary<string, JevQuestion>? Questions { get; private set; }
 
         public Task<JevDecision> DecideAsync(object state, IReadOnlyDictionary<string, JevQuestion> questions,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, string operation = "categorization")
         {
             Questions = questions;
             using var body = JsonDocument.Parse(JsonSerializer.Serialize(new

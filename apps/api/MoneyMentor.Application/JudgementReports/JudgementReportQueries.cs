@@ -51,7 +51,10 @@ public sealed record JudgementReportObservationModel(
     string EvidenceJson,
     DateTimeOffset? ResolvedAt,
     DateTimeOffset ExpiresAt,
-    bool IsDismissed);
+    bool IsDismissed,
+    JudgmentDecisionAction? DecisionAction = null,
+    string? FollowUpQuestion = null,
+    decimal? Importance = null);
 
 public sealed record JudgementReportModel(
     Guid Id,

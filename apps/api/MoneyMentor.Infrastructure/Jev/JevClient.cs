@@ -23,7 +23,7 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
     public async Task<JevDecision> DecideAsync(
         object state,
         IReadOnlyDictionary<string, JevQuestion> questions,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string operation = "categorization")
     {
         if (!IsConfigured)
         {
@@ -35,13 +35,16 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
             throw new ArgumentException("At least one question is required.", nameof(questions));
         }
 
+        if (operation is not ("categorization" or "judgment_decision" or "memory_admission"))
+            throw new ArgumentOutOfRangeException(nameof(operation));
+
         using var message = new HttpRequestMessage(HttpMethod.Post, "v1/systemone");
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.Value.ApiKey);
         message.Content = JsonContent.Create(new { model = options.Value.Model, state, questions });
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(options.Value.TimeoutSeconds, 1, 30)));
-        using var measurement = new ProviderCallMeasurement("jev", "categorization");
+        using var measurement = new ProviderCallMeasurement("jev", operation);
         try
         {
             using var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
@@ -58,8 +61,11 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
                 throw new JsonException("Jev response is missing answers.");
             }
 
+            var model = body.RootElement.TryGetProperty("model", out var responseModel)
+                && responseModel.ValueKind == JsonValueKind.String
+                ? responseModel.GetString() : null;
             measurement.Succeeded();
-            return new JevDecision(answers.Clone());
+            return new JevDecision(answers.Clone(), model);
         }
         catch (OperationCanceledException)
         {

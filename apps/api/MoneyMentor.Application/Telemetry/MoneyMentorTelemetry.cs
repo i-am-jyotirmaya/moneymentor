@@ -26,6 +26,7 @@ public static class MoneyMentorTelemetry
     public static readonly Counter<long> JevRequests = Meter.CreateCounter<long>("spndrr.jev.requests");
     public static readonly Histogram<double> JevRequestDuration = Meter.CreateHistogram<double>("spndrr.jev.request.duration", "ms");
     public static readonly Counter<long> Categorization = Meter.CreateCounter<long>("spndrr.capture.categorization");
+    public static readonly Counter<long> JudgmentDecisions = Meter.CreateCounter<long>("spndrr.judgement.decisions");
     public static readonly Counter<long> LlmRequests = Meter.CreateCounter<long>("spndrr.llm.requests");
     public static readonly Histogram<double> LlmRequestDuration = Meter.CreateHistogram<double>("spndrr.llm.request.duration", "ms");
     public static readonly Counter<long> LlmInputTokens = Meter.CreateCounter<long>("spndrr.llm.input_tokens");

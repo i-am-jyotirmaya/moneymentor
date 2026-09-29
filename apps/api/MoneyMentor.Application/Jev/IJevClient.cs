@@ -11,7 +11,7 @@ public interface IJevClient
     Task<JevDecision> DecideAsync(
         object state,
         IReadOnlyDictionary<string, JevQuestion> questions,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken, string operation = "categorization");
 }
 
 public sealed record JevQuestion(string Type, string Instructions, object? Criteria = null)
@@ -25,8 +25,10 @@ public sealed record JevQuestion(string Type, string Instructions, object? Crite
     public static JevQuestion Noul(string instructions) => new("noul", instructions);
 }
 
-public sealed class JevDecision(JsonElement answers)
+public sealed class JevDecision(JsonElement answers, string? model = null)
 {
+    public string? Model { get; } = model;
+
     public bool TryGetChoice(string question, out string choice, out double confidence)
     {
         choice = string.Empty;

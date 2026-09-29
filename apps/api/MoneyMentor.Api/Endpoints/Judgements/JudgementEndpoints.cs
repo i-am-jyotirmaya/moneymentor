@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.AspNetCore.Mvc;
 using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Judgements;
@@ -35,6 +36,13 @@ public static class JudgementEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status404NotFound);
+
+        group.MapPost("/{judgementId:guid}/explanations", ExplainAsync)
+            .WithName("ExplainJudgement")
+            .Produces(StatusCodes.Status202Accepted)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesValidationProblem();
 
         return group;
     }
@@ -89,13 +97,31 @@ public static class JudgementEndpoints
         return dismissed ? Results.NoContent() : Results.NotFound();
     }
 
+    private static async Task<IResult> ExplainAsync(
+        Guid judgementId,
+        JudgmentExplanationRequest request,
+        HttpContext httpContext,
+        IAppUserProfileService appUserProfileService,
+        [FromServices] IJudgmentFeedbackService feedbackService,
+        CancellationToken cancellationToken)
+    {
+        var userContext = await ResolveContextAsync(httpContext, appUserProfileService, cancellationToken);
+        if (userContext is null) return Results.Unauthorized();
+        if (string.IsNullOrWhiteSpace(request.Text) || request.Text.Trim().Length is < 5 or > 2000)
+            return EndpointValidation.ValidationProblem(nameof(request.Text), "Explanation must be 5 to 2000 characters.");
+        if (request.ValidUntil is DateTimeOffset until &&
+            (until <= DateTimeOffset.UtcNow || until > DateTimeOffset.UtcNow.AddYears(2)))
+            return EndpointValidation.ValidationProblem(nameof(request.ValidUntil), "ValidUntil must be within two years.");
+        var feedbackId = await feedbackService.RecordAsync(userContext, judgementId, request, cancellationToken);
+        return feedbackId is Guid id ? Results.Accepted(value: new { feedbackId = id }) : Results.NotFound();
+    }
+
     private static async Task<IResult> ListActiveAsync(
         HttpContext httpContext,
         IAppUserProfileService appUserProfileService,
         IJudgementReportService reportService,
         Guid? householdId,
         string? scope,
-        string? cadence,
         CancellationToken cancellationToken)
     {
         if (!Enum.TryParse(scope ?? nameof(JudgementReportScope.Personal), true, out JudgementReportScope parsedScope)
@@ -103,15 +129,6 @@ public static class JudgementEndpoints
         {
             return EndpointValidation.ValidationProblem(nameof(scope), "Scope must be Personal or Household.");
         }
-        if (!Enum.TryParse(cadence ?? nameof(JudgementReportCadence.Monthly), true, out JudgementReportCadence parsedCadence)
-            || !Enum.IsDefined(parsedCadence)
-            || parsedCadence == JudgementReportCadence.Quarterly)
-        {
-            return EndpointValidation.ValidationProblem(
-                nameof(cadence),
-                "Cadence must be Weekly or Monthly. Quarterly is not enabled.");
-        }
-
         var userContext = await ResolveContextAsync(httpContext, appUserProfileService, cancellationToken);
         if (userContext is null)
         {
@@ -121,7 +138,7 @@ public static class JudgementEndpoints
         try
         {
             return Results.Ok(await reportService.ListActiveAsync(
-                new JudgementReportRequest(userContext, householdId, parsedScope, parsedCadence),
+                new JudgementReportRequest(userContext, householdId, parsedScope, JudgementReportCadence.Weekly),
                 cancellationToken));
         }
         catch (HouseholdNotFoundException)

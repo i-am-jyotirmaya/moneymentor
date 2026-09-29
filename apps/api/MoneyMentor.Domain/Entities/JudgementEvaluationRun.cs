@@ -5,7 +5,9 @@ namespace MoneyMentor.Domain.Entities;
 public sealed class JudgementEvaluationRun
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid SpendingSummaryId { get; set; }
+    public Guid? SpendingSummaryId { get; set; }
+    public Guid? CandidateId { get; set; }
+    public string? ContextSnapshotJson { get; set; }
     public Guid? JudgementWorkItemId { get; set; }
     public JudgementWorkStage Stage { get; set; }
     public int AttemptNumber { get; set; } = 1;

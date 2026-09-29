@@ -50,6 +50,22 @@ public sealed class ProviderCallMeasurement : IDisposable
         MoneyMentorTelemetry.LlmOutputTokens.Add(output, tags);
     }
 
+    public void RecordOpenAiEmbeddingUsage(JsonElement root)
+    {
+        if (provider != "openai") return;
+        var tags = new KeyValuePair<string, object?>("operation", operation);
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("usage", out var usage)
+            || usage.ValueKind != JsonValueKind.Object
+            || !TryReadTokens(usage, "prompt_tokens", out var input))
+        {
+            MoneyMentorTelemetry.LlmUsageMissing.Add(1, tags);
+            return;
+        }
+
+        MoneyMentorTelemetry.LlmInputTokens.Add(input, tags);
+    }
+
     private static bool TryReadTokens(JsonElement usage, string name, out long value)
     {
         value = 0;

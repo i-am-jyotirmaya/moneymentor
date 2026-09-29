@@ -19,7 +19,7 @@ namespace MoneyMentor.Api.IntegrationTests;
 
 public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17.5-alpine")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("pgvector/pgvector:0.8.6-pg17")
         .WithDatabase("moneymentor_tests")
         .WithUsername("moneymentor")
         .WithPassword("moneymentor-tests")
@@ -204,10 +204,7 @@ public sealed class LocalCorsProductionApiFactory(string connectionString) : Web
                 ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000",
                 ["CORS_ALLOW_LOCALHOST"] = "true",
                 ["Product:PublicWebUrl"] = "https://app.moneymentor.test",
-                ["Product:SupportEmail"] = "support@moneymentor.test",
-                ["JudgementReports:SchedulerEnabled"] = "false",
-                ["JudgementReports:CalculationWorkerEnabled"] = "false",
-                ["JudgementReports:NarrationWorkerEnabled"] = "false"
+                ["Product:SupportEmail"] = "support@moneymentor.test"
             });
     }
 }

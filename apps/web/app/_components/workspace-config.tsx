@@ -25,7 +25,7 @@ export const navItems: Array<{
   { section: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { section: "assistant", label: "Assistant", icon: Bot },
   { section: "transactions", label: "Transactions", icon: ReceiptText },
-  { section: "reports", label: "Reports", icon: BarChart3 },
+  { section: "reports", label: "Judgments", icon: BarChart3 },
   { section: "planning", label: "Planning", icon: Flag },
   { section: "household", label: "Household", icon: Users },
   { section: "settings", label: "Settings", icon: Settings },

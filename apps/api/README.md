@@ -12,7 +12,7 @@ For end-to-end setup start with the [root README](../../README.md). For producti
 | `MoneyMentor.Application` | Use cases, orchestration, DTOs, interfaces, parsing, deterministic calculations |
 | `MoneyMentor.Domain` | Persistence-friendly entities, enums, and domain rules; no infrastructure dependency |
 | `MoneyMentor.Infrastructure` | EF Core/Npgsql, Identity, repositories, provider clients, background workers |
-| `MoneyMentor.Operations` | One-shot migrations, audited entitlement changes, judgement-report backfills |
+| `MoneyMentor.Operations` | One-shot migrations and audited entitlement changes |
 | `MoneyMentor.Application.Tests` | Unit tests for parsing, calculations, policies, and workflows |
 | `MoneyMentor.Api.IntegrationTests` | Real API + Testcontainers PostgreSQL integration tests |
 
@@ -70,7 +70,7 @@ All finance routes require bearer authentication unless stated otherwise.
 | Goals | goal list/detail/create/update, contributions, planning runs, version customization/review/activation, participant consent |
 | Commitments | `GET/POST /api/commitments`, `PATCH /api/commitments/{id}` |
 | Judgements | `GET /api/judgements`, `GET /active`, `POST /{id}/dismiss` |
-| Reports | `GET /api/judgement-reports`, `GET /api/judgement-reports/history` |
+| Historical report snapshots | `GET /api/judgement-reports`, `GET /api/judgement-reports/history` |
 | Privacy | `POST /api/privacy/consents`, `GET /export`, `DELETE /account` |
 
 The development environment exposes `/openapi/v1.json`. Production deliberately does not expose the OpenAPI document or a Swagger UI.
@@ -139,13 +139,6 @@ Audited plan changes:
 ```bash
 dotnet run --project apps/api/MoneyMentor.Operations -- entitlement grant --email person@example.com --operator operator-name --reason "Beta access"
 dotnet run --project apps/api/MoneyMentor.Operations -- entitlement revoke --email person@example.com --operator operator-name --reason "Beta access ended"
-```
-
-Report backfill defaults to a dry run:
-
-```bash
-dotnet run --project apps/api/MoneyMentor.Operations -- judgement-reports backfill --dry-run true
-dotnet run --project apps/api/MoneyMentor.Operations -- judgement-reports backfill --dry-run false
 ```
 
 The same executable is embedded in the API image at `/app/operations`. The EC2 Compose migration service uses that exact release image; see [deploy/README.md](../../deploy/README.md).

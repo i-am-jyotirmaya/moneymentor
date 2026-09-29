@@ -36,9 +36,9 @@ public sealed class MonthlyDashboardBuilder
             ? decimal.Round(invested / income * 100m, 1)
             : null;
         var categories = BuildCategorySummaries(expenses, spends);
-        var judgements = persistedJudgements is { Count: > 0 }
-            ? persistedJudgements
-            : BuildJudgements(categories, income, spends, savingsRate);
+        // Silence is a valid outcome of the contextual gate. Do not manufacture
+        // dashboard judgments from generic percentages when it stays quiet.
+        var judgements = persistedJudgements ?? [];
 
         return new MonthlyDashboardModel(
             $"{periodStart.Year:D4}-{periodStart.Month:D2}",
@@ -100,66 +100,6 @@ public sealed class MonthlyDashboardBuilder
             .OrderByDescending(category => category.Amount)
             .ThenBy(category => category.Name)
             .ToArray();
-    }
-
-    private static IReadOnlyCollection<DashboardJudgementModel> BuildJudgements(
-        IReadOnlyCollection<CategorySpendSummaryModel> categories,
-        decimal income,
-        decimal spends,
-        decimal? savingsRate)
-    {
-        if (income == 0m && spends == 0m)
-        {
-            return
-            [
-                new DashboardJudgementModel(
-                    "No tracked data",
-                    SpendingJudgment.Watch,
-                    "0",
-                    "Track a few expenses this month and MoneyMentor will start showing useful patterns.")
-            ];
-        }
-
-        var judgements = new List<DashboardJudgementModel>();
-
-        if (savingsRate is not null)
-        {
-            var savingsTone = savingsRate.Value switch
-            {
-                >= 30m => SpendingJudgment.Healthy,
-                >= 10m => SpendingJudgment.Watch,
-                _ => SpendingJudgment.NeedsAttention
-            };
-
-            judgements.Add(new DashboardJudgementModel(
-                savingsTone == SpendingJudgment.Healthy ? "Healthy" : "Savings watch",
-                savingsTone,
-                $"{savingsRate:0.#}%",
-                savingsTone == SpendingJudgment.Healthy
-                    ? "Your savings rate is strong based on tracked income and spending."
-                    : "Your savings rate is worth watching based on tracked income and spending."));
-        }
-
-        var topCategory = categories.FirstOrDefault();
-        if (topCategory is not null)
-        {
-            judgements.Add(new DashboardJudgementModel(
-                topCategory.Tone == SpendingJudgment.NeedsAttention ? "Needs attention" : "Top category",
-                topCategory.Tone,
-                topCategory.Name,
-                $"{topCategory.Name} is currently your largest tracked expense category this month."));
-        }
-
-        if (spends > 0m && income == 0m)
-        {
-            judgements.Add(new DashboardJudgementModel(
-                "Income missing",
-                SpendingJudgment.Watch,
-                "No income",
-                "Spending is tracked, but income is not available for this month yet."));
-        }
-
-        return judgements;
     }
 
     private static IReadOnlyCollection<DashboardInsightModel> BuildInsights(

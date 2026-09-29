@@ -4,6 +4,7 @@ using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Transactions;
 using MoneyMentor.Application.Telemetry;
+using MoneyMentor.Application.Privacy;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Categories;
@@ -15,7 +16,8 @@ namespace MoneyMentor.Infrastructure.Transactions;
 internal sealed class PostgresTransactionService(
     MoneyMentorDbContext dbContext,
     IHouseholdAccessService householdAccessService,
-    IJudgementReportRecalculationQueue judgementReportRecalculationQueue,
+    DailyFinancialFactStore dailyFinancialFactStore,
+    MerchantResolver merchantResolver,
     JevTransactionCategorizer categorizer,
     TimeProvider timeProvider) : ITransactionService
 {
@@ -31,17 +33,17 @@ internal sealed class PostgresTransactionService(
             command.RequestedHouseholdId,
             requireWrite: true,
             cancellationToken);
-        var categoryName = await categorizer.CategorizeAsync(
-            CategoryType.Expense,
-            command.Draft.Description,
-            command.Draft.MerchantName,
-            command.Draft.SourceText,
-            command.Draft.CategoryGuess,
-            cancellationToken);
+        var categoryName = await HasCurrentAiConsentAsync(command.UserContext.UserProfileId, cancellationToken)
+            ? await categorizer.CategorizeAsync(
+                CategoryType.Expense, command.Draft.Description, command.Draft.MerchantName,
+                command.Draft.SourceText, command.Draft.CategoryGuess, cancellationToken)
+            : command.Draft.CategoryGuess;
         var categoryId = await GetOrCreateCategoryIdAsync(
             categoryName,
             CategoryType.Expense,
             cancellationToken);
+        var merchantName = NormalizeOptional(command.Draft.MerchantName);
+        var merchantId = await merchantResolver.ResolveAsync(householdAccess.HouseholdId, merchantName, cancellationToken);
         var now = timeProvider.GetUtcNow();
 
         var transaction = new Transaction
@@ -51,7 +53,8 @@ internal sealed class PostgresTransactionService(
             Amount = command.Draft.Amount!.Value,
             Type = TransactionType.Expense,
             CategoryId = categoryId,
-            MerchantName = NormalizeOptional(command.Draft.MerchantName),
+            MerchantName = merchantName,
+            MerchantId = merchantId,
             Description = NormalizeOptional(command.Draft.Description),
             SourceText = command.Draft.SourceText,
             TransactionDate = command.Draft.TransactionDate ?? command.UserContext.CurrentDate,
@@ -64,8 +67,7 @@ internal sealed class PostgresTransactionService(
         };
 
         dbContext.Transactions.Add(transaction);
-        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("created", "expense");
 
         return await MapTransactionAsync(
@@ -83,18 +85,17 @@ internal sealed class PostgresTransactionService(
             command.RequestedHouseholdId,
             requireWrite: true,
             cancellationToken);
-        var categoryName = await categorizer.CategorizeAsync(
-            CategoryType.Income,
-            command.Draft.Reason,
-            command.Draft.SenderName,
-            command.Draft.SourceText,
-            GetIncomeCategoryName(command.Draft.Reason),
-            cancellationToken);
+        var categoryName = await HasCurrentAiConsentAsync(command.UserContext.UserProfileId, cancellationToken)
+            ? await categorizer.CategorizeAsync(
+                CategoryType.Income, command.Draft.Reason, command.Draft.SenderName,
+                command.Draft.SourceText, GetIncomeCategoryName(command.Draft.Reason), cancellationToken)
+            : GetIncomeCategoryName(command.Draft.Reason);
         var categoryId = await GetOrCreateCategoryIdAsync(
             categoryName,
             CategoryType.Income,
             cancellationToken);
         var now = timeProvider.GetUtcNow();
+        var senderName = NormalizeOptional(command.Draft.SenderName);
 
         var transaction = new Transaction
         {
@@ -105,7 +106,7 @@ internal sealed class PostgresTransactionService(
             CategoryId = categoryId,
             // The existing schema stores a generic counterparty in MerchantName.
             // Income-facing contracts project this value as SenderName instead.
-            MerchantName = NormalizeOptional(command.Draft.SenderName),
+            MerchantName = senderName,
             Description = NormalizeOptional(command.Draft.Reason),
             SourceText = command.Draft.SourceText,
             TransactionDate = command.Draft.TransactionDate ?? command.UserContext.CurrentDate,
@@ -118,8 +119,7 @@ internal sealed class PostgresTransactionService(
         };
 
         dbContext.Transactions.Add(transaction);
-        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("created", "income");
 
         return await MapTransactionAsync(
@@ -222,7 +222,7 @@ internal sealed class PostgresTransactionService(
             return null;
         }
 
-        var originalReportingSnapshot = ReportingSnapshot(transaction);
+        var originalTransactionDate = transaction.TransactionDate;
 
         var changes = new Dictionary<string, FieldChange>();
 
@@ -254,6 +254,8 @@ internal sealed class PostgresTransactionService(
         if (transaction.Type != TransactionType.Income && command.MerchantName is not null)
         {
             ApplyStringChange(changes, "merchantName", transaction.MerchantName, NormalizeOptional(command.MerchantName), value => transaction.MerchantName = value);
+            transaction.MerchantId = await merchantResolver.ResolveAsync(transaction.HouseholdId,
+                transaction.MerchantName, cancellationToken);
         }
 
         if (transaction.Type == TransactionType.Income && command.SenderName is not null)
@@ -303,10 +305,8 @@ internal sealed class PostgresTransactionService(
                 ChangedFieldsJson = JsonSerializer.Serialize(changes)
             });
 
-            await judgementReportRecalculationQueue.EnqueueAsync(
-                [originalReportingSnapshot, ReportingSnapshot(transaction)],
-                cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await SaveAndRebuildAsync(transaction.HouseholdId,
+                [originalTransactionDate, transaction.TransactionDate], cancellationToken);
             RecordLifecycle("updated", transaction.Type.ToString().ToLowerInvariant());
         }
 
@@ -336,8 +336,7 @@ internal sealed class PostgresTransactionService(
         transaction.UpdatedAt = now;
         transaction.UpdatedByUserProfileId = userContext.UserProfileId;
         AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", false, true);
-        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("deleted", transaction.Type.ToString().ToLowerInvariant());
         return await MapTransactionAsync(
             transaction,
@@ -367,8 +366,7 @@ internal sealed class PostgresTransactionService(
         transaction.UpdatedAt = now;
         transaction.UpdatedByUserProfileId = userContext.UserProfileId;
         AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", true, false);
-        await judgementReportRecalculationQueue.EnqueueAsync([ReportingSnapshot(transaction)], cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("restored", transaction.Type.ToString().ToLowerInvariant());
         return await MapTransactionAsync(
             transaction,
@@ -415,6 +413,16 @@ internal sealed class PostgresTransactionService(
         }
 
         return purged;
+    }
+
+    private async Task SaveAndRebuildAsync(Guid householdId, IEnumerable<DateOnly> dates,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        foreach (var date in dates.Distinct().Order())
+            await dailyFinancialFactStore.RebuildAsync(householdId, date, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private static void RecordLifecycle(string operation, string type) =>
@@ -629,11 +637,10 @@ internal sealed class PostgresTransactionService(
         apply(newValue);
     }
 
-    private static TransactionReportingSnapshot ReportingSnapshot(Transaction transaction) => new(
-        transaction.HouseholdId,
-        transaction.UserProfileId,
-        transaction.TransactionDate,
-        transaction.Visibility);
+    private Task<bool> HasCurrentAiConsentAsync(Guid userProfileId, CancellationToken cancellationToken) =>
+        dbContext.PrivacyConsents.AsNoTracking().AnyAsync(consent =>
+            consent.UserProfileId == userProfileId
+            && consent.PolicyVersion == PrivacyPolicy.CurrentVersion, cancellationToken);
 
     private async Task<string> GetHouseholdCurrencyAsync(Guid householdId, CancellationToken cancellationToken) =>
         await dbContext.Households.AsNoTracking()

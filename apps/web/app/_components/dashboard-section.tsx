@@ -61,7 +61,7 @@ export function DashboardSection({
 
       <nav aria-label="Dashboard actions" className="mb-5 flex flex-wrap gap-3">
         <Link href={`/assistant${query}`} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white">Track a transaction</Link>
-        <Link href={`/reports${query}`} className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold">Review reports</Link>
+        <Link href={`/reports${query}`} className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold">Review judgments</Link>
         <Link href={`/planning${query}`} className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold">Plan a goal</Link>
       </nav>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

@@ -989,17 +989,24 @@ test("slow workspace requests show skeletons and a loading bar", async ({ page }
   await expect(page.getByRole("progressbar", { name: "Loading page" })).toHaveCount(0);
 });
 
-test("report filters restore from URLs and browser history", async ({ page }) => {
-  await page.route("**/api/judgement-reports**", route => new URL(route.request().url()).pathname.endsWith("history") ? json(route, []) : route.fulfill({ status: 404, body: "No completed report" }));
-  await page.route("**/api/judgements/active**", route => json(route, []));
-  await page.goto("/reports?cadence=Monthly&scope=Personal");
-  await expect(page.getByRole("button", { name: "Monthly", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "Weekly", exact: true }).click();
-  await expect(page).toHaveURL(/cadence=Weekly/);
-  await page.goBack();
-  await expect(page.getByRole("button", { name: "Monthly", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await page.reload();
-  await expect(page.getByRole("button", { name: "Monthly", exact: true })).toHaveAttribute("aria-pressed", "true");
+test("contextual judgments can receive an explanation and be dismissed", async ({ page }) => {
+  const id = "11111111-1111-1111-1111-111111111111";
+  await page.route("**/api/judgements/active**", route => json(route, [{
+    id, title: "Merchant visits changed", value: "INR 400", message: "Four visits this week.",
+    decisionAction: "Ask", followUpQuestion: "Was this planned?",
+  }]));
+  await page.route(`**/api/judgements/${id}/explanations`, route => json(route, { feedbackId: id }));
+  await page.route(`**/api/judgements/${id}/dismiss`, route => route.fulfill({ status: 204 }));
+  await page.goto("/reports");
+  await expect(page.getByRole("heading", { name: "Judgments", exact: true })).toBeVisible();
+  await expect(page.getByText("Merchant visits changed")).toBeVisible();
+  await expect(page.getByText("Was this planned?")).toBeVisible();
+  await page.getByRole("button", { name: "Add context" }).click();
+  await page.getByLabel("Your explanation").fill("This was a planned work expense.");
+  await page.getByRole("button", { name: "Send explanation" }).click();
+  await expect(page.getByText(/saved for review/)).toBeVisible();
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await expect(page.getByText("Nothing needs your attention right now")).toBeVisible();
 });
 
 test("goal deep links load the selected goal", async ({ page }) => {

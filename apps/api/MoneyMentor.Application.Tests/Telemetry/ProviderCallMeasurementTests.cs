@@ -43,11 +43,20 @@ public sealed class ProviderCallMeasurementTests
             attempt.RecordOpenAiUsage(reply.RootElement);
             attempt.InvalidResponse();
         }
+        using (var attempt = new ProviderCallMeasurement("openai", "memory_embedding"))
+        {
+            using var reply = JsonDocument.Parse("""{"usage":{"prompt_tokens":17,"total_tokens":17}}""");
+            attempt.RecordOpenAiEmbeddingUsage(reply.RootElement);
+            attempt.Succeeded();
+        }
 
         Assert.Contains(samples, item => item is ("spndrr.llm.requests", 1, "narration", "http_429"));
         Assert.Contains(samples, item => item is ("spndrr.llm.requests", 1, "goal_plan", "invalid_response"));
         Assert.Contains(samples, item => item is ("spndrr.llm.input_tokens", 42, "narration", null));
         Assert.Contains(samples, item => item is ("spndrr.llm.output_tokens", 9, "narration", null));
         Assert.Contains(samples, item => item is ("spndrr.llm.usage_missing", 1, "goal_plan", null));
+        Assert.Contains(samples, item => item is ("spndrr.llm.input_tokens", 17, "memory_embedding", null));
+        Assert.DoesNotContain(samples, item => item.Name == "spndrr.llm.output_tokens"
+            && item.Operation == "memory_embedding");
     }
 }

@@ -30,6 +30,17 @@ public sealed class Judgement
 
     public Guid? SpendingSummaryId { get; set; }
 
+    public Guid? CandidateId { get; set; }
+    public JudgmentDecisionAction? DecisionAction { get; set; }
+    public decimal? Importance { get; set; }
+    public decimal? DecisionConfidence { get; set; }
+    public string? Reason { get; set; }
+    public string? FollowUpQuestion { get; set; }
+    public string? ContextSnapshotJson { get; set; }
+    public string? Provider { get; set; }
+    public string? Model { get; set; }
+    public string? DecisionSchemaVersion { get; set; }
+
     public Guid? ResolvingSummaryId { get; set; }
 
     public Guid? SupersedesJudgementId { get; set; }

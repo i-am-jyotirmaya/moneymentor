@@ -159,11 +159,8 @@ Resend__DispatcherEnabled=false
 Resend__RecoveryInterval=01:00:00
 Resend__ApiKey=
 OPENAI_API_KEY=
+JEV_API_KEY=
 OPENAI_SAFETY_IDENTIFIER_KEY=
-JudgementReports__SchedulerEnabled=false
-JudgementReports__CalculationWorkerEnabled=false
-JudgementReports__NarrationWorkerEnabled=false
-JudgementReports__MaxNarrationConcurrency=2
 ```
 
 Deterministic capture, dashboard totals, transaction management, and focused finance questions work with these integrations off.
@@ -397,7 +394,7 @@ The generic scripts under `ops/backups` create encrypted `pg_dump` backups with 
 - [ ] API has one replica.
 - [ ] Generated domains use `Secure=true` and `SameSite=None` cookies.
 - [ ] Web public variables were present during its build.
-- [ ] Resend/OpenAI/report workers are disabled unless intentionally configured and tested.
+- [ ] Resend/OpenAI integration settings are configured and tested as intended.
 - [ ] Owner Premium grant is audited and limited to the intended test account.
 - [ ] Both-user privacy, household visibility, and Viewer tests pass.
 - [ ] GitHub branch checks and Railway Wait for CI are enabled.

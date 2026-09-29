@@ -24,6 +24,12 @@ public sealed class MoneyMentorDbContext : DbContext
 
     public DbSet<Transaction> Transactions => Set<Transaction>();
 
+    public DbSet<DailyFinancialAggregate> DailyFinancialAggregates => Set<DailyFinancialAggregate>();
+
+    public DbSet<Merchant> Merchants => Set<Merchant>();
+
+    public DbSet<MerchantAlias> MerchantAliases => Set<MerchantAlias>();
+
     public DbSet<TransactionAuditEntry> TransactionAuditEntries => Set<TransactionAuditEntry>();
 
     public DbSet<AssistantSession> AssistantSessions => Set<AssistantSession>();
@@ -55,6 +61,12 @@ public sealed class MoneyMentorDbContext : DbContext
     public DbSet<JudgementRule> JudgementRules => Set<JudgementRule>();
 
     public DbSet<Judgement> Judgements => Set<Judgement>();
+
+    public DbSet<JudgmentCandidate> JudgmentCandidates => Set<JudgmentCandidate>();
+
+    public DbSet<FinancialContextMemory> FinancialContextMemories => Set<FinancialContextMemory>();
+
+    public DbSet<JudgmentFeedback> JudgmentFeedback => Set<JudgmentFeedback>();
 
     public DbSet<SpendingSummary> SpendingSummaries => Set<SpendingSummary>();
 

@@ -88,6 +88,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
         services.AddScoped<IAppUserProfileService, PostgresAppUserProfileService>();
         services.AddScoped<ITransactionService, PostgresTransactionService>();
+        services.AddScoped<MerchantResolver>();
         services.AddScoped<JevTransactionCategorizer>();
         services.Configure<JevOptions>(options =>
         {
@@ -104,24 +105,47 @@ public static class DependencyInjection
         services.AddScoped<ICategoryService, PostgresCategoryService>();
         services.AddScoped<IGoalService, PostgresGoalService>();
         services.AddScoped<IGoalFinancialSnapshotBuilder, PostgresGoalFinancialSnapshotBuilder>();
+        services.AddScoped<IGoalJudgmentSignalReader, PostgresGoalJudgmentSignalReader>();
         services.AddScoped<IGoalPlanningService, PostgresGoalPlanningService>();
         services.AddScoped<ICommitmentService, PostgresCommitmentService>();
         services.AddScoped<IJudgementService, PostgresJudgementService>();
+        services.AddScoped<IJudgmentFeedbackService, PostgresJudgmentFeedbackService>();
         services.AddScoped<IJudgementReportService, PostgresJudgementReportService>();
-        services.AddScoped<IJudgementReportWorkStore, PostgresJudgementReportWorkStore>();
-        services.AddScoped<IJudgementReportPipeline, PostgresJudgementReportPipeline>();
-        services.AddScoped<IJudgementReportRecalculationQueue, JudgementReportRecalculationQueue>();
+        services.AddScoped<DailyFinancialFactStore>();
+        services.AddScoped<JudgmentCandidateAnalysisService>();
+        services.AddScoped<JudgmentContextBuilder>();
+        services.AddScoped<FinancialMemoryStore>();
+        services.AddScoped<MemoryAdmissionService>();
+        services.AddSingleton<MemoryAdmissionWakeup>();
+        services.AddScoped<JevMemoryAdmissionClient>();
+        services.AddHttpClient<MemoryEmbeddingClient>((provider, client) =>
+        {
+            var llm = provider.GetRequiredService<IOptions<OpenAiGoalPlanningOptions>>().Value;
+            client.BaseAddress = new Uri("https://api.openai.com/v1/");
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(llm.TimeoutSeconds, 5, 120));
+        });
+        services.AddScoped<JudgmentDecisionService>();
+        services.AddSingleton<JudgmentDecisionWakeup>();
+        services.AddScoped<JevJudgmentGate>();
+        services.AddHttpClient<OpenAiCandidateExplanationClient>((provider, client) =>
+        {
+            var llm = provider.GetRequiredService<IOptions<OpenAiGoalPlanningOptions>>().Value;
+            client.BaseAddress = new Uri("https://api.openai.com/v1/");
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(llm.TimeoutSeconds, 5, 120));
+        });
+        services.AddOptions<CandidateDetectionOptions>()
+            .Bind(configuration.GetSection(CandidateDetectionOptions.SectionName))
+            .Validate(x => x.AnalysisIntervalHours is >= 1 and <= 168 &&
+                x.MinInterestingness is >= 0m and <= 1m && x.RepeatedSpendCount >= 2 &&
+                x.DeviationWeight + x.FrequencyWeight + x.GoalImpactWeight + x.SpendShareWeight + x.RecencyWeight == 1m)
+            .ValidateOnStart();
+        services.AddHostedService<JudgmentCandidateAnalysisWorker>();
+        services.AddHostedService<JudgmentDecisionWorker>();
+        services.AddHostedService<MemoryAdmissionWorker>();
         services.AddScoped<IFinanceTransactionReader, PostgresFinanceTransactionReader>();
         services.AddScoped<IPrivacyService, PostgresPrivacyService>();
         services.AddHostedService<DeletedTransactionPurgeService>();
         services.AddHostedService<CommitmentDueWorker>();
-        services.AddOptions<JudgementReportWorkerOptions>()
-            .Bind(configuration.GetSection(JudgementReportWorkerOptions.SectionName))
-            .ValidateOnStart();
-        services.AddSingleton<IValidateOptions<JudgementReportWorkerOptions>, JudgementReportWorkerOptionsValidator>();
-        services.AddHostedService<JudgementReportSchedulerWorker>();
-        services.AddHostedService<JudgementReportCalculationWorker>();
-        services.AddHostedService<JudgementReportNarrationWorker>();
         services.Configure<OpenAiGoalPlanningOptions>(options =>
         {
             configuration.GetSection(OpenAiGoalPlanningOptions.SectionName).Bind(options);
@@ -134,13 +158,6 @@ public static class DependencyInjection
         {
             var options = provider.GetRequiredService<
                 Microsoft.Extensions.Options.IOptions<OpenAiGoalPlanningOptions>>().Value;
-            client.BaseAddress = new Uri("https://api.openai.com/v1/");
-            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 120));
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("MoneyMentor/1.0");
-        });
-        services.AddHttpClient<IJudgementNarrationClient, OpenAiJudgementNarrationClient>((provider, client) =>
-        {
-            var options = provider.GetRequiredService<IOptions<OpenAiGoalPlanningOptions>>().Value;
             client.BaseAddress = new Uri("https://api.openai.com/v1/");
             client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 120));
             client.DefaultRequestHeaders.UserAgent.ParseAdd("MoneyMentor/1.0");

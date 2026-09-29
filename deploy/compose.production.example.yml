@@ -42,10 +42,6 @@ services:
       Jev__Model: ${JEV_MODEL:-jev-latest}
       OPENAI_SAFETY_IDENTIFIER_KEY: ${OPENAI_SAFETY_IDENTIFIER_KEY}
       OpenAI__Model: ${OPENAI_MODEL}
-      JudgementReports__SchedulerEnabled: ${JUDGEMENT_REPORT_SCHEDULER_ENABLED:-false}
-      JudgementReports__CalculationWorkerEnabled: ${JUDGEMENT_REPORT_CALCULATION_ENABLED:-false}
-      JudgementReports__NarrationWorkerEnabled: ${JUDGEMENT_REPORT_NARRATION_ENABLED:-false}
-      JudgementReports__MaxNarrationConcurrency: ${JUDGEMENT_REPORT_MAX_NARRATION_CONCURRENCY:-2}
       ReverseProxy__KnownProxies__0: ${KNOWN_PROXY_IP}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
     depends_on:

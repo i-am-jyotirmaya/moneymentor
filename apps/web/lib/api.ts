@@ -491,6 +491,9 @@ export type JudgementReportObservation = {
   resolvedAt: string | null;
   expiresAt: string;
   isDismissed: boolean;
+  decisionAction?: "Observe" | "Ask" | "Nudge" | "Ignore" | "Alert" | null;
+  followUpQuestion?: string | null;
+  importance?: number | null;
 };
 
 export type JudgementNarration = {
@@ -1161,6 +1164,14 @@ export function dismissJudgement(accessToken: string, judgementId: string) {
   });
 }
 
+export function explainJudgement(accessToken: string, judgementId: string, text: string) {
+  return apiRequest<{ feedbackId: string }>(`/api/judgements/${judgementId}/explanations`, {
+    accessToken,
+    method: "POST",
+    body: { text, shareWithHousehold: false },
+  });
+}
+
 export function getJudgementReport(
   accessToken: string,
   input: {
@@ -1201,10 +1212,11 @@ export function listActiveJudgements(
   input: {
     householdId: string;
     scope: JudgementReportScope;
-    cadence: JudgementReportCadence;
+    cadence?: JudgementReportCadence;
   },
 ) {
-  const params = judgementReportParams(input);
+  const params = new URLSearchParams({ householdId: input.householdId, scope: input.scope });
+  if (input.cadence) params.set("cadence", input.cadence);
   return apiRequest<JudgementReportObservation[]>(`/api/judgements/active?${params}`, {
     accessToken,
   });
