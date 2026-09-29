@@ -32,7 +32,8 @@ public sealed class TransactionEnrichmentContractTests
             Assert.False(string.IsNullOrWhiteSpace(criteria["false"]));
         }
 
-        using var json = JsonDocument.Parse(JsonSerializer.Serialize(questions));
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(questions,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)));
         Assert.Equal("Explicit spontaneous or unplanned purchase intent.",
             json.RootElement.GetProperty("impulse").GetProperty("criteria").GetProperty("true").GetString());
     }
