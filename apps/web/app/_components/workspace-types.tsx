@@ -65,6 +65,7 @@ export type SectionRenderProps = {
   householdNotice: string | null;
   inputMode: InputMode;
   isListening: boolean;
+  partialTranscript: string;
   isLoadingDashboard: boolean;
   isLoadingTransactions: boolean;
   isPrivacyWorking: boolean;

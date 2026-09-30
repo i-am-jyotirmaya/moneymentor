@@ -69,22 +69,31 @@ async function seedAuthSession(page: Page) {
   await page.addInitScript(() => undefined);
 }
 
-async function seedVoiceRecognition(page: Page) {
-  await page.addInitScript(() => {
-    const status = { active: false, stops: 0, aborts: 0 };
+async function seedVoiceRecognition(page: Page, local = true, availability = "available") {
+  await page.addInitScript(({ local, availability }) => {
+    const status = { active: false, stops: 0, aborts: 0, local: false, downloads: 0 };
     Object.assign(window, { __speechStatus: status });
     class FakeSpeechRecognition {
+      static availability = availability;
+      static async available() { return this.availability; }
+      static async install() { status.downloads++; this.availability = "available"; return true; }
+      processLocally?: boolean;
+      constructor() { if (local) this.processLocally = false; else delete this.processLocally; }
       continuous = false;
       interimResults = false;
       lang = "en-IN";
       onend: (() => void) | null = null;
       onerror: (() => void) | null = null;
-      onresult: ((event: { results: Array<Array<{ transcript: string }>> }) => void) | null = null;
+      onresult: ((event: { results: Array<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null = null;
 
       start() {
         status.active = true;
+        status.local = this.processLocally === true;
         window.setTimeout(() => {
-          this.onresult?.({ results: [[{ transcript: "swiggy dinner 540" }]] });
+          this.onresult?.({ results: [{ isFinal: false, 0: { transcript: "swiggy dinner" } }] });
+        }, 200);
+        window.setTimeout(() => {
+          this.onresult?.({ results: [{ isFinal: true, 0: { transcript: "swiggy dinner 540" } }] });
         }, 1200);
       }
 
@@ -105,7 +114,7 @@ async function seedVoiceRecognition(page: Page) {
       SpeechRecognition: FakeSpeechRecognition,
       webkitSpeechRecognition: FakeSpeechRecognition,
     });
-  });
+  }, { local, availability });
 }
 
 async function mockBackend(page: Page) {
@@ -797,7 +806,79 @@ test("voice interaction shows wave feedback and sends captured speech", async ({
   await expect(page.getByText("Tracked ₹540 for dinner")).toBeVisible({ timeout: 4000 });
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __speechStatus: { active: boolean; stops: number; aborts: number } }).__speechStatus,
-  )).toEqual({ active: false, stops: 1, aborts: 0 });
+  )).toEqual({ active: false, stops: 1, aborts: 0, local: true, downloads: 0 });
+});
+
+test("unsupported local speech asks before using system recognition", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
+  await seedVoiceRecognition(page, false);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByRole("dialog", { name: "Voice input" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __speechStatus: { active: boolean } }).__speechStatus.active)).toBe(false);
+  await page.getByRole("button", { name: "Use system speech once" }).click();
+  await expect(page.getByTestId("voice-wave")).toBeVisible();
+  await expect(page.getByText("Tracked ₹540 for dinner")).toBeVisible();
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByRole("dialog", { name: "Voice input" })).toBeVisible();
+  await page.getByRole("button", { name: "Keep typing" }).click();
+});
+
+test("system speech preference persists on this device and can be revoked", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
+  await seedVoiceRecognition(page, false);
+  await page.goto("/settings");
+  await page.getByLabel("Speech processing").selectOption("allow-system");
+  await page.reload();
+  await expect(page.getByLabel("Speech processing")).toHaveValue("allow-system");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByText("Tracked ₹540 for dinner")).toBeVisible();
+  await page.goto("/settings");
+  await page.getByLabel("Speech processing").selectOption("local-only");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByRole("dialog", { name: "Voice input" })).toBeVisible();
+});
+
+test("on-device language downloads require a click and never start recording automatically", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
+  await seedVoiceRecognition(page, true, "downloadable");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await page.getByRole("button", { name: "Download on-device language" }).click();
+  await expect(page.getByRole("dialog", { name: "Voice input" })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __speechStatus: { active: boolean } }).__speechStatus.active)).toBe(false);
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByText("Tracked ₹540 for dinner")).toBeVisible();
+});
+
+test("stopping interim speech never sends a partial expense", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
+  let submissions = 0;
+  page.on("request", request => { if (request.url().endsWith("/api/assistant/messages")) submissions++; });
+  await seedVoiceRecognition(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByTestId("voice-wave").getByText("swiggy dinner", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Stop voice input" }).click();
+  await expect(page.getByTestId("voice-wave")).toHaveCount(0);
+  await page.waitForTimeout(1300);
+  expect(submissions).toBe(0);
+});
+
+test("navigating away releases the microphone and discards late callbacks", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
+  let submissions = 0;
+  page.on("request", request => { if (request.url().endsWith("/api/assistant/messages")) submissions++; });
+  await seedVoiceRecognition(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByTestId("voice-wave")).toBeVisible();
+  await page.getByRole("link", { name: "Transactions", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __speechStatus: { active: boolean } }).__speechStatus.active)).toBe(false);
+  await page.waitForTimeout(1300);
+  expect(submissions).toBe(0);
 });
 
 async function json(route: Route, body: unknown) {
