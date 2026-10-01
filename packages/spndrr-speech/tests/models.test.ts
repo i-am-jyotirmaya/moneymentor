@@ -92,3 +92,17 @@ test("storage tampering is detected before model assets are loaded", async () =>
   assert.equal(await manager.verifyModel(manifest()), false);
   await assert.rejects(manager.loadModel(manifest()), /verify/);
 });
+
+
+test("explicit reinstall repairs corrupt files even when an installed marker exists", async () => {
+  const storage = new MemoryStorage();
+  let requests = 0;
+  const manager = new SpeechModelManager(storage, async () => { requests++; return new Response(audioModel); });
+  await manager.downloadModel(manifest());
+  const key = [...storage.values.keys()].find(key => key.includes("file/"))!;
+  await storage.put(key, { bytes: new Uint8Array(audioModel.length) });
+  await assert.rejects(manager.loadModel(manifest()), /verify/);
+  await manager.downloadModel(manifest());
+  assert.equal(requests, 2);
+  assert.equal(await manager.verifyModel(manifest()), true);
+});

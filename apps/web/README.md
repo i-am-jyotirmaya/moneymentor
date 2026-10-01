@@ -118,7 +118,7 @@ Both variables are public and are compiled into the client bundle. Never put API
 
 Production therefore requires exact API CORS configuration, HTTPS, and compatible cookie `SameSite` settings. For generated Railway web/API domains use the checked-in backend template's `SameSite=None`; custom sibling Spndrr domains can be tightened after testing.
 
-Voice uses the shared `packages/spndrr-speech` runtime. Settings defaults to on-device recognition, which requires browser support and an installed language. Unsupported devices offer an explicit once-only system-speech choice; system recognition may process audio remotely. Interim text is previewed and only a completed transcript is submitted with `inputMode: Voice`; Spndrr does not upload audio. Downloaded model inference is a later phase. See [Local speech runtime](../../docs/LOCAL_SPEECH_RUNTIME.md) for architecture, model lifecycle and rollout requirements.
+Voice uses the shared `packages/spndrr-speech` runtime. Settings defaults to on-device recognition, which requires browser support and an installed language. Unsupported devices offer an explicit once-only system-speech choice; system recognition may process audio remotely. Interim text is previewed and only a completed transcript is submitted with `inputMode: Voice`; Spndrr does not upload audio. Settings and the microphone prompt can explicitly download and select Whisper Tiny for local English / Hindi transcription. The model and inference runtime are verified and cached; utterance decoding stays on the device. Speak a sentence and pause, or press Stop to cancel. See [Local speech runtime](../../docs/LOCAL_SPEECH_RUNTIME.md) for architecture, model lifecycle and rollout requirements.
 
 ## Quality checks
 

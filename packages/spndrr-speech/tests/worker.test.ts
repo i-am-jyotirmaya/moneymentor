@@ -46,7 +46,7 @@ test("worker adapter ignores foreign sessions, applies backpressure, and unloads
   await turn();
   worker.send({ type: "event", sessionId: worker.sessionId, event: { type: "final", text: "spent 500" } });
   assert.equal((await result)?.text, "spent 500");
-  assert.deepEqual(events, ["partial", "final"]);
+  assert.deepEqual(events, ["recording", "partial", "final"]);
   assert.equal(capture.stopped, true);
   assert.equal(worker.terminated, true);
 });

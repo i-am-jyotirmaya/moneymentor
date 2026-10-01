@@ -5,7 +5,7 @@ import type { SpeechModelManifest } from "./models.ts";
 export type SpeechWorkerRequest =
   | { type: "load"; sessionId: string; manifest: SpeechModelManifest; options: TranscriptionOptions; files: { path: string; bytes: Uint8Array }[] }
   | { type: "audio"; sessionId: string; sequence: number; sampleRate: 16000; pcm: Float32Array }
-  | { type: "finish"; sessionId: string }
+  | { type: "finish"; sessionId: string; hasSpeech?: boolean }
   | { type: "dispose"; sessionId: string };
 export type SpeechWorkerResponse =
   | { type: "ready"; sessionId: string }

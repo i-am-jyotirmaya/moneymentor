@@ -8,3 +8,4 @@ export * from "./models.ts";
 export * from "./indexeddb-storage.ts";
 export * from "./worker-protocol.ts";
 export * from "./worker-provider.ts";
+export { whisperTiny, whisperModelBytes, speechRuntimeId } from "./catalog.ts";

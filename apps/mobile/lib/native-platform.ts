@@ -32,7 +32,7 @@ class NativeSystemTranscriptionProvider implements TranscriptionProvider {
   private pending = false;
 
   async initialize(options: TranscriptionOptions) {
-    if (options.privacy === "local-only") throw new SpeechError("privacy", "On-device model transcription is not installed in this app yet. You can keep typing.");
+    if (options.privacy === "local-only") throw new SpeechError("privacy", "The device speech provider cannot guarantee local processing. Download and select Whisper Tiny, or keep typing.");
     if (nativeOwner) throw new SpeechError("recognition", "The previous speech session is still closing. Try again shortly.");
     if (!(await SpeechRecognition.available()).available) throw new SpeechError("unavailable", "System speech is unavailable on this device.");
     if (this.disposed) return;
@@ -46,6 +46,8 @@ class NativeSystemTranscriptionProvider implements TranscriptionProvider {
 
   start(): AsyncIterable<TranscriptionEvent> {
     if (this.disposed || nativeOwner) throw new SpeechError("recognition", "The speech session is no longer available.");
+    // Track the instance that owns the global native plugin during asynchronous cleanup.
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     nativeOwner = this;
     this.pending = true;
     void this.listen();

@@ -9,6 +9,7 @@ export interface TranscriptionOptions {
 export type TranscriptionEvent =
   | { type: "partial"; text: string }
   | { type: "final"; text: string; language?: string }
+  | { type: "recording" }
   | { type: "speech-start" }
   | { type: "speech-end" };
 

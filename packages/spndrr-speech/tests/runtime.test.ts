@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BrowserTranscriptionProvider, LocalTranscriptionService, PcmResampler, SpeechEndpointDetector, SpeechEventStream, normalizeTranscript } from "../src/index.ts";
+import { BrowserPcmCapture, BrowserTranscriptionProvider, LocalTranscriptionService, PcmResampler, SpeechEndpointDetector, SpeechEventStream, normalizeTranscript } from "../src/index.ts";
 import type { BrowserRecognition, TranscriptionOptions, TranscriptionProvider } from "../src/index.ts";
 
 const options: TranscriptionOptions = { language: "en-IN", privacy: "local-only" };
@@ -150,4 +150,29 @@ test("endpoint detection ignores brief noise, ends after silence, and bounds sil
 
 test("normalization never guesses money values", () => {
   assert.equal(normalizeTranscript(" spent  four fifty at meghana "), "spent four fifty at meghana");
+});
+
+
+test("audio priming before model load requests no microphone and cancellation closes the context", async () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "AudioContext");
+  let contexts = 0, resumes = 0, closes = 0;
+  class Context {
+    state = "suspended";
+    constructor() { contexts++; }
+    async resume() { resumes++; this.state = "running"; }
+    async close() { closes++; this.state = "closed"; }
+  }
+  Object.defineProperty(globalThis, "AudioContext", { configurable: true, value: Context });
+  try {
+    const capture = new BrowserPcmCapture();
+    capture.prepareAudio();
+    await capture.dispose();
+    await capture.dispose();
+    assert.equal(contexts, 1);
+    assert.equal(resumes, 1);
+    assert.equal(closes, 1);
+  } finally {
+    if (original) Object.defineProperty(globalThis, "AudioContext", original);
+    else Reflect.deleteProperty(globalThis, "AudioContext");
+  }
 });

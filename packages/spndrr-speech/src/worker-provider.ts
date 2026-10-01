@@ -22,7 +22,7 @@ export class WorkerTranscriptionProvider implements TranscriptionProvider {
   readonly id: string;
   readonly model: string;
   readonly location = "local" as const;
-  private options: { id: string; manifest: SpeechModelManifest; models: SpeechModelManager; createWorker: () => SpeechInferenceWorker; workletUrl: string; capture?: PcmAudioSource };
+  private options: { id: string; manifest: SpeechModelManifest; models: SpeechModelManager; createWorker: () => SpeechInferenceWorker | Promise<SpeechInferenceWorker>; workletUrl: string; capture?: PcmAudioSource };
   private stream = new SpeechEventStream();
   private capture: PcmAudioSource;
   private worker?: SpeechInferenceWorker;
@@ -39,6 +39,7 @@ export class WorkerTranscriptionProvider implements TranscriptionProvider {
   private queued: Float32Array[] = [];
   private queuedSamples = 0;
   private finishing = false;
+  private heardSpeech = false;
   private failed = false;
   private finishTimer?: ReturnType<typeof setTimeout>;
 
@@ -53,13 +54,16 @@ export class WorkerTranscriptionProvider implements TranscriptionProvider {
     const { manifest, models } = this.options;
     if (!manifest.languages.includes(options.language) && !manifest.languages.includes(options.language.split("-")[0])) throw new SpeechError("unavailable", "This model does not support the selected speech language.");
     if (!await models.isModelInstalled(manifest)) throw new SpeechError("download-required", "Download this speech model before recording.");
-    const files = await models.loadModel(manifest);
+    let files;
+    try { files = await models.loadModel(manifest); }
+    catch { throw new SpeechError("download-required", "This speech model is missing or damaged. Reinstall it before recording."); }
     if (this.disposed) return;
-    const worker = this.options.createWorker();
+    const worker = await this.options.createWorker();
+    if (this.disposed) { worker.terminate(); return; }
     this.worker = worker;
     await new Promise<void>((resolve, reject) => {
       this.rejectReady = reject;
-      this.readyTimer = setTimeout(() => reject(new SpeechError("recognition", "The local speech model took too long to load.")), 30000);
+      this.readyTimer = setTimeout(() => reject(new SpeechError("recognition", "The local speech model took too long to load.")), 90000);
       worker.onmessage = ({ data }) => {
         if (this.disposed || data.sessionId !== this.sessionId) return;
         if (data.type === "ready") {
@@ -92,13 +96,14 @@ export class WorkerTranscriptionProvider implements TranscriptionProvider {
       this.queued.push(pcm);
       this.queuedSamples += pcm.length;
       const endpoint = this.endpoint.process(pcm);
+      if (endpoint === "speech-start") this.heardSpeech = true;
       if (endpoint) this.stream.push({ type: endpoint });
       if (endpoint === "speech-end") {
         this.finishing = true;
         void this.capture.dispose().catch(() => {});
       }
       this.pump();
-    }).catch(error => { if (!this.disposed) this.fail(error instanceof Error ? error : new Error("Local microphone capture failed.")); });
+    }).then(() => { if (!this.disposed && !this.finishing) this.stream.push({ type: "recording" }); }).catch(error => { if (!this.disposed) this.fail(error instanceof Error ? error : new Error("Local microphone capture failed.")); });
     return this.stream;
   }
 
@@ -112,8 +117,8 @@ export class WorkerTranscriptionProvider implements TranscriptionProvider {
         this.ackTimer = setTimeout(() => this.fail(new SpeechError("recognition", "The local speech model stopped accepting audio.")), 5000);
         this.worker.postMessage({ type: "audio", sessionId: this.sessionId, sequence: this.waiting, sampleRate: 16000, pcm }, [pcm.buffer as ArrayBuffer]);
       } else if (this.finishing && !this.finishTimer) {
-        this.finishTimer = setTimeout(() => this.fail(new SpeechError("recognition", "The local model could not complete this transcript.")), 10000);
-        this.worker.postMessage({ type: "finish", sessionId: this.sessionId });
+        this.finishTimer = setTimeout(() => this.fail(new SpeechError("recognition", "The local model could not complete this transcript.")), 90000);
+        this.worker.postMessage({ type: "finish", sessionId: this.sessionId, hasSpeech: this.heardSpeech });
       }
     } catch (error) { this.fail(error instanceof Error ? error : new Error("Speech worker messaging failed.")); }
   }
