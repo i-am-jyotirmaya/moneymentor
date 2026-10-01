@@ -1,6 +1,7 @@
 "use client";
 import { SectionSkeleton } from "./loading-ui";
 import { CategoryPicker } from "./category-picker";
+import { Dropdown } from "./dropdown";
 
 import type {
   CategoryCatalogResponse,
@@ -355,21 +356,19 @@ export function TransactionEditModal({
               value={editForm.transactionDate}
             />
           </Field>
-          <Field label="Visibility">
-            <select
-              className="form-control"
-              onChange={(event) =>
-                onEditFormChange({
-                  ...editForm,
-                  visibility: event.target.value as TransactionVisibility,
-                })
-              }
-              value={editForm.visibility}
-            >
-              <option value="Private">Private</option>
-              <option value="Household">Household</option>
-            </select>
-          </Field>
+          <Dropdown
+            disabled={isSaving}
+            label="Visibility"
+            onChange={(value) => onEditFormChange({
+              ...editForm,
+              visibility: value as TransactionVisibility,
+            })}
+            options={[
+              { value: "Private", label: "Private" },
+              { value: "Household", label: "Household" },
+            ]}
+            value={editForm.visibility}
+          />
         </div>
 
         <div className="shrink-0 border-t border-[var(--border)] bg-white px-5 py-4">
