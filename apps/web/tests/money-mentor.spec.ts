@@ -65,6 +65,22 @@ const baseTransactions = [
   }),
 ];
 
+const categoryCatalog = [
+  { id: "housing", name: "Housing", parentCategoryId: null, type: "Expense", sortOrder: 100 },
+  { id: "rent", name: "Rent", parentCategoryId: "housing", type: "Expense", sortOrder: 101 },
+  { id: "dining", name: "Dining & Lifestyle", parentCategoryId: null, type: "Expense", sortOrder: 400 },
+  { id: "restaurants", name: "Restaurants", parentCategoryId: "dining", type: "Expense", sortOrder: 401 },
+  { id: "custom-dining", name: "Date Night", parentCategoryId: "dining", type: "Expense", sortOrder: 402, householdId: "44444444-4444-4444-8444-444444444444" },
+  { id: "hidden", name: "Hidden category", parentCategoryId: "dining", type: "Expense", sortOrder: 403, isHidden: true },
+  { id: "hidden-group", name: "Hidden group", parentCategoryId: null, type: "Expense", sortOrder: 450, isHidden: true },
+  { id: "hidden-child", name: "Hidden child", parentCategoryId: "hidden-group", type: "Expense", sortOrder: 451 },
+  { id: "income", name: "Income", parentCategoryId: null, type: "Income", sortOrder: 10 },
+  { id: "salary", name: "Salary / Wages", parentCategoryId: "income", type: "Income", sortOrder: 11 },
+].map((category) => ({
+  householdId: null as string | null, isHidden: false, classification: "Discretionary",
+  isSystemCategory: true, icon: null, createdAt: "2026-01-01T00:00:00Z", ...category,
+}));
+
 async function seedAuthSession(page: Page) {
   await page.addInitScript(() => undefined);
 }
@@ -238,9 +254,12 @@ async function mockBackend(page: Page) {
         return;
       }
 
+      const categoryId = (body as { categoryId?: string }).categoryId;
+      const category = categoryCatalog.find((item) => item.id === categoryId);
       transactions[index] = {
         ...transactions[index],
         ...body,
+        ...(category ? { categoryName: category.name } : {}),
         updatedAt: new Date().toISOString(),
       };
       await json(route, transactions[index]);
@@ -282,7 +301,7 @@ async function mockBackend(page: Page) {
       await json(route, {
         householdId: url.searchParams.get("householdId"),
         canWrite: true,
-        categories: [],
+        categories: categoryCatalog,
       });
       return;
     }
@@ -664,6 +683,9 @@ test("assistant tracks income with sender and reason terminology", async ({ page
   await expect(editor.getByLabel("Sender")).toHaveValue("Joe");
   await expect(editor.getByLabel("Reason")).toHaveValue("chips");
   await expect(editor.getByLabel("Merchant")).toHaveCount(0);
+  const category = editor.getByRole("combobox", { name: "Category", exact: true });
+  await expect(category.locator("option", { hasText: "Salary / Wages" })).toHaveCount(1);
+  await expect(category.locator('option[value="rent"]')).toHaveCount(0);
 });
 
 test("household invitations can be accepted and sent", async ({ page }, testInfo) => {
@@ -1017,4 +1039,48 @@ test("goal deep links load the selected goal", async ({ page }) => {
   await expect(page.locator("#goal-plan").getByText("Emergency reserve", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.locator("#goal-plan").getByText("Emergency reserve", { exact: true })).toBeVisible();
+});
+
+
+test("category dropdown searches the hierarchy and saves a household category by ID", async ({ page }) => {
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  const category = editor.getByRole("combobox", { name: "Category", exact: true });
+  await expect(category).toBeVisible();
+  await expect(category.locator("option", { hasText: "Hidden" })).toHaveCount(0);
+  await expect(category.locator("option", { hasText: "Salary" })).toHaveCount(0);
+  await editor.getByRole("searchbox", { name: "Search categories" }).fill("DINING");
+  await expect(category.locator("option", { hasText: "Dining & Lifestyle › Restaurants" })).toHaveCount(1);
+  await expect(category.locator("option", { hasText: "Housing" })).toHaveCount(0);
+  await editor.getByRole("searchbox", { name: "Search categories" }).fill("date");
+  await category.selectOption("custom-dining");
+  await expect(editor.getByRole("searchbox")).toHaveValue("");
+  const request = page.waitForRequest((request) => request.method() === "PATCH" && request.url().includes("/transactions/txn-previous-taxi"));
+  await editor.getByRole("button", { name: "Save transaction" }).click();
+  expect((await request).postDataJSON()).toMatchObject({ categoryId: "custom-dining" });
+  expect((await request).postDataJSON()).not.toHaveProperty("categoryName");
+  await expect(editor).toHaveCount(0);
+  await expect(page.locator("article").filter({ has: page.getByRole("button", { name: "Edit transaction Previous month taxi" }) }).last()).toContainText("Date Night");
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  await expect(category).toHaveValue("custom-dining");
+  await editor.getByRole("searchbox", { name: "Search categories" }).fill("housing");
+  await expect(category).toHaveValue("custom-dining");
+});
+
+test("searching categories does not overwrite a legacy category or submit search text", async ({ page }) => {
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  await editor.getByRole("searchbox", { name: "Search categories" }).fill("not a category");
+  await expect(editor.getByText("No matching categories. Try another search.")).toBeVisible();
+  await expect(editor.getByRole("combobox", { name: "Category", exact: true })).toHaveValue("");
+  await editor.getByLabel("Amount").fill("500");
+  const request = page.waitForRequest((request) => request.method() === "PATCH" && request.url().includes("/transactions/txn-previous-taxi"));
+  await editor.getByRole("button", { name: "Save transaction" }).click();
+  const body = (await request).postDataJSON();
+  expect(body).toMatchObject({ amount: 500 });
+  expect(body).not.toHaveProperty("categoryName");
+  expect(body).not.toHaveProperty("categoryId");
+  await expect(editor).toHaveCount(0);
 });

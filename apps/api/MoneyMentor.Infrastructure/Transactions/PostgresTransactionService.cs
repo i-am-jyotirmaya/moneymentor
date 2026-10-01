@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MoneyMentor.Application.AppUsers;
+using MoneyMentor.Application.Categories;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Transactions;
 using MoneyMentor.Application.Telemetry;
@@ -232,16 +233,36 @@ internal sealed class PostgresTransactionService(
             transaction.Amount = command.Amount.Value;
         }
 
-        if (command.CategoryName is not null)
+        if (command.CategoryId is not null || command.CategoryName is not null)
         {
-            var categoryName = NormalizeOptional(command.CategoryName);
             var categoryType = transaction.Type == TransactionType.Income
                 ? CategoryType.Income
                 : CategoryType.Expense;
-            var newCategoryId = await GetOrCreateCategoryIdAsync(
-                categoryName,
-                categoryType,
-                cancellationToken);
+            Guid? newCategoryId;
+            string? categoryName;
+            if (command.CategoryId is not null)
+            {
+                var selectedCategory = await dbContext.Categories.AsNoTracking()
+                    .FirstOrDefaultAsync(category => category.Id == command.CategoryId.Value
+                        && (category.HouseholdId == null || category.HouseholdId == transaction.HouseholdId)
+                        && category.Type == categoryType && !category.IsHidden, cancellationToken)
+                    ?? throw new CategoryValidationException("Choose an available category for this transaction.");
+                if (selectedCategory.ParentCategoryId is not null && !await dbContext.Categories.AnyAsync(
+                    category => category.Id == selectedCategory.ParentCategoryId.Value && !category.IsHidden
+                        && (category.HouseholdId == null || category.HouseholdId == transaction.HouseholdId),
+                    cancellationToken))
+                {
+                    throw new CategoryValidationException("Choose a category from an available group.");
+                }
+                newCategoryId = selectedCategory.Id;
+                categoryName = selectedCategory.Name;
+            }
+            else
+            {
+                // Keep name-based updates compatible with existing clients.
+                categoryName = NormalizeOptional(command.CategoryName);
+                newCategoryId = await GetOrCreateCategoryIdAsync(categoryName, categoryType, cancellationToken);
+            }
             if (transaction.CategoryId != newCategoryId)
             {
                 changes["categoryName"] = new FieldChange(
@@ -593,6 +614,7 @@ internal sealed class PostgresTransactionService(
                         ? null
                         : userProfiles.GetValueOrDefault(transaction.UpdatedByUserProfileId.Value))
                 {
+                    CategoryId = transaction.CategoryId,
                     SenderName = transaction.Type == TransactionType.Income ? transaction.MerchantName : null,
                     Reason = transaction.Type == TransactionType.Income ? transaction.Description : null,
                     DeletedAt = transaction.DeletedAt,

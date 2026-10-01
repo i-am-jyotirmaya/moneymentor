@@ -91,6 +91,7 @@ export type IncomeDraft = {
 };
 
 export type TransactionListItem = {
+  categoryId?: string | null;
   id: string;
   householdId: string;
   userProfileId: string | null;
@@ -807,6 +808,7 @@ export function updateTransaction(
   transactionId: string,
   input: Partial<{
     amount: number;
+    categoryId: string;
     categoryName: string;
     merchantName: string;
     description: string;

@@ -607,7 +607,9 @@ export function useWorkspaceController() {
         selectedTransaction.id,
         {
           amount,
-          categoryName: editForm.categoryName,
+          ...(editForm.categoryId && editForm.categoryId !== selectedTransaction.categoryId
+            ? { categoryId: editForm.categoryId }
+            : {}),
           ...(selectedTransaction.type === "Income"
             ? { senderName: editForm.senderName, reason: editForm.reason }
             : {

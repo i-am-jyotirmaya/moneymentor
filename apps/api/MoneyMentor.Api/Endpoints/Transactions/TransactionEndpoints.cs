@@ -3,6 +3,7 @@ using MoneyMentor.Api.Endpoints;
 using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Transactions;
+using MoneyMentor.Application.Categories;
 using MoneyMentor.Domain.Enums;
 
 namespace MoneyMentor.Api.Endpoints.Transactions;
@@ -192,6 +193,7 @@ public static class TransactionEndpoints
                     request.TransactionDate,
                     visibility)
                 {
+                    CategoryId = request.CategoryId,
                     SenderName = request.SenderName,
                     Reason = request.Reason
                 },
@@ -200,6 +202,10 @@ public static class TransactionEndpoints
         catch (HouseholdWriteForbiddenException)
         {
             return Results.Forbid();
+        }
+        catch (CategoryValidationException ex)
+        {
+            return EndpointValidation.ValidationProblem("categoryId", ex.Message);
         }
 
         return transaction is null ? Results.NotFound() : Results.Ok(transaction);

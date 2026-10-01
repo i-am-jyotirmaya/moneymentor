@@ -1,7 +1,9 @@
 "use client";
 import { SectionSkeleton } from "./loading-ui";
+import { CategoryPicker } from "./category-picker";
 
 import type {
+  CategoryCatalogResponse,
   TransactionListItem,
   TransactionPageResponse,
   TransactionVisibility,
@@ -187,6 +189,7 @@ export function TransactionsSection({
 }
 
 export function TransactionEditModal({
+  categoryCatalog,
   editForm,
   isSaving,
   onClose,
@@ -194,6 +197,7 @@ export function TransactionEditModal({
   onSave,
   transaction,
 }: {
+  categoryCatalog: CategoryCatalogResponse | null;
   editForm: TransactionEditForm;
   isSaving: boolean;
   onClose: () => void;
@@ -270,18 +274,18 @@ export function TransactionEditModal({
               value={editForm.amount}
             />
           </Field>
-          <Field label="Category">
-            <input
-              className="form-control"
-              onChange={(event) =>
-                onEditFormChange({
-                  ...editForm,
-                  categoryName: event.target.value,
-                })
-              }
-              value={editForm.categoryName}
-            />
-          </Field>
+          <CategoryPicker
+            categories={categoryCatalog?.categories ?? []}
+            categoryId={editForm.categoryId}
+            categoryName={editForm.categoryName}
+            disabled={isSaving || !categoryCatalog}
+            onChange={(category) => onEditFormChange({
+              ...editForm,
+              categoryId: category.id,
+              categoryName: category.name,
+            })}
+            type={transaction.type}
+          />
           {isIncome ? (
             <>
               <Field label="Sender">

@@ -9,6 +9,7 @@ import { useState } from "react";
 
 export type TransactionEditForm = {
   amount: string;
+  categoryId: string | null;
   categoryName: string;
   merchantName: string;
   description: string;
