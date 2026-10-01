@@ -5,3 +5,6 @@ packages:
 allowBuilds:
   sharp: true
   unrs-resolver: true
+  esbuild: true
+  onnxruntime-node: false
+  protobufjs: false

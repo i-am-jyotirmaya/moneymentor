@@ -35,6 +35,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
     setInputMode,
     isSubmitting,
     isListening,
+    voicePhase,
     partialTranscript, voicePrompt, isInstallingVoice, cancelVoiceInput, installVoiceLanguage, useSystemVoiceOnce,
     messages,
     transactions,
@@ -199,6 +200,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
                   householdNotice,
                   inputMode,
                   isListening,
+                  voicePhase,
                   partialTranscript,
                   isLoadingDashboard,
                   isLoadingTransactions,
@@ -306,6 +308,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
           chatEndRef={chatEndRef}
           inputMode={inputMode}
           isListening={isListening}
+          voicePhase={voicePhase}
           partialTranscript={partialTranscript}
           isOpen={desktopAssistantOpen}
           isSubmitting={isSubmitting}

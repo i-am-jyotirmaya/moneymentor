@@ -179,7 +179,7 @@ export function useWorkspaceController() {
   const [error, setError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const {
-    isListening, partialTranscript, voicePrompt, isInstallingVoice,
+    isListening, voicePhase, partialTranscript, voicePrompt, isInstallingVoice,
     cancelVoiceInput, installVoiceLanguage, useSystemVoiceOnce,
     toggleVoiceInput: toggleSpeechInput,
   } = useSpeechInput(result => {
@@ -854,6 +854,7 @@ export function useWorkspaceController() {
     setInputMode,
     isSubmitting,
     isListening,
+    voicePhase,
     partialTranscript, voicePrompt, isInstallingVoice, cancelVoiceInput, installVoiceLanguage, useSystemVoiceOnce,
     messages,
     transactions,

@@ -1,5 +1,7 @@
 import { BrowserTranscriptionProvider, type SpeechPrivacy, type TranscriptionProvider } from "../../../packages/spndrr-speech/src/index";
 
+import { downloadedTranscriptionProvider } from "./speech/downloaded-model";
+
 type PlatformServices = {
   getTranscriptionProvider: (privacy: SpeechPrivacy) => TranscriptionProvider;
   saveExport: (blob: Blob, fileName: string) => Promise<void>;
@@ -12,7 +14,8 @@ export function configurePlatform(services: PlatformServices) {
   return () => { if (platformServices === services) platformServices = undefined; };
 }
 
-export function getTranscriptionProvider(privacy: SpeechPrivacy): TranscriptionProvider {
+export function getTranscriptionProvider(privacy: SpeechPrivacy, engine: "browser" | "whisper" = "browser"): TranscriptionProvider {
+  if (engine === "whisper") return downloadedTranscriptionProvider();
   if (platformServices) return platformServices.getTranscriptionProvider(privacy);
   return new BrowserTranscriptionProvider(privacy === "local-only");
 }

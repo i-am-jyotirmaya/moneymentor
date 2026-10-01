@@ -12,3 +12,6 @@ ios/DerivedData/
 
 *.jks
 *.keystore
+
+# Generated speech runtime assets
+/public/speech/whisper-wasm-*/

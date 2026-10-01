@@ -2,25 +2,28 @@
 
 ## Scope and rollout status
 
-This change builds the client speech foundation and integrates it into the existing assistant. It does not bundle or enable Moonshine, Whisper, or Nemotron inference. Browser-managed on-device recognition is usable when the browser supports it and the selected language is installed. The Capacitor app retains its system recognizer as a separately authorized compatibility provider.
+The foundation now has a concrete downloadable model: multilingual Whisper Tiny q8. Browser / device speech remains the default to preserve existing behavior; Settings and the microphone prompt offer an explicit download and selection. The same worker and UI ship in the Capacitor static export. No native inference bridge is introduced.
 
-| Requirement | Status | Implementation |
-| --- | --- | --- |
-| Shared, model-independent provider and transcript contracts | Done | `packages/spndrr-speech/src/contracts.ts` |
-| One utterance per session; interim preview; final-only assistant submission | Done | Shared service, browser adapter, and `use-speech-input.ts` |
-| Explicit privacy policy and truthful processing metadata | Done | `local-only` default; system provider labeled `system`, never `local` |
-| Browser on-device ASR and explicit language installation | Done | `processLocally=true`, `available`, `install` |
-| Capacitor system adapter and background cancellation | Done | Existing plugin, no native dependency in the web package |
-| Microphone release on completion, error, stop, navigation, background, signout and unmount | Done | Provider disposal, generation guards, native app-state interruption |
-| Model manifests and device capability detection | Done | Versioned runtime/assets, byte sizes, SHA-256, language and capability gates |
-| Persistent verified model assets; progress, retry, resume and deletion | Done, infrastructure only | IndexedDB storage and `SpeechModelManager`; no downloadable model catalog is shipped |
-| Mono 16 kHz PCM, audio worklet, energy endpoint detector | Done, infrastructure only | Explicit `BrowserPcmCapture`; currently used only when a worker provider is registered |
-| Worker initialization, bounded buffering, session IDs and resource release | Done, infrastructure only | `WorkerTranscriptionProvider` and worker message contract |
-| Lightweight downloadable model and its inference worker | Pending, next phase | Select and benchmark a model, pin all assets and implement decoding |
-| Native local inference | Pending | Capacitor bridge to a supported native engine; not a React Native implementation |
-| Nemotron high-end provider | Pending | Verify runtime, licensing, language coverage and memory/performance on supported devices |
-| Model selector and automatic model choice | Pending | No unvalidated accuracy tiers or fabricated download sizes are exposed |
-| Neural VAD, hotwords, talkback and barge-in | Pending | Build after validating real local inference |
+| Capability | Current behavior |
+| --- | --- |
+| Model | `onnx-community/whisper-tiny`, immutable revision `ff4177021cc41f7db950912b73ea4fdf7d01d8e7` |
+| Download size | 41.6 MiB model assets plus approximately 21.8 MiB runtime / notices |
+| Languages exposed | English (India / US), Hindi (India); selected explicitly, transcription rather than translation |
+| Runtime | Transformers.js 3.8.1, its ONNX Runtime Web WASM distribution; one thread, no WebGPU requirement |
+| Streaming | Buffered utterance decoding after a pause; no live Whisper partials |
+| Audio | Mono 16 kHz PCM, energy endpointing, at most 30 seconds; no audio persistence or upload |
+| Installation | Explicit download, byte progress, pause/resume, integrity checks, storage persistence request, repair and deletion |
+| Offline inference | Model, worker, WASM, module factory and audio worklet all read from verified IndexedDB data and blob URLs |
+| Privacy | No automatic system / cloud fallback; only final transcript goes to the existing assistant endpoint |
+| Mobile | WASM worker in supported Capacitor WebViews; production export verified, physical Android / iOS validation outstanding |
+
+To use it: open Settings → Voice transcription → Download / resume Whisper Tiny. After installation it is selected for this device. Tap the microphone, wait for “Recording”, speak a sentence, then pause. Loading and final decoding have distinct status messages. Stop cancels the utterance; it never submits an interim result. A missing or damaged cache offers reinstall before recording. Browser language-pack installation and the explicitly authorized system provider remain available.
+
+The catalog is in `packages/spndrr-speech/src/catalog.ts`, asset building in `scripts/build-assets.mjs`, decoding in `apps/web/lib/speech/whisper-worker.ts`, and installation / worker construction in `apps/web/lib/speech/downloaded-model.ts`. Runtime files are generated before web and mobile development / builds, included in Docker / static exports, and excluded from git and lint. Bump `speechRuntimeId` when changing the worker protocol, runtime, or cached worker implementation so older installations cannot reuse incompatible assets.
+
+Model weights / configuration files are pinned by revision, byte size and SHA-256. Runtime metadata is generated from the app's installed dependency distribution, fetched from the app's own origin on explicit installation, stored with the files and checked before every load. Model assets use the independent immutable catalog hashes. Transformers model-hub access, browser cache, filesystem cache and automatic remote model loading are disabled inside the worker; missing optional files resolve to local 404 responses. The single-threaded WASM runtime uses cached module / WASM blob URLs, without CDN requests or cross-origin isolation headers.
+
+Licenses: Whisper MIT (OpenAI), Transformers.js Apache-2.0 (Hugging Face), ONNX Runtime MIT (Microsoft). The model / ONNX licenses and the ONNX third-party notices at runtime commit `89f8206ba4f1c22c39e0297fb55272e8ce8cd7d0` are retained in `packages/spndrr-speech/licenses`. Builds combine them with the Transformers license into a cached `licenses.txt` asset. Sources: [model card](https://huggingface.co/onnx-community/whisper-tiny), [Transformers.js](https://github.com/huggingface/transformers.js/tree/3.8.1), [ONNX Runtime](https://github.com/microsoft/onnxruntime/tree/89f8206ba4f1c22c39e0297fb55272e8ce8cd7d0).
 
 ## Boundary with the assistant
 
@@ -41,7 +44,7 @@ The browser provider combines the current result list for preview and waits unti
 - Recognition failures never automatically select another provider. Users may retry or type; an unsupported local provider offers the separately authorized system option.
 - Completing a language download closes the dialog; the user presses the microphone again. Downloading a language does not request microphone access or automatically start recording.
 - Stop cancels and discards interim speech. Completed utterances submit automatically, preserving the existing assistant behavior. Typing/submitting a message cancels an active voice session.
-- Navigation, household changes, session changes, closing the desktop chat, hidden pages and native backgrounding invalidate pending callbacks. A 45-second UI watchdog also cancels stuck sessions.
+- Navigation, household changes, session changes, closing the desktop chat, hidden pages and native backgrounding invalidate pending callbacks. UI watchdogs cancel stuck sessions: 45 seconds for browser / device speech, 210 seconds for a downloaded model.
 
 Browser/OS permission persistence is controlled by that platform. This code releases recording resources but cannot force a browser to remember a microphone grant.
 
@@ -96,9 +99,9 @@ To add a provider:
 5. Construct `WorkerTranscriptionProvider` with the manifest, manager, worker factory and worklet URL, and select it through `getTranscriptionProvider` without changing the assistant.
 6. For native local ASR, implement a Capacitor bridge/provider with enforceable on-device processing, lifecycle events, final-only results and runtime-specific model loading.
 
-The worklet currently ships with the web app. Native model capture needs its own native capture/inference bridge; the mobile system recognizer does not consume this worklet.
+The cached audio worklet and WASM worker ship with both clients. The mobile system recognizer remains separate and does not consume this worklet. A dedicated native inference bridge can replace the WebView runtime later.
 
-## Validation and next-phase acceptance
+## Validation
 
 Run the shared tests from the repository root:
 
@@ -115,9 +118,21 @@ pnpm --filter web test:e2e
 
 Runtime tests cover local privacy enforcement before permission/capture, partial/final separation, duplicate callbacks, cancellation during initialization, recognition errors, resampling invariance, endpointing, cache verification, interruption/resume, cancellation, corrupt storage, worker session isolation, bounded queues and worker teardown. Browser tests exercise local voice submission, the once-only system choice, explicit language installation, cancelled interim speech and navigation cleanup with fake recognition. A real IndexedDB test checks committed byte storage across reload and isolation when deleting a model version.
 
-Verified for this foundation: 21 shared runtime tests; the web regression suite (64 passed, 32 expected platform-specific skips); the additional persisted/revoked privacy preference test; IndexedDB persistence on desktop and mobile browser profiles; four mobile configuration tests; TypeScript checks for the package/web/mobile; web lint; and both production builds. Browser verification used a temporary packaged Chromium because the configured browser CDN returned invalid archives. Native Android/iOS recognition, real speech model accuracy and OS permission behavior require real-device verification.
+Real-model acceptance tests run the production installation / cache / worker / audio worklet code. One transcribes the first utterance of the public JFK recording with the browser offline after cache reload, asserts one final result and microphone cleanup, and checks that inference fetches no model, runtime or CDN assets. Another synthesizes “spent four hundred and fifty rupees on dinner” and checks the actual microphone → Whisper → assistant request, preserving the spoken amount and `inputMode: Voice`. The backend response in that test is mocked; it is not a financial parser accuracy test.
 
-Before enabling the first downloadable model, measure cold/warm load time, time to first partial, final latency, peak memory, sustained real-time factor, battery use and expense/amount transcription errors on Android, iOS and representative browsers. Include English (India), Hindi, mixed-language phrases, ₹ amounts, merchant names, silence, background noise, denied permission, backgrounding, model eviction and offline restart. Add IndexedDB quota/eviction and native-device lifecycle tests; mock recognition does not establish model accuracy or OS permission behavior.
+Prepare fixtures with Node 24 and FFmpeg built with `flite` (no model or audio binaries are committed):
+
+```sh
+node packages/spndrr-speech/scripts/prepare-fixtures.mjs /tmp/spndrr-speech-fixtures
+pnpm --filter web speech:assets
+SPNDRR_SPEECH_FIXTURE_DIR=/tmp/spndrr-speech-fixtures pnpm --filter web test:e2e
+```
+
+Without the fixture environment variable, the two expensive real-model acceptance tests explicitly skip. The ordinary regression suite still tests engine preference persistence, missing-model gating, browser local recognition, privacy choices, language installation, typing and cancellation. Shared runtime tests cover model and runtime integrity / repair, download resume, cancellation, persistence boundaries, silent endpointing, worker ownership, bounded queues and teardown.
+
+Limitations: offline **transcription** works while the app is loaded; offline app-shell navigation / full page reopening is not supplied by this change. The assistant API still needs connectivity. Storage can be evicted, persistence can be denied, and download checkpoints can fail under quota pressure. Runtime downloads reuse completed files; model files additionally resume partial bytes where the server exposes valid Range / ETag headers. Installation is serialized within one app instance; cross-tab download locking remains a follow-up. The energy detector is not a learned VAD, and noisy audio or long pauses can affect utterance boundaries. Silence produces an empty final result instead of running Whisper. Load and decode each allow up to 90 seconds; total UI watchdog is 210 seconds. A 4 GB device is recommended; unknown device memory is allowed rather than rejecting Safari.
+
+Before broad mobile rollout, measure real-device CPU / memory / battery behavior, denied permissions, background cancellation, Hindi and mixed-language recognition, noisy rooms, ₹ amounts and merchant names. This implementation is usable on tested Chromium; the successful Capacitor build is not evidence of physical Android / iOS inference or OS permission behavior. Native model bindings and genuine streaming ASR remain follow-ups.
 
 ## References
 

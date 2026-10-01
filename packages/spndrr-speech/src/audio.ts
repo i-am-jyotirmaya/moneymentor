@@ -69,6 +69,14 @@ export class BrowserPcmCapture {
   private started = false;
   private cleanup?: Promise<void>;
 
+  /** Prime playback during the microphone click, before asynchronous model loading loses user activation. */
+  prepareAudio() {
+    if (this.disposed || this.started) return;
+    this.context ??= new AudioContext();
+    // No microphone permission or stream is requested here. start() resumes again after capture setup.
+    void this.context.resume().catch(() => {});
+  }
+
   async start(workletUrl: string, onFrame: (pcm: Float32Array) => void) {
     if (this.started || this.disposed) throw new Error("Audio capture can only be started once.");
     this.started = true;
@@ -76,7 +84,7 @@ export class BrowserPcmCapture {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false });
       if (this.disposed) { stream.getTracks().forEach(track => track.stop()); return; }
       this.stream = stream;
-      const context = new AudioContext();
+      const context = this.context ?? new AudioContext();
       this.context = context;
       await context.audioWorklet.addModule(workletUrl);
       if (this.disposed) return;

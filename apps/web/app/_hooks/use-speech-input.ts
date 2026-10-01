@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LocalTranscriptionService, SpeechError, installBrowserLanguage } from "../../../../packages/spndrr-speech/src/index";
 import type { SpeechPrivacy, TranscriptionResult } from "../../../../packages/spndrr-speech/src/index";
+import { modelChanged } from "@/lib/speech/downloaded-model";
 import { getTranscriptionProvider } from "@/lib/platform";
 import { getSpeechPreferences, speechPreferencesChanged } from "@/lib/speech-preferences";
 
 export function useSpeechInput(onFinal: (result: TranscriptionResult) => void, onError: (message: string) => void, scope: string) {
   const [isListening, setIsListening] = useState(false);
+  const [voicePhase, setVoicePhase] = useState<"loading" | "recording" | "transcribing">("recording");
   const [partialTranscript, setPartialTranscript] = useState("");
   const [voicePrompt, setVoicePrompt] = useState<{ message: string; canInstall: boolean } | null>(null);
   const [isInstallingVoice, setIsInstallingVoice] = useState(false);
@@ -33,6 +35,7 @@ export function useSpeechInput(onFinal: (result: TranscriptionResult) => void, o
     window.addEventListener("pagehide", cancelVoiceInput);
     window.addEventListener("spndrr-speech-interrupt", cancelVoiceInput);
     window.addEventListener(speechPreferencesChanged, cancelVoiceInput);
+    window.addEventListener(modelChanged, cancelVoiceInput);
     window.addEventListener("storage", cancelVoiceInput);
     return () => {
       cancelVoiceInput();
@@ -40,6 +43,7 @@ export function useSpeechInput(onFinal: (result: TranscriptionResult) => void, o
       window.removeEventListener("pagehide", cancelVoiceInput);
       window.removeEventListener("spndrr-speech-interrupt", cancelVoiceInput);
       window.removeEventListener(speechPreferencesChanged, cancelVoiceInput);
+      window.removeEventListener(modelChanged, cancelVoiceInput);
       window.removeEventListener("storage", cancelVoiceInput);
     };
   }, [cancelVoiceInput, scope]);
@@ -49,30 +53,35 @@ export function useSpeechInput(onFinal: (result: TranscriptionResult) => void, o
     const token = ++generation.current;
     const preferences = getSpeechPreferences();
     const privacy = override ?? preferences.privacy;
-    const service = new LocalTranscriptionService(getTranscriptionProvider(privacy));
-    active.current = service;
+    let service: LocalTranscriptionService | undefined;
+    setVoicePhase(preferences.engine === "whisper" && !override ? "loading" : "recording");
     setVoicePrompt(null);
     setIsListening(true);
     const timeout = window.setTimeout(() => {
-      if (active.current === service) {
+      if (generation.current === token) {
         cancelVoiceInput();
         callbacks.current.onError("Voice input timed out. Try again or keep typing.");
       }
-    }, 45000);
+    }, preferences.engine === "whisper" && !override ? 210000 : 45000);
     try {
+      service = new LocalTranscriptionService(getTranscriptionProvider(privacy, override ? "browser" : preferences.engine));
+      active.current = service;
       const result = await service.transcribe({ language: preferences.language, privacy }, event => {
-        if (generation.current === token && event.type === "partial") setPartialTranscript(event.text);
+        if (generation.current !== token) return;
+        if (event.type === "partial") setPartialTranscript(event.text);
+        if (event.type === "recording" || event.type === "speech-start") setVoicePhase("recording");
+        if (event.type === "speech-end") setVoicePhase("transcribing");
       });
       if (generation.current === token && result) callbacks.current.onFinal(result);
     } catch (error) {
       if (generation.current !== token) return;
       const message = error instanceof Error ? error.message : "Speech could not start. Try again or keep typing.";
-      if (privacy === "local-only" && error instanceof SpeechError && ["unavailable", "download-required", "privacy"].includes(error.code)) {
-        setVoicePrompt({ message, canInstall: error.code === "download-required" });
+      if (error instanceof SpeechError && (error.code === "download-required" || privacy === "local-only" && ["unavailable", "privacy"].includes(error.code))) {
+        setVoicePrompt({ message, canInstall: preferences.engine === "browser" && error.code === "download-required" });
       } else callbacks.current.onError(message);
     } finally {
       window.clearTimeout(timeout);
-      if (active.current === service) {
+      if (generation.current === token) {
         active.current = null;
         setIsListening(false);
         setPartialTranscript("");
@@ -97,7 +106,7 @@ export function useSpeechInput(onFinal: (result: TranscriptionResult) => void, o
   }, []);
 
   return {
-    isListening, partialTranscript, voicePrompt, isInstallingVoice, cancelVoiceInput, installVoiceLanguage,
+    isListening, voicePhase, partialTranscript, voicePrompt, isInstallingVoice, cancelVoiceInput, installVoiceLanguage,
     toggleVoiceInput: () => active.current ? cancelVoiceInput() : void startVoiceInput(),
     useSystemVoiceOnce: () => void startVoiceInput("allow-system"),
   };
