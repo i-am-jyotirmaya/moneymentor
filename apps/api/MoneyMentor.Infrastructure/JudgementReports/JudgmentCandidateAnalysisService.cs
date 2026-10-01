@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MoneyMentor.Application.JudgementReports;
+using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
 using MoneyMentor.Infrastructure.Persistence;
@@ -107,14 +109,46 @@ internal sealed class JudgmentCandidateAnalysisWorker(
         {
             try
             {
-                await using var scope = scopes.CreateAsyncScope();
-                await scope.ServiceProvider.GetRequiredService<JudgmentCandidateAnalysisService>()
-                    .AnalyzeActiveAsync(stoppingToken);
+                await JudgmentAnalysisRunMetrics.RunAsync(async token =>
+                {
+                    await using var scope = scopes.CreateAsyncScope();
+                    await scope.ServiceProvider.GetRequiredService<JudgmentCandidateAnalysisService>()
+                        .AnalyzeActiveAsync(token);
+                }, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception error) { logger.LogError(error, "Judgment candidate analysis failed; retrying next interval."); }
             try { await Task.Delay(TimeSpan.FromHours(options.Value.AnalysisIntervalHours), clock, stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+        }
+    }
+}
+
+internal static class JudgmentAnalysisRunMetrics
+{
+    // Measure the complete analysis invocation, including the case with no active users.
+    internal static async Task RunAsync(Func<CancellationToken, Task> analyze, CancellationToken cancellationToken)
+    {
+        var started = Stopwatch.GetTimestamp();
+        var outcome = "failure";
+        try
+        {
+            await analyze(cancellationToken);
+            outcome = "success";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            outcome = "cancelled";
+            throw;
+        }
+        finally
+        {
+            var tags = new KeyValuePair<string, object?>[]
+            {
+                new("job", "judgment_candidate_analysis"), new("outcome", outcome)
+            };
+            MoneyMentorTelemetry.JobRuns.Add(1, tags);
+            MoneyMentorTelemetry.JobRunDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds, tags);
         }
     }
 }

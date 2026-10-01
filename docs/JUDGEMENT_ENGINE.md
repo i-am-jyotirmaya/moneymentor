@@ -43,6 +43,13 @@ narration workers, and manual backfill command have been retired.
   `AnalysisIntervalHours` defaults to 24. The decision and feedback workers have
   durable leases, bounded retries and periodic recovery. Inspect `ManualReview`
   feedback rows if a provider or malformed response repeatedly fails.
+- The API emits `spndrr.job.runs` and `spndrr.job.run_duration` for each candidate
+  analysis invocation, including empty successes. In CloudWatch, filter
+  `job=judgment_candidate_analysis` and `outcome=success` over a period longer
+  than `AnalysisIntervalHours` (for example, 26 hours at the default 24-hour
+  interval). The counter increases once per enabled API instance's run, not once
+  per user; `failure` and `cancelled` identify unsuccessful runs. These metrics
+  require the configured collector/exporter and an EC2 role with metric permissions.
 - Historical `GET /api/judgement-reports` and `/history` return previously
   published snapshots only. Pending legacy revisions will not complete. The
   contextual candidate decisions shown at `GET /api/judgements/active` do not
