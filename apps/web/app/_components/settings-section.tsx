@@ -1,5 +1,6 @@
 "use client";
 import { SectionSkeleton } from "./loading-ui";
+import { VoiceSettings } from "./voice-settings";
 
 import type { TransactionVisibility } from "@/lib/api";
 import { Download, Save, Settings } from "lucide-react";
@@ -39,6 +40,7 @@ export function SettingsSection({
 
   return (
     <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
+      <VoiceSettings />
       <form className="grid gap-4 xl:grid-cols-2" onSubmit={onSave}>
         <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">

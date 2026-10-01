@@ -2,13 +2,9 @@ import { Capacitor } from "@capacitor/core";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { SpeechRecognition } from "@capacitor-community/speech-recognition";
-import {
-  getSpeechRecognition as getBrowserSpeechRecognition,
-  saveExport as saveBrowserExport,
-  type SpeechRecognitionLike,
-} from "../../web/lib/platform";
-
-export type { SpeechRecognitionLike } from "../../web/lib/platform";
+import { saveExport as saveBrowserExport } from "../../web/lib/platform";
+import { BrowserTranscriptionProvider, SpeechError, SpeechEventStream } from "../../../packages/spndrr-speech/src/index";
+import type { SpeechPrivacy, TranscriptionEvent, TranscriptionOptions, TranscriptionProvider } from "../../../packages/spndrr-speech/src/index";
 
 export async function saveExport(blob: Blob, fileName: string) {
   if (!Capacitor.isNativePlatform()) return saveBrowserExport(blob, fileName);
@@ -23,49 +19,71 @@ export async function saveExport(blob: Blob, fileName: string) {
   await Share.share({ title: "Spndrr data export", files: [uri] });
 }
 
-class NativeSpeechRecognition implements SpeechRecognitionLike {
-  continuous = false;
-  interimResults = false;
-  lang = "en-IN";
-  onend: SpeechRecognitionLike["onend"] = null;
-  onerror: SpeechRecognitionLike["onerror"] = null;
-  onresult: SpeechRecognitionLike["onresult"] = null;
-  private cancelled = false;
-  private ended = false;
+// The installed system plugin does not expose an enforceable offline-only option.
+// Always label it "system"; the shared service rejects it for local-only sessions.
+let nativeOwner: NativeSystemTranscriptionProvider | undefined;
+class NativeSystemTranscriptionProvider implements TranscriptionProvider {
+  readonly id = "capacitor-system-speech";
+  readonly model = "os-managed";
+  readonly location = "system" as const;
+  private stream = new SpeechEventStream();
+  private language = "en-IN";
+  private disposed = false;
+  private pending = false;
 
-  start() {
-    this.cancelled = false;
-    this.ended = false;
-    void this.listen();
+  async initialize(options: TranscriptionOptions) {
+    if (options.privacy === "local-only") throw new SpeechError("privacy", "On-device model transcription is not installed in this app yet. You can keep typing.");
+    if (nativeOwner) throw new SpeechError("recognition", "The previous speech session is still closing. Try again shortly.");
+    if (!(await SpeechRecognition.available()).available) throw new SpeechError("unavailable", "System speech is unavailable on this device.");
+    if (this.disposed) return;
+    let permission = await SpeechRecognition.checkPermissions();
+    if (this.disposed) return;
+    if (permission.speechRecognition !== "granted") permission = await SpeechRecognition.requestPermissions();
+    if (this.disposed) return;
+    if (permission.speechRecognition !== "granted") throw new SpeechError("recognition", "Microphone access was denied. Check device permissions or keep typing.");
+    this.language = options.language;
   }
 
-  private finish() {
-    if (!this.ended) { this.ended = true; this.onend?.(); }
+  start(): AsyncIterable<TranscriptionEvent> {
+    if (this.disposed || nativeOwner) throw new SpeechError("recognition", "The speech session is no longer available.");
+    nativeOwner = this;
+    this.pending = true;
+    void this.listen();
+    return this.stream;
   }
 
   private async listen() {
     try {
-      if (!(await SpeechRecognition.available()).available) throw new Error("Speech unavailable");
-      let permission = await SpeechRecognition.checkPermissions();
-      if (permission.speechRecognition !== "granted") permission = await SpeechRecognition.requestPermissions();
-      if (this.cancelled) return;
-      if (permission.speechRecognition !== "granted") throw new Error("Microphone permission required");
-      const result = await SpeechRecognition.start({ language: this.lang, maxResults: 1, partialResults: false, popup: true });
-      const transcript = result.matches?.[0]?.trim();
-      if (!this.cancelled && transcript) this.onresult?.({ results: [[{ transcript }]] });
+      // Preserve the existing one-shot compatibility flow; native model streaming is a later adapter.
+      const result = await SpeechRecognition.start({ language: this.language, maxResults: 1, partialResults: false, popup: false });
+      if (!this.disposed && result.matches?.[0]) this.stream.push({ type: "final", text: result.matches[0], language: this.language });
     } catch {
-      if (!this.cancelled) this.onerror?.();
+      if (!this.disposed) this.stream.end(new SpeechError("recognition", "Speech recognition failed. Try again or keep typing."));
     } finally {
-      this.finish();
+      this.pending = false;
+      if (this.disposed && nativeOwner === this) {
+        await SpeechRecognition.stop().catch(() => {});
+        nativeOwner = undefined;
+      }
+      this.stream.end();
     }
   }
 
-  stop() {
-    this.cancelled = true;
-    void SpeechRecognition.stop().catch(() => {}).finally(() => this.finish());
+  async stop() {
+    if (nativeOwner === this) await SpeechRecognition.stop();
+  }
+
+  async dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.stream.end();
+    if (nativeOwner === this) {
+      await SpeechRecognition.stop().catch(() => {});
+      if (!this.pending) nativeOwner = undefined;
+    }
   }
 }
 
-export function getSpeechRecognition() {
-  return Capacitor.isNativePlatform() ? NativeSpeechRecognition : getBrowserSpeechRecognition();
+export function getTranscriptionProvider(privacy: SpeechPrivacy): TranscriptionProvider {
+  return Capacitor.isNativePlatform() ? new NativeSystemTranscriptionProvider() : new BrowserTranscriptionProvider(privacy === "local-only");
 }

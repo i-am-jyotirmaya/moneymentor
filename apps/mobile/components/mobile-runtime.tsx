@@ -21,6 +21,9 @@ export function MobileRuntime() {
     let active = true;
     const resetPlatform = Capacitor.isNativePlatform() ? configurePlatform(nativePlatform) : undefined;
     if (Capacitor.isNativePlatform()) {
+      handles.push(App.addListener("appStateChange", ({ isActive }) => {
+        if (!isActive) window.dispatchEvent(new Event("spndrr-speech-interrupt"));
+      }));
       const openLink = (url: string) => {
         const target = mobileLinkTarget(url, process.env.NEXT_PUBLIC_WEB_APP_URL);
         if (!active || !target) return;

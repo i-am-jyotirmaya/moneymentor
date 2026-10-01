@@ -1,27 +1,7 @@
-export type SpeechRecognitionEventLike = {
-  results: ArrayLike<{
-    0?: {
-      transcript: string;
-    };
-  }>;
-};
-
-export type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  start: () => void;
-  stop: () => void;
-  abort?: () => void;
-};
-
-export type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+import { BrowserTranscriptionProvider, type SpeechPrivacy, type TranscriptionProvider } from "../../../packages/spndrr-speech/src/index";
 
 type PlatformServices = {
-  getSpeechRecognition: () => SpeechRecognitionConstructor | undefined;
+  getTranscriptionProvider: (privacy: SpeechPrivacy) => TranscriptionProvider;
   saveExport: (blob: Blob, fileName: string) => Promise<void>;
 };
 let platformServices: PlatformServices | undefined;
@@ -32,13 +12,9 @@ export function configurePlatform(services: PlatformServices) {
   return () => { if (platformServices === services) platformServices = undefined; };
 }
 
-export function getSpeechRecognition(): SpeechRecognitionConstructor | undefined {
-  if (platformServices) return platformServices.getSpeechRecognition();
-  const speechWindow = window as typeof window & {
-    SpeechRecognition?: SpeechRecognitionConstructor;
-    webkitSpeechRecognition?: SpeechRecognitionConstructor;
-  };
-  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+export function getTranscriptionProvider(privacy: SpeechPrivacy): TranscriptionProvider {
+  if (platformServices) return platformServices.getTranscriptionProvider(privacy);
+  return new BrowserTranscriptionProvider(privacy === "local-only");
 }
 
 export async function saveExport(blob: Blob, fileName: string) {

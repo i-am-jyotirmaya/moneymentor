@@ -11,6 +11,7 @@ export function AssistantSection({
   chatEndRef,
   inputMode,
   isListening,
+  partialTranscript,
   isSubmitting,
   messages,
   onPromptClick,
@@ -23,6 +24,7 @@ export function AssistantSection({
   chatEndRef: RefObject<HTMLDivElement | null>;
   inputMode: InputMode;
   isListening: boolean;
+  partialTranscript: string;
   isSubmitting: boolean;
   messages: Message[];
   onPromptClick: (idea: string) => void;
@@ -38,6 +40,7 @@ export function AssistantSection({
         chatEndRef={chatEndRef}
         inputMode={inputMode}
         isListening={isListening}
+        partialTranscript={partialTranscript}
         isSubmitting={isSubmitting}
         messages={messages}
         onPromptClick={onPromptClick}
@@ -72,6 +75,7 @@ export function ChatSurface({
   compact = false,
   inputMode,
   isListening,
+  partialTranscript,
   isSubmitting,
   messages,
   onPromptClick,
@@ -86,6 +90,7 @@ export function ChatSurface({
   compact?: boolean;
   inputMode: InputMode;
   isListening: boolean;
+  partialTranscript: string;
   isSubmitting: boolean;
   messages: Message[];
   onPromptClick?: (idea: string) => void;
@@ -121,7 +126,7 @@ export function ChatSurface({
         <div ref={chatEndRef} />
       </div>
 
-      {isListening ? <VoiceWavePanel /> : null}
+      {isListening ? <VoiceWavePanel transcript={partialTranscript} /> : null}
 
       <div className="shrink-0 border-t border-[var(--border)] bg-white/90 p-3 backdrop-blur">
         {showPromptIdeas && onPromptClick ? (
@@ -180,6 +185,7 @@ export function DesktopAssistantDock({
   chatEndRef,
   inputMode,
   isListening,
+  partialTranscript,
   isOpen,
   isSubmitting,
   messages,
@@ -193,6 +199,7 @@ export function DesktopAssistantDock({
   chatEndRef: RefObject<HTMLDivElement | null>;
   inputMode: InputMode;
   isListening: boolean;
+  partialTranscript: string;
   isOpen: boolean;
   isSubmitting: boolean;
   messages: Message[];
@@ -237,6 +244,7 @@ export function DesktopAssistantDock({
             compact
             inputMode={inputMode}
             isListening={isListening}
+            partialTranscript={partialTranscript}
             isSubmitting={isSubmitting}
             messages={messages}
             onSubmit={onSubmit}
@@ -318,7 +326,7 @@ export function VoiceAiButton({
   );
 }
 
-export function VoiceWavePanel() {
+export function VoiceWavePanel({ transcript }: { transcript: string }) {
   return (
     <div
       aria-live="polite"
@@ -329,7 +337,7 @@ export function VoiceWavePanel() {
         <div>
           <p className="text-sm font-semibold">Recording</p>
           <p className="mt-1 text-xs font-medium text-white/70">
-            I will send it when speech is captured.
+            {transcript || "I will send it when speech is captured."}
           </p>
         </div>
         <div className="voice-wave" aria-hidden="true">
