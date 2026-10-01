@@ -23,6 +23,8 @@ public sealed record TransactionModel(
     DateTimeOffset UpdatedAt,
     string? UpdatedByDisplayName)
 {
+    public Guid? CategoryId { get; init; }
+
     public string? SenderName { get; init; }
 
     public string? Reason { get; init; }
@@ -44,6 +46,8 @@ public sealed record UpdateTransactionCommand(
     DateOnly? TransactionDate,
     TransactionVisibility? Visibility)
 {
+    public Guid? CategoryId { get; init; }
+
     public string? SenderName { get; init; }
 
     public string? Reason { get; init; }
