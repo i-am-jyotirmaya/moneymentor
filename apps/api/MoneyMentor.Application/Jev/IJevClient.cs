@@ -23,11 +23,24 @@ public sealed record JevQuestion(string Type, string Instructions, object? Crite
         new("score", instructions, levels);
 
     public static JevQuestion Noul(string instructions) => new("noul", instructions);
+
+    public static JevQuestion Noul(string instructions, string trueCriteria, string falseCriteria) =>
+        new("noul", instructions, new Dictionary<string, string>
+        {
+            ["true"] = trueCriteria,
+            ["false"] = falseCriteria
+        });
 }
 
-public sealed class JevDecision(JsonElement answers, string? model = null)
+public sealed class JevDecision(JsonElement answers, string? model = null,
+    long? inputTokens = null, long? outputTokens = null)
 {
+    // Preserve the typed provider answers for diagnostics and future normalized persistence.
+    // The caller owns redaction of state before sending it to Jev.
+    public JsonElement Answers { get; } = answers.Clone();
     public string? Model { get; } = model;
+    public long? InputTokens { get; } = inputTokens;
+    public long? OutputTokens { get; } = outputTokens;
 
     public bool TryGetChoice(string question, out string choice, out double confidence)
     {
@@ -65,15 +78,58 @@ public sealed class JevDecision(JsonElement answers, string? model = null)
             && TryProbability(value, out probability);
     }
 
+    public bool TryGetChoiceProbabilities(string question, out IReadOnlyDictionary<string, double> probabilities)
+    {
+        probabilities = new Dictionary<string, double>();
+        return TryGetAnswer(question, "choice", out var answer)
+            && answer.TryGetProperty("probabilities", out var values)
+            && TryGetProbabilities(values, out probabilities);
+    }
+
+    public bool TryGetScoreDistribution(string question, out JsonElement legend,
+        out IReadOnlyDictionary<string, double> probabilities)
+    {
+        legend = default;
+        probabilities = new Dictionary<string, double>();
+        if (!TryGetAnswer(question, "score", out var answer)
+            || !answer.TryGetProperty("legend", out var levels)
+            || levels.ValueKind != JsonValueKind.Object
+            || !answer.TryGetProperty("probabilities", out var values)
+            || !TryGetProbabilities(values, out probabilities))
+        {
+            return false;
+        }
+
+        legend = levels.Clone();
+        return true;
+    }
+
     private bool TryGetAnswer(string question, string type, out JsonElement answer)
     {
         answer = default;
-        return answers.ValueKind == JsonValueKind.Object
-            && answers.TryGetProperty(question, out answer)
+        return Answers.ValueKind == JsonValueKind.Object
+            && Answers.TryGetProperty(question, out answer)
             && answer.ValueKind == JsonValueKind.Object
             && answer.TryGetProperty("type", out var kind)
             && kind.ValueKind == JsonValueKind.String
             && kind.GetString() == type;
+    }
+
+    private static bool TryGetProbabilities(JsonElement values,
+        out IReadOnlyDictionary<string, double> probabilities)
+    {
+        probabilities = new Dictionary<string, double>();
+        if (values.ValueKind != JsonValueKind.Object) return false;
+
+        var parsed = new Dictionary<string, double>(StringComparer.Ordinal);
+        foreach (var item in values.EnumerateObject())
+        {
+            if (!TryProbability(item.Value, out var probability)) return false;
+            parsed[item.Name] = probability;
+        }
+
+        probabilities = parsed;
+        return parsed.Count > 0;
     }
 
     private static bool TryProbability(JsonElement value, out double probability)
