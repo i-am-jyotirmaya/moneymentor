@@ -27,6 +27,14 @@ export function browserRecognitionConstructor(): BrowserRecognitionConstructor |
   return host.SpeechRecognition ?? host.webkitSpeechRecognition;
 }
 
+/** Capability check only: no permission request, recording, install or upload. */
+export async function inspectBrowserSpeech(language: string, Recognition = browserRecognitionConstructor()) {
+  if (!Recognition) return { system: false, local: "unavailable" as const };
+  if (!("processLocally" in new Recognition()) || !Recognition.available) return { system: true, local: "unavailable" as const };
+  const status = await Recognition.available({ langs: [language], processLocally: true });
+  return { system: true, local: ["available", "downloadable", "downloading"].includes(status) ? status : "unavailable" };
+}
+
 export async function installBrowserLanguage(language: string, Recognition = browserRecognitionConstructor()) {
   if (!Recognition?.install) throw new SpeechError("unavailable", "This browser cannot download on-device speech languages.");
   if (!await Recognition.install({ langs: [language], processLocally: true })) {

@@ -32,7 +32,7 @@ class NativeSystemTranscriptionProvider implements TranscriptionProvider {
   private pending = false;
 
   async initialize(options: TranscriptionOptions) {
-    if (options.privacy === "local-only") throw new SpeechError("privacy", "The device speech provider cannot guarantee local processing. Download and select Whisper Tiny, or keep typing.");
+    if (options.privacy === "local-only") throw new SpeechError("privacy", "The device speech provider cannot guarantee local processing. Allow system speech for this recording, or use keyboard dictation in the text box.");
     if (nativeOwner) throw new SpeechError("recognition", "The previous speech session is still closing. Try again shortly.");
     if (!(await SpeechRecognition.available()).available) throw new SpeechError("unavailable", "System speech is unavailable on this device.");
     if (this.disposed) return;
@@ -85,6 +85,8 @@ class NativeSystemTranscriptionProvider implements TranscriptionProvider {
     }
   }
 }
+
+export function isNativeSpeech() { return Capacitor.isNativePlatform(); }
 
 export function getTranscriptionProvider(privacy: SpeechPrivacy): TranscriptionProvider {
   return Capacitor.isNativePlatform() ? new NativeSystemTranscriptionProvider() : new BrowserTranscriptionProvider(privacy === "local-only");

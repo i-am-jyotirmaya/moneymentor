@@ -1,8 +1,10 @@
 # Spndrr local speech runtime
 
+> Browser Whisper Tiny is now experimental. Native mobile uses OS speech even if an old Whisper preference exists. Browser final transcripts require editable review before Send. See [browser/backend speech rollout](BROWSER_BACKEND_SPEECH.md) for the current platform split, backend setup and real accuracy gate.
+
 ## Scope and rollout status
 
-The foundation now has a concrete downloadable model: multilingual Whisper Tiny q8. Browser / device speech remains the default to preserve existing behavior; Settings and the microphone prompt offer an explicit download and selection. The same worker and UI ship in the Capacitor static export. No native inference bridge is introduced.
+The foundation now has a concrete downloadable model: multilingual Whisper Tiny q8. Browser / device speech remains the default to preserve existing behavior; Settings and the microphone prompt offer an explicit download and selection. The worker is still bundled in the Capacitor static export for browser-hosted use; the native app now routes to its existing OS speech adapter. No native Whisper inference bridge is introduced.
 
 | Capability | Current behavior |
 | --- | --- |
@@ -17,7 +19,7 @@ The foundation now has a concrete downloadable model: multilingual Whisper Tiny 
 | Privacy | No automatic system / cloud fallback; only final transcript goes to the existing assistant endpoint |
 | Mobile | WASM worker in supported Capacitor WebViews; production export verified, physical Android / iOS validation outstanding |
 
-To use it: open Settings → Voice transcription → Download / resume Whisper Tiny. After installation it is selected for this device. Tap the microphone, wait for “Recording”, speak a sentence, then pause for two seconds. Loading and final decoding have distinct status messages. Stop cancels the utterance; it never submits an interim result. A missing or damaged cache offers reinstall before recording. Browser language-pack installation and the explicitly authorized system provider remain available.
+To use it: open Settings → Voice transcription → Download / resume Whisper Tiny. After installation it is selected for this browser. Native mobile keeps OS speech. Tap the microphone, wait for “Recording”, speak a sentence, then pause for two seconds. Loading and final decoding have distinct status messages. Stop cancels the utterance; it never submits an interim result. A completed browser transcript opens Review; only Send submits it to the assistant. A missing or damaged cache offers reinstall before recording. Browser language-pack installation and the explicitly authorized system provider remain available.
 
 Runtime v2 corrects premature endpointing: the former 0.015 RMS threshold and 900 ms silence cutoff could capture only the first word. Speech starts at 0.003 RMS with 120 ms of evidence (allowing short syllable gaps), continues at 0.0015 RMS, and ends after 2 seconds of silence or the existing 30-second limit. This is an energy detector, so background noise and very quiet microphones still require device testing. Existing v1 installations need an explicit runtime update in Settings; verified model weights are reused, and the old runtime is removed only after the replacement passes verification.
 

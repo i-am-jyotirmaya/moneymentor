@@ -549,6 +549,7 @@ type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
 };
 
 function getApiBaseUrl() {
@@ -585,7 +586,7 @@ async function readResponseError(response: Response) {
 
 async function apiRequest<TResponse>(
   path: string,
-  { accessToken, method = "GET", body, headers: requestHeaders }: RequestOptions = {},
+  { accessToken, method = "GET", body, headers: requestHeaders, signal }: RequestOptions = {},
   allowRefresh = true,
 ) {
   const headers = new Headers();
@@ -605,6 +606,7 @@ async function apiRequest<TResponse>(
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
     credentials: "include",
   });
 
@@ -613,7 +615,7 @@ async function apiRequest<TResponse>(
       const refreshed = await refreshSession();
       return apiRequest<TResponse>(
         path,
-        { accessToken: refreshed.accessToken, method, body, headers: requestHeaders },
+        { accessToken: refreshed.accessToken, method, body, headers: requestHeaders, signal },
         false,
       );
     } catch {
@@ -631,6 +633,36 @@ async function apiRequest<TResponse>(
   }
 
   return (await response.json()) as TResponse;
+}
+
+export type SpeechBackendCapabilities = {
+  enabled: boolean; provider: string; model: string; disclosure: string; consentVersion: string; maxDurationSeconds: number;
+};
+export function getSpeechBackend(signal?: AbortSignal) {
+  return apiRequest<SpeechBackendCapabilities>("/api/speech/capabilities", {
+    accessToken: getAuthSessionSnapshot()?.accessToken, signal,
+  });
+}
+export async function transcribeAudio(wav: Uint8Array, language: string, consentVersion: string, signal: AbortSignal) {
+  async function send(accessToken?: string) {
+    return fetch(`${getApiBaseUrl()}/api/speech/transcriptions`, {
+      method: "POST", credentials: "include", signal,
+      headers: { "Content-Type": "audio/wav", "X-Speech-Language": language,
+        "X-Speech-Upload-Consent": consentVersion, ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+      body: new Uint8Array(wav).buffer,
+    });
+  }
+  let response = await send(getAuthSessionSnapshot()?.accessToken);
+  if (response.status === 401 && !signal.aborted) {
+    const session = await refreshSession();
+    signal.throwIfAborted();
+    response = await send(session.accessToken);
+  }
+  if (!response.ok) {
+    const errors = await readResponseError(response);
+    throw new ApiError(errors[0] ?? "Transcription failed.", response.status, errors);
+  }
+  return await response.json() as { text: string; provider: string; model: string; audioDurationMs: number };
 }
 
 export function createUser(input: {

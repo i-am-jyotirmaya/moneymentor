@@ -20,6 +20,7 @@ public static class EndpointRouteBuilderExtensions
     {
         endpoints.MapAuthEndpoints();
         endpoints.MapAssistantEndpoints();
+        MoneyMentor.Api.Endpoints.Speech.SpeechEndpoints.MapSpeechEndpoints(endpoints);
         endpoints.MapDashboardEndpoints();
         endpoints.MapExpenseInputEndpoints();
         endpoints.MapTransactionEndpoints();

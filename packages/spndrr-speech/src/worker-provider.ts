@@ -8,6 +8,7 @@ import type { SpeechWorkerPool } from "./worker-pool.ts";
 
 export interface PcmAudioSource {
   start(workletUrl: string, onFrame: (pcm: Float32Array) => void): Promise<void>;
+  finish?(): Promise<void>;
   dispose(): Promise<void>;
 }
 

@@ -11,6 +11,7 @@ public sealed class RateLimitSettings
     public int LoginsPerFiveMinutes { get; init; } = 10;
     public int SessionsPerFiveMinutes { get; init; } = 30;
     public int InvitationsPerHour { get; init; } = 10;
+    public int SpeechPerMinute { get; init; } = 10;
     public int PrivacyOperationsPerHour { get; init; } = 3;
 }
 
@@ -21,5 +22,6 @@ public static class RateLimitPolicyNames
     public const string Login = "login";
     public const string Session = "session";
     public const string Invitation = "invitation";
+    public const string Speech = "speech";
     public const string Privacy = "privacy";
 }

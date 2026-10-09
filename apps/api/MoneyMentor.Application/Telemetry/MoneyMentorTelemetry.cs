@@ -9,6 +9,9 @@ public static class MoneyMentorTelemetry
 
     public static readonly ActivitySource Activities = new(SourceName);
     public static readonly Meter Meter = new(SourceName);
+    public static readonly Counter<long> SpeechRequests = Meter.CreateCounter<long>("spndrr.speech.requests");
+    public static readonly Histogram<double> SpeechDuration = Meter.CreateHistogram<double>("spndrr.speech.duration_ms", "ms");
+    public static readonly Counter<double> SpeechAudioMinutes = Meter.CreateCounter<double>("spndrr.speech.audio_minutes", "min");
     public static readonly Counter<long> RateLimitRejections = Meter.CreateCounter<long>("spndrr.rate_limit.rejections");
     public static readonly Counter<long> AuthFailures = Meter.CreateCounter<long>("spndrr.auth.failures");
     public static readonly Counter<long> ProvisioningRetries = Meter.CreateCounter<long>("spndrr.profile.provisioning_retries");

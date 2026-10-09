@@ -1,5 +1,5 @@
 export type ProcessingLocation = "local" | "system" | "cloud";
-export type SpeechPrivacy = "local-only" | "allow-system";
+export type SpeechPrivacy = "local-only" | "allow-system" | "allow-backend";
 
 export interface TranscriptionOptions {
   language: string;
@@ -28,6 +28,7 @@ export interface TranscriptionProvider {
   readonly location: ProcessingLocation;
   initialize(options: TranscriptionOptions): Promise<void>;
   start(): AsyncIterable<TranscriptionEvent>;
+  finish?(): Promise<void>;
   stop(): Promise<void>;
   dispose(): Promise<void>;
 }
