@@ -1,6 +1,6 @@
 # Shared dropdown
 
-`apps/web/app/_components/dropdown.tsx` exports a controlled, single-selection `Dropdown`. It is shared by the web and mobile applications. Import it from a client component. Category and Visibility in the transaction editor use it; other screens can adopt the same component.
+`apps/web/app/_components/dropdown.tsx` exports a controlled, single-selection `Dropdown`. It is shared by the web and mobile applications. Import it from a client component. Category and Visibility in the transaction editor use it; other screens can adopt the same component. Category groups are always bold, non-selectable headings, including during search; only child and standalone categories are choices. Groups with hidden children remain headings. The generic dropdown still supports explicitly selectable branches for other use cases.
 
 ## Flat options, without search
 

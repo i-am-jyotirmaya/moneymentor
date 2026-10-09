@@ -17,12 +17,14 @@ export function CategoryPicker({ categories, categoryId, categoryName, type, dis
     (!category.parentCategoryId || !byId.get(category.parentCategoryId)?.isHidden),
   ).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   const availableIds = new Set(available.map((category) => category.id));
+  // Use the full catalog: hiding children must not turn their group into a choice.
+  const groupIds = new Set(categories.map((category) => category.parentCategoryId));
   function toOption(category: CategoryItem): DropdownOption {
     const children = available.filter((child) => child.parentCategoryId === category.id);
     return {
       value: category.id,
       label: category.name,
-      selectable: true,
+      selectable: !groupIds.has(category.id),
       children: children.length ? children.map(toOption) : undefined,
     };
   }

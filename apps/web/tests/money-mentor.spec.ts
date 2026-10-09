@@ -68,8 +68,14 @@ const baseTransactions = [
 const categoryCatalog = [
   { id: "housing", name: "Housing", parentCategoryId: null, type: "Expense", sortOrder: 100 },
   { id: "rent", name: "Rent", parentCategoryId: "housing", type: "Expense", sortOrder: 101 },
+  { id: "food", name: "Food & Groceries", parentCategoryId: null, type: "Expense", sortOrder: 300 },
+  { id: "groceries", name: "Groceries", parentCategoryId: "food", type: "Expense", sortOrder: 301 },
+  { id: "standalone", name: "Everyday", parentCategoryId: null, type: "Expense", sortOrder: 310 },
+  { id: "empty-group", name: "Archived Group", parentCategoryId: null, type: "Expense", sortOrder: 320 },
+  { id: "empty-group-child", name: "Archived Groceries", parentCategoryId: "empty-group", type: "Expense", sortOrder: 321, isHidden: true },
   { id: "dining", name: "Dining & Lifestyle", parentCategoryId: null, type: "Expense", sortOrder: 400 },
   { id: "restaurants", name: "Restaurants", parentCategoryId: "dining", type: "Expense", sortOrder: 401 },
+  { id: "food-delivery", name: "Food Delivery", parentCategoryId: "dining", type: "Expense", sortOrder: 406 },
   { id: "custom-dining", name: "Date Night", parentCategoryId: "dining", type: "Expense", sortOrder: 402, householdId: "44444444-4444-4444-8444-444444444444" },
   { id: "hidden", name: "Hidden category", parentCategoryId: "dining", type: "Expense", sortOrder: 403, isHidden: true },
   { id: "hidden-group", name: "Hidden group", parentCategoryId: null, type: "Expense", sortOrder: 450, isHidden: true },
@@ -1180,4 +1186,50 @@ test("dropdown triggers disable while saving and recover after a failed save", a
   await expect(editor.getByRole("listbox")).toHaveCount(0);
   await editor.getByRole("combobox", { name: "Category", exact: true }).click();
   await expect(editor.getByRole("listbox")).toBeVisible();
+});
+
+test("category groups stay bold headings before and during food search", async ({ page }, testInfo) => {
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  const category = editor.getByRole("combobox", { name: "Category", exact: true });
+  await category.click();
+  const panel = editor.getByRole("listbox", { name: "Category options" });
+  const search = editor.getByRole("searchbox", { name: "Search categories" });
+  const foodGroup = panel.getByText("Food & Groceries", { exact: true });
+  const diningGroup = panel.getByText("Dining & Lifestyle", { exact: true });
+  for (const query of ["", "food", ""]) {
+    await search.fill(query);
+    await expect(foodGroup).toBeVisible();
+    await expect(diningGroup).toBeVisible();
+    await expect(panel.getByRole("option", { name: "Food & Groceries", exact: true })).toHaveCount(0);
+    await expect(panel.getByRole("option", { name: "Dining & Lifestyle", exact: true })).toHaveCount(0);
+    for (const heading of [foodGroup, diningGroup]) {
+      expect(await heading.evaluate((element) => Number.parseInt(getComputedStyle(element).fontWeight))).toBeGreaterThanOrEqual(700);
+      await heading.click();
+      await expect(category).toHaveAttribute("aria-expanded", "true");
+      await expect(category).toHaveText("Transport (current category)");
+    }
+  }
+  await search.fill("food");
+  await expect(panel.getByRole("option", { name: "Food & Groceries › Groceries", exact: true })).toBeVisible();
+  await expect(panel.getByRole("option", { name: "Dining & Lifestyle › Food Delivery", exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("food-group-headings.png") });
+  await search.press("Enter");
+  await expect(category).toHaveText("Food & Groceries › Groceries");
+  await expect(panel).toHaveCount(0);
+});
+
+test("groups with hidden children remain headings and standalone categories stay selectable", async ({ page }) => {
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  const category = editor.getByRole("combobox", { name: "Category", exact: true });
+  await category.click();
+  const panel = editor.getByRole("listbox");
+  await expect(panel.getByText("Archived Group", { exact: true })).toBeVisible();
+  await expect(panel.getByRole("option", { name: "Archived Group", exact: true })).toHaveCount(0);
+  await expect(panel.getByRole("option", { name: /Archived Groceries/ })).toHaveCount(0);
+  await panel.getByRole("option", { name: "Everyday", exact: true }).click();
+  await expect(category).toHaveText("Everyday");
 });
