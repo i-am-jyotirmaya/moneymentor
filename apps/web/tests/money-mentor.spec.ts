@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import { installFixtureModel, captureFixtureAudio } from "./helpers/local-speech";
+
 const currentMonthKey = new Date().toISOString().slice(0, 7);
 const previousMonthKey = shiftMonthKey(currentMonthKey, -1);
 
@@ -792,12 +794,17 @@ test("mobile hamburger menu can open the dashboard", async ({ page }, testInfo) 
 test("voice interaction shows wave feedback and sends captured speech", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
   await seedVoiceRecognition(page);
-
+  let releaseWorkspace!: () => void;
+  const workspaceReady = new Promise<void>(resolve => { releaseWorkspace = resolve; });
+  await page.route("**/api/households", async route => { await workspaceReady; await route.fallback(); });
   await page.goto("/");
+  // Starting before the initial household resolves used to cancel recognition immediately.
+  await expect(page.getByRole("button", { name: "Start voice input" })).toBeDisabled();
+  releaseWorkspace();
   await page.getByRole("button", { name: "Start voice input" }).click();
 
   await expect(page.getByTestId("voice-wave")).toBeVisible();
-  await expect(page.getByText("Recording")).toBeVisible();
+  await expect(page.getByText("Recording", { exact: true })).toBeVisible();
   await testInfo.attach("mobile-voice-recording", {
     body: await page.screenshot({ fullPage: false }),
     contentType: "image/png",
@@ -1098,4 +1105,41 @@ test("goal deep links load the selected goal", async ({ page }) => {
   await expect(page.locator("#goal-plan").getByText("Emergency reserve", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.locator("#goal-plan").getByText("Emergency reserve", { exact: true })).toBeVisible();
+});
+
+
+test("downloaded engine selection persists and missing assets never start browser speech", async ({ page }, testInfo) => {
+  await seedVoiceRecognition(page);
+  await page.goto("/settings");
+  await page.getByLabel("Speech engine").selectOption("whisper");
+  await page.reload();
+  await expect(page.getByLabel("Speech engine")).toHaveValue("whisper");
+  await page.goto("/");
+  if (testInfo.project.name === "desktop-chromium") await page.getByRole("button", { name: "Open assistant chat" }).click();
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByRole("dialog", { name: "Voice input" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download / resume Whisper Tiny" })).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { __speechStatus: { active: boolean } }).__speechStatus.active)).toBe(false);
+});
+
+test("real downloaded model sends a financial utterance through the existing input flow", async ({ page }, testInfo) => {
+  const directory = process.env.SPNDRR_SPEECH_FIXTURE_DIR;
+  test.skip(!directory, "Opt-in real model acceptance test");
+  test.skip(testInfo.project.name !== "mobile-chromium", "Run this CPU-heavy input-flow check once");
+  test.setTimeout(180000);
+  await installFixtureModel(page, directory!, "/");
+  await captureFixtureAudio(page, directory!, "paused-expense.pcm");
+  await page.evaluate(() => {
+    localStorage.setItem("spndrr.speech.preferences.v1", JSON.stringify({ privacy: "local-only", language: "en-IN", engine: "whisper" }));
+    window.dispatchEvent(new Event("spndrr-speech-preferences"));
+  });
+  const request = page.waitForRequest(request => request.url().endsWith("/api/assistant/messages") && request.method() === "POST", { timeout: 120000 });
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByTestId("voice-wave").getByText("Recording", { exact: true })).toBeVisible({ timeout: 90000 });
+  const body = (await request).postDataJSON();
+  expect(body.inputMode).toBe("Voice");
+  expect(body.text.toLowerCase()).toMatch(/\b(?:450|four hundred and fifty)\b/);
+  expect(body.text.toLowerCase()).toContain("dinner");
+  await expect(page.getByText("Tracked ₹540 for dinner")).toBeVisible(); // Mock backend response; ASR amount is asserted above.
+  expect(await page.evaluate(() => (window as unknown as { __microphonesStopped: number }).__microphonesStopped)).toBe(1);
 });

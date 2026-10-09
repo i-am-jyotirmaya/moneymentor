@@ -38,7 +38,7 @@ export class SpeechModelManager {
   private busy = false;
   private maximumModelBytes: number;
   constructor(storage: SpeechModelStorage, request: typeof fetch = fetch, maximumModelBytes = 256 * 1024 * 1024) {
-    this.storage = storage; this.request = request; this.maximumModelBytes = maximumModelBytes;
+    this.storage = storage; this.request = (input, init) => request(input, init); this.maximumModelBytes = maximumModelBytes;
   }
 
   getInstalledModels() { return this.storage.list<StoredSpeechModel>("installed/"); }
@@ -59,7 +59,7 @@ export class SpeechModelManager {
     this.busy = true;
     const base = prefix(manifest);
     try {
-      if (await this.isModelInstalled(manifest)) return;
+      if (await this.isModelInstalled(manifest) && await this.verifyModel(manifest)) return;
       await this.storage.removePrefix(`installed/${base}`);
       const total = manifest.files.reduce((sum, file) => sum + file.bytes, 0);
       let completed = 0;
@@ -70,7 +70,7 @@ export class SpeechModelManager {
         const previous = await this.storage.get<string>(expected);
         let saved = previous === file.sha256 ? await this.storage.get<ModelDownload>(key) : undefined;
         await this.storage.put(expected, file.sha256);
-        if (saved && saved.bytes.length > file.bytes) saved = undefined;
+        if (saved && (saved.bytes.length > file.bytes || (saved.bytes.length === file.bytes && await sha256(saved.bytes) !== file.sha256.toLowerCase()))) saved = undefined;
         if (!saved || saved.bytes.length < file.bytes) {
           const offset = saved?.bytes.length ?? 0;
           const headers: Record<string, string> = {};
@@ -133,8 +133,16 @@ export class SpeechModelManager {
     return true;
   }
   async loadModel(manifest: SpeechModelManifest) {
-    if (!await this.isModelInstalled(manifest) || !await this.verifyModel(manifest)) throw new Error("Install and verify this model before loading it.");
-    return Promise.all(manifest.files.map(async file => ({ path: file.path, bytes: (await this.storage.get<ModelDownload>(`${prefix(manifest)}file/${file.path}`))!.bytes })));
+    validateManifest(manifest);
+    if (!await this.isModelInstalled(manifest)) throw new Error("Install and verify this model before loading it.");
+    const files: { path: string; bytes: Uint8Array }[] = [];
+    // Return the exact buffers that were verified, avoiding a second 42 MiB IndexedDB read.
+    for (const file of manifest.files) {
+      const saved = await this.storage.get<ModelDownload>(`${prefix(manifest)}file/${file.path}`);
+      if (!saved || saved.bytes.length !== file.bytes || await sha256(saved.bytes) !== file.sha256.toLowerCase()) throw new Error("Install and verify this model before loading it.");
+      files.push({ path: file.path, bytes: saved.bytes });
+    }
+    return files;
   }
   async deleteModel(manifest: SpeechModelManifest) {
     if (this.busy) throw new Error("Wait for the current model download to finish or cancel it.");

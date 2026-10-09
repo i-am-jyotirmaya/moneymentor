@@ -12,6 +12,8 @@ export function AssistantSection({
   inputMode,
   isListening,
   partialTranscript,
+  voicePhase,
+  voiceDisabled = false,
   isSubmitting,
   messages,
   onPromptClick,
@@ -25,6 +27,8 @@ export function AssistantSection({
   inputMode: InputMode;
   isListening: boolean;
   partialTranscript: string;
+  voicePhase: "loading" | "recording" | "transcribing";
+  voiceDisabled?: boolean;
   isSubmitting: boolean;
   messages: Message[];
   onPromptClick: (idea: string) => void;
@@ -41,6 +45,8 @@ export function AssistantSection({
         inputMode={inputMode}
         isListening={isListening}
         partialTranscript={partialTranscript}
+        voicePhase={voicePhase}
+        voiceDisabled={voiceDisabled}
         isSubmitting={isSubmitting}
         messages={messages}
         onPromptClick={onPromptClick}
@@ -76,6 +82,8 @@ export function ChatSurface({
   inputMode,
   isListening,
   partialTranscript,
+  voicePhase,
+  voiceDisabled = false,
   isSubmitting,
   messages,
   onPromptClick,
@@ -91,6 +99,8 @@ export function ChatSurface({
   inputMode: InputMode;
   isListening: boolean;
   partialTranscript: string;
+  voicePhase: "loading" | "recording" | "transcribing";
+  voiceDisabled?: boolean;
   isSubmitting: boolean;
   messages: Message[];
   onPromptClick?: (idea: string) => void;
@@ -126,7 +136,7 @@ export function ChatSurface({
         <div ref={chatEndRef} />
       </div>
 
-      {isListening ? <VoiceWavePanel transcript={partialTranscript} /> : null}
+      {isListening ? <VoiceWavePanel transcript={partialTranscript} phase={voicePhase} /> : null}
 
       <div className="shrink-0 border-t border-[var(--border)] bg-white/90 p-3 backdrop-blur">
         {showPromptIdeas && onPromptClick ? (
@@ -161,7 +171,7 @@ export function ChatSurface({
               value={text}
             />
             <VoiceAiButton
-              disabled={isSubmitting}
+              disabled={isSubmitting || (voiceDisabled && !isListening)}
               isListening={isListening}
               onClick={onToggleVoice}
             />
@@ -186,6 +196,8 @@ export function DesktopAssistantDock({
   inputMode,
   isListening,
   partialTranscript,
+  voicePhase,
+  voiceDisabled = false,
   isOpen,
   isSubmitting,
   messages,
@@ -200,6 +212,8 @@ export function DesktopAssistantDock({
   inputMode: InputMode;
   isListening: boolean;
   partialTranscript: string;
+  voicePhase: "loading" | "recording" | "transcribing";
+  voiceDisabled?: boolean;
   isOpen: boolean;
   isSubmitting: boolean;
   messages: Message[];
@@ -245,6 +259,8 @@ export function DesktopAssistantDock({
             inputMode={inputMode}
             isListening={isListening}
             partialTranscript={partialTranscript}
+            voicePhase={voicePhase}
+            voiceDisabled={voiceDisabled}
             isSubmitting={isSubmitting}
             messages={messages}
             onSubmit={onSubmit}
@@ -326,7 +342,7 @@ export function VoiceAiButton({
   );
 }
 
-export function VoiceWavePanel({ transcript }: { transcript: string }) {
+export function VoiceWavePanel({ transcript, phase }: { transcript: string; phase: "loading" | "recording" | "transcribing" }) {
   return (
     <div
       aria-live="polite"
@@ -335,9 +351,9 @@ export function VoiceWavePanel({ transcript }: { transcript: string }) {
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">Recording</p>
+          <p className="text-sm font-semibold">{phase === "loading" ? "Loading local model…" : phase === "transcribing" ? "Transcribing on this device…" : "Recording"}</p>
           <p className="mt-1 text-xs font-medium text-white/70">
-            {transcript || "I will send it when speech is captured."}
+            {transcript || (phase === "recording" ? "Speak your sentence, then pause for two seconds. Stop cancels this recording." : phase === "loading" ? "Wait for Recording before speaking. You can cancel while waiting." : "You can cancel voice input while waiting.")}
           </p>
         </div>
         <div className="voice-wave" aria-hidden="true">

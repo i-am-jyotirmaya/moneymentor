@@ -37,9 +37,10 @@ export class SpeechEndpointDetector {
   private elapsedMs = 0;
   private speaking = false;
   private ended = false;
-  private options: { sampleRate: number; threshold: number; minSpeechMs: number; silenceMs: number; maxDurationMs: number };
+  private options: { sampleRate: number; threshold: number; releaseThreshold: number; minSpeechMs: number; silenceMs: number; maxDurationMs: number };
   constructor(options: Partial<SpeechEndpointDetector["options"]> = {}) {
-    this.options = { sampleRate: 16000, threshold: 0.015, minSpeechMs: 120, silenceMs: 900, maxDurationMs: 30000, ...options };
+    // Hysteresis keeps quieter syllables after speech starts; allow ordinary pauses within a sentence.
+    this.options = { sampleRate: 16000, threshold: 0.003, releaseThreshold: 0.0015, minSpeechMs: 120, silenceMs: 2000, maxDurationMs: 30000, ...options };
     if (Object.values(this.options).some(value => !Number.isFinite(value) || value <= 0)) throw new Error("Endpoint settings must be positive.");
   }
   process(pcm: Float32Array): "speech-start" | "speech-end" | undefined {
@@ -47,8 +48,8 @@ export class SpeechEndpointDetector {
     const ms = pcm.length * 1000 / this.options.sampleRate;
     const rms = Math.sqrt(pcm.reduce((sum, sample) => sum + sample * sample, 0) / pcm.length);
     this.elapsedMs += ms;
-    if (rms >= this.options.threshold) { this.voiceMs += ms; this.silenceMs = 0; }
-    else { this.silenceMs += ms; if (!this.speaking) this.voiceMs = 0; }
+    if (rms >= (this.speaking ? this.options.releaseThreshold : this.options.threshold)) { this.voiceMs += ms; this.silenceMs = 0; }
+    else { this.silenceMs += ms; if (!this.speaking && this.silenceMs >= 100) this.voiceMs = 0; }
     if (this.elapsedMs >= this.options.maxDurationMs || (this.speaking && this.silenceMs >= this.options.silenceMs)) {
       this.ended = true;
       return "speech-end";
@@ -69,6 +70,14 @@ export class BrowserPcmCapture {
   private started = false;
   private cleanup?: Promise<void>;
 
+  /** Prime playback during the microphone click, before asynchronous model loading loses user activation. */
+  prepareAudio() {
+    if (this.disposed || this.started) return;
+    this.context ??= new AudioContext();
+    // No microphone permission or stream is requested here. start() resumes again after capture setup.
+    void this.context.resume().catch(() => {});
+  }
+
   async start(workletUrl: string, onFrame: (pcm: Float32Array) => void) {
     if (this.started || this.disposed) throw new Error("Audio capture can only be started once.");
     this.started = true;
@@ -76,7 +85,7 @@ export class BrowserPcmCapture {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false });
       if (this.disposed) { stream.getTracks().forEach(track => track.stop()); return; }
       this.stream = stream;
-      const context = new AudioContext();
+      const context = this.context ?? new AudioContext();
       this.context = context;
       await context.audioWorklet.addModule(workletUrl);
       if (this.disposed) return;

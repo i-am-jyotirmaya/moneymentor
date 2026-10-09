@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BrowserTranscriptionProvider, LocalTranscriptionService, PcmResampler, SpeechEndpointDetector, SpeechEventStream, normalizeTranscript } from "../src/index.ts";
+import { BrowserPcmCapture, BrowserTranscriptionProvider, LocalTranscriptionService, PcmResampler, SpeechEndpointDetector, SpeechEventStream, normalizeTranscript } from "../src/index.ts";
 import type { BrowserRecognition, TranscriptionOptions, TranscriptionProvider } from "../src/index.ts";
 
 const options: TranscriptionOptions = { language: "en-IN", privacy: "local-only" };
@@ -142,12 +142,57 @@ test("endpoint detection ignores brief noise, ends after silence, and bounds sil
   assert.equal(detector.process(frame(0)), undefined);
   assert.equal(detector.process(frame(0.2)), undefined);
   assert.equal(detector.process(frame(0.2)), "speech-start");
-  for (let i = 0; i < 8; i++) assert.equal(detector.process(frame(0)), undefined);
+  for (let i = 0; i < 19; i++) assert.equal(detector.process(frame(0)), undefined);
   assert.equal(detector.process(frame(0)), "speech-end");
   const silent = new SpeechEndpointDetector({ maxDurationMs: 100 });
   assert.equal(silent.process(frame(0)), "speech-end");
 });
 
+test("endpoint keeps quiet words and a 1.2 second pause in the same utterance", () => {
+  const detector = new SpeechEndpointDetector();
+  const frame = (value: number) => new Float32Array(1600).fill(value);
+  detector.process(frame(0.1));
+  assert.equal(detector.process(frame(0.1)), "speech-start");
+  for (let i = 0; i < 12; i++) assert.equal(detector.process(frame(0)), undefined);
+  for (let i = 0; i < 40; i++) assert.equal(detector.process(frame(0.002)), undefined);
+  for (let i = 0; i < 19; i++) assert.equal(detector.process(frame(0)), undefined);
+  assert.equal(detector.process(frame(0)), "speech-end");
+});
+
+test("quiet speech starts despite short gaps between syllables", () => {
+  const detector = new SpeechEndpointDetector();
+  const frame = (value: number) => new Float32Array(640).fill(value);
+  assert.equal(detector.process(frame(0.004)), undefined);
+  assert.equal(detector.process(frame(0)), undefined);
+  assert.equal(detector.process(frame(0.004)), undefined);
+  assert.equal(detector.process(frame(0.004)), "speech-start");
+});
+
 test("normalization never guesses money values", () => {
   assert.equal(normalizeTranscript(" spent  four fifty at meghana "), "spent four fifty at meghana");
+});
+
+
+test("audio priming before model load requests no microphone and cancellation closes the context", async () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "AudioContext");
+  let contexts = 0, resumes = 0, closes = 0;
+  class Context {
+    state = "suspended";
+    constructor() { contexts++; }
+    async resume() { resumes++; this.state = "running"; }
+    async close() { closes++; this.state = "closed"; }
+  }
+  Object.defineProperty(globalThis, "AudioContext", { configurable: true, value: Context });
+  try {
+    const capture = new BrowserPcmCapture();
+    capture.prepareAudio();
+    await capture.dispose();
+    await capture.dispose();
+    assert.equal(contexts, 1);
+    assert.equal(resumes, 1);
+    assert.equal(closes, 1);
+  } finally {
+    if (original) Object.defineProperty(globalThis, "AudioContext", original);
+    else Reflect.deleteProperty(globalThis, "AudioContext");
+  }
 });
