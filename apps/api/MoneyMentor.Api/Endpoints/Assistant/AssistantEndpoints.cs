@@ -83,6 +83,10 @@ public static class AssistantEndpoints
         {
             return Results.NotFound();
         }
+        catch (MoneyMentor.Application.Transactions.FinancialTransactionValidationException exception)
+        {
+            return EndpointValidation.ValidationProblem("financialEvent", exception.Message);
+        }
         catch (InvalidOperationException exception)
         {
             return Results.Problem(

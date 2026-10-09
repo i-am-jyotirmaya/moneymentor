@@ -38,7 +38,7 @@ internal sealed class PostgresTransactionService(
             {
                 HouseholdId = command.RequestedHouseholdId, CategoryName = command.Draft.CategoryGuess,
                 Merchant = command.Draft.MerchantName, Description = command.Draft.Description,
-                SourceText = command.Draft.SourceText, InputMode = command.Draft.InputMode
+                SourceText = command.Draft.SourceText, InputMode = command.Draft.InputMode, Confidence = command.Draft.Confidence
             }, command.Draft.SourceText), cancellationToken);
     }
 
@@ -50,7 +50,7 @@ internal sealed class PostgresTransactionService(
             {
                 HouseholdId = command.RequestedHouseholdId, CategoryName = GetIncomeCategoryName(command.Draft.Reason),
                 Merchant = command.Draft.SenderName, Description = command.Draft.Reason,
-                SourceText = command.Draft.SourceText, InputMode = command.Draft.InputMode
+                SourceText = command.Draft.SourceText, InputMode = command.Draft.InputMode, Confidence = command.Draft.Confidence
             }, command.Draft.SourceText), cancellationToken);
     }
 

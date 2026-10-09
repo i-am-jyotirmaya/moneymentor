@@ -37,8 +37,10 @@ internal sealed class DailyFinancialFactStore(MoneyMentorDbContext dbContext, Ti
         {
             var items = group.Select(x => new { x.Amount, x.Classification,
                 Impact = TransactionFinancialImpactCalculator.Calculate(x.Amount, x.Type, x.Kind, x.ReversedKind) }).ToArray();
+            var financialItems = items.Where(x => x.Impact.Spending != 0 || x.Impact.Income != 0 || x.Impact.Investment != 0).ToArray();
             dbContext.DailyFinancialAggregates.Add(new DailyFinancialAggregate
             {
+                CalculationVersion = "v2-account-aware",
                 HouseholdId = householdId,
                 UserProfileId = group.Key.UserProfileId,
                 Date = date,
@@ -53,8 +55,8 @@ internal sealed class DailyFinancialFactStore(MoneyMentorDbContext dbContext, Ti
                 TransactionCount = items.Length,
                 ExpenseTransactionCount = items.Count(x => x.Impact.Spending > 0),
                 IncomeTransactionCount = items.Count(x => x.Impact.Income > 0),
-                AverageTransactionAmount = decimal.Round(items.Average(x => Math.Abs(x.Impact.Spending) + Math.Abs(x.Impact.Income) + Math.Abs(x.Impact.Investment)), 2),
-                MaximumTransactionAmount = items.Max(x => Math.Abs(x.Impact.Spending) + Math.Abs(x.Impact.Income) + Math.Abs(x.Impact.Investment)),
+                AverageTransactionAmount = financialItems.Length == 0 ? 0 : decimal.Round(financialItems.Average(x => Math.Abs(x.Impact.Spending) + Math.Abs(x.Impact.Income) + Math.Abs(x.Impact.Investment)), 2),
+                MaximumTransactionAmount = financialItems.Length == 0 ? 0 : financialItems.Max(x => Math.Abs(x.Impact.Spending) + Math.Abs(x.Impact.Income) + Math.Abs(x.Impact.Investment)),
                 CreatedAt = now,
                 UpdatedAt = now
             });

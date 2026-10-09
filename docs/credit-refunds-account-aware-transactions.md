@@ -78,7 +78,7 @@ For two statement observations of a card settlement, both adapters normalize sou
 
 Run the new application migration before serving the updated API. `AccountAwareTransactions` adds nullable transaction account/semantic/reference columns, account/alias tables, relations, keys and indexes. Existing Expense/Income/Investment/Transfer records receive Purchase/Income/Investment/Transfer kinds. Historical accounts remain null. Nullable kind fallback preserves compatibility with existing writers and fixtures.
 
-Existing daily facts do not need recalculation merely for the backfill, because their financial meaning is unchanged. New creates, edits, deletes and restores rebuild the affected days atomically. Roll back application/database together if the new tables or columns are removed; a database downgrade discards the new account/link metadata.
+Existing daily facts do not need recalculation merely for the backfill, because their financial meaning is unchanged. New creates, edits, deletes and restores rebuild the affected days atomically and mark those facts `v2-account-aware`. Newly detected/refreshed judgment candidates carry the fact version into their decision context. Roll back application/database together if the new tables or columns are removed; a database downgrade discards the new account/link metadata.
 
 No API key or new production feature flag is required. Jev category enrichment retains the existing privacy-consent and fallback behavior. No speech models, audio capture, speech configuration or transcription files are part of this change.
 

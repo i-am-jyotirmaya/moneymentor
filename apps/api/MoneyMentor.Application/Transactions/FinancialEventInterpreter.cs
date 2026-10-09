@@ -34,7 +34,7 @@ public static class FinancialEventInterpreter
         if (intent.EventKind == TransactionKind.CreditCardPayment)
             to ??= Capture(text, @"\b(?:paid|pay)\s+(?:my\s+)?(?<value>.+?)\s+bill\b");
         static string? Clean(string? value) => value is null ? null : Regex.Replace(value,
-            @"\s+(?:credit[ -]?card|card|account)$|\b(?:upi|cash|bank\s+transfer|auto\s?debit)\b", "", RegexOptions.IgnoreCase).Trim();
+            @"\s+(?:credit[ -]?card|card)$|\b(?:upi|cash|bank\s+transfer|auto\s?debit)\b", "", RegexOptions.IgnoreCase).Trim();
         account = Clean(account); to = Clean(to);
         var channel = Has(text, @"\bupi\b") ? PaymentChannel.UPI
             : Has(text, @"\bauto\s?debit\b") ? PaymentChannel.AutoDebit

@@ -83,6 +83,7 @@ internal sealed class JudgmentCandidateAnalysisService(
             {
                 if (previous.Status is not (JudgmentCandidateStatus.Pending or JudgmentCandidateStatus.Queued))
                     continue;
+                previous.CalculationVersion = candidate.CalculationVersion;
                 previous.WindowStart = candidate.WindowStart;
                 previous.WindowEndExclusive = candidate.WindowEndExclusive;
                 previous.CurrentValue = candidate.CurrentValue;

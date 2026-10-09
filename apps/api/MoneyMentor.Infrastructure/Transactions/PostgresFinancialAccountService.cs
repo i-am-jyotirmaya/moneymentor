@@ -71,6 +71,12 @@ internal sealed class PostgresFinancialAccountService(MoneyMentorDbContext db, I
         var aliases = await db.FinancialAccountAliases.Where(x => ids.Contains(x.FinancialAccountId)).ToArrayAsync(ct);
         var matches = candidates.Where(x => string.Equals(x.Name, alias!.Trim(), StringComparison.OrdinalIgnoreCase)
             || aliases.Any(a => a.FinancialAccountId == x.Id && string.Equals(a.Alias, alias.Trim(), StringComparison.OrdinalIgnoreCase))).ToArray();
+        if (matches.Length == 0 && alias!.EndsWith(" account", StringComparison.OrdinalIgnoreCase))
+        {
+            var shortAlias = alias[..^8].Trim();
+            matches = candidates.Where(x => string.Equals(x.Name, shortAlias, StringComparison.OrdinalIgnoreCase)
+                || aliases.Any(a => a.FinancialAccountId == x.Id && string.Equals(a.Alias, shortAlias, StringComparison.OrdinalIgnoreCase))).ToArray();
+        }
         if (matches.Length == 0) return null; // Unknown text aliases never force account setup for ordinary tracking.
         if (matches.Length != 1) throw new FinancialTransactionValidationException(matches.Length == 0
             ? $"No account matches '{alias}'. Add it in Financial accounts, or track without an account."

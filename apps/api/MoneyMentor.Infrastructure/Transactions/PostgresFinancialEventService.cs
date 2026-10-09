@@ -61,10 +61,13 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
         Guid? categoryId = original?.CategoryId;
         if (original is null && intent.CategoryId is not null)
         {
-            categoryId = await db.Categories.Where(x => x.Id == intent.CategoryId && !x.IsHidden
-                && x.Type == categoryType && (x.HouseholdId == null || x.HouseholdId == household.HouseholdId))
-                .Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct)
+            var selected = await db.Categories.AsNoTracking().FirstOrDefaultAsync(x => x.Id == intent.CategoryId && !x.IsHidden
+                && x.Type == categoryType && (x.HouseholdId == null || x.HouseholdId == household.HouseholdId), ct)
                 ?? throw new FinancialTransactionValidationException("Choose an available category for this event.");
+            if (selected.ParentCategoryId is not null && !await db.Categories.AnyAsync(x => x.Id == selected.ParentCategoryId
+                && !x.IsHidden && (x.HouseholdId == null || x.HouseholdId == household.HouseholdId), ct))
+                throw new FinancialTransactionValidationException("Choose a category from an available group.");
+            categoryId = selected.Id;
         }
         if (original is null && categoryId is null && intent.EventKind is TransactionKind.Purchase or TransactionKind.Income
             or TransactionKind.Refund or TransactionKind.Fee or TransactionKind.Interest or TransactionKind.Investment)
@@ -79,14 +82,14 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
         var now = clock.GetUtcNow();
         var transaction = new Transaction
         {
-            HouseholdId = household.HouseholdId, UserProfileId = original?.UserProfileId ?? user.UserProfileId,
+            HouseholdId = household.HouseholdId, UserProfileId = original is null ? user.UserProfileId : original.UserProfileId,
             Amount = intent.Amount, Kind = intent.EventKind, Type = TransactionFinancialImpactCalculator.TypeFor(intent.EventKind),
             ReversedKind = intent.EventKind == TransactionKind.Reversal ? TransactionFinancialImpactCalculator.ResolveKind(original!.Type, original.Kind) : null,
             AccountId = account?.Id ?? original?.AccountId, CounterpartyAccountId = counterparty?.Id ?? original?.CounterpartyAccountId,
             PaymentChannel = intent.PaymentChannel, CategoryId = categoryId,
             MerchantName = original?.MerchantName ?? intent.Merchant?.Trim(), MerchantId = original?.MerchantId,
             EnrichmentJson = original?.EnrichmentJson, Description = intent.Description?.Trim(), SourceText = intent.SourceText,
-            TransactionDate = intent.Date ?? user.CurrentDate, InputMode = intent.InputMode, Confidence = 1m,
+            TransactionDate = intent.Date ?? user.CurrentDate, InputMode = intent.InputMode, Confidence = intent.Confidence,
             Visibility = original?.Visibility ?? intent.Visibility ?? user.DefaultTransactionVisibility,
             ExternalReference = intent.ExternalReference, ObservationAccountId = intent.ExternalReference is null ? null : observationId,
             UpdatedByUserProfileId = user.UserProfileId,
@@ -119,6 +122,7 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
         if (intent.SourceText is null || !Enum.IsDefined(intent.EventKind) || !Enum.IsDefined(intent.InputMode)
             || (intent.PaymentChannel is not null && !Enum.IsDefined(intent.PaymentChannel.Value))
             || (intent.Visibility is not null && !Enum.IsDefined(intent.Visibility.Value))
+            || intent.Confidence < 0 || intent.Confidence > 1 || decimal.Round(intent.Confidence, 4) != intent.Confidence
             || intent.Amount <= 0 || intent.Amount > 999999999999m || decimal.Round(intent.Amount, 2) != intent.Amount
             || (intent.Date ?? user.CurrentDate) > user.CurrentDate
             || intent.SourceText.Length > 4000 || intent.Description?.Length > 1024 || intent.Merchant?.Length > 256
@@ -164,22 +168,28 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
             && (x.Kind == TransactionKind.Purchase || x.Kind == TransactionKind.Fee || x.Kind == TransactionKind.Interest
                 || (x.Kind == null && x.Type == TransactionType.Expense)))
             .OrderByDescending(x => x.TransactionDate).Take(100).ToArrayAsync(ct);
-        var eligible = new List<Transaction>();
-        foreach (var candidate in candidates)
-            if (await RemainingAsync(db, candidate, null, ct) >= intent.Amount) eligible.Add(candidate);
+        var candidateIds = candidates.Select(x => x.Id).ToArray();
+        var usedAmounts = await (from relation in db.TransactionRelations.AsNoTracking()
+            join adjustment in db.Transactions.AsNoTracking() on relation.TransactionId equals adjustment.Id
+            where candidateIds.Contains(relation.RelatedTransactionId) && adjustment.DeletedAt == null
+                && (relation.RelationType == TransactionRelationType.RefundOf || relation.RelationType == TransactionRelationType.ReversalOf)
+            group adjustment by relation.RelatedTransactionId into adjustments
+            select new { Id = adjustments.Key, Amount = adjustments.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Id, x => x.Amount, ct);
+        var eligible = candidates.Where(x => x.Amount - usedAmounts.GetValueOrDefault(x.Id) >= intent.Amount).ToList();
         if (eligible.Count == 0) return null;
         // A unique merchant + amount + description/account match can link automatically.
         var strong = eligible.Where(x => x.Amount == intent.Amount
-            && (account is not null || DescriptionOverlap(x.Description, intent.Description))).ToArray();
+            && (account is not null || DescriptionOverlap(x.Description, intent.Description, intent.Merchant))).ToArray();
         if (strong.Length == 1) return strong[0];
         throw new TransactionMatchRequiredException(eligible.Take(5)
             .Select(x => new TransactionMatchCandidate(x.Id, x.Amount, x.TransactionDate, x.MerchantName, x.Description)).ToArray());
     }
 
-    private static bool DescriptionOverlap(string? original, string? current)
+    private static bool DescriptionOverlap(string? original, string? current, string? merchant)
     {
         if (original is null || current is null) return false;
         var ignored = new HashSet<string>(["refund", "refunded", "reversal", "reversed", "amazon", "from", "for", "the", "paid", "received", "bought", "purchase"]);
+        if (merchant is not null) foreach (System.Text.RegularExpressions.Match word in System.Text.RegularExpressions.Regex.Matches(merchant.ToLowerInvariant(), @"[\p{L}]+")) ignored.Add(word.Value);
         var words = System.Text.RegularExpressions.Regex.Matches(original.ToLowerInvariant(), @"[\p{L}]{4,}")
             .Select(x => x.Value).Where(x => !ignored.Contains(x));
         return words.Any(x => System.Text.RegularExpressions.Regex.IsMatch(current, $@"\b{System.Text.RegularExpressions.Regex.Escape(x)}\b",

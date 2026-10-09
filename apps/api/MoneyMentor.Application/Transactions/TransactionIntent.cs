@@ -5,6 +5,7 @@ namespace MoneyMentor.Application.Transactions;
 // Common contract for text, normalized OCR, API ingestion, and future imports.
 public sealed record TransactionIntent(TransactionKind EventKind, decimal Amount, DateOnly? Date = null)
 {
+    public decimal Confidence { get; init; } = 1m;
     public Guid? HouseholdId { get; init; }
     public Guid? AccountId { get; init; }
     public Guid? CounterpartyAccountId { get; init; }

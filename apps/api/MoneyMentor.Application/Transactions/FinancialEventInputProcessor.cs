@@ -70,7 +70,7 @@ public sealed class FinancialEventInputProcessor(IFinancialEventService events, 
             }
             intent = FinancialEventInterpreter.AddMetadata(new TransactionIntent(kind.Value, parsed.Draft.Amount.Value, parsed.Draft.TransactionDate)
             {
-                HouseholdId = command.HouseholdId, SourceText = text, InputMode = command.InputMode,
+                HouseholdId = command.HouseholdId, SourceText = text, InputMode = command.InputMode, Confidence = parsed.Draft.Confidence,
                 Merchant = kind is TransactionKind.Refund or TransactionKind.Reversal or TransactionKind.Cashback
                     ? FinancialEventInterpreter.RefundMerchant(text) ?? parsed.Draft.MerchantName : parsed.Draft.MerchantName,
                 Description = parsed.Draft.Description, CategoryName = parsed.Draft.CategoryGuess

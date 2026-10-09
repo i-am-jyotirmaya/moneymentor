@@ -1365,7 +1365,7 @@ test("financial accounts save aliases and keep account setup optional", async ({
 
 test("transaction editor exposes financial kind independently of payment channel", async ({ page }) => {
   await page.goto("/transactions");
-  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.getByRole("button", { name: "Next transaction page", exact: true }).click();
   await page.getByRole("button", { name: "Edit transaction Paid rent", exact: true }).click();
   const editor = page.getByRole("dialog", { name: "Edit transaction", exact: true });
   await expect(editor.getByRole("combobox", { name: "Account (optional)", exact: true })).toHaveText("Unspecified");
