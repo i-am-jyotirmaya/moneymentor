@@ -65,6 +65,28 @@ const baseTransactions = [
   }),
 ];
 
+const categoryCatalog = [
+  { id: "housing", name: "Housing", parentCategoryId: null, type: "Expense", sortOrder: 100 },
+  { id: "rent", name: "Rent", parentCategoryId: "housing", type: "Expense", sortOrder: 101 },
+  { id: "food", name: "Food & Groceries", parentCategoryId: null, type: "Expense", sortOrder: 300 },
+  { id: "groceries", name: "Groceries", parentCategoryId: "food", type: "Expense", sortOrder: 301 },
+  { id: "standalone", name: "Everyday", parentCategoryId: null, type: "Expense", sortOrder: 310 },
+  { id: "empty-group", name: "Archived Group", parentCategoryId: null, type: "Expense", sortOrder: 320 },
+  { id: "empty-group-child", name: "Archived Groceries", parentCategoryId: "empty-group", type: "Expense", sortOrder: 321, isHidden: true },
+  { id: "dining", name: "Dining & Lifestyle", parentCategoryId: null, type: "Expense", sortOrder: 400 },
+  { id: "restaurants", name: "Restaurants", parentCategoryId: "dining", type: "Expense", sortOrder: 401 },
+  { id: "food-delivery", name: "Food Delivery", parentCategoryId: "dining", type: "Expense", sortOrder: 406 },
+  { id: "custom-dining", name: "Date Night", parentCategoryId: "dining", type: "Expense", sortOrder: 402, householdId: "44444444-4444-4444-8444-444444444444" },
+  { id: "hidden", name: "Hidden category", parentCategoryId: "dining", type: "Expense", sortOrder: 403, isHidden: true },
+  { id: "hidden-group", name: "Hidden group", parentCategoryId: null, type: "Expense", sortOrder: 450, isHidden: true },
+  { id: "hidden-child", name: "Hidden child", parentCategoryId: "hidden-group", type: "Expense", sortOrder: 451 },
+  { id: "income", name: "Income", parentCategoryId: null, type: "Income", sortOrder: 10 },
+  { id: "salary", name: "Salary / Wages", parentCategoryId: "income", type: "Income", sortOrder: 11 },
+].map((category) => ({
+  householdId: null as string | null, isHidden: false, classification: "Discretionary",
+  isSystemCategory: true, icon: null, createdAt: "2026-01-01T00:00:00Z", ...category,
+}));
+
 async function seedAuthSession(page: Page) {
   await page.addInitScript(() => undefined);
 }
@@ -238,9 +260,12 @@ async function mockBackend(page: Page) {
         return;
       }
 
+      const categoryId = (body as { categoryId?: string }).categoryId;
+      const category = categoryCatalog.find((item) => item.id === categoryId);
       transactions[index] = {
         ...transactions[index],
         ...body,
+        ...(category ? { categoryName: category.name } : {}),
         updatedAt: new Date().toISOString(),
       };
       await json(route, transactions[index]);
@@ -282,7 +307,7 @@ async function mockBackend(page: Page) {
       await json(route, {
         householdId: url.searchParams.get("householdId"),
         canWrite: true,
-        categories: [],
+        categories: categoryCatalog,
       });
       return;
     }
@@ -599,7 +624,7 @@ test("dashboard month controls load the previous month", async ({ page }, testIn
   await page.getByRole("button", { name: "Previous dashboard month" }).click();
   await dashboardRequest;
 
-  await expect(page.getByLabel("Dashboard month", { exact: true })).toHaveValue(previousMonthKey);
+  await expect(page.getByRole("combobox", { name: "Dashboard month", exact: true })).toHaveText(formatMonthKey(previousMonthKey));
   await expect(page.getByText(formatMonthKey(previousMonthKey)).first()).toBeVisible();
 });
 
@@ -614,7 +639,8 @@ test("transaction list paginates by month and opens editing only from the edit i
   await expect(page.getByText(/12 records, Page 2 of 2/).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Edit transaction/ })).toHaveCount(2);
 
-  await page.getByLabel("Transaction month", { exact: true }).first().selectOption(previousMonthKey);
+  await page.getByRole("combobox", { name: "Transaction month", exact: true }).click();
+  await page.getByRole("option", { name: formatMonthKey(previousMonthKey), exact: true }).click();
   await expect(page.getByText("Previous month taxi").first()).toBeVisible();
   await expect(page.getByText(/1 records/).first()).toBeVisible();
 
@@ -664,6 +690,9 @@ test("assistant tracks income with sender and reason terminology", async ({ page
   await expect(editor.getByLabel("Sender")).toHaveValue("Joe");
   await expect(editor.getByLabel("Reason")).toHaveValue("chips");
   await expect(editor.getByLabel("Merchant")).toHaveCount(0);
+  await editor.getByRole("combobox", { name: "Category", exact: true }).click();
+  await expect(editor.getByRole("option", { name: "Income › Salary / Wages", exact: true })).toHaveCount(1);
+  await expect(editor.getByRole("option", { name: "Housing › Rent", exact: true })).toHaveCount(0);
 });
 
 test("household invitations can be accepted and sent", async ({ page }, testInfo) => {
@@ -674,9 +703,7 @@ test("household invitations can be accepted and sent", async ({ page }, testInfo
   await page.getByRole("button", { name: "Accept" }).first().click();
   await expect(page.getByText("You joined Friends workspace.").first()).toBeVisible();
   await page.getByRole("button", { name: /Family workspace Owner/ }).click();
-  await expect(page.getByLabel("Household").first()).toHaveValue(
-    "44444444-4444-4444-8444-444444444444",
-  );
+  await expect(page.getByRole("combobox", { name: "Household", exact: true })).toHaveText("Family workspace (Family)");
 
   const invitationRequest = page.waitForRequest(
     (request) =>
@@ -684,7 +711,8 @@ test("household invitations can be accepted and sent", async ({ page }, testInfo
       request.method() === "POST",
   );
   await page.getByLabel("Email").first().fill("friend@example.com");
-  await page.getByLabel("Role").first().selectOption("Viewer");
+  await page.getByRole("combobox", { name: "Role", exact: true }).click();
+  await page.getByRole("option", { name: "Viewer", exact: true }).click();
   await page.getByRole("button", { name: "Send invitation" }).first().click();
 
   const request = await invitationRequest;
@@ -945,7 +973,7 @@ test("navigation has real URLs and keeps an unsent tracking draft", async ({ pag
 
 test("transaction filters and editor survive reload and Back", async ({ page }) => {
   await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
-  await expect(page.getByLabel("Transaction month", { exact: true })).toHaveValue(previousMonthKey);
+  await expect(page.getByRole("combobox", { name: "Transaction month", exact: true })).toHaveText(formatMonthKey(previousMonthKey));
   await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
   await expect(page).toHaveURL(/edit=/);
   await page.reload();
@@ -970,7 +998,7 @@ test("dashboard drawer is represented by a fragment", async ({ page }, testInfo)
 
 test("invalid URL filters fall back to a usable transaction view", async ({ page }) => {
   await page.goto("/transactions?month=2026-99&page=-12");
-  await expect(page.getByLabel("Transaction month", { exact: true })).toHaveValue(currentMonthKey);
+  await expect(page.getByRole("combobox", { name: "Transaction month", exact: true })).toHaveText(formatMonthKey(currentMonthKey));
   await expect(page.getByRole("button", { name: "Previous transaction page" })).toBeDisabled();
 });
 
@@ -1017,4 +1045,289 @@ test("goal deep links load the selected goal", async ({ page }) => {
   await expect(page.locator("#goal-plan").getByText("Emergency reserve", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.locator("#goal-plan").getByText("Emergency reserve", { exact: true })).toBeVisible();
+});
+
+
+test("category dropdown searches the hierarchy and saves a household category by ID", async ({ page }, testInfo) => {
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  const category = editor.getByRole("combobox", { name: "Category", exact: true });
+  await expect(category).toHaveAttribute("aria-expanded", "false");
+  await expect(editor.getByRole("searchbox")).toHaveCount(0);
+  await category.click();
+  const panel = editor.getByRole("listbox", { name: "Category options" });
+  await expect(panel).toBeVisible();
+  const bounds = await panel.evaluate((element) => {
+    const rect = element.parentElement!.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom, radius: getComputedStyle(element.parentElement!).borderRadius };
+  });
+  const viewport = page.viewportSize()!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.right).toBeLessThanOrEqual(viewport.width);
+  expect(bounds.bottom).toBeLessThanOrEqual(viewport.height);
+  expect(Number.parseFloat(bounds.radius)).toBeGreaterThanOrEqual(8);
+  await page.screenshot({ path: testInfo.outputPath("category-dropdown.png") });
+  await expect(editor.getByRole("option", { name: /Hidden|Salary/ })).toHaveCount(0);
+  await editor.getByRole("searchbox", { name: "Search categories" }).fill("DINING");
+  await expect(editor.getByRole("option", { name: "Dining & Lifestyle › Restaurants", exact: true })).toBeVisible();
+  await expect(editor.getByRole("option", { name: /Housing/ })).toHaveCount(0);
+  await editor.getByRole("searchbox", { name: "Search categories" }).fill("date");
+  await editor.getByRole("option", { name: "Dining & Lifestyle › Date Night", exact: true }).click();
+  await expect(editor.getByRole("searchbox")).toHaveCount(0);
+  await expect(category).toHaveText("Dining & Lifestyle › Date Night");
+  await expect(category).toHaveAccessibleDescription("Dining & Lifestyle › Date Night");
+  const request = page.waitForRequest((request) => request.method() === "PATCH" && request.url().includes("/transactions/txn-previous-taxi"));
+  await editor.getByRole("button", { name: "Save transaction" }).click();
+  expect((await request).postDataJSON()).toMatchObject({ categoryId: "custom-dining" });
+  expect((await request).postDataJSON()).not.toHaveProperty("categoryName");
+  await expect(editor).toHaveCount(0);
+  await expect(page.locator("article").filter({ has: page.getByRole("button", { name: "Edit transaction Previous month taxi" }) }).last()).toContainText("Date Night");
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  await expect(category).toHaveText("Dining & Lifestyle › Date Night");
+  await category.click();
+  await expect(editor.getByRole("searchbox")).toHaveValue("");
+  await editor.getByRole("searchbox").fill("housing");
+  await expect(editor.getByRole("option", { name: /Date Night/ })).toHaveCount(0);
+  await expect(category).toHaveText("Dining & Lifestyle › Date Night");
+});
+
+test("searching categories does not overwrite a legacy category or submit search text", async ({ page }) => {
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  const category = editor.getByRole("combobox", { name: "Category", exact: true });
+  await category.click();
+  await editor.getByRole("searchbox", { name: "Search categories" }).fill("not a category");
+  await expect(editor.getByText("No matching categories. Try another search.")).toBeVisible();
+  await expect(category).toHaveText("Transport (current category)");
+  await editor.getByLabel("Amount").fill("500");
+  await expect(editor.getByRole("searchbox")).toHaveCount(0);
+  const request = page.waitForRequest((request) => request.method() === "PATCH" && request.url().includes("/transactions/txn-previous-taxi"));
+  await editor.getByRole("button", { name: "Save transaction" }).click();
+  const body = (await request).postDataJSON();
+  expect(body).toMatchObject({ amount: 500 });
+  expect(body).not.toHaveProperty("categoryName");
+  expect(body).not.toHaveProperty("categoryId");
+  await expect(editor).toHaveCount(0);
+});
+
+test("dropdown keyboard navigation and Escape preserve the transaction modal", async ({ page }) => {
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  const category = editor.getByRole("combobox", { name: "Category", exact: true });
+  await category.focus();
+  await category.press("ArrowDown");
+  const search = editor.getByRole("searchbox", { name: "Search categories" });
+  await expect(search).toBeFocused();
+  await search.fill("restaurants");
+  await search.press("Enter");
+  await expect(category).toHaveText("Dining & Lifestyle › Restaurants");
+  await expect(category).toBeFocused();
+  await expect(editor).toBeVisible();
+  await category.click();
+  await search.fill("rent");
+  await search.press("Escape");
+  await expect(editor.getByRole("listbox")).toHaveCount(0);
+  await expect(editor).toBeVisible();
+  await expect(category).toBeFocused();
+  await category.click();
+  await expect(search).toHaveValue("");
+  await search.press("Tab");
+  await expect(editor.getByLabel("Merchant")).toBeFocused();
+  await expect(editor.getByRole("listbox")).toHaveCount(0);
+});
+
+test("flat dropdown has no search and supports arrows, Home, End, and type-ahead", async ({ page }) => {
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  const visibility = editor.getByRole("combobox", { name: "Visibility", exact: true });
+  await visibility.press("ArrowDown");
+  const list = editor.getByRole("listbox", { name: "Visibility options" });
+  await expect(list).toBeFocused();
+  await expect(editor.getByRole("searchbox")).toHaveCount(0);
+  await list.press("End");
+  await list.press("Enter");
+  await expect(visibility).toHaveText("Household");
+  await visibility.click();
+  await list.press("Home");
+  await list.press("ArrowUp");
+  await list.press("Enter");
+  await expect(visibility).toHaveText("Household");
+  await visibility.press("p");
+  await expect(visibility).toHaveText("Private");
+  await visibility.click();
+  await editor.getByLabel("Amount").click();
+  await expect(list).toHaveCount(0);
+  await expect(editor).toBeVisible();
+});
+
+
+test("dropdown triggers disable while saving and recover after a failed save", async ({ page }) => {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/transactions/txn-previous-taxi", async (route) => {
+    if (route.request().method() !== "PATCH") { await route.fallback(); return; }
+    await pending;
+    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ title: "Save failed" }) });
+  });
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  try {
+    await editor.getByRole("button", { name: "Save transaction" }).click();
+    await expect(editor.getByRole("combobox", { name: "Category", exact: true })).toBeDisabled();
+    await expect(editor.getByRole("combobox", { name: "Visibility", exact: true })).toBeDisabled();
+  } finally { release(); }
+  await expect(editor.getByRole("combobox", { name: "Category", exact: true })).toBeEnabled();
+  await expect(editor.getByRole("listbox")).toHaveCount(0);
+  await editor.getByRole("combobox", { name: "Category", exact: true }).click();
+  await expect(editor.getByRole("listbox")).toBeVisible();
+});
+
+test("category groups stay bold headings before and during food search", async ({ page }, testInfo) => {
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  const category = editor.getByRole("combobox", { name: "Category", exact: true });
+  await category.click();
+  const panel = editor.getByRole("listbox", { name: "Category options" });
+  const search = editor.getByRole("searchbox", { name: "Search categories" });
+  const foodGroup = panel.getByText("Food & Groceries", { exact: true });
+  const diningGroup = panel.getByText("Dining & Lifestyle", { exact: true });
+  for (const query of ["", "food", ""]) {
+    await search.fill(query);
+    await expect(foodGroup).toBeVisible();
+    await expect(diningGroup).toBeVisible();
+    await expect(panel.getByRole("option", { name: "Food & Groceries", exact: true })).toHaveCount(0);
+    await expect(panel.getByRole("option", { name: "Dining & Lifestyle", exact: true })).toHaveCount(0);
+    for (const heading of [foodGroup, diningGroup]) {
+      expect(await heading.evaluate((element) => Number.parseInt(getComputedStyle(element).fontWeight))).toBeGreaterThanOrEqual(700);
+      await heading.click();
+      await expect(category).toHaveAttribute("aria-expanded", "true");
+      await expect(category).toHaveText("Transport (current category)");
+    }
+  }
+  await search.fill("food");
+  await expect(panel.getByRole("option", { name: "Food & Groceries › Groceries", exact: true })).toBeVisible();
+  await expect(panel.getByRole("option", { name: "Dining & Lifestyle › Food Delivery", exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("food-group-headings.png") });
+  await search.press("Enter");
+  await expect(category).toHaveText("Food & Groceries › Groceries");
+  await expect(panel).toHaveCount(0);
+});
+
+test("groups with hidden children remain headings and standalone categories stay selectable", async ({ page }) => {
+  await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
+  await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction" });
+  const category = editor.getByRole("combobox", { name: "Category", exact: true });
+  await category.click();
+  const panel = editor.getByRole("listbox");
+  await expect(panel.getByText("Archived Group", { exact: true })).toBeVisible();
+  await expect(panel.getByRole("option", { name: "Archived Group", exact: true })).toHaveCount(0);
+  await expect(panel.getByRole("option", { name: /Archived Groceries/ })).toHaveCount(0);
+  await panel.getByRole("option", { name: "Everyday", exact: true }).click();
+  await expect(category).toHaveText("Everyday");
+});
+
+test("shared month dropdown navigates months without search or native selects", async ({ page }, testInfo) => {
+  await page.goto("/dashboard");
+  const month = page.getByRole("combobox", { name: "Dashboard month", exact: true });
+  await expect(month).toHaveText(formatMonthKey(currentMonthKey));
+  await month.focus();
+  await month.press("Space");
+  const panel = page.getByRole("listbox", { name: "Dashboard month options", exact: true });
+  await expect(panel).toBeVisible();
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await expect(panel.getByRole("option", { name: formatMonthKey(currentMonthKey), exact: true })).toHaveAttribute("aria-selected", "true");
+  await page.screenshot({ path: testInfo.outputPath("shared-month-dropdown.png") });
+  const request = page.waitForRequest((request) => request.url().includes(`/api/dashboard/monthly?month=${previousMonthKey}`));
+  await panel.getByRole("option", { name: formatMonthKey(previousMonthKey), exact: true }).click();
+  await request;
+  await expect(month).toHaveText(formatMonthKey(previousMonthKey));
+  await expect(page).toHaveURL(new RegExp(`month=${previousMonthKey}`));
+  await page.getByRole("button", { name: "Next dashboard month", exact: true }).click();
+  await expect(month).toHaveText(formatMonthKey(currentMonthKey));
+  await expect(page.getByRole("button", { name: "Next dashboard month", exact: true })).toBeDisabled();
+  await expect(page.locator("select")).toHaveCount(0);
+});
+
+test("shared household and role dropdowns preserve scope and invitation payload", async ({ page }, testInfo) => {
+  await page.goto("/household");
+  const household = page.getByRole("combobox", { name: "Household", exact: true });
+  await household.click();
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("shared-household-dropdown.png") });
+  await page.getByRole("option", { name: "Family workspace (Family)", exact: true }).click();
+  await expect(household).toHaveText("Family workspace (Family)");
+  await expect(page).toHaveURL(/household=44444444-4444-4444-8444-444444444444/);
+  const role = page.getByRole("combobox", { name: "Role", exact: true });
+  await role.click();
+  await expect(page.getByRole("listbox", { name: "Role options", exact: true }).getByRole("option")).toHaveCount(3);
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await page.getByRole("option", { name: "Viewer", exact: true }).click();
+  await expect(role).toHaveText("Viewer");
+  await page.getByLabel("Email", { exact: true }).fill("viewer@example.com");
+  const request = page.waitForRequest((request) => request.url().endsWith("/api/households/44444444-4444-4444-8444-444444444444/invitations") && request.method() === "POST");
+  await page.getByRole("button", { name: "Send invitation", exact: true }).click();
+  expect((await request).postDataJSON()).toEqual({ email: "viewer@example.com", role: "Viewer" });
+  await expect(page.getByText("Invitation sent to viewer@example.com.", { exact: true })).toBeVisible();
+  await expect(page.locator("select")).toHaveCount(0);
+});
+
+test("shared default visibility dropdown saves the selected setting", async ({ page }) => {
+  await page.goto("/settings");
+  const visibility = page.getByRole("combobox", { name: "Default visibility", exact: true });
+  await visibility.click();
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await page.getByRole("option", { name: "Household", exact: true }).click();
+  await expect(visibility).toHaveText("Household");
+  const request = page.waitForRequest((request) => request.url().endsWith("/api/settings/me") && request.method() === "PATCH");
+  await page.getByRole("button", { name: "Save settings", exact: true }).click();
+  expect((await request).postDataJSON()).toMatchObject({ defaultTransactionVisibility: "Household" });
+  await expect(visibility).toHaveText("Household");
+  await expect(page.locator("select")).toHaveCount(0);
+});
+
+test("shared goal dropdowns submit goal type and reset optional pace", async ({ page }) => {
+  const goal = { id: "goal-dropdown", name: "Emergency reserve", userProfileId: "profile", remainingAmount: 50000, currentAmount: 0, targetAmount: 50000, goalType: "EmergencyFund", priority: "Medium", status: "Active" };
+  await page.route("**/api/goals", async (route) => {
+    if (route.request().method() === "POST") await json(route, goal);
+    else await route.fallback();
+  });
+  await page.route("**/api/goals/goal-dropdown", route => json(route, { goal, plan: null, currentUserConsent: null }));
+  await page.route("**/api/goals/goal-dropdown/planning-runs", route => json(route, { id: "run-dropdown", goalId: goal.id, runType: "Generate", status: "Succeeded" }));
+  await page.goto("/planning");
+  await page.getByLabel("Goal", { exact: true }).fill(goal.name);
+  await page.getByLabel("Target amount", { exact: true }).fill("50000");
+  const type = page.getByRole("combobox", { name: "Goal type", exact: true });
+  await type.click();
+  await expect(page.getByRole("listbox", { name: "Goal type options", exact: true }).getByRole("option")).toHaveCount(5);
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await page.getByRole("option", { name: "Emergency fund", exact: true }).click();
+  await expect(type).toHaveText("Emergency fund");
+  const create = page.waitForRequest((request) => request.url().endsWith("/api/goals") && request.method() === "POST");
+  await page.getByRole("button", { name: "Create goal", exact: true }).click();
+  expect((await create).postDataJSON()).toMatchObject({ goalType: "EmergencyFund", targetAmount: 50000 });
+  const pace = page.getByRole("combobox", { name: "Pace (optional)", exact: true });
+  await expect(pace).toHaveText("Show three paces");
+  for (const label of ["Balanced", "Show three paces"]) {
+    await pace.click();
+    const panel = page.getByRole("listbox", { name: "Pace (optional) options", exact: true });
+    await expect(panel.getByRole("option")).toHaveCount(4);
+    await expect(page.getByRole("searchbox")).toHaveCount(0);
+    await panel.getByRole("option", { name: label, exact: true }).click();
+    await expect(pace).toHaveText(label);
+    const generate = page.waitForRequest((request) => request.url().endsWith("/api/goals/goal-dropdown/planning-runs") && request.method() === "POST");
+    await page.getByRole("button", { name: "Generate plan", exact: true }).click();
+    const payload = (await generate).postDataJSON();
+    if (label === "Balanced") expect(payload.pace).toBe("Balanced");
+    else expect(payload).not.toHaveProperty("pace");
+    await expect(page.getByRole("button", { name: "Generate plan", exact: true })).toBeEnabled();
+  }
+  await expect(page.locator("select")).toHaveCount(0);
 });

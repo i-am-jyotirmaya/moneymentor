@@ -7,6 +7,8 @@ public sealed class UpdateTransactionRequest
     [Range(typeof(decimal), "0.01", "999999999999")]
     public decimal? Amount { get; init; }
 
+    public Guid? CategoryId { get; init; }
+
     [MaxLength(128)]
     public string? CategoryName { get; init; }
 

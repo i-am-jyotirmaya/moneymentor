@@ -112,6 +112,7 @@ export function toTransactionEditForm(
 ): TransactionEditForm {
   return {
     amount: transaction.amount.toString(),
+    categoryId: transaction.categoryId ?? null,
     categoryName: transaction.categoryName ?? "",
     merchantName: transaction.merchantName ?? "",
     description: transaction.description ?? "",

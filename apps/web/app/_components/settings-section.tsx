@@ -5,6 +5,7 @@ import type { TransactionVisibility } from "@/lib/api";
 import { Download, Save, Settings } from "lucide-react";
 import { FormEvent } from "react";
 import { Field, PreferenceToggle } from "./common-ui";
+import { Dropdown } from "./dropdown";
 import { ProgressLink as Link } from "./navigation-progress";
 import { SettingsForm } from "./workspace-types";
 
@@ -82,22 +83,12 @@ export function SettingsSection({
                 access changes.
               </span>
             </Field>
-            <Field label="Default visibility">
-              <select
-                className="form-control"
-                onChange={(event) =>
-                  onFormChange({
-                    ...form,
-                    defaultTransactionVisibility: event.target
-                      .value as TransactionVisibility,
-                  })
-                }
-                value={form.defaultTransactionVisibility}
-              >
-                <option value="Private">Private</option>
-                <option value="Household">Household</option>
-              </select>
-            </Field>
+            <Dropdown
+              label="Default visibility"
+              onChange={(value) => onFormChange({ ...form, defaultTransactionVisibility: value as TransactionVisibility })}
+              options={[{ value: "Private", label: "Private" }, { value: "Household", label: "Household" }]}
+              value={form.defaultTransactionVisibility}
+            />
           </div>
         </article>
 

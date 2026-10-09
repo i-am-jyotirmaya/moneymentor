@@ -1,6 +1,7 @@
 "use client";
 import type { Goal } from "@/lib/api";
 import type { usePlanningController } from "../_hooks/use-planning-controller";
+import { Dropdown } from "./dropdown";
 type Props = Pick<
   ReturnType<typeof usePlanningController>,
   "isPlanningWorking" | "goalForm" | "setGoalForm" | "handleCreateGoal"
@@ -49,25 +50,18 @@ export function GoalCreateForm({
           value={goalForm.targetAmount}
         />
       </label>
-      <label className="text-xs font-bold text-[var(--muted)]">
-        Goal type
-        <select
-          className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--ink)]"
-          onChange={(event) =>
-            setGoalForm((current) => ({
-              ...current,
-              goalType: event.target.value as Goal["goalType"],
-            }))
-          }
-          value={goalForm.goalType}
-        >
-          <option value="Saving">Saving</option>
-          <option value="EmergencyFund">Emergency fund</option>
-          <option value="DebtPayoff">Debt payoff</option>
-          <option value="Purchase">Purchase</option>
-          <option value="Investment">Investment</option>
-        </select>
-      </label>
+      <Dropdown
+        label="Goal type"
+        onChange={(value) => setGoalForm((current) => ({ ...current, goalType: value as Goal["goalType"] }))}
+        options={[
+          { value: "Saving", label: "Saving" },
+          { value: "EmergencyFund", label: "Emergency fund" },
+          { value: "DebtPayoff", label: "Debt payoff" },
+          { value: "Purchase", label: "Purchase" },
+          { value: "Investment", label: "Investment" },
+        ]}
+        value={goalForm.goalType}
+      />
       <label className="text-xs font-bold text-[var(--muted)]">
         Target date (optional)
         <input

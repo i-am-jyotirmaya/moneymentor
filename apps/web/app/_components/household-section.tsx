@@ -9,6 +9,7 @@ import type {
 import { Plus, Save, UserPlus } from "lucide-react";
 import { FormEvent } from "react";
 import { EmptyInline, Field } from "./common-ui";
+import { Dropdown } from "./dropdown";
 import { formatDate } from "./workspace-format";
 
 export function HouseholdSection({
@@ -286,19 +287,12 @@ export function HouseholdSection({
                 value={memberEmail}
               />
             </Field>
-            <Field label="Role">
-              <select
-                className="form-control"
-                onChange={(event) =>
-                  onMemberRoleChange(event.target.value as HouseholdRole)
-                }
-                value={memberRole}
-              >
-                <option value="Admin">Admin</option>
-                <option value="Member">Member</option>
-                <option value="Viewer">Viewer</option>
-              </select>
-            </Field>
+            <Dropdown
+              label="Role"
+              onChange={(value) => onMemberRoleChange(value as HouseholdRole)}
+              options={[{ value: "Admin", label: "Admin" }, { value: "Member", label: "Member" }, { value: "Viewer", label: "Viewer" }]}
+              value={memberRole}
+            />
             <button
               className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
               disabled={isSaving || !canManageSelectedHousehold}
