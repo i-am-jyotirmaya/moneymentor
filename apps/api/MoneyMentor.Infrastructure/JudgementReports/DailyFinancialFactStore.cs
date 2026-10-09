@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
+using MoneyMentor.Domain.Finance;
 using MoneyMentor.Infrastructure.Persistence;
 
 namespace MoneyMentor.Infrastructure.JudgementReports;
@@ -23,7 +24,7 @@ internal sealed class DailyFinancialFactStore(MoneyMentorDbContext dbContext, Ti
             select new
             {
                 transaction.UserProfileId, transaction.Visibility, transaction.CategoryId,
-                transaction.Amount, transaction.Type,
+                transaction.Amount, transaction.Type, transaction.Kind, transaction.ReversedKind,
                 Classification = category == null ? (CategoryClassification?)null : category.Classification
             }).ToArrayAsync(cancellationToken);
 
@@ -34,7 +35,8 @@ internal sealed class DailyFinancialFactStore(MoneyMentorDbContext dbContext, Ti
         var now = timeProvider.GetUtcNow();
         foreach (var group in rows.GroupBy(x => new { x.UserProfileId, x.Visibility, x.CategoryId }))
         {
-            var items = group.ToArray();
+            var items = group.Select(x => new { x.Amount, x.Classification,
+                Impact = TransactionFinancialImpactCalculator.Calculate(x.Amount, x.Type, x.Kind, x.ReversedKind) }).ToArray();
             dbContext.DailyFinancialAggregates.Add(new DailyFinancialAggregate
             {
                 HouseholdId = householdId,
@@ -42,17 +44,17 @@ internal sealed class DailyFinancialFactStore(MoneyMentorDbContext dbContext, Ti
                 Date = date,
                 Visibility = group.Key.Visibility,
                 CategoryId = group.Key.CategoryId,
-                Income = items.Where(x => x.Type == TransactionType.Income).Sum(x => x.Amount),
-                Expense = items.Where(x => x.Type == TransactionType.Expense).Sum(x => x.Amount),
-                EssentialSpend = items.Where(x => x.Type == TransactionType.Expense && x.Classification == CategoryClassification.Essential).Sum(x => x.Amount),
-                DiscretionarySpend = items.Where(x => x.Type == TransactionType.Expense && x.Classification == CategoryClassification.Discretionary).Sum(x => x.Amount),
-                DebtSpend = items.Where(x => x.Type == TransactionType.Expense && x.Classification == CategoryClassification.Debt).Sum(x => x.Amount),
-                InvestmentAmount = items.Where(x => x.Type == TransactionType.Investment).Sum(x => x.Amount),
+                Income = items.Sum(x => x.Impact.Income),
+                Expense = items.Sum(x => x.Impact.Spending),
+                EssentialSpend = items.Where(x => x.Classification == CategoryClassification.Essential).Sum(x => x.Impact.Spending),
+                DiscretionarySpend = items.Where(x => x.Classification == CategoryClassification.Discretionary).Sum(x => x.Impact.Spending),
+                DebtSpend = items.Where(x => x.Classification == CategoryClassification.Debt).Sum(x => x.Impact.Spending),
+                InvestmentAmount = items.Sum(x => x.Impact.Investment),
                 TransactionCount = items.Length,
-                ExpenseTransactionCount = items.Count(x => x.Type == TransactionType.Expense),
-                IncomeTransactionCount = items.Count(x => x.Type == TransactionType.Income),
-                AverageTransactionAmount = decimal.Round(items.Average(x => x.Amount), 2),
-                MaximumTransactionAmount = items.Max(x => x.Amount),
+                ExpenseTransactionCount = items.Count(x => x.Impact.Spending > 0),
+                IncomeTransactionCount = items.Count(x => x.Impact.Income > 0),
+                AverageTransactionAmount = decimal.Round(items.Average(x => Math.Abs(x.Impact.Spending) + Math.Abs(x.Impact.Income) + Math.Abs(x.Impact.Investment)), 2),
+                MaximumTransactionAmount = items.Max(x => Math.Abs(x.Impact.Spending) + Math.Abs(x.Impact.Income) + Math.Abs(x.Impact.Investment)),
                 CreatedAt = now,
                 UpdatedAt = now
             });

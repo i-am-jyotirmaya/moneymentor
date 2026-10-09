@@ -8,6 +8,7 @@ using MoneyMentor.Application.JudgementReports;
 using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
+using MoneyMentor.Domain.Finance;
 using MoneyMentor.Infrastructure.Persistence;
 
 namespace MoneyMentor.Infrastructure.JudgementReports;
@@ -51,19 +52,21 @@ internal sealed class JudgmentCandidateAnalysisService(
                 && x.Type == CategoryType.Expense && EF.Functions.ILike(x.Name, "%subscription%"))
             .Select(x => x.Id).ToArrayAsync(cancellationToken);
         var merchantQuery = dbContext.Transactions.AsNoTracking().Where(x =>
-            x.HouseholdId == householdId && x.DeletedAt == null && x.Type == TransactionType.Expense
+            x.HouseholdId == householdId && x.DeletedAt == null
             && x.MerchantId != null && x.TransactionDate >= end.AddDays(-35) && x.TransactionDate < end);
         merchantQuery = scope == JudgementReportScope.Personal
             ? merchantQuery.Where(x => x.UserProfileId == userId)
             : merchantQuery.Where(x => x.Visibility == TransactionVisibility.Household);
-        var merchantRows = await merchantQuery.Select(x => new { x.MerchantId, x.Amount, x.TransactionDate })
+        var merchantRows = await merchantQuery.Select(x => new { x.MerchantId, x.Amount, x.TransactionDate, x.Type, x.Kind, x.ReversedKind })
             .ToArrayAsync(cancellationToken);
-        var merchantFacts = merchantRows.GroupBy(x => x.MerchantId!.Value).Select(group =>
+        var merchantFacts = merchantRows.Select(x => new { x.MerchantId, x.TransactionDate,
+            Impact = TransactionFinancialImpactCalculator.Calculate(x.Amount, x.Type, x.Kind, x.ReversedKind) })
+            .Where(x => x.Impact.Spending != 0m).GroupBy(x => x.MerchantId!.Value).Select(group =>
             new MerchantFrequencyFact(group.Key,
-                group.Where(x => x.TransactionDate >= end.AddDays(-7)).Sum(x => x.Amount),
-                group.Where(x => x.TransactionDate < end.AddDays(-7)).Sum(x => x.Amount) / 4m,
-                group.Count(x => x.TransactionDate >= end.AddDays(-7)),
-                group.Count(x => x.TransactionDate < end.AddDays(-7)) / 4m)).ToArray();
+                group.Where(x => x.TransactionDate >= end.AddDays(-7)).Sum(x => x.Impact.Spending),
+                group.Where(x => x.TransactionDate < end.AddDays(-7)).Sum(x => x.Impact.Spending) / 4m,
+                group.Count(x => x.Impact.Spending > 0m && x.TransactionDate >= end.AddDays(-7)),
+                group.Count(x => x.Impact.Spending > 0m && x.TransactionDate < end.AddDays(-7)) / 4m)).ToArray();
         var detected = JudgmentCandidateDetector.Detect(householdId, userId, scope, end,
             rows, goals, commitments, subscriptionIds.ToHashSet(), merchantFacts, options.Value);
 

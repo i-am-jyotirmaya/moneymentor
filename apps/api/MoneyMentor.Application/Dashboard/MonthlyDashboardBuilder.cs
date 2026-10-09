@@ -19,15 +19,11 @@ public sealed class MonthlyDashboardBuilder
         var periodStart = ToMonthStart(month);
         var periodEnd = periodStart.AddMonths(1).AddDays(-1);
         var expenses = transactions
-            .Where(transaction => transaction.Type == TransactionType.Expense)
+            .Where(transaction => transaction.FinancialImpact.Spending != 0m)
             .ToArray();
-        var income = transactions
-            .Where(transaction => transaction.Type == TransactionType.Income)
-            .Sum(transaction => transaction.Amount);
-        var invested = transactions
-            .Where(transaction => transaction.Type == TransactionType.Investment)
-            .Sum(transaction => transaction.Amount);
-        var spends = expenses.Sum(transaction => transaction.Amount);
+        var income = transactions.Sum(transaction => transaction.FinancialImpact.Income);
+        var invested = transactions.Sum(transaction => transaction.FinancialImpact.Investment);
+        var spends = expenses.Sum(transaction => transaction.FinancialImpact.Spending);
         var saved = income - spends;
         decimal? savingsRate = income > 0m
             ? decimal.Round(saved / income * 100m, 1)
@@ -83,7 +79,7 @@ public sealed class MonthlyDashboardBuilder
             })
             .Select(group =>
             {
-                var amount = group.Sum(transaction => transaction.Amount);
+                var amount = group.Sum(transaction => transaction.FinancialImpact.Spending);
                 var tone = GetCategoryTone(amount, spends);
 
                 return new CategorySpendSummaryModel(

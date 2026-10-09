@@ -4,6 +4,7 @@ using MoneyMentor.Application.Commitments;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
+using MoneyMentor.Domain.Finance;
 using MoneyMentor.Infrastructure.Categories;
 using MoneyMentor.Infrastructure.Persistence;
 
@@ -239,6 +240,8 @@ internal sealed class PostgresCommitmentService(
                 && item.HouseholdId == commitment.HouseholdId
                 && item.CategoryId == commitment.CategoryId
                 && item.Type == commitment.TransactionType
+                && (TransactionFinancialImpactCalculator.Calculate(item).Spending > 0m
+                    || TransactionFinancialImpactCalculator.Calculate(item).Investment > 0m)
                 && item.TransactionDate >= windowStart
                 && item.TransactionDate <= windowEnd
                 && item.Amount >= commitment.Amount - tolerance

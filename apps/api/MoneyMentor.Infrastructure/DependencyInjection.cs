@@ -88,6 +88,10 @@ public static class DependencyInjection
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
         services.AddScoped<IAppUserProfileService, PostgresAppUserProfileService>();
         services.AddScoped<ITransactionService, PostgresTransactionService>();
+        services.AddScoped<TransactionModelMapper>();
+        services.AddScoped<PostgresFinancialAccountService>();
+        services.AddScoped<MoneyMentor.Application.FinancialAccounts.IFinancialAccountService>(sp => sp.GetRequiredService<PostgresFinancialAccountService>());
+        services.AddScoped<IFinancialEventService, PostgresFinancialEventService>();
         services.AddScoped<MerchantResolver>();
         services.AddScoped<JevTransactionCategorizer>();
         services.Configure<JevOptions>(options =>

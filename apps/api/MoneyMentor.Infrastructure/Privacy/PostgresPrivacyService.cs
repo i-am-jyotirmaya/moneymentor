@@ -150,6 +150,9 @@ internal sealed class PostgresPrivacyService(
             transaction.UpdatedAt,
             null)
         {
+            Kind = transaction.Kind, ReversedKind = transaction.ReversedKind,
+            AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId,
+            PaymentChannel = transaction.PaymentChannel,
             SenderName = transaction.Type == TransactionType.Income ? transaction.MerchantName : null,
             Reason = transaction.Type == TransactionType.Income ? transaction.Description : null,
             DeletedAt = transaction.DeletedAt,

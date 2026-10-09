@@ -60,6 +60,8 @@ builder.Services.AddScoped<FinanceQuestionParser>();
 builder.Services.AddScoped<IFinanceQuestionService, FinanceQuestionService>();
 builder.Services.AddScoped<IFinanceInputClassifier, HeuristicFinanceInputClassifier>();
 builder.Services.AddScoped<IAssistantMessageService, AssistantMessageService>();
+builder.Services.AddSingleton<MoneyMentor.Application.Transactions.FinancialEventDraftStore>();
+builder.Services.AddScoped<MoneyMentor.Application.Transactions.FinancialEventInputProcessor>();
 builder.Services.AddSingleton<IGoalInputDraftStore, InMemoryGoalInputDraftStore>();
 builder.Services.AddScoped<IExpenseInputParser, HeuristicExpenseInputParser>();
 builder.Services.AddSingleton<IExpenseInputDraftStore, InMemoryExpenseInputDraftStore>();

@@ -1,6 +1,7 @@
 using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Finance;
 using MoneyMentor.Application.Goals;
+using MoneyMentor.Application.Transactions;
 using MoneyMentor.Application.InputParsing;
 using MoneyMentor.Domain.Enums;
 using System.Globalization;
@@ -17,12 +18,18 @@ public sealed class AssistantMessageService(
     IGoalService? goalService = null,
     IGoalPlanningService? goalPlanningService = null,
     IGoalInputDraftStore? goalDraftStore = null,
-    TimeProvider? timeProvider = null) : IAssistantMessageService
+    TimeProvider? timeProvider = null,
+    FinancialEventInputProcessor? financialEventInputProcessor = null) : IAssistantMessageService
 {
     public async Task<AssistantMessageResult> ProcessAsync(
         AssistantMessageCommand command,
         CancellationToken cancellationToken)
     {
+        if (financialEventInputProcessor is not null)
+        {
+            var financialResult = await financialEventInputProcessor.TryProcessAsync(command, cancellationToken);
+            if (financialResult is not null) return financialResult;
+        }
         var text = command.Text.Trim();
         GoalInputDraft? pendingGoalDraft = null;
         if (goalDraftStore?.TryGet(command.AuthProvider, command.AuthSubject, out pendingGoalDraft) == true)
