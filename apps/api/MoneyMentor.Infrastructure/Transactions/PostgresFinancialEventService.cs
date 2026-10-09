@@ -27,12 +27,15 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
         var account = await accounts.ResolveAsync(user, household.HouseholdId, intent.AccountId, intent.AccountAlias, ct);
         var counterparty = await accounts.ResolveAsync(user, household.HouseholdId, intent.CounterpartyAccountId, intent.CounterpartyAccountAlias, ct);
         ValidateAccounts(intent.EventKind, household.CurrencyCode, account, counterparty);
+        var observationId = intent.ObservationAccountId ?? account?.Id;
+        if (intent.ObservationAccountId is not null && intent.ObservationAccountId != account?.Id && intent.ObservationAccountId != counterparty?.Id)
+            throw new FinancialTransactionValidationException("The observation account must be one of the event's accounts.");
         if (intent.ExternalReference is not null && account is null)
             throw new FinancialTransactionValidationException("An imported reference requires its financial account.");
         if (intent.ExternalReference is not null)
         {
             var prior = await db.Transactions.AsNoTracking().SingleOrDefaultAsync(x => x.HouseholdId == household.HouseholdId
-                && x.AccountId == account!.Id && x.ExternalReference == intent.ExternalReference, ct);
+                && x.ObservationAccountId == observationId && x.ExternalReference == intent.ExternalReference, ct);
             if (prior is not null)
             {
                 if (prior.UserProfileId != user.UserProfileId || prior.DeletedAt != null)
@@ -85,7 +88,8 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
             EnrichmentJson = original?.EnrichmentJson, Description = intent.Description?.Trim(), SourceText = intent.SourceText,
             TransactionDate = intent.Date ?? user.CurrentDate, InputMode = intent.InputMode, Confidence = 1m,
             Visibility = original?.Visibility ?? intent.Visibility ?? user.DefaultTransactionVisibility,
-            ExternalReference = intent.ExternalReference, UpdatedByUserProfileId = user.UserProfileId,
+            ExternalReference = intent.ExternalReference, ObservationAccountId = intent.ExternalReference is null ? null : observationId,
+            UpdatedByUserProfileId = user.UserProfileId,
             CreatedAt = now, UpdatedAt = now
         };
         transaction.MerchantId ??= await merchants.ResolveAsync(household.HouseholdId, transaction.MerchantName, ct);
@@ -214,9 +218,12 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
             && x.UserProfileId == current.UserProfileId && x.Kind == current.Kind && x.Amount == current.Amount
             && x.ExternalReference == current.ExternalReference
             && x.TransactionDate >= current.TransactionDate.AddDays(-3) && x.TransactionDate <= current.TransactionDate.AddDays(3)
-            && x.AccountId == current.CounterpartyAccountId && x.CounterpartyAccountId == current.AccountId)
+            && ((x.AccountId == current.AccountId && x.CounterpartyAccountId == current.CounterpartyAccountId
+                && x.ObservationAccountId != current.ObservationAccountId)
+                || (x.AccountId == current.CounterpartyAccountId && x.CounterpartyAccountId == current.AccountId)))
             .Take(2).ToArrayAsync(ct);
-        if (candidates.Length == 1) db.TransactionRelations.Add(new() { TransactionId = current.Id,
+        if (candidates.Length == 1 && !await db.TransactionRelations.AnyAsync(x => x.RelationType == TransactionRelationType.TransferPair
+            && (x.TransactionId == candidates[0].Id || x.RelatedTransactionId == candidates[0].Id), ct)) db.TransactionRelations.Add(new() { TransactionId = current.Id,
             RelatedTransactionId = candidates[0].Id, RelationType = TransactionRelationType.TransferPair, Amount = current.Amount, Confidence = 1m });
     }
 }

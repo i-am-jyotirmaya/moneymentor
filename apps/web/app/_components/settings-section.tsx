@@ -1,4 +1,5 @@
 "use client";
+import { FinancialAccountsPanel } from "./financial-accounts-panel";
 import { SectionSkeleton } from "./loading-ui";
 
 import type { TransactionVisibility } from "@/lib/api";
@@ -10,6 +11,7 @@ import { ProgressLink as Link } from "./navigation-progress";
 import { SettingsForm } from "./workspace-types";
 
 export function SettingsSection({
+  accessToken, householdId, canWrite,
   deletionConfirmation,
   deletionPassword,
   form,
@@ -22,6 +24,9 @@ export function SettingsSection({
   onFormChange,
   onSave,
 }: {
+  accessToken: string;
+  householdId: string | null;
+  canWrite: boolean;
   deletionConfirmation: string;
   deletionPassword: string;
   form: SettingsForm | null;
@@ -189,6 +194,7 @@ export function SettingsSection({
           </button>
         </form>
       </div>
+      <FinancialAccountsPanel key={householdId ?? "personal"} accessToken={accessToken} householdId={householdId} canWrite={canWrite} />
     </section>
   );
 }

@@ -127,6 +127,9 @@ export function WorkspaceSection({
 
   return (
     <SettingsSection
+      accessToken={props.accessToken}
+      householdId={props.selectedHouseholdId}
+      canWrite={props.canWriteSelectedHousehold}
       deletionConfirmation={props.deletionConfirmation}
       deletionPassword={props.deletionPassword}
       form={props.settingsForm}

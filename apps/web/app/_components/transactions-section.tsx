@@ -3,8 +3,10 @@ import { SectionSkeleton } from "./loading-ui";
 import { CategoryPicker } from "./category-picker";
 import { Dropdown } from "./dropdown";
 
+import { listFinancialAccounts } from "@/lib/api";
 import type {
   CategoryCatalogResponse,
+  FinancialAccount, TransactionKind, PaymentChannel,
   TransactionListItem,
   TransactionPageResponse,
   TransactionVisibility,
@@ -18,7 +20,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useRef } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { type TransactionEditForm } from "../_hooks/use-transaction-state";
 import {
   EmptyInline,
@@ -190,6 +192,7 @@ export function TransactionsSection({
 }
 
 export function TransactionEditModal({
+  accessToken,
   categoryCatalog,
   editForm,
   isSaving,
@@ -198,6 +201,7 @@ export function TransactionEditModal({
   onSave,
   transaction,
 }: {
+  accessToken: string;
   categoryCatalog: CategoryCatalogResponse | null;
   editForm: TransactionEditForm;
   isSaving: boolean;
@@ -206,8 +210,17 @@ export function TransactionEditModal({
   onSave: (event: FormEvent<HTMLFormElement>) => void;
   transaction: TransactionListItem;
 }) {
+  const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void listFinancialAccounts(accessToken, transaction.householdId).then(rows => { if (!cancelled) setAccounts(rows); })
+      .catch(error => { if (!cancelled) setAccountError(error instanceof Error ? error.message : "Unable to load accounts."); });
+    return () => { cancelled = true; };
+  }, [accessToken, transaction.householdId]);
+  const isTransfer = ["Transfer", "CreditCardPayment", "CashWithdrawal"].includes(editForm.kind);
   const dialogRef = useRef<HTMLDialogElement | null>(null);
-  const isIncome = transaction.type === "Income";
+  const isIncome = ["Income", "Cashback"].includes(editForm.kind);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -262,6 +275,19 @@ export function TransactionEditModal({
         </div>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <Dropdown label="Financial event" value={editForm.kind} disabled={isSaving || !!transaction.relatedTransactionId || ["Refund", "Reversal"].includes(editForm.kind)}
+            options={["Purchase", "Income", "Transfer", "CreditCardPayment", "Cashback", "Fee", "Interest", "CashWithdrawal", "Investment", ...(editForm.kind === "Refund" || editForm.kind === "Reversal" ? [editForm.kind] : [])].map(value => ({ value, label: value.replace(/([a-z])([A-Z])/g, "$1 $2") }))}
+            onChange={value => onEditFormChange({ ...editForm, kind: value as TransactionKind, categoryId: null, categoryName: "", counterpartyAccountId: null })} />
+          <Dropdown label={isTransfer ? "Source account (optional)" : "Account (optional)"} value={editForm.accountId ?? ""} disabled={isSaving || !!accountError}
+            options={[{ value: "", label: "Unspecified" }, ...accounts.filter(x => x.isActive || x.id === editForm.accountId).map(x => ({ value: x.id, label: x.name }))]}
+            searchable onChange={value => onEditFormChange({ ...editForm, accountId: value || null })} />
+          {isTransfer && <Dropdown label="Destination account (optional)" value={editForm.counterpartyAccountId ?? ""} disabled={isSaving || !!accountError}
+            options={[{ value: "", label: "Unspecified" }, ...accounts.filter(x => (x.isActive || x.id === editForm.counterpartyAccountId) && x.id !== editForm.accountId).map(x => ({ value: x.id, label: x.name }))]}
+            searchable onChange={value => onEditFormChange({ ...editForm, counterpartyAccountId: value || null })} />}
+          {accountError && <p role="alert" className="text-sm text-red-700">{accountError}</p>}
+          <Dropdown label="Payment channel (optional)" value={editForm.paymentChannel} disabled={isSaving}
+            options={["Unknown", "UPI", "Card", "Cash", "BankTransfer", "AutoDebit", "Wallet", "Cheque"].map(value => ({ value, label: value.replace(/([a-z])([A-Z])/g, "$1 $2") }))}
+            onChange={value => onEditFormChange({ ...editForm, paymentChannel: value as PaymentChannel })} />
           <Field label="Amount">
             <input
               className="form-control"
@@ -279,13 +305,13 @@ export function TransactionEditModal({
             categories={categoryCatalog?.categories ?? []}
             categoryId={editForm.categoryId}
             categoryName={editForm.categoryName}
-            disabled={isSaving || !categoryCatalog}
+            disabled={isSaving || !categoryCatalog || !!transaction.relatedTransactionId || isTransfer}
             onChange={(category) => onEditFormChange({
               ...editForm,
               categoryId: category.id,
               categoryName: category.name,
             })}
-            type={transaction.type}
+            type={isIncome ? "Income" : "Expense"}
           />
           {isIncome ? (
             <>

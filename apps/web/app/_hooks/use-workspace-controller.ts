@@ -607,10 +607,16 @@ export function useWorkspaceController() {
         selectedTransaction.id,
         {
           amount,
+          ...(editForm.kind !== (selectedTransaction.kind ?? (selectedTransaction.type === "Expense" ? "Purchase" : selectedTransaction.type)) ? { kind: editForm.kind } : {}),
+          ...(editForm.accountId !== (selectedTransaction.accountId ?? null)
+            ? editForm.accountId ? { accountId: editForm.accountId } : { clearAccount: true } : {}),
+          ...(editForm.counterpartyAccountId !== (selectedTransaction.counterpartyAccountId ?? null)
+            ? editForm.counterpartyAccountId ? { counterpartyAccountId: editForm.counterpartyAccountId } : { clearCounterpartyAccount: true } : {}),
+          ...(editForm.paymentChannel !== (selectedTransaction.paymentChannel ?? "Unknown") ? { paymentChannel: editForm.paymentChannel } : {}),
           ...(editForm.categoryId && editForm.categoryId !== selectedTransaction.categoryId
             ? { categoryId: editForm.categoryId }
             : {}),
-          ...(selectedTransaction.type === "Income"
+          ...(["Income", "Cashback"].includes(editForm.kind)
             ? { senderName: editForm.senderName, reason: editForm.reason }
             : {
                 merchantName: editForm.merchantName,

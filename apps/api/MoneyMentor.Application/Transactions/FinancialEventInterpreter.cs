@@ -29,7 +29,7 @@ public static class FinancialEventInterpreter
     {
         var transfer = intent.EventKind is TransactionKind.Transfer or TransactionKind.CreditCardPayment or TransactionKind.CashWithdrawal;
         var account = transfer ? Capture(text, @"\bfrom\s+(?<value>.+?)(?=\s+to\b|[.,]|$)")
-            : Capture(text, @"\b(?:using\s+(?:my\s+)?|on\s+my\s+|with\s+(?:my\s+)?)(?<value>.+?)(?=\s+(?:for|at|today|yesterday)\b|[.,]|$)");
+            : Capture(text, @"\b(?:using\s+(?:my\s+)?|on\s+my\s+|with\s+my\s+)(?<value>.+?)(?=\s+(?:for|at|today|yesterday)\b|[.,]|$)");
         var to = transfer ? Capture(text, @"\bto\s+(?:my\s+)?(?<value>.+?)(?=\s+(?:from|today|yesterday)\b|[.,]|$)") : null;
         if (intent.EventKind == TransactionKind.CreditCardPayment)
             to ??= Capture(text, @"\b(?:paid|pay)\s+(?:my\s+)?(?<value>.+?)\s+bill\b");

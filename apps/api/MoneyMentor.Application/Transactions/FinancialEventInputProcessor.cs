@@ -18,6 +18,12 @@ public sealed class FinancialEventInputProcessor(IFinancialEventService events, 
             drafts.Clear(command.AuthProvider, command.AuthSubject, command.HouseholdId);
             return Reply("Cancelled the unfinished financial event.");
         }
+        if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^\s*(how|what|where|when|why|show|list)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return null;
+        if (pending is not null && System.Text.RegularExpressions.Regex.IsMatch(text, @"^\s*(spent|bought|purchased|groceries|dinner|lunch)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+            && FinancialEventInterpreter.DetectKind(text) is null)
+        {
+            drafts.Clear(command.AuthProvider, command.AuthSubject, command.HouseholdId); return null;
+        }
         TransactionIntent? intent = null;
         if (pending?.Intent is not null && pending.Candidates.Count > 0)
         {
@@ -32,7 +38,7 @@ public sealed class FinancialEventInputProcessor(IFinancialEventService events, 
         {
             // A clearly new transaction abandons a pending semantic clarification.
             var newKind = FinancialEventInterpreter.DetectKind(text);
-            if (pending is not null && newKind is null) text = pending.SourceText + " " + text;
+            if (pending is not null && (newKind is null || new[] { "refund", "cashback", "income", "earned income", "reversal" }.Contains(text.ToLowerInvariant()))) text = pending.SourceText + " " + text;
             if (pending is not null && command.Text.Trim().Equals("income", StringComparison.OrdinalIgnoreCase)) text += " earned income";
             var kind = FinancialEventInterpreter.DetectKind(text);
             if (kind is null && System.Text.RegularExpressions.Regex.IsMatch(text, @"\bbill\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)

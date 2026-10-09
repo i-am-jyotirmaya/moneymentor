@@ -112,6 +112,10 @@ export function toTransactionEditForm(
 ): TransactionEditForm {
   return {
     amount: transaction.amount.toString(),
+    kind: transaction.kind ?? (transaction.type === "Expense" ? "Purchase" : transaction.type),
+    accountId: transaction.accountId ?? null,
+    counterpartyAccountId: transaction.counterpartyAccountId ?? null,
+    paymentChannel: transaction.paymentChannel ?? "Unknown",
     categoryId: transaction.categoryId ?? null,
     categoryName: transaction.categoryName ?? "",
     merchantName: transaction.merchantName ?? "",

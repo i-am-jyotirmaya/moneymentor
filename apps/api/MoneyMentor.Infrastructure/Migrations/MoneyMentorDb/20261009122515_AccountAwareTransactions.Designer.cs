@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 {
     [DbContext(typeof(MoneyMentorDbContext))]
-    [Migration("20261009121351_AccountAwareTransactions")]
+    [Migration("20261009122515_AccountAwareTransactions")]
     partial class AccountAwareTransactions
     {
         /// <inheritdoc />
@@ -2646,6 +2646,9 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<Guid?>("ObservationAccountId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("PaymentChannel")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
@@ -2700,6 +2703,8 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
                     b.HasIndex("MerchantId");
 
+                    b.HasIndex("ObservationAccountId");
+
                     b.HasIndex("PurgeAfter")
                         .HasFilter("\"DeletedAt\" IS NOT NULL");
 
@@ -2710,9 +2715,9 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.HasIndex("HouseholdId", "TransactionDate")
                         .HasFilter("\"DeletedAt\" IS NULL");
 
-                    b.HasIndex("HouseholdId", "AccountId", "ExternalReference")
+                    b.HasIndex("HouseholdId", "ObservationAccountId", "ExternalReference")
                         .IsUnique()
-                        .HasFilter("\"ExternalReference\" IS NOT NULL AND \"AccountId\" IS NOT NULL");
+                        .HasFilter("\"ExternalReference\" IS NOT NULL AND \"ObservationAccountId\" IS NOT NULL");
 
                     b.ToTable("transactions", "app");
                 });
@@ -3479,6 +3484,11 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.HasOne("MoneyMentor.Domain.Entities.Merchant", null)
                         .WithMany()
                         .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyMentor.Domain.Entities.FinancialAccount", null)
+                        .WithMany()
+                        .HasForeignKey("ObservationAccountId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)

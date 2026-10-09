@@ -20,6 +20,7 @@ public sealed class Transaction
     public Guid? AccountId { get; set; }
     public Guid? CounterpartyAccountId { get; set; }
     public PaymentChannel? PaymentChannel { get; set; }
+    public Guid? ObservationAccountId { get; set; }
     public string? ExternalReference { get; set; }
 
     public Guid? CategoryId { get; set; }

@@ -283,6 +283,15 @@ internal sealed class PostgresPrivacyService(
                 change.ChangedAt))
             .ToArrayAsync(cancellationToken);
 
+        var accountRows = await dbContext.FinancialAccounts.AsNoTracking().Where(x => x.OwnerUserProfileId == userContext.UserProfileId
+            || (x.OwnerUserProfileId == null && householdIds.Contains(x.HouseholdId))).ToArrayAsync(cancellationToken);
+        var accountIds = accountRows.Select(x => x.Id).ToArray();
+        var aliases = await dbContext.FinancialAccountAliases.AsNoTracking().Where(x => accountIds.Contains(x.FinancialAccountId)).ToArrayAsync(cancellationToken);
+        var transactionIds = transactionRows.Select(x => x.Id).ToArray();
+        var relations = await dbContext.TransactionRelations.AsNoTracking().Where(x => transactionIds.Contains(x.TransactionId)
+            && transactionIds.Contains(x.RelatedTransactionId)).Select(x => new PrivacyTransactionRelationModel(x.TransactionId,
+                x.RelatedTransactionId, x.RelationType, x.Amount, x.Confidence)).ToArrayAsync(cancellationToken);
+
         return new PrivacyExportModel(
             1,
             timeProvider.GetUtcNow(),
@@ -299,7 +308,13 @@ internal sealed class PostgresPrivacyService(
                 insights,
                 sessionModels,
                 pendingActions,
-                entitlementChanges));
+                entitlementChanges))
+        {
+            FinancialAccounts = accountRows.Select(x => new MoneyMentor.Application.FinancialAccounts.FinancialAccountModel(
+                x.Id, x.HouseholdId, x.OwnerUserProfileId, x.Name, x.AccountType, x.Institution, x.Last4, x.CurrencyCode, x.IsActive,
+                aliases.Where(a => a.FinancialAccountId == x.Id).Select(a => a.Alias).ToArray())).ToArray(),
+            TransactionRelations = relations
+        };
     }
 
     public async Task<bool> DeleteAccountAsync(

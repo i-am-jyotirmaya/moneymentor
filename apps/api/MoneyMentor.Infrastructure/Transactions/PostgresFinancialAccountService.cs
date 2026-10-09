@@ -32,10 +32,13 @@ internal sealed class PostgresFinancialAccountService(MoneyMentorDbContext db, I
             || command.Aliases.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 128)
             || (command.Last4 is not null && !Regex.IsMatch(command.Last4, @"^\d{4}$")))
             throw new FinancialTransactionValidationException("Provide a name, supported account type, at most 20 aliases, and optionally four trailing digits.");
+        await using var unit = await db.Database.BeginTransactionAsync(ct);
+        await PostgresFinancialEventService.LockAsync(db, household.HouseholdId, ct);
         var account = id is null ? new FinancialAccount { HouseholdId = household.HouseholdId,
             OwnerUserProfileId = command.Shared ? null : user.UserProfileId, CurrencyCode = household.CurrencyCode,
             CreatedAt = clock.GetUtcNow() } : await Visible(household.HouseholdId, user.UserProfileId).FirstOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new FinancialTransactionValidationException("Account was not found.");
+        if (id is not null) await db.Entry(account).ReloadAsync(ct);
         // Sharing is chosen at creation. It must not silently publish private transaction account metadata.
         if (id is not null && (account.OwnerUserProfileId == null) != command.Shared)
             throw new FinancialTransactionValidationException("Account sharing cannot be changed after creation.");
@@ -54,6 +57,7 @@ internal sealed class PostgresFinancialAccountService(MoneyMentorDbContext db, I
         foreach (var alias in aliases.Where(x => !oldAliases.Any(a => string.Equals(a.Alias, x, StringComparison.OrdinalIgnoreCase))))
             db.FinancialAccountAliases.Add(new() { FinancialAccountId = account.Id, Alias = alias });
         await db.SaveChangesAsync(ct);
+        await unit.CommitAsync(ct);
         return Map(account, aliases);
     }
 
@@ -67,6 +71,7 @@ internal sealed class PostgresFinancialAccountService(MoneyMentorDbContext db, I
         var aliases = await db.FinancialAccountAliases.Where(x => ids.Contains(x.FinancialAccountId)).ToArrayAsync(ct);
         var matches = candidates.Where(x => string.Equals(x.Name, alias!.Trim(), StringComparison.OrdinalIgnoreCase)
             || aliases.Any(a => a.FinancialAccountId == x.Id && string.Equals(a.Alias, alias.Trim(), StringComparison.OrdinalIgnoreCase))).ToArray();
+        if (matches.Length == 0) return null; // Unknown text aliases never force account setup for ordinary tracking.
         if (matches.Length != 1) throw new FinancialTransactionValidationException(matches.Length == 0
             ? $"No account matches '{alias}'. Add it in Financial accounts, or track without an account."
             : $"'{alias}' matches more than one account. Use its full name.");

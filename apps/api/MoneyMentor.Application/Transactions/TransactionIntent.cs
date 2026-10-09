@@ -19,6 +19,7 @@ public sealed record TransactionIntent(TransactionKind EventKind, decimal Amount
     public InputMode InputMode { get; init; } = InputMode.Text;
     public Guid? RelatedTransactionId { get; init; }
     public bool MatchOriginal { get; init; } = true;
+    public Guid? ObservationAccountId { get; init; }
     public string? ExternalReference { get; init; }
     public TransactionVisibility? Visibility { get; init; }
 }

@@ -41,6 +41,13 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                 maxLength: 32,
                 nullable: true);
 
+            migrationBuilder.AddColumn<Guid>(
+                name: "ObservationAccountId",
+                schema: "app",
+                table: "transactions",
+                type: "uuid",
+                nullable: true);
+
             migrationBuilder.AddColumn<string>(
                 name: "PaymentChannel",
                 schema: "app",
@@ -160,12 +167,18 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                 column: "CounterpartyAccountId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_transactions_HouseholdId_AccountId_ExternalReference",
+                name: "IX_transactions_HouseholdId_ObservationAccountId_ExternalRefer~",
                 schema: "app",
                 table: "transactions",
-                columns: new[] { "HouseholdId", "AccountId", "ExternalReference" },
+                columns: new[] { "HouseholdId", "ObservationAccountId", "ExternalReference" },
                 unique: true,
-                filter: "\"ExternalReference\" IS NOT NULL AND \"AccountId\" IS NOT NULL");
+                filter: "\"ExternalReference\" IS NOT NULL AND \"ObservationAccountId\" IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_transactions_ObservationAccountId",
+                schema: "app",
+                table: "transactions",
+                column: "ObservationAccountId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_financial_account_aliases_FinancialAccountId_Alias",
@@ -218,6 +231,16 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                 principalTable: "financial_accounts",
                 principalColumn: "Id",
                 onDelete: ReferentialAction.SetNull);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_transactions_financial_accounts_ObservationAccountId",
+                schema: "app",
+                table: "transactions",
+                column: "ObservationAccountId",
+                principalSchema: "app",
+                principalTable: "financial_accounts",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.SetNull);
             migrationBuilder.Sql("""
                 UPDATE app.transactions SET "Kind" = CASE "Type"
                     WHEN 'Expense' THEN 'Purchase' WHEN 'Income' THEN 'Income'
@@ -236,6 +259,11 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
             migrationBuilder.DropForeignKey(
                 name: "FK_transactions_financial_accounts_CounterpartyAccountId",
+                schema: "app",
+                table: "transactions");
+
+            migrationBuilder.DropForeignKey(
+                name: "FK_transactions_financial_accounts_ObservationAccountId",
                 schema: "app",
                 table: "transactions");
 
@@ -262,7 +290,12 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                 table: "transactions");
 
             migrationBuilder.DropIndex(
-                name: "IX_transactions_HouseholdId_AccountId_ExternalReference",
+                name: "IX_transactions_HouseholdId_ObservationAccountId_ExternalRefer~",
+                schema: "app",
+                table: "transactions");
+
+            migrationBuilder.DropIndex(
+                name: "IX_transactions_ObservationAccountId",
                 schema: "app",
                 table: "transactions");
 
@@ -283,6 +316,11 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
             migrationBuilder.DropColumn(
                 name: "Kind",
+                schema: "app",
+                table: "transactions");
+
+            migrationBuilder.DropColumn(
+                name: "ObservationAccountId",
                 schema: "app",
                 table: "transactions");
 
