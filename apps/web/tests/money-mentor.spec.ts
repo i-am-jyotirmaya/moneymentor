@@ -809,6 +809,8 @@ test("voice interaction shows wave feedback and sends captured speech", async ({
     body: await page.screenshot({ fullPage: false }),
     contentType: "image/png",
   });
+  await expect(page.getByRole("dialog", { name: "Review your transcript" })).toBeVisible();
+  await page.getByRole("button", { name: "Send transcript" }).click();
   await expect(page.locator(".chat-message-bubble").filter({ hasText: "swiggy dinner 540" })).toBeVisible({ timeout: 3000 });
   await expect(page.getByText("Tracked ₹540 for dinner")).toBeVisible({ timeout: 4000 });
   await expect.poll(() => page.evaluate(() =>
@@ -825,6 +827,7 @@ test("unsupported local speech asks before using system recognition", async ({ p
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __speechStatus: { active: boolean } }).__speechStatus.active)).toBe(false);
   await page.getByRole("button", { name: "Use system speech once" }).click();
   await expect(page.getByTestId("voice-wave")).toBeVisible();
+  await page.getByRole("button", { name: "Send transcript" }).click();
   await expect(page.getByText("Tracked ₹540 for dinner")).toBeVisible();
   await page.getByRole("button", { name: "Start voice input" }).click();
   await expect(page.getByRole("dialog", { name: "Voice input" })).toBeVisible();
@@ -840,6 +843,7 @@ test("system speech preference persists on this device and can be revoked", asyn
   await expect(page.getByLabel("Speech processing")).toHaveValue("allow-system");
   await page.goto("/");
   await page.getByRole("button", { name: "Start voice input" }).click();
+  await page.getByRole("button", { name: "Send transcript" }).click();
   await expect(page.getByText("Tracked ₹540 for dinner")).toBeVisible();
   await page.goto("/settings");
   await page.getByLabel("Speech processing").selectOption("local-only");
@@ -857,6 +861,7 @@ test("on-device language downloads require a click and never start recording aut
   await expect(page.getByRole("dialog", { name: "Voice input" })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __speechStatus: { active: boolean } }).__speechStatus.active)).toBe(false);
   await page.getByRole("button", { name: "Start voice input" }).click();
+  await page.getByRole("button", { name: "Send transcript" }).click();
   await expect(page.getByText("Tracked ₹540 for dinner")).toBeVisible();
 });
 
@@ -1136,10 +1141,131 @@ test("real downloaded model sends a financial utterance through the existing inp
   const request = page.waitForRequest(request => request.url().endsWith("/api/assistant/messages") && request.method() === "POST", { timeout: 120000 });
   await page.getByRole("button", { name: "Start voice input" }).click();
   await expect(page.getByTestId("voice-wave").getByText("Recording", { exact: true })).toBeVisible({ timeout: 90000 });
+  await page.getByRole("button", { name: "Send transcript" }).click({ timeout: 120000 });
   const body = (await request).postDataJSON();
   expect(body.inputMode).toBe("Voice");
   expect(body.text.toLowerCase()).toMatch(/\b(?:450|four hundred and fifty)\b/);
   expect(body.text.toLowerCase()).toContain("dinner");
   await expect(page.getByText("Tracked ₹540 for dinner")).toBeVisible(); // Mock backend response; ASR amount is asserted above.
   expect(await page.evaluate(() => (window as unknown as { __microphonesStopped: number }).__microphonesStopped)).toBe(1);
+});
+
+
+test("browser transcript review requires Send and preserves an edited amount", async ({ page }, testInfo) => {
+  let submissions = 0;
+  page.on("request", request => { if (request.url().endsWith("/api/assistant/messages")) submissions++; });
+  await seedVoiceRecognition(page);
+  await page.goto("/");
+  if (testInfo.project.name === "desktop-chromium") await page.getByRole("button", { name: "Open assistant chat" }).click();
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByRole("dialog", { name: "Review your transcript" })).toBeVisible();
+  expect(submissions).toBe(0);
+  await page.getByLabel("Transcript", { exact: true }).fill("bought coffee for 30 rupees");
+  const request = page.waitForRequest(request => request.url().endsWith("/api/assistant/messages") && request.method() === "POST");
+  await page.getByRole("button", { name: "Send transcript" }).click();
+  expect((await request).postDataJSON()).toMatchObject({ text: "bought coffee for 30 rupees", inputMode: "Voice" });
+  expect(submissions).toBe(1);
+});
+
+test("discarding browser transcript never sends an expense", async ({ page }, testInfo) => {
+  let submissions = 0;
+  page.on("request", request => { if (request.url().endsWith("/api/assistant/messages")) submissions++; });
+  await seedVoiceRecognition(page); await page.goto("/");
+  if (testInfo.project.name === "desktop-chromium") await page.getByRole("button", { name: "Open assistant chat" }).click();
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await page.getByRole("button", { name: "Discard transcript" }).click();
+  await expect(page.getByRole("dialog", { name: "Review your transcript" })).toHaveCount(0);
+  expect(submissions).toBe(0);
+});
+
+async function seedBackend(page: Page, enabled = true) {
+  await page.addInitScript(() => localStorage.setItem("spndrr.speech.preferences.v1", JSON.stringify({ privacy: "local-only", language: "en-IN", engine: "backend" })));
+  await page.route("**/api/speech/capabilities", route => json(route, {
+    enabled, provider: "Nemotron", model: "nemotron-test", disclosure: "Audio is uploaded to Spndrr and its configured Nemotron server.", consentVersion: "test-v1", maxDurationSeconds: 30,
+  }));
+  await page.addInitScript(() => {
+    Object.assign(window, { __backendMicStarts: 0, __backendMicStops: 0 });
+    // A real MediaStream/AudioWorklet path with deterministic audible input, no physical microphone.
+    navigator.mediaDevices.getUserMedia = async () => {
+      const status = window as unknown as { __backendMicStarts: number; __backendMicStops: number };
+      status.__backendMicStarts++;
+      const context = new AudioContext();
+      const destination = context.createMediaStreamDestination();
+      const oscillator = context.createOscillator(); const gain = context.createGain();
+      gain.gain.value = 0.03; oscillator.connect(gain); gain.connect(destination); oscillator.start(); await context.resume();
+      for (const track of destination.stream.getTracks()) {
+        const stop = track.stop.bind(track);
+        track.stop = () => { stop(); status.__backendMicStops++; void context.close(); };
+      }
+      return destination.stream;
+    };
+  });
+}
+
+test("backend recording asks before capture, finishes once and reviews before expense submission", async ({ page }, testInfo) => {
+  await seedBackend(page);
+  let uploads = 0; let submissions = 0;
+  page.on("request", request => { if (request.url().endsWith("/api/assistant/messages")) submissions++; });
+  await page.route("**/api/speech/transcriptions", async route => {
+    uploads++;
+    expect(route.request().headers()["x-speech-upload-consent"]).toBe("test-v1");
+    expect(route.request().headers()["x-speech-language"]).toBe("en-IN");
+    const wav = route.request().postDataBuffer()!;
+    expect(wav.subarray(0, 4).toString()).toBe("RIFF");
+    expect(wav.readUInt32LE(24)).toBe(16000); expect(wav.length).toBeLessThanOrEqual(960044);
+    await json(route, { text: "bought coffee for 30 rupees", provider: "Nemotron", model: "nemotron-test", audioDurationMs: 1000 });
+  });
+  await page.goto("/");
+  if (testInfo.project.name === "desktop-chromium") await page.getByRole("button", { name: "Open assistant chat" }).click();
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByRole("button", { name: "Allow backend transcription once" })).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { __backendMicStarts: number }).__backendMicStarts)).toBe(0);
+  expect(uploads).toBe(0);
+  await page.getByRole("button", { name: "Allow backend transcription once" }).click();
+  await expect(page.getByTestId("voice-wave").getByText("Recording", { exact: true })).toBeVisible();
+  await page.waitForTimeout(1100);
+  expect(uploads).toBe(0);
+  await page.getByRole("button", { name: "Finish recording" }).click();
+  await expect(page.getByLabel("Transcript", { exact: true })).toHaveValue("bought coffee for 30 rupees");
+  expect(uploads).toBe(1); expect(submissions).toBe(0);
+  await testInfo.attach("backend-transcript-review", { body: await page.screenshot(), contentType: "image/png" });
+  expect(await page.evaluate(() => (window as unknown as { __backendMicStops: number }).__backendMicStops)).toBe(1);
+  await page.getByRole("button", { name: "Send transcript" }).click();
+  await expect.poll(() => submissions).toBe(1);
+});
+
+test("backend cancellation captures nothing before consent and never uploads an unfinished recording", async ({ page }, testInfo) => {
+  await seedBackend(page);
+  let uploads = 0;
+  await page.route("**/api/speech/transcriptions", route => { uploads++; return json(route, { text: "late" }); });
+  await page.goto("/");
+  if (testInfo.project.name === "desktop-chromium") await page.getByRole("button", { name: "Open assistant chat" }).click();
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await page.getByRole("button", { name: "Keep typing" }).click();
+  expect(await page.evaluate(() => (window as unknown as { __backendMicStarts: number }).__backendMicStarts)).toBe(0);
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await page.getByRole("button", { name: "Allow backend transcription once" }).click();
+  await page.waitForTimeout(500);
+  await page.getByRole("button", { name: "Cancel recording" }).click();
+  await expect(page.getByTestId("voice-wave")).toHaveCount(0);
+  expect(uploads).toBe(0);
+});
+
+test("browser support check does not capture speech or change upload consent", async ({ page }) => {
+  await seedVoiceRecognition(page, true, "downloadable");
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Check browser speech support" }).click();
+  await expect(page.getByText("This language needs an on-device download. Start voice input to install it explicitly.")).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { __speechStatus: { active: boolean; downloads: number } }).__speechStatus)).toMatchObject({ active: false, downloads: 0 });
+  await expect(page.getByLabel("Speech processing")).toHaveValue("local-only");
+});
+
+test("disabled backend speech does not open a microphone or request consent", async ({ page }, testInfo) => {
+  await seedBackend(page, false);
+  await page.goto("/");
+  if (testInfo.project.name === "desktop-chromium") await page.getByRole("button", { name: "Open assistant chat" }).click();
+  await page.getByRole("button", { name: "Start voice input" }).click();
+  await expect(page.getByText("Backend transcription is not enabled on this server. Use browser speech or keep typing.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Allow backend transcription once" })).toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as { __backendMicStarts: number }).__backendMicStarts)).toBe(0);
 });

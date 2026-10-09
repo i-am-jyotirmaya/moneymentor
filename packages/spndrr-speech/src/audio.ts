@@ -69,6 +69,7 @@ export class BrowserPcmCapture {
   private disposed = false;
   private started = false;
   private cleanup?: Promise<void>;
+  private flushComplete?: () => void;
 
   /** Prime playback during the microphone click, before asynchronous model loading loses user activation. */
   prepareAudio() {
@@ -92,8 +93,9 @@ export class BrowserPcmCapture {
       const resampler = new PcmResampler(context.sampleRate);
       const node = new AudioWorkletNode(context, "spndrr-pcm");
       this.node = node;
-      node.port.onmessage = ({ data }: MessageEvent<Float32Array>) => {
-        if (!this.disposed) onFrame(resampler.process([data]));
+      node.port.onmessage = ({ data }: MessageEvent<Float32Array | { type: "flushed" }>) => {
+        if (data instanceof Float32Array) { if (!this.disposed) onFrame(resampler.process([data])); }
+        else if (data?.type === "flushed") this.flushComplete?.();
       };
       context.createMediaStreamSource(stream).connect(node);
       // The worklet outputs silence. Connection keeps processing active without microphone feedback.
@@ -105,8 +107,19 @@ export class BrowserPcmCapture {
     }
   }
 
+  /** Only call with a worklet implementing the flush protocol; cancellation never flushes. */
+  async finish() {
+    if (this.disposed || !this.node) return;
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => { this.flushComplete = undefined; reject(new Error("Microphone could not finish recording. Try again.")); }, 1000);
+      this.flushComplete = () => { clearTimeout(timer); this.flushComplete = undefined; resolve(); };
+      this.node!.port.postMessage({ type: "flush" });
+    });
+  }
+
   dispose() {
     this.disposed = true;
+    this.flushComplete?.();
     return this.cleanup ??= (async () => {
       if (this.node) { this.node.port.onmessage = null; this.node.port.close(); this.node.disconnect(); }
       this.stream?.getTracks().forEach(track => track.stop());

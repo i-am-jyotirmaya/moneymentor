@@ -1,4 +1,5 @@
 "use client";
+import { VoiceTranscriptReview } from "./voice-transcript-review";
 import { VoicePrivacyDialog } from "./voice-privacy-dialog";
 import { RotateCcw, X } from "lucide-react";
 import { useWorkspaceController } from "../_hooks/use-workspace-controller";
@@ -37,6 +38,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
     isListening,
     voicePhase,
     partialTranscript, voicePrompt, isInstallingVoice, cancelVoiceInput, installVoiceLanguage, useSystemVoiceOnce,
+    voiceReview, confirmVoiceReview, isBackendRecording, finishVoiceInput, requestBackendVoice, useBackendVoiceOnce,
     messages,
     transactions,
     transactionPage,
@@ -137,8 +139,18 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
       />
       {voicePrompt ? <VoicePrivacyDialog
         message={voicePrompt.message} canInstall={voicePrompt.canInstall} installing={isInstallingVoice}
+        native={voicePrompt.native} backend={voicePrompt.backend}
+        onRequestBackend={() => void requestBackendVoice()} onUseBackend={useBackendVoiceOnce}
         onInstall={() => void installVoiceLanguage()} onUseSystem={useSystemVoiceOnce} onClose={cancelVoiceInput}
       /> : null}
+      {voiceReview ? <VoiceTranscriptReview text={voiceReview.text} onSend={confirmVoiceReview} onCancel={cancelVoiceInput} /> : null}
+      {isBackendRecording ? <div role="status" className="fixed bottom-28 left-1/2 z-50 w-80 -translate-x-1/2 rounded-xl border bg-white p-4 shadow-xl">
+        <p className="text-sm">{voicePhase === "transcribing" ? "Transcribing with the backend…" : "Speak, then finish recording. Maximum 30 seconds."}</p>
+        <div className="mt-3 flex gap-3">
+          {voicePhase === "recording" ? <button type="button" onClick={finishVoiceInput} className="rounded-lg bg-[var(--accent)] px-3 py-2 text-white">Finish recording</button> : null}
+          <button type="button" onClick={cancelVoiceInput} className="rounded-lg border px-3 py-2">Cancel recording</button>
+        </div>
+      </div> : null}
       {children}
       <div className="flex h-full min-h-0">
         <DesktopSidebar

@@ -1,0 +1,13 @@
+[
+  {"id":"coffee-30","text":"bought coffee for 30 rupees","alternatives":["bought coffee for thirty rupees"],"amounts":[30],"critical":true},
+  {"id":"coffee-13","text":"bought coffee for thirteen rupees","alternatives":["bought coffee for 13 rupees"],"amounts":[13],"critical":true},
+  {"id":"coffee-300","text":"bought coffee for three hundred rupees","alternatives":["bought coffee for 300 rupees"],"amounts":[300],"critical":true},
+  {"id":"paused-dinner","text":"spent four hundred and fifty rupees on dinner","alternatives":["spent 450 rupees on dinner"],"amounts":[450],"critical":true},
+  {"id":"rent","text":"paid rent eighteen thousand","alternatives":["paid rent 18000"],"amounts":[18000]},
+  {"id":"merchant","text":"zepto ice cream 180","alternatives":["zepto ice cream one hundred and eighty"],"amounts":[180]},
+  {"id":"hindi-coffee","text":"तीस रुपये की कॉफी खरीदी","alternatives":["30 रुपये की कॉफी खरीदी"],"amounts":[30],"critical":true},
+  {"id":"hinglish-coffee","text":"coffee के लिए तीस रुपये दिए","alternatives":["coffee के लिए 30 रुपये दिए"],"amounts":[30],"critical":true},
+  {"id":"finance-question","text":"where did I spend most last month","amounts":[]},
+  {"id":"silence","text":"","amounts":[],"silence":true,"critical":true},
+  {"id":"background-noise","text":"","amounts":[],"silence":true,"critical":true}
+]

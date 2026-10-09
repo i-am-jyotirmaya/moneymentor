@@ -43,6 +43,13 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddOptions<Speech.SpeechOptions>().Bind(configuration.GetSection("Speech"))
+            .Validate(options => !options.Enabled || options.IsValid, "Speech provider configuration is invalid.")
+            .ValidateOnStart();
+        services.AddHttpClient("speech", client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+            .RemoveAllLoggers();
+        services.AddSingleton<MoneyMentor.Application.Speech.ISpeechTranscriber, Speech.HttpSpeechTranscriber>();
         services.AddAwsIntegration(configuration);
         services.TryAddSingleton(TimeProvider.System);
         services.AddOptions<RegistrationOptions>()

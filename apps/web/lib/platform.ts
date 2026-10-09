@@ -3,6 +3,7 @@ import { BrowserTranscriptionProvider, type SpeechPrivacy, type TranscriptionPro
 import { downloadedTranscriptionProvider } from "./speech/downloaded-model";
 
 type PlatformServices = {
+  isNativeSpeech?: () => boolean;
   getTranscriptionProvider: (privacy: SpeechPrivacy) => TranscriptionProvider;
   saveExport: (blob: Blob, fileName: string) => Promise<void>;
 };
@@ -15,10 +16,13 @@ export function configurePlatform(services: PlatformServices) {
 }
 
 export function getTranscriptionProvider(privacy: SpeechPrivacy, engine: "browser" | "whisper" = "browser"): TranscriptionProvider {
+  if (isNativeSpeechPlatform()) return platformServices!.getTranscriptionProvider(privacy);
   if (engine === "whisper") return downloadedTranscriptionProvider();
   if (platformServices) return platformServices.getTranscriptionProvider(privacy);
   return new BrowserTranscriptionProvider(privacy === "local-only");
 }
+
+export function isNativeSpeechPlatform() { return platformServices?.isNativeSpeech?.() === true; }
 
 export async function saveExport(blob: Blob, fileName: string) {
   if (platformServices) return platformServices.saveExport(blob, fileName);

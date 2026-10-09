@@ -351,9 +351,9 @@ export function VoiceWavePanel({ transcript, phase }: { transcript: string; phas
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">{phase === "loading" ? "Loading local model…" : phase === "transcribing" ? "Transcribing on this device…" : "Recording"}</p>
+          <p className="text-sm font-semibold">{phase === "loading" ? "Preparing voice input…" : phase === "transcribing" ? "Transcribing…" : "Recording"}</p>
           <p className="mt-1 text-xs font-medium text-white/70">
-            {transcript || (phase === "recording" ? "Speak your sentence, then pause for two seconds. Stop cancels this recording." : phase === "loading" ? "Wait for Recording before speaking. You can cancel while waiting." : "You can cancel voice input while waiting.")}
+            {transcript || (phase === "recording" ? "Speak your sentence. Browser speech ends automatically; for backend speech, choose Finish recording. Stop cancels." : phase === "loading" ? "Wait for Recording before speaking. You can cancel while waiting." : "You can cancel voice input while waiting.")}
           </p>
         </div>
         <div className="voice-wave" aria-hidden="true">

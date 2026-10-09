@@ -1,4 +1,6 @@
 export * from "./contracts.ts";
+export * from "./backend-provider.ts";
+export * from "./wav.ts";
 export * from "./event-stream.ts";
 export * from "./service.ts";
 export * from "./browser-provider.ts";

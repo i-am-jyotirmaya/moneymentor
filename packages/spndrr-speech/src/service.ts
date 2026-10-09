@@ -13,6 +13,8 @@ export class LocalTranscriptionService {
     return this.cleanup ??= this.provider.dispose();
   }
 
+  async finish() { await this.provider.finish?.(); }
+
   async cancel() {
     this.cancelled = true;
     await this.release();
@@ -26,6 +28,12 @@ export class LocalTranscriptionService {
       if (this.cancelled) return null;
       if (options.privacy === "local-only" && this.provider.location !== "local") {
         throw new SpeechError("privacy", "This speech provider cannot guarantee on-device processing.");
+      }
+      if (this.provider.location === "system" && options.privacy !== "allow-system") {
+        throw new SpeechError("privacy", "System speech requires its own provider consent.");
+      }
+      if (this.provider.location === "cloud" && options.privacy !== "allow-backend") {
+        throw new SpeechError("privacy", "Backend transcription requires separate audio upload consent.");
       }
       await this.provider.initialize(options);
       if (this.cancelled) return null;

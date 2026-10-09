@@ -181,6 +181,7 @@ export function useWorkspaceController() {
   const {
     isListening, voicePhase, partialTranscript, voicePrompt, isInstallingVoice,
     cancelVoiceInput, installVoiceLanguage, useSystemVoiceOnce,
+    voiceReview, confirmVoiceReview, isBackendRecording, finishVoiceInput, requestBackendVoice, useBackendVoiceOnce,
     toggleVoiceInput: toggleSpeechInput,
   } = useSpeechInput(result => {
     setText(result.text);
@@ -856,6 +857,7 @@ export function useWorkspaceController() {
     isListening,
     voicePhase,
     partialTranscript, voicePrompt, isInstallingVoice, cancelVoiceInput, installVoiceLanguage, useSystemVoiceOnce,
+    voiceReview, confirmVoiceReview, isBackendRecording, finishVoiceInput, requestBackendVoice, useBackendVoiceOnce,
     messages,
     transactions,
     transactionPage,

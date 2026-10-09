@@ -90,7 +90,7 @@ builder.Services.AddCors(options =>
         WebCorsPolicy,
         policy => policy
             .WithOrigins(allowedOrigins)
-            .WithHeaders("Authorization", "Content-Type")
+            .WithHeaders("Authorization", "Content-Type", "X-Speech-Language", "X-Speech-Upload-Consent")
             .WithMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
             .WithExposedHeaders("Retry-After", "Content-Disposition", "X-Request-ID")
             .AllowCredentials());
@@ -132,6 +132,8 @@ builder.Services.AddRateLimiter(options =>
         CreateFixedWindowPartition(GetSessionPartition(context), rateLimits.SessionsPerFiveMinutes, TimeSpan.FromMinutes(5)));
     options.AddPolicy(RateLimitPolicyNames.Invitation, context =>
         CreateFixedWindowPartition(GetRequestPartition(context), rateLimits.InvitationsPerHour, TimeSpan.FromHours(1)));
+    options.AddPolicy(RateLimitPolicyNames.Speech, context =>
+        CreateFixedWindowPartition(GetRequestPartition(context), rateLimits.SpeechPerMinute, TimeSpan.FromMinutes(1)));
     options.AddPolicy(RateLimitPolicyNames.Privacy, context =>
         CreateFixedWindowPartition(GetRequestPartition(context), rateLimits.PrivacyOperationsPerHour, TimeSpan.FromHours(1)));
 });

@@ -196,3 +196,21 @@ test("audio priming before model load requests no microphone and cancellation cl
     else Reflect.deleteProperty(globalThis, "AudioContext");
   }
 });
+
+test("browser speech inspection checks the exact locale without starting or installing recognition", async () => {
+  const { inspectBrowserSpeech } = await import("../src/browser-provider.ts");
+  let calls = 0;
+  class InspectRecognition {
+    processLocally = false;
+    continuous = false; interimResults = false; lang = "";
+    onresult = null; onerror = null; onend = null;
+    static async available(options: { langs: string[]; processLocally: boolean }) {
+      assert.deepEqual(options, { langs: ["en-IN"], processLocally: true }); calls++; return "downloadable";
+    }
+    start() { throw new Error("Must not open microphone"); }
+    stop() {};
+    static async install() { throw new Error("Must not install without consent"); }
+  }
+  assert.deepEqual(await inspectBrowserSpeech("en-IN", InspectRecognition), { system: true, local: "downloadable" });
+  assert.equal(calls, 1);
+});
