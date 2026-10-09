@@ -64,8 +64,16 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
             var model = body.RootElement.TryGetProperty("model", out var responseModel)
                 && responseModel.ValueKind == JsonValueKind.String
                 ? responseModel.GetString() : null;
+            long? inputTokens = null, outputTokens = null;
+            if (body.RootElement.TryGetProperty("usage", out var usage))
+            {
+                if (usage.ValueKind != JsonValueKind.Object)
+                    throw new JsonException("Jev response has invalid usage.");
+                inputTokens = ReadTokenCount(usage, "input_tokens");
+                outputTokens = ReadTokenCount(usage, "output_tokens");
+            }
             measurement.Succeeded();
-            return new JevDecision(answers.Clone(), model);
+            return new JevDecision(answers, model, inputTokens, outputTokens);
         }
         catch (OperationCanceledException)
         {
@@ -84,5 +92,13 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
             if (exception.StatusCode is null) measurement.NetworkError();
             throw;
         }
+    }
+
+    private static long? ReadTokenCount(JsonElement usage, string name)
+    {
+        if (!usage.TryGetProperty(name, out var value)) return null;
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt64(out var count) || count < 0)
+            throw new JsonException($"Jev response has invalid {name}.");
+        return count;
     }
 }
