@@ -4,6 +4,7 @@ import type { HouseholdDashboard, UserPlan } from "@/lib/api";
 import { Bot, LogOut, Menu, Users, X } from "lucide-react";
 import { useWorkspaceUrl } from "../_hooks/use-workspace-url";
 import { SidebarStat } from "./common-ui";
+import { Dropdown } from "./dropdown";
 import { BrandMarkIcon } from "./icons";
 import { ProgressLink as Link } from "./navigation-progress";
 import { navItems, sectionLabel } from "./workspace-config";
@@ -261,23 +262,24 @@ export function HouseholdScopeSelector({
   );
   return (
     <div className="mb-4 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-white px-4 py-3 shadow-sm lg:mb-5">
-      <label className="flex min-w-0 items-center gap-3 text-sm font-semibold">
+      <div className="flex min-w-0 flex-1 items-center gap-3 text-sm font-semibold">
         <Users className="h-4 w-4 shrink-0 text-[var(--accent)]" />
         <span className="hidden sm:inline">Household</span>
-        <select
-          className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 outline-none"
-          onChange={(event) => onChange(event.target.value)}
+        <Dropdown
+          hideLabel
+          label="Household"
+          className="min-w-0 flex-1 sm:max-w-xs"
+          triggerClassName="bg-[var(--surface)]!"
+          onChange={onChange}
+          options={households.households.map((household) => ({
+            value: household.id,
+            label: `${household.name} (${household.kind})`,
+          }))}
           value={selectedHouseholdId ?? households.defaultHouseholdId}
-        >
-          {households.households.map((household) => (
-            <option key={household.id} value={household.id}>
-              {household.name} ({household.kind})
-            </option>
-          ))}
-        </select>
-      </label>
+        />
+      </div>
       <span
-        className={`rounded-md px-2 py-1 text-xs font-bold ${selected?.canWrite ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}
+        className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${selected?.canWrite ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}
       >
         {selected?.canWrite ? "Can write" : "Read only"}
       </span>

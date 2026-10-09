@@ -624,7 +624,7 @@ test("dashboard month controls load the previous month", async ({ page }, testIn
   await page.getByRole("button", { name: "Previous dashboard month" }).click();
   await dashboardRequest;
 
-  await expect(page.getByLabel("Dashboard month", { exact: true })).toHaveValue(previousMonthKey);
+  await expect(page.getByRole("combobox", { name: "Dashboard month", exact: true })).toHaveText(formatMonthKey(previousMonthKey));
   await expect(page.getByText(formatMonthKey(previousMonthKey)).first()).toBeVisible();
 });
 
@@ -639,7 +639,8 @@ test("transaction list paginates by month and opens editing only from the edit i
   await expect(page.getByText(/12 records, Page 2 of 2/).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Edit transaction/ })).toHaveCount(2);
 
-  await page.getByLabel("Transaction month", { exact: true }).first().selectOption(previousMonthKey);
+  await page.getByRole("combobox", { name: "Transaction month", exact: true }).click();
+  await page.getByRole("option", { name: formatMonthKey(previousMonthKey), exact: true }).click();
   await expect(page.getByText("Previous month taxi").first()).toBeVisible();
   await expect(page.getByText(/1 records/).first()).toBeVisible();
 
@@ -702,9 +703,7 @@ test("household invitations can be accepted and sent", async ({ page }, testInfo
   await page.getByRole("button", { name: "Accept" }).first().click();
   await expect(page.getByText("You joined Friends workspace.").first()).toBeVisible();
   await page.getByRole("button", { name: /Family workspace Owner/ }).click();
-  await expect(page.getByLabel("Household").first()).toHaveValue(
-    "44444444-4444-4444-8444-444444444444",
-  );
+  await expect(page.getByRole("combobox", { name: "Household", exact: true })).toHaveText("Family workspace (Family)");
 
   const invitationRequest = page.waitForRequest(
     (request) =>
@@ -712,7 +711,8 @@ test("household invitations can be accepted and sent", async ({ page }, testInfo
       request.method() === "POST",
   );
   await page.getByLabel("Email").first().fill("friend@example.com");
-  await page.getByLabel("Role").first().selectOption("Viewer");
+  await page.getByRole("combobox", { name: "Role", exact: true }).click();
+  await page.getByRole("option", { name: "Viewer", exact: true }).click();
   await page.getByRole("button", { name: "Send invitation" }).first().click();
 
   const request = await invitationRequest;
@@ -973,7 +973,7 @@ test("navigation has real URLs and keeps an unsent tracking draft", async ({ pag
 
 test("transaction filters and editor survive reload and Back", async ({ page }) => {
   await page.goto(`/transactions?month=${previousMonthKey}&page=1`);
-  await expect(page.getByLabel("Transaction month", { exact: true })).toHaveValue(previousMonthKey);
+  await expect(page.getByRole("combobox", { name: "Transaction month", exact: true })).toHaveText(formatMonthKey(previousMonthKey));
   await page.getByRole("button", { name: "Edit transaction Previous month taxi" }).click();
   await expect(page).toHaveURL(/edit=/);
   await page.reload();
@@ -998,7 +998,7 @@ test("dashboard drawer is represented by a fragment", async ({ page }, testInfo)
 
 test("invalid URL filters fall back to a usable transaction view", async ({ page }) => {
   await page.goto("/transactions?month=2026-99&page=-12");
-  await expect(page.getByLabel("Transaction month", { exact: true })).toHaveValue(currentMonthKey);
+  await expect(page.getByRole("combobox", { name: "Transaction month", exact: true })).toHaveText(formatMonthKey(currentMonthKey));
   await expect(page.getByRole("button", { name: "Previous transaction page" })).toBeDisabled();
 });
 
@@ -1232,4 +1232,102 @@ test("groups with hidden children remain headings and standalone categories stay
   await expect(panel.getByRole("option", { name: /Archived Groceries/ })).toHaveCount(0);
   await panel.getByRole("option", { name: "Everyday", exact: true }).click();
   await expect(category).toHaveText("Everyday");
+});
+
+test("shared month dropdown navigates months without search or native selects", async ({ page }, testInfo) => {
+  await page.goto("/dashboard");
+  const month = page.getByRole("combobox", { name: "Dashboard month", exact: true });
+  await expect(month).toHaveText(formatMonthKey(currentMonthKey));
+  await month.focus();
+  await month.press("Space");
+  const panel = page.getByRole("listbox", { name: "Dashboard month options", exact: true });
+  await expect(panel).toBeVisible();
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await expect(panel.getByRole("option", { name: formatMonthKey(currentMonthKey), exact: true })).toHaveAttribute("aria-selected", "true");
+  await page.screenshot({ path: testInfo.outputPath("shared-month-dropdown.png") });
+  const request = page.waitForRequest((request) => request.url().includes(`/api/dashboard/monthly?month=${previousMonthKey}`));
+  await panel.getByRole("option", { name: formatMonthKey(previousMonthKey), exact: true }).click();
+  await request;
+  await expect(month).toHaveText(formatMonthKey(previousMonthKey));
+  await expect(page).toHaveURL(new RegExp(`month=${previousMonthKey}`));
+  await page.getByRole("button", { name: "Next dashboard month", exact: true }).click();
+  await expect(month).toHaveText(formatMonthKey(currentMonthKey));
+  await expect(page.getByRole("button", { name: "Next dashboard month", exact: true })).toBeDisabled();
+  await expect(page.locator("select")).toHaveCount(0);
+});
+
+test("shared household and role dropdowns preserve scope and invitation payload", async ({ page }, testInfo) => {
+  await page.goto("/household");
+  const household = page.getByRole("combobox", { name: "Household", exact: true });
+  await household.click();
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("shared-household-dropdown.png") });
+  await page.getByRole("option", { name: "Family workspace (Family)", exact: true }).click();
+  await expect(household).toHaveText("Family workspace (Family)");
+  await expect(page).toHaveURL(/household=44444444-4444-4444-8444-444444444444/);
+  const role = page.getByRole("combobox", { name: "Role", exact: true });
+  await role.click();
+  await expect(page.getByRole("listbox", { name: "Role options", exact: true }).getByRole("option")).toHaveCount(3);
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await page.getByRole("option", { name: "Viewer", exact: true }).click();
+  await expect(role).toHaveText("Viewer");
+  await page.getByLabel("Email", { exact: true }).fill("viewer@example.com");
+  const request = page.waitForRequest((request) => request.url().endsWith("/api/households/44444444-4444-4444-8444-444444444444/invitations") && request.method() === "POST");
+  await page.getByRole("button", { name: "Send invitation", exact: true }).click();
+  expect((await request).postDataJSON()).toEqual({ email: "viewer@example.com", role: "Viewer" });
+  await expect(page.getByText("Invitation sent to viewer@example.com.", { exact: true })).toBeVisible();
+  await expect(page.locator("select")).toHaveCount(0);
+});
+
+test("shared default visibility dropdown saves the selected setting", async ({ page }) => {
+  await page.goto("/settings");
+  const visibility = page.getByRole("combobox", { name: "Default visibility", exact: true });
+  await visibility.click();
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await page.getByRole("option", { name: "Household", exact: true }).click();
+  await expect(visibility).toHaveText("Household");
+  const request = page.waitForRequest((request) => request.url().endsWith("/api/settings/me") && request.method() === "PATCH");
+  await page.getByRole("button", { name: "Save settings", exact: true }).click();
+  expect((await request).postDataJSON()).toMatchObject({ defaultTransactionVisibility: "Household" });
+  await expect(visibility).toHaveText("Household");
+  await expect(page.locator("select")).toHaveCount(0);
+});
+
+test("shared goal dropdowns submit goal type and reset optional pace", async ({ page }) => {
+  const goal = { id: "goal-dropdown", name: "Emergency reserve", userProfileId: "profile", remainingAmount: 50000, currentAmount: 0, targetAmount: 50000, goalType: "EmergencyFund", priority: "Medium", status: "Active" };
+  await page.route("**/api/goals", async (route) => {
+    if (route.request().method() === "POST") await json(route, goal);
+    else await route.fallback();
+  });
+  await page.route("**/api/goals/goal-dropdown", route => json(route, { goal, plan: null, currentUserConsent: null }));
+  await page.route("**/api/goals/goal-dropdown/planning-runs", route => json(route, { id: "run-dropdown", goalId: goal.id, runType: "Generate", status: "Succeeded" }));
+  await page.goto("/planning");
+  await page.getByLabel("Goal", { exact: true }).fill(goal.name);
+  await page.getByLabel("Target amount", { exact: true }).fill("50000");
+  const type = page.getByRole("combobox", { name: "Goal type", exact: true });
+  await type.click();
+  await expect(page.getByRole("listbox", { name: "Goal type options", exact: true }).getByRole("option")).toHaveCount(5);
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await page.getByRole("option", { name: "Emergency fund", exact: true }).click();
+  await expect(type).toHaveText("Emergency fund");
+  const create = page.waitForRequest((request) => request.url().endsWith("/api/goals") && request.method() === "POST");
+  await page.getByRole("button", { name: "Create goal", exact: true }).click();
+  expect((await create).postDataJSON()).toMatchObject({ goalType: "EmergencyFund", targetAmount: 50000 });
+  const pace = page.getByRole("combobox", { name: "Pace (optional)", exact: true });
+  await expect(pace).toHaveText("Show three paces");
+  for (const label of ["Balanced", "Show three paces"]) {
+    await pace.click();
+    const panel = page.getByRole("listbox", { name: "Pace (optional) options", exact: true });
+    await expect(panel.getByRole("option")).toHaveCount(4);
+    await expect(page.getByRole("searchbox")).toHaveCount(0);
+    await panel.getByRole("option", { name: label, exact: true }).click();
+    await expect(pace).toHaveText(label);
+    const generate = page.waitForRequest((request) => request.url().endsWith("/api/goals/goal-dropdown/planning-runs") && request.method() === "POST");
+    await page.getByRole("button", { name: "Generate plan", exact: true }).click();
+    const payload = (await generate).postDataJSON();
+    if (label === "Balanced") expect(payload.pace).toBe("Balanced");
+    else expect(payload).not.toHaveProperty("pace");
+    await expect(page.getByRole("button", { name: "Generate plan", exact: true })).toBeEnabled();
+  }
+  await expect(page.locator("select")).toHaveCount(0);
 });

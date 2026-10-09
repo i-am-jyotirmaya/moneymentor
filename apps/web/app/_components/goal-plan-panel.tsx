@@ -2,6 +2,7 @@
 import type { GoalPlanPace } from "@/lib/api";
 import type { usePlanningController } from "../_hooks/use-planning-controller";
 import { EmptyInline } from "./common-ui";
+import { Dropdown } from "./dropdown";
 import { formatDate, formatMoney } from "./workspace-format";
 type Props = Pick<
   ReturnType<typeof usePlanningController>,
@@ -91,24 +92,17 @@ export function GoalPlanPanel({
             className="mt-4 grid gap-3 md:grid-cols-4"
             onSubmit={handleGeneratePlan}
           >
-            <label className="text-xs font-bold text-[var(--muted)]">
-              Pace (optional)
-              <select
-                className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--ink)]"
-                onChange={(event) =>
-                  setPlanForm((current) => ({
-                    ...current,
-                    pace: event.target.value as "" | GoalPlanPace,
-                  }))
-                }
-                value={planForm.pace}
-              >
-                <option value="">Show three paces</option>
-                <option value="Comfortable">Comfortable</option>
-                <option value="Balanced">Balanced</option>
-                <option value="Aggressive">Aggressive</option>
-              </select>
-            </label>
+            <Dropdown
+              label="Pace (optional)"
+              onChange={(value) => setPlanForm((current) => ({ ...current, pace: value as "" | GoalPlanPace }))}
+              options={[
+                { value: "", label: "Show three paces" },
+                { value: "Comfortable", label: "Comfortable" },
+                { value: "Balanced", label: "Balanced" },
+                { value: "Aggressive", label: "Aggressive" },
+              ]}
+              value={planForm.pace}
+            />
             <label className="text-xs font-bold text-[var(--muted)]">
               Target date (optional)
               <input

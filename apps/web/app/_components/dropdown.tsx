@@ -9,6 +9,7 @@ export type { DropdownOption } from "./dropdown-options";
 
 export type DropdownProps = {
   label: string;
+  hideLabel?: boolean;
   options: readonly DropdownOption[];
   value: string | null;
   onChange: (value: string, option: DropdownOption) => void;
@@ -28,7 +29,7 @@ export type DropdownProps = {
 };
 
 export function Dropdown({
-  label, options, value, onChange, placeholder = "Choose an option", disabled = false,
+  label, hideLabel = false, options, value, onChange, placeholder = "Choose an option", disabled = false,
   searchable = false, searchLabel = `Search ${label.toLowerCase()}`,
   searchPlaceholder = "Search options", emptyMessage = "No options available.",
   noResultsMessage = "No matching options.", className = "", triggerClassName = "",
@@ -259,8 +260,8 @@ export function Dropdown({
   ) : null;
 
   return (
-    <div className={`space-y-2 ${className}`}>
-      <label className="block text-sm font-semibold" htmlFor={`${id}-trigger`}>{label}</label>
+    <div className={`${hideLabel ? "" : "space-y-2"} ${className}`}>
+      <label className={hideLabel ? "sr-only" : "block text-sm font-semibold"} htmlFor={`${id}-trigger`}>{label}</label>
       <button
         aria-controls={open ? `${id}-list` : undefined}
         aria-describedby={`${id}-value`}

@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
+import { Dropdown } from "./dropdown";
 import {
   formatDate,
   formatMoney,
@@ -354,19 +355,16 @@ export function MonthNavigator({
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
-      <select
-        aria-label={label}
-        className="h-9 min-w-36 bg-transparent px-2 text-sm font-semibold outline-none disabled:opacity-60"
+      <Dropdown
+        hideLabel
+        label={label}
+        className="min-w-36"
+        triggerClassName="h-9! border-0! bg-transparent! px-2!"
         disabled={disabled}
-        onChange={(event) => onMonthChange(event.target.value)}
+        onChange={onMonthChange}
+        options={monthOptions.map((option) => ({ value: option, label: formatMonthKey(option) }))}
         value={month}
-      >
-        {monthOptions.map((option) => (
-          <option key={option} value={option}>
-            {formatMonthKey(option)}
-          </option>
-        ))}
-      </select>
+      />
       <button
         aria-label={`Next ${label.toLowerCase()}`}
         className="grid h-9 w-9 place-items-center rounded-md text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--ink)] disabled:opacity-45"

@@ -1,6 +1,6 @@
 # Shared dropdown
 
-`apps/web/app/_components/dropdown.tsx` exports a controlled, single-selection `Dropdown`. It is shared by the web and mobile applications. Import it from a client component. Category and Visibility in the transaction editor use it; other screens can adopt the same component. Category groups are always bold, non-selectable headings, including during search; only child and standalone categories are choices. Groups with hidden children remain headings. The generic dropdown still supports explicitly selectable branches for other use cases.
+`apps/web/app/_components/dropdown.tsx` exports a controlled, single-selection `Dropdown`. It is shared by the web and mobile applications. Import it from a client component. All dropdown fields use it: transaction categories and visibility, month navigation, household selection, invitation role, default visibility, goal type, and planning pace. Categories use a searchable hierarchy; the remaining fields use flat lists without search. Category groups are always bold, non-selectable headings, including during search; only child and standalone categories are choices. Groups with hidden children remain headings. The generic dropdown still supports explicitly selectable branches for other use cases.
 
 ## Flat options, without search
 
@@ -49,6 +49,7 @@ Search is opt-in and exists only inside the open panel. It filters the supplied 
 | Prop | Purpose |
 | --- | --- |
 | `label`, `placeholder` | Accessible field label and text when the value is absent. |
+| `hideLabel` | Visually hide the label for compact controls, while keeping its accessible name. |
 | `searchable`, `searchLabel`, `searchPlaceholder` | Enable search and customize its accessible name and hint. |
 | `emptyMessage`, `noResultsMessage` | Distinguish an empty option tree from an unsuccessful search. |
 | `className`, `triggerClassName`, `panelClassName` | Customize the field, trigger, and rounded panel. |
@@ -63,7 +64,7 @@ Keyboard behavior: Enter/Space or Arrow Up/Down open the control; arrows navigat
 
 ## Tests
 
-`tests/dropdown-options.spec.ts` covers flat/nested trees, search context, duplicate labels, disabled descendants, and input immutability. Transaction editor browser tests cover searchable and normal panels on desktop/mobile, selection persistence, search reset, keyboard focus, dismissal, viewport placement, and disabled triggers during saving.
+`tests/dropdown-options.spec.ts` covers flat/nested trees, search context, duplicate labels, disabled descendants, and input immutability. Browser tests cover searchable and normal panels on desktop/mobile, selection persistence, search reset, keyboard focus, dismissal, viewport placement, and disabled triggers during saving. Screen tests verify month navigation, household switching and invitation payloads, saved visibility settings, goal types, and resetting the optional planning pace to its empty value. Each migrated screen also checks that it contains no native select fields.
 
 Run the relevant suites:
 
