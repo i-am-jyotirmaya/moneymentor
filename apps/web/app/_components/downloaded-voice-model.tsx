@@ -9,7 +9,7 @@ export function DownloadedVoiceModel({ onReady }: { onReady: () => void }) {
   useEffect(() => { void refreshDownloadedModel(); }, []);
   return <div className="mt-4 rounded-lg border border-[var(--border)] p-4">
     <h4 className="text-sm font-semibold">Whisper Tiny · English and Hindi</h4>
-    <p className="mt-2 text-xs text-[var(--muted)]">Download once: {(whisperModelBytes / 1048576).toFixed(0)} MiB model plus local runtime. Audio stays on this device. Speak one sentence, then pause; transcription may take several seconds. A device with 4 GB of memory is recommended.</p>
+    <p className="mt-2 text-xs text-[var(--muted)]">Download once: {(whisperModelBytes / 1048576).toFixed(0)} MiB model plus local runtime. Audio stays on this device. Wait for Recording, speak your sentence, then pause for two seconds. Transcription may take several seconds; the model stays ready briefly for your next recording. A device with 4 GB of memory is recommended.</p>
     <p role="status" className="mt-3 text-sm">{state.message}</p>
     {state.busy && state.total > 0 ? <>
       <progress aria-label="Speech model download" className="mt-2 w-full" max={state.total} value={state.bytes} />

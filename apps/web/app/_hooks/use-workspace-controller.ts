@@ -411,7 +411,7 @@ export function useWorkspaceController() {
   }
 
   function toggleVoiceInput() {
-    if (isSubmitting) return;
+    if (isSubmitting || (isLoadingData && !isListening)) return;
     setError(null);
     toggleSpeechInput();
   }

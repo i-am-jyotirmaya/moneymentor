@@ -48,6 +48,7 @@ export function WorkspaceSection({
         inputMode={props.inputMode}
         isListening={props.isListening}
         voicePhase={props.voicePhase}
+        voiceDisabled={props.isLoadingDashboard}
         partialTranscript={props.partialTranscript}
         isSubmitting={props.isSubmitting}
         messages={props.messages}

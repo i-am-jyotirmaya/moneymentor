@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { LocalTranscriptionService, WorkerTranscriptionProvider } from "../src/index.ts";
 import type { SpeechInferenceWorker, PcmAudioSource, SpeechModelManager, SpeechModelManifest, SpeechWorkerRequest, SpeechWorkerResponse } from "../src/index.ts";
+import { SpeechWorkerPool } from "../src/worker-pool.ts";
 
 const manifest: SpeechModelManifest = { id: "test", version: "1", displayName: "Test", runtime: "test", runtimeVersion: "1", languages: ["en"], streaming: true, files: [] };
 const models = { async isModelInstalled() { return true; }, async loadModel() { return []; } } as unknown as SpeechModelManager;
@@ -82,7 +83,7 @@ test("endpointing stops capture and flushes acknowledged audio before requesting
   const session = new LocalTranscriptionService(new WorkerTranscriptionProvider({ id: "test", manifest, models, createWorker: () => worker, workletUrl: "/worklet", capture }));
   const result = session.transcribe({ language: "en-US", privacy: "local-only" });
   await turn();
-  for (let sequence = 0; sequence < 11; sequence++) {
+  for (let sequence = 0; sequence < 22; sequence++) {
     capture.frame?.(new Float32Array(1600).fill(sequence < 2 ? 0.2 : 0));
     worker.send({ type: "ack", sessionId: worker.sessionId, sequence });
   }
@@ -90,4 +91,71 @@ test("endpointing stops capture and flushes acknowledged audio before requesting
   assert.equal(worker.requests.at(-1)?.type, "finish");
   worker.send({ type: "event", sessionId: worker.sessionId, event: { type: "final", text: "spent 450 on dinner" } });
   assert.equal((await result)?.text, "spent 450 on dinner");
+});
+
+test("consecutive utterances reuse verified weights with fresh session IDs; cancelling destroys the warm decoder", async () => {
+  const pool = new SpeechWorkerPool();
+  const worker = new Worker();
+  let loads = 0, creations = 0;
+  const cachedModels = { ...models, async loadModel() { loads++; return [{ path: "model", bytes: new Uint8Array([1]) }]; } } as unknown as SpeechModelManager;
+  const create = () => {
+    const capture = new Capture();
+    const service = new LocalTranscriptionService(new WorkerTranscriptionProvider({ id: "test", manifest, models: cachedModels, createWorker: () => { creations++; return worker; }, workerPool: pool, workletUrl: "/worklet", capture }));
+    return { service, capture };
+  };
+  try {
+    const first = create();
+    const result = first.service.transcribe({ language: "en-US", privacy: "local-only" });
+    await turn();
+    const oldSession = worker.sessionId;
+    worker.send({ type: "event", sessionId: oldSession, event: { type: "final", text: "first sentence" } });
+    assert.equal((await result)?.text, "first sentence");
+    assert.equal(worker.terminated, false);
+    assert.equal(first.capture.stopped, true);
+    const second = create();
+    const pending = second.service.transcribe({ language: "en-US", privacy: "local-only" });
+    await turn();
+    assert.notEqual(worker.sessionId, oldSession);
+    assert.equal(loads, 1);
+    assert.equal(creations, 1);
+    assert.deepEqual((worker.requests.at(-1) as Extract<SpeechWorkerRequest, { type: "load" }>).files, []);
+    worker.send({ type: "event", sessionId: oldSession, event: { type: "final", text: "stale" } });
+    await second.service.cancel();
+    assert.equal(await pending, null);
+    assert.equal(worker.terminated, true);
+    assert.equal(second.capture.stopped, true);
+  } finally { pool.clear(); }
+});
+
+test("idle decoder expires and a cache clear cannot retain a late factory result", async () => {
+  const pool = new SpeechWorkerPool(10);
+  const worker = new Worker();
+  const lease = await pool.acquire(() => worker);
+  lease.release(true);
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(worker.terminated, true);
+  const late = new Worker();
+  let complete!: (worker: Worker) => void;
+  const pending = pool.acquire(() => new Promise<Worker>(resolve => { complete = resolve; }));
+  pool.clear();
+  const rejection = assert.rejects(pending, /cancelled/);
+  complete(late);
+  await rejection;
+  assert.equal(late.terminated, true);
+});
+
+test("silence times out without asking Whisper to hallucinate a transcript", async () => {
+  const worker = new Worker();
+  const capture = new Capture();
+  const session = new LocalTranscriptionService(new WorkerTranscriptionProvider({ id: "test", manifest, models, createWorker: () => worker, workletUrl: "/worklet", capture }));
+  const pending = session.transcribe({ language: "en-US", privacy: "local-only" });
+  await turn();
+  for (let sequence = 0; sequence < 300; sequence++) {
+    capture.frame?.(new Float32Array(1600));
+    worker.send({ type: "ack", sessionId: worker.sessionId, sequence });
+  }
+  assert.equal(capture.stopped, true);
+  assert.deepEqual(worker.requests.at(-1), { type: "finish", sessionId: worker.sessionId, hasSpeech: false });
+  worker.send({ type: "event", sessionId: worker.sessionId, event: { type: "final", text: "" } });
+  assert.equal(await pending, null);
 });

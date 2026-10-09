@@ -49,3 +49,20 @@ test("cancelled runtime installation reuses only fully verified completed assets
   await installSpeechRuntime(storage, "/speech/test", { request: async url => { if (!String(url).endsWith("runtime.json")) downloads++; return request(url); } });
   assert.equal(downloads, names.length - 1);
 });
+
+test("runtime upgrade replaces v1 only after verification and preserves model weights", async () => {
+  const storage = new Storage();
+  const old = "runtime/whisper-wasm-v1-transformers-3.8.1/worker.js";
+  await storage.put(old, bytes);
+  await storage.put("model/verified-weights", bytes);
+  const controller = new AbortController(); controller.abort();
+  await assert.rejects(installSpeechRuntime(storage, "/speech/test", { request, signal: controller.signal }));
+  assert.deepEqual(await storage.get(old), bytes);
+  await installSpeechRuntime(storage, "/speech/test", { request });
+  assert.equal(await storage.get(old), undefined);
+  assert.deepEqual(await storage.get("model/verified-weights"), bytes);
+  await storage.put(old, bytes);
+  await deleteSpeechRuntime(storage);
+  assert.equal(await storage.get(old), undefined);
+  assert.deepEqual(await storage.get("model/verified-weights"), bytes);
+});

@@ -12,6 +12,7 @@ let decoder: AutomaticSpeechRecognitionPipeline | undefined;
 let chunks: Float32Array[] = [];
 let samples = 0;
 let finishing = false;
+let completed = false;
 let language = "english";
 
 // No model hub or CDN requests during inference. Even missing optional files are local 404s.
@@ -33,10 +34,13 @@ worker.onmessage = ({ data }) => {
 
 async function handle(request: SpeechWorkerRequest) {
   if (request.type === "load") {
-    if (sessionId || request.manifest.id !== whisperTiny.id || request.manifest.version !== whisperTiny.version || request.manifest.runtimeVersion !== "3.8.1") throw new Error("Unsupported speech model.");
+    if ((sessionId && !completed) || request.manifest.id !== whisperTiny.id || request.manifest.version !== whisperTiny.version || request.manifest.runtimeVersion !== "3.8.1") throw new Error("Unsupported speech model.");
     if (!worker.__spndrrWasmPaths || !speechRuntimeId) throw new Error("Missing local runtime.");
     sessionId = request.sessionId;
+    finishing = completed = false;
+    samples = 0;
     language = request.options.language.startsWith("hi") ? "hindi" : "english";
+    if (decoder) { worker.postMessage({ type: "ready", sessionId }); return; }
     const files = new Map(request.files.map(file => [file.path, file.bytes]));
     env.customCache = {
       async match(key: string) {
@@ -62,13 +66,15 @@ async function handle(request: SpeechWorkerRequest) {
     finishing = true;
     const audio = new Float32Array(samples);
     let position = 0;
-    for (const chunk of chunks) { audio.set(chunk, position); position += chunk.length; }
+    for (const chunk of chunks) { audio.set(chunk, position); position += chunk.length; chunk.fill(0); }
     chunks = [];
     // Silence must not produce Whisper's well-known hallucinated speech.
-    const result = samples && request.hasSpeech === true ? await decoder(audio, { language, task: "transcribe", max_new_tokens: 128 }) : { text: "" };
-    const text = Array.isArray(result) ? result[0]?.text ?? "" : result.text;
-    audio.fill(0);
-    worker.postMessage({ type: "event", sessionId, event: { type: "final", text } });
+    try {
+      const result = samples && request.hasSpeech === true ? await decoder(audio, { language, task: "transcribe", max_new_tokens: 224 }) : { text: "" };
+      const text = Array.isArray(result) ? result[0]?.text ?? "" : result.text;
+      completed = true;
+      worker.postMessage({ type: "event", sessionId, event: { type: "final", text } });
+    } finally { audio.fill(0); samples = 0; }
   } else if (request.type === "dispose") {
     chunks = [];
     await decoder.dispose();

@@ -309,6 +309,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
           inputMode={inputMode}
           isListening={isListening}
           voicePhase={voicePhase}
+          voiceDisabled={isLoadingData}
           partialTranscript={partialTranscript}
           isOpen={desktopAssistantOpen}
           isSubmitting={isSubmitting}

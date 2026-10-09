@@ -23,4 +23,15 @@ await writeFile(resolve(directory, "jfk.wav"), Buffer.from(await response.arrayB
 const common = ["-hide_banner", "-loglevel", "error", "-y"];
 execFileSync("ffmpeg", [...common, "-i", resolve(directory, "jfk.wav"), "-f", "f32le", "-ar", "16000", "-ac", "1", resolve(directory, "jfk.pcm")]);
 execFileSync("ffmpeg", [...common, "-f", "lavfi", "-i", "flite=text=spent four hundred and fifty rupees on dinner:voice=slt", "-f", "f32le", "-ar", "16000", "-ac", "1", resolve(directory, "expense.pcm")]);
+// A clear first word, a natural pause, then quieter speech reproduces premature endpointing.
+const synth = (text) => {
+  const bytes = execFileSync("ffmpeg", [...common, "-f", "lavfi", "-i", `flite=text=${text}:voice=slt`, "-f", "f32le", "-ar", "16000", "-ac", "1", "pipe:1"]);
+  return new Float32Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+};
+const first = synth("spent");
+const rest = synth("four hundred and fifty rupees on dinner");
+const paused = new Float32Array(first.length + 16000 * 1.2 + rest.length);
+paused.set(first);
+paused.set(rest.map(value => value * 0.12), first.length + 16000 * 1.2);
+await writeFile(resolve(directory, "paused-expense.pcm"), new Uint8Array(paused.buffer));
 console.log(`Speech acceptance fixtures: ${directory}`);

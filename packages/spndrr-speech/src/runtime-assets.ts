@@ -4,6 +4,7 @@ import type { SpeechModelStorage } from "./models.ts";
 const names = ["worker.js", "pcm-worklet.js", "licenses.txt", "ort-wasm-simd-threaded.jsep.mjs", "ort-wasm-simd-threaded.jsep.wasm"] as const;
 interface RuntimeManifest { id: string; files: { path: string; bytes: number; sha256: string }[] }
 const prefix = `runtime/${speechRuntimeId}/`;
+const retiredPrefix = "runtime/whisper-wasm-v1-transformers-3.8.1/";
 async function hash(bytes: Uint8Array) {
   return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes).buffer)), v => v.toString(16).padStart(2, "0")).join("");
 }
@@ -52,6 +53,8 @@ export async function installSpeechRuntime(storage: SpeechModelStorage, baseUrl:
   }
   options.signal?.throwIfAborted();
   await storage.put(prefix + "manifest", manifest);
+  // Remove the superseded runtime only after the replacement is fully installed.
+  await storage.removePrefix(retiredPrefix);
 }
 
 export async function loadSpeechRuntime(storage: SpeechModelStorage) {
@@ -67,7 +70,10 @@ export async function loadSpeechRuntime(storage: SpeechModelStorage) {
   return result;
 }
 
-export function deleteSpeechRuntime(storage: SpeechModelStorage) { return storage.removePrefix(prefix); }
+export async function deleteSpeechRuntime(storage: SpeechModelStorage) {
+  await storage.removePrefix(prefix);
+  await storage.removePrefix(retiredPrefix);
+}
 
 export async function isSpeechRuntimeInstalled(storage: SpeechModelStorage) {
   const manifest = await storage.get<RuntimeManifest>(prefix + "manifest");

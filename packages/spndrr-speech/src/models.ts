@@ -133,8 +133,16 @@ export class SpeechModelManager {
     return true;
   }
   async loadModel(manifest: SpeechModelManifest) {
-    if (!await this.isModelInstalled(manifest) || !await this.verifyModel(manifest)) throw new Error("Install and verify this model before loading it.");
-    return Promise.all(manifest.files.map(async file => ({ path: file.path, bytes: (await this.storage.get<ModelDownload>(`${prefix(manifest)}file/${file.path}`))!.bytes })));
+    validateManifest(manifest);
+    if (!await this.isModelInstalled(manifest)) throw new Error("Install and verify this model before loading it.");
+    const files: { path: string; bytes: Uint8Array }[] = [];
+    // Return the exact buffers that were verified, avoiding a second 42 MiB IndexedDB read.
+    for (const file of manifest.files) {
+      const saved = await this.storage.get<ModelDownload>(`${prefix(manifest)}file/${file.path}`);
+      if (!saved || saved.bytes.length !== file.bytes || await sha256(saved.bytes) !== file.sha256.toLowerCase()) throw new Error("Install and verify this model before loading it.");
+      files.push({ path: file.path, bytes: saved.bytes });
+    }
+    return files;
   }
   async deleteModel(manifest: SpeechModelManifest) {
     if (this.busy) throw new Error("Wait for the current model download to finish or cancel it.");

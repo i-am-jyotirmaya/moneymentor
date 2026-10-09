@@ -4,6 +4,7 @@ import type { TranscriptionEvent, TranscriptionOptions, TranscriptionProvider } 
 import { SpeechEventStream } from "./event-stream.ts";
 import type { SpeechModelManager, SpeechModelManifest } from "./models.ts";
 import type { SpeechWorkerRequest, SpeechWorkerResponse } from "./worker-protocol.ts";
+import type { SpeechWorkerPool } from "./worker-pool.ts";
 
 export interface PcmAudioSource {
   start(workletUrl: string, onFrame: (pcm: Float32Array) => void): Promise<void>;
@@ -22,7 +23,7 @@ export class WorkerTranscriptionProvider implements TranscriptionProvider {
   readonly id: string;
   readonly model: string;
   readonly location = "local" as const;
-  private options: { id: string; manifest: SpeechModelManifest; models: SpeechModelManager; createWorker: () => SpeechInferenceWorker | Promise<SpeechInferenceWorker>; workletUrl: string; capture?: PcmAudioSource };
+  private options: { id: string; manifest: SpeechModelManifest; models: SpeechModelManager; createWorker: () => SpeechInferenceWorker | Promise<SpeechInferenceWorker>; workletUrl: string | ((worker: SpeechInferenceWorker) => string); capture?: PcmAudioSource; workerPool?: SpeechWorkerPool };
   private stream = new SpeechEventStream();
   private capture: PcmAudioSource;
   private worker?: SpeechInferenceWorker;
@@ -42,6 +43,8 @@ export class WorkerTranscriptionProvider implements TranscriptionProvider {
   private heardSpeech = false;
   private failed = false;
   private finishTimer?: ReturnType<typeof setTimeout>;
+  private releaseWorker?: (completed: boolean) => void;
+  private completed = false;
 
   constructor(options: WorkerTranscriptionProvider["options"]) {
     this.options = options;
@@ -54,13 +57,18 @@ export class WorkerTranscriptionProvider implements TranscriptionProvider {
     const { manifest, models } = this.options;
     if (!manifest.languages.includes(options.language) && !manifest.languages.includes(options.language.split("-")[0])) throw new SpeechError("unavailable", "This model does not support the selected speech language.");
     if (!await models.isModelInstalled(manifest)) throw new SpeechError("download-required", "Download this speech model before recording.");
-    let files;
-    try { files = await models.loadModel(manifest); }
-    catch { throw new SpeechError("download-required", "This speech model is missing or damaged. Reinstall it before recording."); }
     if (this.disposed) return;
-    const worker = await this.options.createWorker();
-    if (this.disposed) { worker.terminate(); return; }
+    const lease = this.options.workerPool ? await this.options.workerPool.acquire(this.options.createWorker) : undefined;
+    const worker = lease?.worker ?? await this.options.createWorker();
+    this.releaseWorker = lease?.release;
+    if (this.disposed) { if (lease) lease.release(false); else worker.terminate(); return; }
     this.worker = worker;
+    let files: { path: string; bytes: Uint8Array }[] = [];
+    if (!lease?.warm) {
+      try { files = await models.loadModel(manifest); }
+      catch { throw new SpeechError("download-required", "This speech model is missing or damaged. Reinstall it before recording."); }
+    }
+    if (this.disposed) return;
     await new Promise<void>((resolve, reject) => {
       this.rejectReady = reject;
       this.readyTimer = setTimeout(() => reject(new SpeechError("recognition", "The local speech model took too long to load.")), 90000);
@@ -73,6 +81,7 @@ export class WorkerTranscriptionProvider implements TranscriptionProvider {
           resolve();
         } else if (data.type === "error") this.fail(new SpeechError("recognition", data.message));
         else if (data.type === "event") {
+          if (data.event.type === "final") this.completed = true;
           if (this.started) this.stream.push(data.event);
         } else if (data.type === "ack" && data.sequence === this.waiting) {
           clearTimeout(this.ackTimer);
@@ -89,7 +98,8 @@ export class WorkerTranscriptionProvider implements TranscriptionProvider {
   start(): AsyncIterable<TranscriptionEvent> {
     if (this.disposed || !this.ready || this.started) throw new Error("Local speech worker is not ready.");
     this.started = true;
-    void this.capture.start(this.options.workletUrl, pcm => {
+    const workletUrl = typeof this.options.workletUrl === "function" ? this.options.workletUrl(this.worker!) : this.options.workletUrl;
+    void this.capture.start(workletUrl, pcm => {
       if (this.disposed || this.failed || this.finishing || !pcm.length) return;
       // At most two seconds queued plus one in-flight chunk. Stop instead of losing utterance audio.
       if (this.queuedSamples + pcm.length > 32000) { this.fail(new SpeechError("recognition", "This device cannot process speech fast enough. Try a smaller model.")); return; }
@@ -142,7 +152,10 @@ export class WorkerTranscriptionProvider implements TranscriptionProvider {
     this.rejectReady?.(new Error("Speech session cancelled."));
     this.stream.end();
     this.queued = [];
-    if (this.worker) { this.worker.onmessage = this.worker.onerror = null; this.worker.terminate(); }
+    if (this.worker) {
+      if (this.releaseWorker) this.releaseWorker(this.completed && !this.failed);
+      else { this.worker.onmessage = this.worker.onerror = null; this.worker.terminate(); }
+    }
     await this.capture.dispose();
   }
 }

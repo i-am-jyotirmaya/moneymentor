@@ -794,8 +794,13 @@ test("mobile hamburger menu can open the dashboard", async ({ page }, testInfo) 
 test("voice interaction shows wave feedback and sends captured speech", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
   await seedVoiceRecognition(page);
-
+  let releaseWorkspace!: () => void;
+  const workspaceReady = new Promise<void>(resolve => { releaseWorkspace = resolve; });
+  await page.route("**/api/households", async route => { await workspaceReady; await route.fallback(); });
   await page.goto("/");
+  // Starting before the initial household resolves used to cancel recognition immediately.
+  await expect(page.getByRole("button", { name: "Start voice input" })).toBeDisabled();
+  releaseWorkspace();
   await page.getByRole("button", { name: "Start voice input" }).click();
 
   await expect(page.getByTestId("voice-wave")).toBeVisible();
@@ -1123,7 +1128,7 @@ test("real downloaded model sends a financial utterance through the existing inp
   test.skip(testInfo.project.name !== "mobile-chromium", "Run this CPU-heavy input-flow check once");
   test.setTimeout(180000);
   await installFixtureModel(page, directory!, "/");
-  await captureFixtureAudio(page, directory!, "expense.pcm");
+  await captureFixtureAudio(page, directory!, "paused-expense.pcm");
   await page.evaluate(() => {
     localStorage.setItem("spndrr.speech.preferences.v1", JSON.stringify({ privacy: "local-only", language: "en-IN", engine: "whisper" }));
     window.dispatchEvent(new Event("spndrr-speech-preferences"));

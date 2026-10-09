@@ -1,7 +1,7 @@
 import type { SpeechModelManifest } from "./models.ts";
 
 // Model URLs are immutable revisions. LFS hashes and small-file hashes were independently verified.
-export const speechRuntimeId = "whisper-wasm-v1-transformers-3.8.1";
+export const speechRuntimeId = "whisper-wasm-v2-transformers-3.8.1";
 export const whisperTiny: SpeechModelManifest = {
   id: "onnx-community/whisper-tiny",
   displayName: "Whisper Tiny (English / Hindi)",

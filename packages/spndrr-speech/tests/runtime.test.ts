@@ -142,10 +142,30 @@ test("endpoint detection ignores brief noise, ends after silence, and bounds sil
   assert.equal(detector.process(frame(0)), undefined);
   assert.equal(detector.process(frame(0.2)), undefined);
   assert.equal(detector.process(frame(0.2)), "speech-start");
-  for (let i = 0; i < 8; i++) assert.equal(detector.process(frame(0)), undefined);
+  for (let i = 0; i < 19; i++) assert.equal(detector.process(frame(0)), undefined);
   assert.equal(detector.process(frame(0)), "speech-end");
   const silent = new SpeechEndpointDetector({ maxDurationMs: 100 });
   assert.equal(silent.process(frame(0)), "speech-end");
+});
+
+test("endpoint keeps quiet words and a 1.2 second pause in the same utterance", () => {
+  const detector = new SpeechEndpointDetector();
+  const frame = (value: number) => new Float32Array(1600).fill(value);
+  detector.process(frame(0.1));
+  assert.equal(detector.process(frame(0.1)), "speech-start");
+  for (let i = 0; i < 12; i++) assert.equal(detector.process(frame(0)), undefined);
+  for (let i = 0; i < 40; i++) assert.equal(detector.process(frame(0.002)), undefined);
+  for (let i = 0; i < 19; i++) assert.equal(detector.process(frame(0)), undefined);
+  assert.equal(detector.process(frame(0)), "speech-end");
+});
+
+test("quiet speech starts despite short gaps between syllables", () => {
+  const detector = new SpeechEndpointDetector();
+  const frame = (value: number) => new Float32Array(640).fill(value);
+  assert.equal(detector.process(frame(0.004)), undefined);
+  assert.equal(detector.process(frame(0)), undefined);
+  assert.equal(detector.process(frame(0.004)), undefined);
+  assert.equal(detector.process(frame(0.004)), "speech-start");
 });
 
 test("normalization never guesses money values", () => {
