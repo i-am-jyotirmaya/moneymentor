@@ -2,7 +2,7 @@
 
 import { ApiError, createUser, login, requestMvpAccess } from "@/lib/api";
 import { saveAuthSession } from "@/lib/auth-session";
-import { FormEvent, MouseEvent, useState } from "react";
+import { FormEvent, useState } from "react";
 import { ArrowRightIcon, BrandMarkIcon } from "./icons";
 import {
   ProgressLink as Link,
@@ -84,15 +84,6 @@ export function AuthForm({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void submitCredentials();
-  }
-
-  function handleSubmitClick(event: MouseEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    if (!event.currentTarget.form?.reportValidity()) {
-      return;
-    }
-
     void submitCredentials();
   }
 
@@ -234,8 +225,7 @@ export function AuthForm({
           <button
             className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-5 text-sm font-bold text-white shadow-[0_14px_35px_rgba(16,43,38,0.22)] transition hover:-translate-y-0.5 hover:bg-[#173d36] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
             disabled={isSubmitting}
-            onClick={handleSubmitClick}
-            type="button"
+            type="submit"
           >
             <span>
               {isSubmitting

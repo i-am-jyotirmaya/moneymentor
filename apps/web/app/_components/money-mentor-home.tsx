@@ -110,7 +110,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
     retryLoad,
   } = useWorkspaceController();
   if (!sessionReady) {
-    return <LoadingSession />;
+    return <LoadingSession error={error} />;
   }
 
   if (!session) {

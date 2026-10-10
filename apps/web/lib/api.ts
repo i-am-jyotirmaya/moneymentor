@@ -1,11 +1,11 @@
 import {
   clearAuthSession,
+  coordinateSessionRefresh,
   getAuthSessionSnapshot,
   saveAuthSession,
 } from "./auth-session";
 
 const DEFAULT_API_BASE_URL = "http://localhost:5267";
-let refreshPromise: Promise<AuthSession> | null = null;
 
 export type AuthUser = {
   id: string;
@@ -632,16 +632,16 @@ async function apiRequest<TResponse>(
   });
 
   if (response.status === 401 && allowRefresh && !path.startsWith("/api/auth/")) {
-    try {
-      const refreshed = await refreshSession();
-      return apiRequest<TResponse>(
-        path,
-        { accessToken: refreshed.accessToken, method, body, headers: requestHeaders },
-        false,
-      );
-    } catch {
-      clearAuthSession();
-    }
+    // Another request may already have renewed the access token.
+    const currentSession = getAuthSessionSnapshot();
+    const refreshed = currentSession && currentSession.accessToken !== accessToken
+      ? currentSession
+      : await refreshSession();
+    return apiRequest<TResponse>(
+      path,
+      { accessToken: refreshed.accessToken, method, body, headers: requestHeaders },
+      false,
+    );
   }
 
   if (!response.ok) {
@@ -761,16 +761,14 @@ export function listTransactions(
 }
 
 export function refreshSession() {
-  if (refreshPromise) {
-    return refreshPromise;
-  }
-
-  const performRefresh = async () => {
+  return coordinateSessionRefresh(async () => {
     const response = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
       method: "POST",
       credentials: "include",
     });
     if (!response.ok) {
+      // An unavailable server does not mean the persisted session is invalid.
+      if (response.status === 401) clearAuthSession();
       const errors = await readResponseError(response);
       throw new ApiError(errors[0] ?? "Session refresh failed.", response.status, errors);
     }
@@ -778,12 +776,7 @@ export function refreshSession() {
     const session = (await response.json()) as AuthSession;
     saveAuthSession(session);
     return session;
-  };
-
-  refreshPromise = performRefresh().finally(() => {
-      refreshPromise = null;
-    });
-  return refreshPromise;
+  });
 }
 
 export async function logout(accessToken?: string) {

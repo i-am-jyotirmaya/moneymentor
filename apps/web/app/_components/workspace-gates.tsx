@@ -55,7 +55,14 @@ export function SignedOutHome() {
   );
 }
 
-export function LoadingSession() {
+export function LoadingSession({ error }: { error?: string | null }) {
+  if (error) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-[var(--background)] px-5 text-[var(--ink)]">
+        <p role="status" className="text-center font-medium">{error}</p>
+      </main>
+    );
+  }
   return <WorkspaceSkeleton />;
 }
 
