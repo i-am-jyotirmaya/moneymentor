@@ -33,9 +33,11 @@ public sealed class JevTransactionCategorizer(
         // Keep those exact guesses if Jev is unavailable or returns an invalid answer.
         var knownGuess = string.IsNullOrWhiteSpace(existingGuess) ? null : existingGuess.Trim();
 
+        logger.LogInformation("Jev categorization eligibility. JevConfigured={JevConfigured} HasSourceText={HasSourceText} CategoryType={CategoryType}",
+            jev.IsConfigured, !string.IsNullOrWhiteSpace(sourceText), type);
         if (!jev.IsConfigured || string.IsNullOrWhiteSpace(sourceText))
         {
-            RecordOutcome("unconfigured_fallback");
+            RecordOutcome(!jev.IsConfigured ? "unconfigured_fallback" : "source_missing_fallback");
             return knownGuess ?? fallback;
         }
 

@@ -145,7 +145,7 @@ public sealed class StructuredLoggingTests
         }
     }
 
-    private sealed class CaptureProvider : ILoggerProvider, ISupportExternalScope
+    internal sealed class CaptureProvider : ILoggerProvider, ISupportExternalScope
     {
         private IExternalScopeProvider scopes = new LoggerExternalScopeProvider();
         private readonly CloudWatchConsoleFormatter formatter = new(new TestEnvironment());

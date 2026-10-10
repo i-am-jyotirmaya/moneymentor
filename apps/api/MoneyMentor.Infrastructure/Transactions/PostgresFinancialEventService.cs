@@ -20,6 +20,7 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
 {
     public async Task<TransactionModel> SaveAsync(AppUserContext user, TransactionIntent intent, CancellationToken ct)
     {
+        logger.LogInformation("Financial event capture started. EventKind={EventKind} InputMode={InputMode}", intent.EventKind, intent.InputMode);
         ValidateIntent(user, intent);
         var household = await access.ResolveAsync(user, intent.HouseholdId, true, ct);
         await using var unit = await db.Database.BeginTransactionAsync(ct);
@@ -45,6 +46,7 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
                 if (prior.Amount != intent.Amount || TransactionFinancialImpactCalculator.ResolveKind(prior.Type, prior.Kind) != intent.EventKind
                     || prior.CounterpartyAccountId != counterparty?.Id || prior.TransactionDate != (intent.Date ?? user.CurrentDate))
                     throw new FinancialTransactionValidationException("That reference already belongs to a different event.");
+                logger.LogInformation("Financial event capture reused an existing event. CategorizationSkipReason={CategorizationSkipReason}", "duplicate_reference");
                 return (await mapper.MapAsync([prior], household.CurrencyCode, user.UserProfileId, ct)).Single();
             }
         }
@@ -76,8 +78,11 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
         {
             var fallback = intent.CategoryName ?? (intent.EventKind is TransactionKind.Fee or TransactionKind.Interest ? "Financial charges" : null);
             var name = fallback;
-            if (await db.PrivacyConsents.AsNoTracking().AnyAsync(x => x.UserProfileId == user.UserProfileId
-                && x.PolicyVersion == PrivacyPolicy.CurrentVersion, ct))
+            var hasConsent = await db.PrivacyConsents.AsNoTracking().AnyAsync(x => x.UserProfileId == user.UserProfileId
+                && x.PolicyVersion == PrivacyPolicy.CurrentVersion, ct);
+            logger.LogInformation("Financial event categorization eligibility. EventKind={EventKind} HasCurrentAiConsent={HasCurrentAiConsent}",
+                intent.EventKind, hasConsent);
+            if (hasConsent)
                 name = await categorizer.CategorizeAsync(categoryType, intent.Description, intent.Merchant, intent.SourceText, fallback, ct);
             else
             {
@@ -85,6 +90,11 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
                 logger.LogInformation("Jev categorization outcome: {CategorizationOutcome}. Current AI consent is missing.", "consent_missing_fallback");
             }
             categoryId = await CategoryPersistence.GetOrCreateSystemCategoryIdAsync(db, name, categoryType, ct);
+        }
+        else
+        {
+            logger.LogInformation("Jev categorization skipped. CategorizationSkipReason={CategorizationSkipReason}",
+                original is not null ? "linked_original" : categoryId is not null ? "explicit_category" : "neutral_event");
         }
         var now = clock.GetUtcNow();
         var transaction = new Transaction
@@ -116,6 +126,8 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
         await db.SaveChangesAsync(ct);
         await facts.RebuildAsync(transaction.HouseholdId, transaction.TransactionDate, ct);
         await unit.CommitAsync(ct);
+        logger.LogInformation("Financial event capture committed. EventKind={EventKind} AccountResolved={AccountResolved} AccountType={AccountType} PaymentChannel={PaymentChannel} CategoryAssigned={CategoryAssigned}",
+            transaction.Kind, transaction.AccountId is not null, account?.AccountType, transaction.PaymentChannel, transaction.CategoryId is not null);
         MoneyMentorTelemetry.TransactionLifecycle.Add(1, new KeyValuePair<string, object?>("operation", "created"),
             new KeyValuePair<string, object?>("type", transaction.Type.ToString().ToLowerInvariant()));
         return (await mapper.MapAsync([transaction], household.CurrencyCode, user.UserProfileId, ct)).Single();

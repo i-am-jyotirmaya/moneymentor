@@ -6,6 +6,7 @@ using MoneyMentor.Application.InputParsing;
 using MoneyMentor.Domain.Enums;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 namespace MoneyMentor.Application.Assistant;
 
@@ -19,7 +20,8 @@ public sealed class AssistantMessageService(
     IGoalPlanningService? goalPlanningService = null,
     IGoalInputDraftStore? goalDraftStore = null,
     TimeProvider? timeProvider = null,
-    FinancialEventInputProcessor? financialEventInputProcessor = null) : IAssistantMessageService
+    FinancialEventInputProcessor? financialEventInputProcessor = null,
+    ILogger<AssistantMessageService>? logger = null) : IAssistantMessageService
 {
     public async Task<AssistantMessageResult> ProcessAsync(
         AssistantMessageCommand command,
@@ -28,7 +30,12 @@ public sealed class AssistantMessageService(
         if (financialEventInputProcessor is not null)
         {
             var financialResult = await financialEventInputProcessor.TryProcessAsync(command, cancellationToken);
-            if (financialResult is not null) return financialResult;
+            if (financialResult is not null)
+            {
+                logger?.LogInformation("Assistant message routed. CaptureRoute={CaptureRoute} Status={AssistantStatus}",
+                    "financial_event", financialResult.Status);
+                return financialResult;
+            }
         }
         var text = command.Text.Trim();
         GoalInputDraft? pendingGoalDraft = null;
@@ -52,6 +59,7 @@ public sealed class AssistantMessageService(
                 command.AuthSubject,
                 command.Locale),
             cancellationToken);
+        logger?.LogInformation("Assistant message classified. Intent={AssistantIntent} InputMode={InputMode}", intent, command.InputMode);
 
         if (intent == FinanceInputIntent.AskFinanceQuestion)
         {
@@ -211,6 +219,7 @@ public sealed class AssistantMessageService(
             || (!hasExplicitExpensePaymentSignal
                 && incomeInputProcessor.HasPendingDraft(incomeRequest)))
         {
+            logger?.LogInformation("Assistant message routed. CaptureRoute={CaptureRoute}", "income");
             var incomeResult = await incomeInputProcessor.ProcessAsync(
                 incomeRequest,
                 cancellationToken);
@@ -228,6 +237,7 @@ public sealed class AssistantMessageService(
             };
         }
 
+        logger?.LogInformation("Assistant message routed. CaptureRoute={CaptureRoute}", "expense");
         var expenseResult = await expenseInputProcessor.ProcessAsync(
             new ExpenseInputParseRequest(
                 text,

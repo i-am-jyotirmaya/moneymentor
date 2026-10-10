@@ -35,9 +35,8 @@ public static class FinancialEventInterpreter
         var to = transfer ? Capture(text, @"\bto\s+(?:my\s+)?(?<value>.+?)(?=\s+(?:from|today|yesterday)\b|[.,]|$)") : null;
         if (intent.EventKind == TransactionKind.CreditCardPayment)
             to ??= Capture(text, @"\b(?:paid|pay)\s+(?:my\s+)?(?<value>.+?)\s+bill\b");
-        static string? Clean(string? value) => value is null ? null : Regex.Replace(value,
-            @"\s+(?:credit[ -]?card|card)$|\b(?:upi|cash|bank\s+transfer|auto\s?debit)\b", "", RegexOptions.IgnoreCase).Trim();
-        account = Clean(account); to = Clean(to);
+        // Channel words can be part of a saved account name (e.g. "Kotak upi").
+        // Preserve them for exact matching; the account resolver owns suffix fallbacks.
         var channel = Has(text, @"\bupi\b") ? PaymentChannel.UPI
             : Has(text, @"\bauto\s?debit\b") ? PaymentChannel.AutoDebit
             : Has(text, @"\bcash\b") ? PaymentChannel.Cash

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.FinancialAccounts;
 using MoneyMentor.Application.Households;
@@ -10,7 +11,7 @@ using MoneyMentor.Infrastructure.Persistence;
 namespace MoneyMentor.Infrastructure.Transactions;
 
 internal sealed class PostgresFinancialAccountService(MoneyMentorDbContext db, IHouseholdAccessService access,
-    TimeProvider clock) : IFinancialAccountService
+    TimeProvider clock, ILogger<PostgresFinancialAccountService> logger) : IFinancialAccountService
 {
     internal IQueryable<FinancialAccount> Visible(Guid householdId, Guid userId) => db.FinancialAccounts.Where(x =>
         x.HouseholdId == householdId && (x.OwnerUserProfileId == null || x.OwnerUserProfileId == userId));
@@ -63,24 +64,43 @@ internal sealed class PostgresFinancialAccountService(MoneyMentorDbContext db, I
 
     internal async Task<FinancialAccount?> ResolveAsync(AppUserContext user, Guid householdId, Guid? id, string? alias, CancellationToken ct)
     {
-        if (id is null && string.IsNullOrWhiteSpace(alias)) return null;
+        if (id is null && string.IsNullOrWhiteSpace(alias))
+        {
+            logger.LogInformation("Financial account resolution: {AccountResolutionOutcome}.", "not_requested");
+            return null;
+        }
         var candidates = await Visible(householdId, user.UserProfileId).Where(x => x.IsActive).ToArrayAsync(ct);
-        if (id is not null) return candidates.SingleOrDefault(x => x.Id == id)
-            ?? throw new FinancialTransactionValidationException("Choose an active account belonging to this household and available to you.");
+        if (id is not null)
+        {
+            var selected = candidates.SingleOrDefault(x => x.Id == id);
+            logger.LogInformation("Financial account resolution: {AccountResolutionOutcome}. AccountType={AccountType}",
+                selected is null ? "id_unavailable" : "id_matched", selected?.AccountType);
+            return selected ?? throw new FinancialTransactionValidationException("Choose an active account belonging to this household and available to you.");
+        }
         var ids = candidates.Select(x => x.Id).ToArray();
         var aliases = await db.FinancialAccountAliases.Where(x => ids.Contains(x.FinancialAccountId)).ToArrayAsync(ct);
-        var matches = candidates.Where(x => string.Equals(x.Name, alias!.Trim(), StringComparison.OrdinalIgnoreCase)
-            || aliases.Any(a => a.FinancialAccountId == x.Id && string.Equals(a.Alias, alias.Trim(), StringComparison.OrdinalIgnoreCase))).ToArray();
-        if (matches.Length == 0 && alias!.EndsWith(" account", StringComparison.OrdinalIgnoreCase))
+        static string Normalize(string value) => Regex.Replace(value.Trim(), @"\s+", " ");
+        var search = Normalize(alias!);
+        var outcome = "exact_matched";
+        FinancialAccount[] matches;
+        while (true)
         {
-            var shortAlias = alias[..^8].Trim();
-            matches = candidates.Where(x => string.Equals(x.Name, shortAlias, StringComparison.OrdinalIgnoreCase)
-                || aliases.Any(a => a.FinancialAccountId == x.Id && string.Equals(a.Alias, shortAlias, StringComparison.OrdinalIgnoreCase))).ToArray();
+            matches = candidates.Where(x => string.Equals(Normalize(x.Name), search, StringComparison.OrdinalIgnoreCase)
+                || aliases.Any(a => a.FinancialAccountId == x.Id && string.Equals(Normalize(a.Alias), search, StringComparison.OrdinalIgnoreCase))).ToArray();
+            if (matches.Length > 0) break;
+            // Strip only trailing payment metadata, one suffix at a time. Try the
+            // longest remaining alias first, so "Kotak upi card" still selects the card.
+            var shortened = Regex.Replace(search, @"\s+(?:credit[ -]?card|card|account|upi|cash|bank\s+transfer|auto\s?debit)$",
+                "", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Trim();
+            if (shortened == search) break;
+            search = shortened;
+            outcome = "suffix_matched";
         }
+        logger.LogInformation("Financial account resolution: {AccountResolutionOutcome}. MatchCount={AccountMatchCount} AccountType={AccountType}",
+            matches.Length == 0 ? "unmatched" : matches.Length > 1 ? "ambiguous" : outcome,
+            matches.Length, matches.Length == 1 ? matches[0].AccountType : (FinancialAccountType?)null);
         if (matches.Length == 0) return null; // Unknown text aliases never force account setup for ordinary tracking.
-        if (matches.Length != 1) throw new FinancialTransactionValidationException(matches.Length == 0
-            ? $"No account matches '{alias}'. Add it in Financial accounts, or track without an account."
-            : $"'{alias}' matches more than one account. Use its full name.");
+        if (matches.Length != 1) throw new FinancialTransactionValidationException($"'{alias}' matches more than one account. Use its full name.");
         return matches[0];
     }
     private static FinancialAccountModel Map(FinancialAccount x, IReadOnlyCollection<string> aliases) =>

@@ -97,7 +97,8 @@ public static class DependencyInjection
         services.Configure<JevOptions>(options =>
         {
             configuration.GetSection(JevOptions.SectionName).Bind(options);
-            options.ApiKey = configuration["JEV_API_KEY"] ?? options.ApiKey;
+            var environmentKey = configuration["JEV_API_KEY"];
+            if (!string.IsNullOrWhiteSpace(environmentKey)) options.ApiKey = environmentKey;
         });
         services.AddHttpClient<IJevClient, JevClient>(client =>
         {

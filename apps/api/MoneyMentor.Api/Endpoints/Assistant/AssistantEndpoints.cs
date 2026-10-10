@@ -27,8 +27,11 @@ public static class AssistantEndpoints
         AssistantMessageRequest request,
         HttpContext httpContext,
         IAssistantMessageService assistantMessageService,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
+        var logger = loggerFactory.CreateLogger(typeof(AssistantEndpoints));
+        logger.LogInformation("Assistant message received.");
         var validationResult = EndpointValidation.Validate(request);
         if (validationResult is not null)
         {
@@ -81,20 +84,25 @@ public static class AssistantEndpoints
         }
         catch (HouseholdNotFoundException)
         {
+            logger.LogInformation("Assistant message rejected. Reason={AssistantRejectionReason}", "household_unavailable");
             return Results.NotFound();
         }
         catch (MoneyMentor.Application.Transactions.FinancialTransactionValidationException exception)
         {
+            logger.LogInformation("Assistant message rejected. Reason={AssistantRejectionReason}", "financial_validation");
             return EndpointValidation.ValidationProblem("financialEvent", exception.Message);
         }
         catch (InvalidOperationException exception)
         {
+            logger.LogInformation("Assistant message rejected. Reason={AssistantRejectionReason}", "operation_forbidden");
             return Results.Problem(
                 title: "Assistant message could not be processed.",
                 detail: exception.Message,
                 statusCode: StatusCodes.Status403Forbidden);
         }
 
+        logger.LogInformation("Assistant message completed. Intent={AssistantIntent} Status={AssistantStatus} TransactionCreated={TransactionCreated}",
+            result.Intent, result.Status, result.Transaction is not null);
         return Results.Ok(new AssistantMessageResponse(
             result.Status,
             result.Intent,

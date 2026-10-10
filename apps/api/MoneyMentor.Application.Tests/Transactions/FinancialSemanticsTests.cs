@@ -90,7 +90,7 @@ public sealed class FinancialSemanticsTests
     public void Amount_account_channel_and_kind_are_separate()
     {
         var purchase = FinancialEventInterpreter.AddMetadata(new(TransactionKind.Purchase, 2800), "Paid 2800 for dinner at Antera on my Millennia card");
-        Assert.Equal("Millennia", purchase.AccountAlias); Assert.Equal(PaymentChannel.Card, purchase.PaymentChannel);
+        Assert.Equal("Millennia card", purchase.AccountAlias); Assert.Equal(PaymentChannel.Card, purchase.PaymentChannel);
         var payment = FinancialEventInterpreter.AddMetadata(new(TransactionKind.CreditCardPayment, 32400), "Paid Millennia bill 32,400 from HDFC");
         Assert.Equal("HDFC", payment.AccountAlias); Assert.Equal("Millennia", payment.CounterpartyAccountAlias);
         var groceries = FinancialEventInterpreter.AddMetadata(new(TransactionKind.Purchase, 500), "Spent 500 on groceries");
@@ -100,9 +100,9 @@ public sealed class FinancialSemanticsTests
     public void An_unspecified_credit_requires_financial_meaning() => Assert.True(FinancialEventInterpreter.IsAmbiguousCredit("Amazon sent me 5000"));
 
     [Theory]
-    [InlineData("bought potatoes for rs 40 using kotak upi", "potatoes using kotak upi", "potatoes", "kotak", PaymentChannel.UPI)]
-    [InlineData("Paid 2800 for dinner on my Millennia card", "dinner Millennia card", "dinner", "Millennia", PaymentChannel.Card)]
-    [InlineData("Bought groceries using Kotak UPI for 40", "groceries using Kotak UPI", "groceries", "Kotak", PaymentChannel.UPI)]
+    [InlineData("bought potatoes for rs 40 using kotak upi", "potatoes using kotak upi", "potatoes", "kotak upi", PaymentChannel.UPI)]
+    [InlineData("Paid 2800 for dinner on my Millennia card", "dinner Millennia card", "dinner", "Millennia card", PaymentChannel.Card)]
+    [InlineData("Bought groceries using Kotak UPI for 40", "groceries using Kotak UPI", "groceries", "Kotak UPI", PaymentChannel.UPI)]
     public void Payment_metadata_does_not_become_the_purchase_description(string source, string parsedDescription,
         string purpose, string account, PaymentChannel channel)
     {

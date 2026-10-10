@@ -1,6 +1,6 @@
 # Backend logging in CloudWatch
 
-The API emits one JSON object per stdout line using the existing .NET console provider. No additional NuGet packages, AWS credentials, or direct CloudWatch API calls are required by logging. OpenTelemetry export remains enabled when configured. Collect stdout with your existing CloudWatch agent, container logging driver, or collector; this change does not provision ingestion infrastructure.
+The API emits one JSON object per stdout line using the existing .NET console provider and logging abstractions. No AWS credentials or direct CloudWatch API calls are required by logging. OpenTelemetry export remains enabled when configured. Collect stdout with your existing CloudWatch agent, container logging driver, or collector; this change does not provision ingestion infrastructure.
 
 ## Fields
 
@@ -72,6 +72,41 @@ fields @timestamp, RequestId, Properties.Route, Properties.StatusCode, Propertie
 ```
 
 If your collector wraps stdout in an envelope, configure it to forward the raw message or parse the inner JSON before applying these queries. Keep multiline aggregation disabled for these JSON events; stack traces are escaped in a single event.
+
+## Message capture and Jev diagnostics
+
+History checked against main `1b45c22` and account-aware branch `3c65bd4`:
+
+| Revision | Capture behavior |
+| --- | --- |
+| `f76ed0b` (September 27) | Introduced the shared Jev client and category calls for captured expenses/income. |
+| `0a7b814` (September 28) | Preserved current-policy consent checks when merging the shared categorizer into the architecture branch. |
+| `a151646`, `f721234` (September 28) | Added provider/capture metrics and renamed the instruments to `spndrr.*`. |
+| October 1 → main `1b45c22` | Capture routing, key binding, consent checks and metric export were not removed. The client gained response model/token metadata. |
+| Account-aware branch | Expense/income persistence delegates to `PostgresFinancialEventService`, which retains Jev categorization for eligible events. The former parser incorrectly stripped `upi` before matching accounts; full names/aliases now take precedence. |
+
+This code comparison cannot establish the deployed container's key, consent data, revision, or collector health. A successful ordinary capture with an Uncategorized leaf can result from a missing key, a provider failure/invalid category, or a valid Jev fallback choice. Missing consent on the message API is blocked by the privacy middleware with HTTP 428; non-HTTP writers can still save with deterministic fallback. No outbound attempt means no `spndrr.jev.requests` sample, by design.
+
+At startup, `Jev configuration loaded` reports `JevConfigured` without revealing the key. A nonblank `JEV_API_KEY` overrides `Jev:ApiKey` (environment spelling `Jev__ApiKey`); an empty/whitespace alias no longer erases a configured hierarchical key. Recreate the API container after changing its environment. Existing deployments read their private environment file; this PR does not change secrets.
+
+For one message, copy `X-Request-ID` and run:
+
+```sql
+fields @timestamp, SourceContext, Message, Properties.CaptureRoute,
+       Properties.AccountResolutionOutcome, Properties.AccountType,
+       Properties.HasCurrentAiConsent, Properties.JevConfigured,
+       Properties.CategorizationSkipReason, Properties.CategorizationOutcome,
+       Properties.SelectedFallbackCategory, Properties.JevOperation,
+       Properties.JevOutcome, Properties.JevStatusCode, Properties.JevElapsedMs
+| filter RequestId = "REPLACE_WITH_REQUEST_ID"
+| sort @timestamp asc
+```
+
+Expected ordinary purchase stages: endpoint receipt; intent/expense route; account match; consent and key eligibility; `Jev HTTP request started`; provider completion; categorization outcome; capture commit; endpoint/HTTP completion. Match outcomes distinguish exact names/aliases, trailing-suffix fallback, ambiguity, unavailable IDs and unknown aliases. The persisted account type comes from the saved account, independently of payment channel.
+
+`unconfigured_fallback` and `source_missing_fallback` have no HTTP attempt. `provider_error_fallback` follows an attempted request with an HTTP/network/timeout/response outcome. `jev_selected` with `SelectedFallbackCategory=true` proves Jev chose the catalog's fallback. Linked adjustments, explicit category IDs, neutral movements and duplicate imported references log a skip reason. A privacy block logs `PrivacyGateReason=current_consent_missing` before endpoint processing. These diagnostics exclude finance text, account/category names, provider payloads and credentials.
+
+For metrics, inspect `spndrr.jev.requests` and `spndrr.jev.request.duration` with `operation=categorization`, and `spndrr.capture.categorization` by outcome. If correlated provider logs show attempts but CloudWatch has no matching samples, check the existing `spndrr.telemetry.heartbeat`, metrics collector and its export errors; the category-selection path has already run. JSON logs use the awslogs pipeline separately from OTLP metrics.
 
 ## Verification
 

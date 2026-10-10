@@ -154,6 +154,33 @@ public sealed class AccountAwareTransactionTests(MoneyMentorApiFactory factory)
         Assert.Equal(9750m, snapshot.ConservativeMonthlySurplus); Assert.Equal(7800m, snapshot.SafeMonthlyCapacity);
     }
 
+    [Fact]
+    public async Task Exact_account_names_and_aliases_win_before_payment_suffix_fallbacks()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MoneyMentorDbContext>();
+        var (user, category) = await SeedAsync(db);
+        var accounts = scope.ServiceProvider.GetRequiredService<IFinancialAccountService>();
+        var bank = await accounts.SaveAsync(user, null, new(user.PersonalHouseholdId, "Kotak", FinancialAccountType.BankAccount, null, null, []), Ct);
+        var card = await accounts.SaveAsync(user, null, new(user.PersonalHouseholdId, "Kotak Rupay", FinancialAccountType.CreditCard, null, null, ["Kotak upi"]), Ct);
+        var events = scope.ServiceProvider.GetRequiredService<IFinancialEventService>();
+        foreach (var (phrase, expected) in new[] { ("Kotak upi", card.Id), ("KOTAK   UPI", card.Id), ("Kotak upi card", card.Id),
+            ("Kotak Rupay credit card", card.Id), ("Kotak account", bank.Id), ("Kotak", bank.Id) })
+        {
+            var source = $"bought potatoes for rs 40 using {phrase}";
+            var intent = FinancialEventInterpreter.AddMetadata(Intent(user, TransactionKind.Purchase, 40) with
+                { CategoryId = category.Id, SourceText = source, Description = "potatoes" }, source);
+            var saved = await events.SaveAsync(user, intent, Ct);
+            Assert.Equal(expected, saved.AccountId);
+        }
+        // Without an exact UPI name/alias, legacy bank + channel wording still resolves.
+        await accounts.SaveAsync(user, card.Id, new(user.PersonalHouseholdId, "Kotak Rupay", FinancialAccountType.CreditCard, null, null, [], IsActive: false), Ct);
+        var fallback = await events.SaveAsync(user, Intent(user, TransactionKind.Purchase, 40) with
+            { CategoryId = category.Id, AccountAlias = "Kotak upi", PaymentChannel = PaymentChannel.UPI }, Ct);
+        Assert.Equal(bank.Id, fallback.AccountId);
+        Assert.Equal(PaymentChannel.UPI, fallback.PaymentChannel);
+    }
+
     private static TransactionIntent Intent(AppUserContext user, TransactionKind kind, decimal amount) => new(kind, amount, user.CurrentDate) { HouseholdId = user.PersonalHouseholdId, SourceText = "integration financial event" };
     private static async Task<(AppUserContext, Category)> SeedAsync(MoneyMentorDbContext db)
     {

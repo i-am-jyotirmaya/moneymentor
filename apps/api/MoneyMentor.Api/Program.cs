@@ -12,6 +12,8 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Options;
+using MoneyMentor.Infrastructure.Jev;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -189,6 +191,9 @@ builder.Logging.AddOpenTelemetry(options =>
 });
 
 var app = builder.Build();
+var jevOptions = app.Services.GetRequiredService<IOptions<JevOptions>>().Value;
+app.Logger.LogInformation("Jev configuration loaded. JevConfigured={JevConfigured} TimeoutSeconds={JevTimeoutSeconds}",
+    !string.IsNullOrWhiteSpace(jevOptions.ApiKey), Math.Clamp(jevOptions.TimeoutSeconds, 1, 30));
 
 app.UseMiddleware<RequestLoggingMiddleware>();
 
