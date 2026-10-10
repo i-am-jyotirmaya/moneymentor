@@ -98,4 +98,16 @@ public sealed class FinancialSemanticsTests
     }
     [Fact]
     public void An_unspecified_credit_requires_financial_meaning() => Assert.True(FinancialEventInterpreter.IsAmbiguousCredit("Amazon sent me 5000"));
+
+    [Theory]
+    [InlineData("bought potatoes for rs 40 using kotak upi", "potatoes using kotak upi", "potatoes", "kotak", PaymentChannel.UPI)]
+    [InlineData("Paid 2800 for dinner on my Millennia card", "dinner Millennia card", "dinner", "Millennia", PaymentChannel.Card)]
+    [InlineData("Bought groceries using Kotak UPI for 40", "groceries using Kotak UPI", "groceries", "Kotak", PaymentChannel.UPI)]
+    public void Payment_metadata_does_not_become_the_purchase_description(string source, string parsedDescription,
+        string purpose, string account, PaymentChannel channel)
+    {
+        var intent = FinancialEventInterpreter.AddMetadata(new(TransactionKind.Purchase, 40) { Description = parsedDescription, SourceText = source }, source);
+        Assert.Equal(purpose, intent.Description); Assert.Equal(account, intent.AccountAlias);
+        Assert.Equal(channel, intent.PaymentChannel); Assert.Equal(source, intent.SourceText);
+    }
 }

@@ -49,6 +49,10 @@ Examples:
 
 Amount and event-kind clarifications are retained for 20 minutes per authenticated identity and household, in bounded process-local storage. For purchase matches, reply with the displayed number, `unlinked` to save an unmatched refund, or `cancel`. A reversal requires an original transaction. Account aliases that are unknown are left unspecified; ambiguous known aliases ask for the full name. Accounts remain optional, even for neutral movement tracking.
 
+`bought potatoes for rs 40 using kotak upi` retains the original source text, saves `potatoes` as the purchase description, resolves an existing Kotak account/alias, and stores UPI as the payment channel. The confirmation displays the resolved account separately. With current AI consent and a configured Jev key, the capture path sends the purpose and source text to Jev for a validated leaf-category choice; a successful Groceries choice is persisted under Food & Groceries.
+
+An Uncategorized result alone does not prove whether Jev was called. Request-correlated logs now report `Jev categorization outcome` with `jev_selected`, `consent_missing_fallback`, `unconfigured_fallback`, `provider_error_fallback`, or `invalid_choice_fallback`. `SelectedFallbackCategory=true` distinguishes Jev explicitly selecting the valid Uncategorized/Other Income option. No source text, account names, category names, or credentials are logged. Check `spndrr.jev.requests` with `operation=categorization` for the actual HTTP attempt and its success/error outcome, and `spndrr.capture.categorization` for the capture decision. A configured key is not proof that a deployed call succeeded; correlate the deployed request's logs/metrics.
+
 Matching narrows to visible household events within the preceding year. A unique exact merchant/amount match with account or product-description evidence links automatically. Partial or ambiguous candidates require selection; incomplete evidence never silently chooses a purchase. Explicit API selection is revalidated against the current available amount and access rights.
 
 ## API

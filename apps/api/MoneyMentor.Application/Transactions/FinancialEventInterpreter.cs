@@ -28,8 +28,10 @@ public static class FinancialEventInterpreter
     public static TransactionIntent AddMetadata(TransactionIntent intent, string text)
     {
         var transfer = intent.EventKind is TransactionKind.Transfer or TransactionKind.CreditCardPayment or TransactionKind.CashWithdrawal;
+        var purchaseAccount = Regex.Match(text, @"\b(?:using\s+(?:my\s+)?|on\s+my\s+|with\s+my\s+)(?<value>.+?)(?=\s+(?:for|at|today|yesterday)\b|[.,]|$)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         var account = transfer ? Capture(text, @"\bfrom\s+(?<value>.+?)(?=\s+to\b|[.,]|$)")
-            : Capture(text, @"\b(?:using\s+(?:my\s+)?|on\s+my\s+|with\s+my\s+)(?<value>.+?)(?=\s+(?:for|at|today|yesterday)\b|[.,]|$)");
+            : purchaseAccount.Success ? purchaseAccount.Groups["value"].Value.Trim() : null;
         var to = transfer ? Capture(text, @"\bto\s+(?:my\s+)?(?<value>.+?)(?=\s+(?:from|today|yesterday)\b|[.,]|$)") : null;
         if (intent.EventKind == TransactionKind.CreditCardPayment)
             to ??= Capture(text, @"\b(?:paid|pay)\s+(?:my\s+)?(?<value>.+?)\s+bill\b");
@@ -41,8 +43,19 @@ public static class FinancialEventInterpreter
             : Has(text, @"\bcash\b") ? PaymentChannel.Cash
             : Has(text, @"\bcard\b") ? PaymentChannel.Card
             : Has(text, @"\bbank\s+transfer\b") ? PaymentChannel.BankTransfer : (PaymentChannel?)null;
+        var description = intent.Description;
+        if (!transfer && purchaseAccount.Success && description is not null)
+        {
+            // Capture parsers can retain the payment clause, or only its account text
+            // after removing connector words. Neither is the purchase purpose.
+            var paymentPhrase = $@"(?<![\p{{L}}\p{{N}}])(?:{Regex.Escape(purchaseAccount.Value.Trim())}|{Regex.Escape(purchaseAccount.Groups["value"].Value.Trim())})(?![\p{{L}}\p{{N}}])";
+            description = Regex.Replace(description, paymentPhrase, "", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            description = Regex.Replace(description, @"\s+", " ").Trim(' ', ',', '.', ';', ':');
+            if (description.Length == 0) description = null;
+        }
         return intent with { AccountAlias = string.IsNullOrWhiteSpace(account) ? null : account,
-            CounterpartyAccountAlias = string.IsNullOrWhiteSpace(to) ? null : to, PaymentChannel = intent.PaymentChannel ?? channel };
+            CounterpartyAccountAlias = string.IsNullOrWhiteSpace(to) ? null : to, PaymentChannel = intent.PaymentChannel ?? channel,
+            Description = description };
     }
     public static string? RefundMerchant(string text) =>
         Capture(text, @"^\s*(?<value>[\p{L}][\p{L} '.&-]{1,60}?)\s+(?:refunded|reversed)\b")

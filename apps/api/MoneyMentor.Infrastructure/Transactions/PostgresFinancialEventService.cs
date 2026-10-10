@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Application.Privacy;
@@ -14,7 +15,8 @@ namespace MoneyMentor.Infrastructure.Transactions;
 
 internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHouseholdAccessService access,
     PostgresFinancialAccountService accounts, TransactionModelMapper mapper, MerchantResolver merchants,
-    JevTransactionCategorizer categorizer, DailyFinancialFactStore facts, TimeProvider clock) : IFinancialEventService
+    JevTransactionCategorizer categorizer, DailyFinancialFactStore facts, TimeProvider clock,
+    ILogger<PostgresFinancialEventService> logger) : IFinancialEventService
 {
     public async Task<TransactionModel> SaveAsync(AppUserContext user, TransactionIntent intent, CancellationToken ct)
     {
@@ -77,6 +79,11 @@ internal sealed class PostgresFinancialEventService(MoneyMentorDbContext db, IHo
             if (await db.PrivacyConsents.AsNoTracking().AnyAsync(x => x.UserProfileId == user.UserProfileId
                 && x.PolicyVersion == PrivacyPolicy.CurrentVersion, ct))
                 name = await categorizer.CategorizeAsync(categoryType, intent.Description, intent.Merchant, intent.SourceText, fallback, ct);
+            else
+            {
+                MoneyMentorTelemetry.Categorization.Add(1, new KeyValuePair<string, object?>("outcome", "consent_missing_fallback"));
+                logger.LogInformation("Jev categorization outcome: {CategorizationOutcome}. Current AI consent is missing.", "consent_missing_fallback");
+            }
             categoryId = await CategoryPersistence.GetOrCreateSystemCategoryIdAsync(db, name, categoryType, ct);
         }
         var now = clock.GetUtcNow();
