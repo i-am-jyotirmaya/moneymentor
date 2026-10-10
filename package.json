@@ -11,6 +11,7 @@
     "build": "turbo build && dotnet build MoneyMentor.slnx",
     "build:api": "dotnet build MoneyMentor.slnx",
     "test": "turbo test && dotnet test MoneyMentor.slnx",
+    "test:speech": "node --test --test-isolation=none packages/spndrr-speech/tests/*.test.ts",
     "test:web:e2e": "pnpm --filter web test:e2e",
     "lint": "turbo lint",
     "build:mobile": "pnpm --filter mobile build",

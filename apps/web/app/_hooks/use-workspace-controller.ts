@@ -42,11 +42,7 @@ import {
   saveAuthSession,
   subscribeToAuthSession,
 } from "@/lib/auth-session";
-import {
-  getSpeechRecognition,
-  saveExport,
-  type SpeechRecognitionLike,
-} from "@/lib/platform";
+import { saveExport } from "@/lib/platform";
 import {
   FormEvent,
   useCallback,
@@ -71,6 +67,7 @@ import {
   Message,
   SettingsForm,
 } from "../_components/workspace-types";
+import { useSpeechInput } from "./use-speech-input";
 import { useHouseholdScopeState } from "./use-household-scope-state";
 import { usePrivacyState } from "./use-privacy-state";
 import { useTransactionState } from "./use-transaction-state";
@@ -110,7 +107,6 @@ export function useWorkspaceController() {
   const [text, setText] = useState("");
   const [inputMode, setInputMode] = useState<InputMode>("Text");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "seed-assistant",
@@ -181,28 +177,26 @@ export function useWorkspaceController() {
   const isLoadingDashboard = isLoadingData;
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
-
-  const releaseRecognition = useCallback((
-    recognition: SpeechRecognitionLike,
-    method: "stop" | "abort" | "ended",
-  ) => {
-    if (recognitionRef.current !== recognition) return;
-    recognitionRef.current = null;
-    recognition.onresult = null;
-    recognition.onerror = null;
-    recognition.onend = null;
-    if (method === "stop") recognition.stop();
-    if (method === "abort") (recognition.abort ?? recognition.stop).call(recognition);
-    setIsListening(false);
-  }, []);
+  const {
+    isListening, partialTranscript, voicePrompt, isInstallingVoice,
+    cancelVoiceInput, installVoiceLanguage, useSystemVoiceOnce,
+    toggleVoiceInput: toggleSpeechInput,
+  } = useSpeechInput(result => {
+    setText(result.text);
+    setInputMode("Voice");
+    void submitChatMessage(result.text, "Voice");
+  }, message => {
+    setInputMode("Text");
+    setError(message);
+  }, `${pathname}:${hash}:${session?.user.id ?? "signed-out"}:${selectedHouseholdId ?? "private"}`);
 
   const setSelectedHouseholdId = useCallback(
     (id: string | null) => {
+      cancelVoiceInput();
       updateQuery({ household: id, page: null, edit: null });
     },
-    [updateQuery],
+    [updateQuery, cancelVoiceInput],
   );
   const desktopSection = activeSection === "home" ? "dashboard" : activeSection;
   const mobileSection = activeSection === "home" ? "assistant" : activeSection;
@@ -395,12 +389,6 @@ export function useWorkspaceController() {
   }, [refreshAppData, session, sessionReady]);
 
   useEffect(() => {
-    return () => {
-      if (recognitionRef.current) releaseRecognition(recognitionRef.current, "abort");
-    };
-  }, [releaseRecognition]);
-
-  useEffect(() => {
     const timer = window.setTimeout(() => {
       setEditForm(
         selectedTransaction ? toTransactionEditForm(selectedTransaction) : null,
@@ -410,6 +398,7 @@ export function useWorkspaceController() {
   }, [selectedTransaction, setEditForm]);
 
   async function signOut() {
+    cancelVoiceInput();
     try {
       await logout(session?.accessToken);
     } finally {
@@ -438,74 +427,14 @@ export function useWorkspaceController() {
     setEditForm(null);
   }
 
-  function startVoiceInput() {
-    if (isSubmitting) {
-      return;
-    }
-
-    setError(null);
-    setInputMode("Voice");
-
-    const Recognition = getSpeechRecognition();
-    if (!Recognition) {
-      setInputMode("Text");
-      setError(
-        "Voice input is not available in this browser. You can still type your message.",
-      );
-      return;
-    }
-
-    if (recognitionRef.current) releaseRecognition(recognitionRef.current, "abort");
-    const recognition = new Recognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = "en-IN";
-    recognition.onresult = (event) => {
-      if (recognitionRef.current !== recognition) return;
-      const transcript = Array.from(event.results)
-        .map((result) => result[0]?.transcript ?? "")
-        .join(" ")
-        .trim();
-
-      // Safari can keep the microphone active after delivering a final result.
-      releaseRecognition(recognition, "stop");
-
-      if (transcript) {
-        setText(transcript);
-        void submitChatMessage(transcript, "Voice");
-      }
-    };
-    recognition.onerror = () => {
-      if (recognitionRef.current !== recognition) return;
-      releaseRecognition(recognition, "abort");
-      setInputMode("Text");
-      setError("I could not catch that clearly. Try typing it instead.");
-    };
-    recognition.onend = () => {
-      releaseRecognition(recognition, "ended");
-    };
-    recognitionRef.current = recognition;
-    setIsListening(true);
-
-    try {
-      recognition.start();
-    } catch {
-      releaseRecognition(recognition, "abort");
-      setInputMode("Text");
-      setError("Voice input could not start. You can still type your message.");
-    }
-  }
-
   function toggleVoiceInput() {
-    if (recognitionRef.current) {
-      releaseRecognition(recognitionRef.current, "abort");
-      return;
-    }
-
-    startVoiceInput();
+    if (isSubmitting) return;
+    setError(null);
+    toggleSpeechInput();
   }
 
   async function submitChatMessage(sourceText: string, mode: InputMode) {
+    cancelVoiceInput();
     const normalizedText = sourceText.trim();
     if (!normalizedText || isSubmitting) {
       return;
@@ -950,6 +879,7 @@ export function useWorkspaceController() {
     setInputMode,
     isSubmitting,
     isListening,
+    partialTranscript, voicePrompt, isInstallingVoice, cancelVoiceInput, installVoiceLanguage, useSystemVoiceOnce,
     messages,
     transactions,
     transactionPage,

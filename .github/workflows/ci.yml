@@ -78,6 +78,8 @@ jobs:
       - run: dotnet test apps/api/MoneyMentor.Api.IntegrationTests/MoneyMentor.Api.IntegrationTests.csproj --no-build --configuration Release --verbosity minimal
       - run: pnpm install --frozen-lockfile
         working-directory: apps/web
+      - name: Test shared speech runtime
+        run: node --test --test-isolation=none packages/spndrr-speech/tests/*.test.ts
       - run: pnpm lint
         working-directory: apps/web
       - run: pnpm build

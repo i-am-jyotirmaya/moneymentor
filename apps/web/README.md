@@ -118,7 +118,7 @@ Both variables are public and are compiled into the client bundle. Never put API
 
 Production therefore requires exact API CORS configuration, HTTPS, and compatible cookie `SameSite` settings. For generated Railway web/API domains use the checked-in backend template's `SameSite=None`; custom sibling Spndrr domains can be tightened after testing.
 
-The browser voice feature uses the browser's Web Speech API. It submits the recognized transcript with `inputMode: Voice`; Spndrr does not upload the audio stream.
+Voice uses the shared `packages/spndrr-speech` runtime. Settings defaults to on-device recognition, which requires browser support and an installed language. Unsupported devices offer an explicit once-only system-speech choice; system recognition may process audio remotely. Interim text is previewed and only a completed transcript is submitted with `inputMode: Voice`; Spndrr does not upload audio. Downloaded model inference is a later phase. See [Local speech runtime](../../docs/LOCAL_SPEECH_RUNTIME.md) for architecture, model lifecycle and rollout requirements.
 
 ## Quality checks
 

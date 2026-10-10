@@ -1,4 +1,5 @@
 "use client";
+import { VoicePrivacyDialog } from "./voice-privacy-dialog";
 import { RotateCcw, X } from "lucide-react";
 import { useWorkspaceController } from "../_hooks/use-workspace-controller";
 import { DesktopAssistantDock } from "./assistant-section";
@@ -34,6 +35,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
     setInputMode,
     isSubmitting,
     isListening,
+    partialTranscript, voicePrompt, isInstallingVoice, cancelVoiceInput, installVoiceLanguage, useSystemVoiceOnce,
     messages,
     transactions,
     transactionPage,
@@ -132,6 +134,10 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
       <LoadingBar
         active={isLoadingData || isLoadingDashboard || isLoadingTransactions}
       />
+      {voicePrompt ? <VoicePrivacyDialog
+        message={voicePrompt.message} canInstall={voicePrompt.canInstall} installing={isInstallingVoice}
+        onInstall={() => void installVoiceLanguage()} onUseSystem={useSystemVoiceOnce} onClose={cancelVoiceInput}
+      /> : null}
       {children}
       <div className="flex h-full min-h-0">
         <DesktopSidebar
@@ -193,6 +199,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
                   householdNotice,
                   inputMode,
                   isListening,
+                  partialTranscript,
                   isLoadingDashboard,
                   isLoadingTransactions,
                   isSavingHousehold,
@@ -299,6 +306,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
           chatEndRef={chatEndRef}
           inputMode={inputMode}
           isListening={isListening}
+          partialTranscript={partialTranscript}
           isOpen={desktopAssistantOpen}
           isSubmitting={isSubmitting}
           messages={messages}

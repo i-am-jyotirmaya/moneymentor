@@ -47,6 +47,7 @@ export function WorkspaceSection({
         chatEndRef={props.chatEndRef}
         inputMode={props.inputMode}
         isListening={props.isListening}
+        partialTranscript={props.partialTranscript}
         isSubmitting={props.isSubmitting}
         messages={props.messages}
         onPromptClick={props.onPromptClick}
