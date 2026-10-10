@@ -516,7 +516,7 @@ test.beforeEach(async ({ page }) => {
 test("login posts credentials to the API without putting them in the URL", async ({ page, baseURL }) => {
   await page.goto("/login");
 
-  await expect(page.getByRole("button", { name: "Sign in" })).toHaveAttribute("type", "button");
+  await expect(page.getByRole("button", { name: "Sign in" })).toHaveAttribute("type", "submit");
   await expect(page.getByLabel("Email")).not.toHaveAttribute("name", /.+/);
   await expect(page.getByLabel("Password")).not.toHaveAttribute("name", /.+/);
 
@@ -1330,4 +1330,103 @@ test("shared goal dropdowns submit goal type and reset optional pace", async ({ 
     await expect(page.getByRole("button", { name: "Generate plan", exact: true })).toBeEnabled();
   }
   await expect(page.locator("select")).toHaveCount(0);
+});
+
+test("Enter submits valid login credentials and preserves browser validation", async ({ page }) => {
+  let loginCount = 0;
+  page.on("request", request => {
+    if (request.url().endsWith("/api/auth/login")) loginCount++;
+  });
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("invalid-email");
+  await page.getByLabel("Password").fill("dummy-secret");
+  await page.getByLabel("Password").press("Enter");
+  await expect(page.getByLabel("Email")).toBeFocused();
+  expect(loginCount).toBe(0);
+
+  await page.getByLabel("Email").fill("demo@example.com");
+  const request = page.waitForRequest(request => request.url().endsWith("/api/auth/login"));
+  await page.getByLabel("Password").press("Enter");
+  expect((await request).postDataJSON()).toEqual({ email: "demo@example.com", password: "dummy-secret" });
+  await expect(page).toHaveURL(/\/$/);
+  expect(loginCount).toBe(1);
+});
+
+test("page reload silently restores login", async ({ page }) => {
+  await page.goto("/transactions");
+  await expect(page.getByRole("heading", { name: "Transactions", exact: true }).first()).toBeVisible();
+  const refresh = page.waitForRequest(request => request.url().endsWith("/api/auth/refresh"));
+  await page.reload();
+  await refresh;
+  await expect(page.getByRole("heading", { name: "Transactions", exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Sign in to use the assistant input workspace.")).toHaveCount(0);
+});
+
+test("session restoration waits for server recovery instead of signing out", async ({ page }) => {
+  let attempts = 0;
+  await page.route("**/api/auth/refresh", async route => {
+    if (++attempts === 1) {
+      await route.fulfill({ status: 503, json: { errors: ["Restarting"] } });
+    } else {
+      await json(route, mockSession);
+    }
+  });
+  await page.goto("/transactions");
+  await expect(page.getByRole("status")).toContainText("Reconnecting automatically");
+  await expect(page.getByText("Sign in to use the assistant input workspace.")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Transactions", exact: true }).first()).toBeVisible();
+  expect(attempts).toBe(2);
+});
+
+test("temporary refresh failure on an expired access token preserves login and allows retry", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop pagination scenario");
+  await page.goto("/transactions");
+  await expect(page.getByRole("heading", { name: "Transactions", exact: true }).first()).toBeVisible();
+  let recovered = false;
+  let refreshAttempts = 0;
+  await page.route("**/api/auth/refresh", async route => {
+    refreshAttempts++;
+    if (!recovered) return route.fulfill({ status: 503, json: { errors: ["Restarting"] } });
+    return json(route, { ...mockSession, accessToken: "renewed-token" });
+  });
+  await page.route("**/api/transactions?**", async route => {
+    if (route.request().headers().authorization === "Bearer renewed-token") return route.fallback();
+    return route.fulfill({ status: 401, json: { errors: ["Access token expired"] } });
+  });
+  await page.getByRole("button", { name: "Next transaction page" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Restarting");
+  await expect(page).toHaveURL(/transactions/);
+  recovered = true;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+  await expect.poll(() => refreshAttempts).toBe(2);
+});
+
+test("rejected refresh still signs out", async ({ page }) => {
+  await page.route("**/api/auth/refresh", route => route.fulfill({ status: 401, json: { errors: ["Session expired"] } }));
+  await page.goto("/");
+  await expect(page.getByText("Sign in to use the assistant input workspace.")).toBeVisible();
+});
+
+test("tabs serialize refresh token rotation", async ({ page, context }) => {
+  const otherPage = await context.newPage();
+  await mockBackend(otherPage);
+  let active = 0;
+  let maximumActive = 0;
+  let requests = 0;
+  const refresh = async (route: Route) => {
+    requests++;
+    maximumActive = Math.max(maximumActive, ++active);
+    await new Promise(resolve => setTimeout(resolve, 150));
+    await json(route, mockSession);
+    active--;
+  };
+  await page.route("**/api/auth/refresh", refresh);
+  await otherPage.route("**/api/auth/refresh", refresh);
+  await Promise.all([page.goto("/transactions"), otherPage.goto("/transactions")]);
+  await expect(page.getByRole("heading", { name: "Transactions", exact: true }).first()).toBeVisible();
+  await expect(otherPage.getByRole("heading", { name: "Transactions", exact: true }).first()).toBeVisible();
+  expect(requests).toBe(2);
+  expect(maximumActive).toBe(1);
+  await otherPage.close();
 });

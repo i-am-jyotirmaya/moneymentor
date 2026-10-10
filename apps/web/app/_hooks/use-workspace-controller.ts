@@ -345,15 +345,32 @@ export function useWorkspaceController() {
     }
 
     let active = true;
-    void refreshSession()
-      .catch(() => clearAuthSession())
-      .finally(() => {
+    let retryTimer: number | undefined;
+    let attempts = 0;
+    async function restoreSession() {
+      try {
+        await refreshSession();
         if (active) {
+          setError(null);
           setSessionReady(true);
         }
-      });
+      } catch (caughtError) {
+        if (!active) return;
+        if (caughtError instanceof ApiError && caughtError.status === 401) {
+          setSessionReady(true);
+          return;
+        }
+        setError("Could not reach Spndrr. Reconnecting automatically…");
+        retryTimer = window.setTimeout(
+          () => void restoreSession(),
+          Math.min(1000 * 2 ** attempts++, 10000),
+        );
+      }
+    }
+    void restoreSession();
     return () => {
       active = false;
+      window.clearTimeout(retryTimer);
     };
   }, []);
 
