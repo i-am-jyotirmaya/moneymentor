@@ -316,6 +316,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
 
       {selectedTransaction && editForm ? (
         <TransactionEditModal
+              accessToken={session.accessToken}
           categoryCatalog={categoryCatalog}
           editForm={editForm}
           isSaving={isSavingTransaction}

@@ -3,6 +3,7 @@ using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.Goals;
 using MoneyMentor.Application.Households;
 using MoneyMentor.Domain.Enums;
+using MoneyMentor.Domain.Finance;
 using MoneyMentor.Infrastructure.Persistence;
 
 namespace MoneyMentor.Infrastructure.Goals;
@@ -86,7 +87,7 @@ internal sealed class PostgresGoalFinancialSnapshotBuilder(
             select new SnapshotTransaction(
                 transaction.TransactionDate,
                 transaction.Amount,
-                transaction.Type,
+                transaction.Type, transaction.Kind, transaction.ReversedKind,
                 category == null ? null : category.Classification))
             .ToArrayAsync(cancellationToken);
 
@@ -99,13 +100,13 @@ internal sealed class PostgresGoalFinancialSnapshotBuilder(
             var monthEnd = month.AddMonths(1);
             var monthRows = rows.Where(item => item.Date >= month && item.Date < monthEnd).ToArray();
             return new MonthlySnapshot(
-                monthRows.Where(item => item.Type == TransactionType.Income).Sum(item => item.Amount),
-                monthRows.Where(item => item.Type == TransactionType.Expense
-                    && item.Classification == CategoryClassification.Essential).Sum(item => item.Amount),
-                monthRows.Where(item => item.Type == TransactionType.Expense
-                    && item.Classification == CategoryClassification.Discretionary).Sum(item => item.Amount),
-                monthRows.Where(item => item.Type == TransactionType.Investment
-                    || item.Classification == CategoryClassification.Savings).Sum(item => item.Amount),
+                monthRows.Sum(item => item.Impact.Income),
+                monthRows.Where(item => item.Classification == CategoryClassification.Essential).Sum(item => item.Impact.Spending),
+                monthRows.Where(item => item.Classification == CategoryClassification.Discretionary).Sum(item => item.Impact.Spending),
+                monthRows.Sum(item => item.Impact.Investment +
+                    (item.Classification == CategoryClassification.Savings ? item.Impact.Spending : 0m)),
+                monthRows.Where(item => item.Classification is not (CategoryClassification.Essential or CategoryClassification.Discretionary))
+                    .Sum(item => item.Impact.Spending),
                 monthRows.Length > 0);
         }).ToArray();
 
@@ -135,7 +136,7 @@ internal sealed class PostgresGoalFinancialSnapshotBuilder(
                 && (item.UserProfileId == null || includedUsers.Contains(item.UserProfileId.Value)))
             .SumAsync(item => item.MonthlyTarget ?? 0m, cancellationToken);
 
-        var surplus = Math.Max(0m, medianIncome - essential - discretionary - monthlyCommitments);
+        var surplus = Math.Max(0m, medianIncome - essential - discretionary - Average(monthStats.Select(item => item.OtherCosts)) - monthlyCommitments);
         var safeCapacity = Math.Max(0m, decimal.Round((surplus * 0.8m) - otherRequirements, 2));
         var remaining = Math.Max(0m, goal.TargetAmount - goal.CurrentAmount);
         var candidates = GoalPlanDeterministicCalculator.BuildCandidates(
@@ -201,12 +202,18 @@ internal sealed class PostgresGoalFinancialSnapshotBuilder(
         DateOnly Date,
         decimal Amount,
         TransactionType Type,
-        CategoryClassification? Classification);
+        TransactionKind? Kind,
+        TransactionKind? ReversedKind,
+        CategoryClassification? Classification)
+    {
+        public TransactionFinancialImpact Impact => TransactionFinancialImpactCalculator.Calculate(Amount, Type, Kind, ReversedKind);
+    }
 
     private sealed record MonthlySnapshot(
         decimal Income,
         decimal Essential,
         decimal Discretionary,
         decimal Savings,
+        decimal OtherCosts,
         bool HasData);
 }

@@ -11,6 +11,7 @@ public sealed class ProviderCallMeasurement : IDisposable
     private readonly string operation;
     private readonly long started = Stopwatch.GetTimestamp();
     private string outcome = "error";
+    public string Outcome => outcome;
 
     public ProviderCallMeasurement(string provider, string operation)
     {

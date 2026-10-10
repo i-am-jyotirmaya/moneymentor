@@ -1,7 +1,10 @@
 using System.Net.Http.Headers;
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using MoneyMentor.Application.Jev;
 using MoneyMentor.Application.Telemetry;
 
@@ -16,8 +19,10 @@ public sealed class JevOptions
     public int TimeoutSeconds { get; set; } = 5;
 }
 
-public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> options) : IJevClient
+public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> options,
+    ILogger<JevClient>? logger = null) : IJevClient
 {
+    private readonly ILogger<JevClient> callLogger = logger ?? NullLogger<JevClient>.Instance;
     public bool IsConfigured => !string.IsNullOrWhiteSpace(options.Value.ApiKey);
 
     public async Task<JevDecision> DecideAsync(
@@ -45,9 +50,14 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(options.Value.TimeoutSeconds, 1, 30)));
         using var measurement = new ProviderCallMeasurement("jev", operation);
+        var started = Stopwatch.GetTimestamp();
+        int? statusCode = null;
+        callLogger.LogInformation("Jev HTTP request started. Operation={JevOperation} TimeoutSeconds={JevTimeoutSeconds}",
+            operation, Math.Clamp(options.Value.TimeoutSeconds, 1, 30));
         try
         {
             using var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            statusCode = (int)response.StatusCode;
             if (!response.IsSuccessStatusCode)
             {
                 measurement.HttpError(response.StatusCode);
@@ -91,6 +101,11 @@ public sealed class JevClient(HttpClient httpClient, IOptions<JevOptions> option
             // EnsureSuccessStatusCode has already recorded its HTTP outcome.
             if (exception.StatusCode is null) measurement.NetworkError();
             throw;
+        }
+        finally
+        {
+            callLogger.LogInformation("Jev HTTP request completed. Operation={JevOperation} Outcome={JevOutcome} StatusCode={JevStatusCode} ElapsedMs={JevElapsedMs}",
+                operation, measurement.Outcome, statusCode, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
     }
 

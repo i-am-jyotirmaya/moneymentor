@@ -1,6 +1,7 @@
 using MoneyMentor.Application.AppUsers;
 using MoneyMentor.Application.InputParsing;
 using MoneyMentor.Domain.Enums;
+using MoneyMentor.Domain.Finance;
 
 namespace MoneyMentor.Application.Transactions;
 
@@ -23,7 +24,18 @@ public sealed record TransactionModel(
     DateTimeOffset UpdatedAt,
     string? UpdatedByDisplayName)
 {
+    public TransactionKind? Kind { get; init; }
+    public TransactionKind? ReversedKind { get; init; }
+    public Guid? AccountId { get; init; }
+    public Guid? CounterpartyAccountId { get; init; }
+    public PaymentChannel? PaymentChannel { get; init; }
+
+
     public Guid? CategoryId { get; init; }
+    public Guid? RelatedTransactionId { get; init; }
+    public string? AccountName { get; init; }
+    public string? CounterpartyAccountName { get; init; }
+    public TransactionFinancialImpact FinancialImpact => TransactionFinancialImpactCalculator.Calculate(Amount, Type, Kind, ReversedKind);
 
     public string? SenderName { get; init; }
 
@@ -47,6 +59,12 @@ public sealed record UpdateTransactionCommand(
     TransactionVisibility? Visibility)
 {
     public Guid? CategoryId { get; init; }
+    public TransactionKind? Kind { get; init; }
+    public Guid? AccountId { get; init; }
+    public Guid? CounterpartyAccountId { get; init; }
+    public bool ClearAccount { get; init; }
+    public bool ClearCounterpartyAccount { get; init; }
+    public PaymentChannel? PaymentChannel { get; init; }
 
     public string? SenderName { get; init; }
 

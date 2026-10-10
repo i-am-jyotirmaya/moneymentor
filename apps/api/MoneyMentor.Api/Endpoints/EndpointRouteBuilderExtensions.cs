@@ -23,6 +23,7 @@ public static class EndpointRouteBuilderExtensions
         endpoints.MapDashboardEndpoints();
         endpoints.MapExpenseInputEndpoints();
         endpoints.MapTransactionEndpoints();
+        endpoints.MapFinancialEventEndpoints();
         endpoints.MapCategoryEndpoints();
         endpoints.MapGoalEndpoints();
         endpoints.MapCommitmentEndpoints();

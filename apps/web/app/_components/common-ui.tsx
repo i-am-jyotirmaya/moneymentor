@@ -181,6 +181,10 @@ export function TransactionRow({
   transaction: TransactionListItem;
 }) {
   const isIncome = transaction.type === "Income";
+  const impact = transaction.financialImpact;
+  const isCredit = impact ? impact.spending < 0 || impact.income > 0 || impact.rewards > 0 : isIncome;
+  const isNeutral = impact ? impact.spending === 0 && impact.income === 0 && impact.investment === 0 && impact.rewards === 0 : transaction.type === "Transfer";
+  const kindLabel = (transaction.kind ?? transaction.type).replace(/([a-z])([A-Z])/g, "$1 $2");
   const transactionLabel = isIncome
     ? (transaction.reason ??
       (transaction.senderName
@@ -200,7 +204,7 @@ export function TransactionRow({
           <span
             className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${isIncome ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"}`}
           >
-            {transaction.type}
+            {kindLabel}
           </span>
         </div>
         <p className="mt-1 truncate text-xs font-medium text-[var(--muted)]">
@@ -213,13 +217,16 @@ export function TransactionRow({
             : ""}
           {" - "}
           {formatDate(transaction.transactionDate)}
+          {transaction.accountName ? ` · ${transaction.accountName}` : ""}
+          {transaction.counterpartyAccountName ? ` → ${transaction.counterpartyAccountName}` : ""}
+          {transaction.relatedTransactionId ? " · Linked adjustment" : ""}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <p
           className={`text-sm font-bold ${isIncome ? "text-emerald-700" : "text-[var(--ink)]"}`}
         >
-          {isIncome ? "+" : "-"}
+          {isNeutral ? "↔ " : isCredit ? "+" : "-"}
           {formatMoney(transaction.amount, transaction.currencyCode)}
         </p>
         {onEdit ? (

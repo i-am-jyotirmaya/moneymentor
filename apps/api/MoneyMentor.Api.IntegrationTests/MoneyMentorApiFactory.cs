@@ -19,11 +19,7 @@ namespace MoneyMentor.Api.IntegrationTests;
 
 public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("pgvector/pgvector:0.8.6-pg17")
-        .WithDatabase("moneymentor_tests")
-        .WithUsername("moneymentor")
-        .WithPassword("moneymentor-tests")
-        .Build();
+    private PostgreSqlContainer? _postgres;
     private string? _connectionString;
 
     public FrozenTimeProvider Clock { get; } = new(
@@ -74,8 +70,14 @@ public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsy
 
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
-        _connectionString = _postgres.GetConnectionString();
+        _connectionString = Environment.GetEnvironmentVariable("SPNDRR_TEST_POSTGRES");
+        if (string.IsNullOrWhiteSpace(_connectionString))
+        {
+            _postgres = new PostgreSqlBuilder("pgvector/pgvector:0.8.6-pg17")
+                .WithDatabase("moneymentor_tests").WithUsername("moneymentor").WithPassword("moneymentor-tests").Build();
+            await _postgres.StartAsync();
+            _connectionString = _postgres.GetConnectionString();
+        }
         var authOptions = new DbContextOptionsBuilder<MoneyMentorAuthDbContext>()
             .UseNpgsql(ConnectionString, options =>
                 options.MigrationsAssembly(typeof(MoneyMentorAuthDbContext).Assembly.FullName))
@@ -93,7 +95,7 @@ public sealed class MoneyMentorApiFactory : WebApplicationFactory<Program>, IAsy
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
-        await _postgres.DisposeAsync();
+        if (_postgres is not null) await _postgres.DisposeAsync();
     }
 
     public async Task<Guid> SeedIdentityUserAsync(string email, string password, string displayName)

@@ -6,7 +6,8 @@ public sealed class PrivacyConsentMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(
         HttpContext context,
-        IAppUserProfileService appUserProfileService)
+        IAppUserProfileService appUserProfileService,
+        ILogger<PrivacyConsentMiddleware> logger)
     {
         if (context.User.Identity?.IsAuthenticated != true
             || !context.Request.Path.StartsWithSegments("/api")
@@ -32,6 +33,8 @@ public sealed class PrivacyConsentMiddleware(RequestDelegate next)
         }
 
         context.Response.StatusCode = StatusCodes.Status428PreconditionRequired;
+        logger.LogInformation("Finance request blocked before processing. Reason={PrivacyGateReason} Route={Route}",
+            "current_consent_missing", (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? "unmatched");
         await Results.Problem(
             title: "Privacy consent required.",
             detail: "Accept the current MoneyMentor privacy notice before using finance features.",

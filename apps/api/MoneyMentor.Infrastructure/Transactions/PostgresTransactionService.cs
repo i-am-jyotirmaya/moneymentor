@@ -8,6 +8,7 @@ using MoneyMentor.Application.Telemetry;
 using MoneyMentor.Application.Privacy;
 using MoneyMentor.Domain.Entities;
 using MoneyMentor.Domain.Enums;
+using MoneyMentor.Domain.Finance;
 using MoneyMentor.Infrastructure.Categories;
 using MoneyMentor.Infrastructure.Persistence;
 using MoneyMentor.Infrastructure.JudgementReports;
@@ -19,8 +20,10 @@ internal sealed class PostgresTransactionService(
     IHouseholdAccessService householdAccessService,
     DailyFinancialFactStore dailyFinancialFactStore,
     MerchantResolver merchantResolver,
-    JevTransactionCategorizer categorizer,
-    TimeProvider timeProvider) : ITransactionService
+    TimeProvider timeProvider,
+    IFinancialEventService financialEvents,
+    PostgresFinancialAccountService accounts,
+    TransactionModelMapper mapper) : ITransactionService
 {
     private const int MaxPageSize = 100;
     private static readonly TimeSpan TrashRetention = TimeSpan.FromDays(30);
@@ -29,104 +32,26 @@ internal sealed class PostgresTransactionService(
         SaveExpenseCommand command,
         CancellationToken cancellationToken)
     {
-        var householdAccess = await householdAccessService.ResolveAsync(
-            command.UserContext,
-            command.RequestedHouseholdId,
-            requireWrite: true,
-            cancellationToken);
-        var categoryName = await HasCurrentAiConsentAsync(command.UserContext.UserProfileId, cancellationToken)
-            ? await categorizer.CategorizeAsync(
-                CategoryType.Expense, command.Draft.Description, command.Draft.MerchantName,
-                command.Draft.SourceText, command.Draft.CategoryGuess, cancellationToken)
-            : command.Draft.CategoryGuess;
-        var categoryId = await GetOrCreateCategoryIdAsync(
-            categoryName,
-            CategoryType.Expense,
-            cancellationToken);
-        var merchantName = NormalizeOptional(command.Draft.MerchantName);
-        var merchantId = await merchantResolver.ResolveAsync(householdAccess.HouseholdId, merchantName, cancellationToken);
-        var now = timeProvider.GetUtcNow();
-
-        var transaction = new Transaction
-        {
-            HouseholdId = householdAccess.HouseholdId,
-            UserProfileId = command.UserContext.UserProfileId,
-            Amount = command.Draft.Amount!.Value,
-            Type = TransactionType.Expense,
-            CategoryId = categoryId,
-            MerchantName = merchantName,
-            MerchantId = merchantId,
-            Description = NormalizeOptional(command.Draft.Description),
-            SourceText = command.Draft.SourceText,
-            TransactionDate = command.Draft.TransactionDate ?? command.UserContext.CurrentDate,
-            InputMode = command.Draft.InputMode,
-            Confidence = command.Draft.Confidence,
-            Visibility = command.UserContext.DefaultTransactionVisibility,
-            UpdatedByUserProfileId = command.UserContext.UserProfileId,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
-
-        dbContext.Transactions.Add(transaction);
-        await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
-        RecordLifecycle("created", "expense");
-
-        return await MapTransactionAsync(
-            transaction,
-            householdAccess.CurrencyCode,
-            cancellationToken);
+        return await financialEvents.SaveAsync(command.UserContext, FinancialEventInterpreter.AddMetadata(
+            new TransactionIntent(FinancialEventInterpreter.DetectKind(command.Draft.SourceText) ?? TransactionKind.Purchase,
+                command.Draft.Amount!.Value, command.Draft.TransactionDate)
+            {
+                HouseholdId = command.RequestedHouseholdId, CategoryName = command.Draft.CategoryGuess,
+                Merchant = command.Draft.MerchantName, Description = command.Draft.Description,
+                SourceText = command.Draft.SourceText, InputMode = command.Draft.InputMode, Confidence = command.Draft.Confidence
+            }, command.Draft.SourceText), cancellationToken);
     }
 
-    public async Task<TransactionModel> SaveIncomeAsync(
-        SaveIncomeCommand command,
-        CancellationToken cancellationToken)
+    public async Task<TransactionModel> SaveIncomeAsync(SaveIncomeCommand command, CancellationToken cancellationToken)
     {
-        var householdAccess = await householdAccessService.ResolveAsync(
-            command.UserContext,
-            command.RequestedHouseholdId,
-            requireWrite: true,
-            cancellationToken);
-        var categoryName = await HasCurrentAiConsentAsync(command.UserContext.UserProfileId, cancellationToken)
-            ? await categorizer.CategorizeAsync(
-                CategoryType.Income, command.Draft.Reason, command.Draft.SenderName,
-                command.Draft.SourceText, GetIncomeCategoryName(command.Draft.Reason), cancellationToken)
-            : GetIncomeCategoryName(command.Draft.Reason);
-        var categoryId = await GetOrCreateCategoryIdAsync(
-            categoryName,
-            CategoryType.Income,
-            cancellationToken);
-        var now = timeProvider.GetUtcNow();
-        var senderName = NormalizeOptional(command.Draft.SenderName);
-
-        var transaction = new Transaction
-        {
-            HouseholdId = householdAccess.HouseholdId,
-            UserProfileId = command.UserContext.UserProfileId,
-            Amount = command.Draft.Amount!.Value,
-            Type = TransactionType.Income,
-            CategoryId = categoryId,
-            // The existing schema stores a generic counterparty in MerchantName.
-            // Income-facing contracts project this value as SenderName instead.
-            MerchantName = senderName,
-            Description = NormalizeOptional(command.Draft.Reason),
-            SourceText = command.Draft.SourceText,
-            TransactionDate = command.Draft.TransactionDate ?? command.UserContext.CurrentDate,
-            InputMode = command.Draft.InputMode,
-            Confidence = command.Draft.Confidence,
-            Visibility = command.UserContext.DefaultTransactionVisibility,
-            UpdatedByUserProfileId = command.UserContext.UserProfileId,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
-
-        dbContext.Transactions.Add(transaction);
-        await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
-        RecordLifecycle("created", "income");
-
-        return await MapTransactionAsync(
-            transaction,
-            householdAccess.CurrencyCode,
-            cancellationToken);
+        return await financialEvents.SaveAsync(command.UserContext, FinancialEventInterpreter.AddMetadata(
+            new TransactionIntent(FinancialEventInterpreter.DetectKind(command.Draft.SourceText) ?? TransactionKind.Income,
+                command.Draft.Amount!.Value, command.Draft.TransactionDate)
+            {
+                HouseholdId = command.RequestedHouseholdId, CategoryName = GetIncomeCategoryName(command.Draft.Reason),
+                Merchant = command.Draft.SenderName, Description = command.Draft.Reason,
+                SourceText = command.Draft.SourceText, InputMode = command.Draft.InputMode, Confidence = command.Draft.Confidence
+            }, command.Draft.SourceText), cancellationToken);
     }
 
     public async Task<TransactionPageModel> ListAsync(
@@ -173,7 +98,7 @@ internal sealed class PostgresTransactionService(
         var items = await MapTransactionsAsync(
             transactions,
             householdAccess.CurrencyCode,
-            cancellationToken);
+            userContext.UserProfileId, cancellationToken);
 
         return new TransactionPageModel(
             items,
@@ -204,7 +129,7 @@ internal sealed class PostgresTransactionService(
         return await MapTransactionAsync(
             transaction,
             await GetHouseholdCurrencyAsync(transaction.HouseholdId, cancellationToken),
-            cancellationToken);
+            userContext.UserProfileId, cancellationToken);
     }
 
     public async Task<TransactionModel?> UpdateAsync(
@@ -223,9 +148,76 @@ internal sealed class PostgresTransactionService(
             return null;
         }
 
+        await using var mutation = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await PostgresFinancialEventService.LockAsync(dbContext, transaction.HouseholdId, cancellationToken);
+        await dbContext.Entry(transaction).ReloadAsync(cancellationToken);
+        if (transaction.DeletedAt != null) return null;
+        var currentKind = TransactionFinancialImpactCalculator.ResolveKind(transaction.Type, transaction.Kind);
+        var nextKind = command.Kind ?? currentKind;
+        if (!Enum.IsDefined(nextKind) || (nextKind != currentKind && nextKind is TransactionKind.Refund or TransactionKind.Reversal)
+            || (currentKind is TransactionKind.Refund or TransactionKind.Reversal && nextKind != currentKind))
+            throw new FinancialTransactionValidationException("Create refunds and reversals through the financial event flow; linked event kinds cannot be changed.");
+        if (command.Amount is not null && (command.Amount <= 0 || command.Amount > 999999999999m || decimal.Round(command.Amount.Value, 2) != command.Amount))
+            throw new FinancialTransactionValidationException("Amount must be positive with up to two decimals.");
+        if (command.TransactionDate > userContext.CurrentDate || (command.Visibility is not null && !Enum.IsDefined(command.Visibility.Value))
+            || (command.PaymentChannel is not null && !Enum.IsDefined(command.PaymentChannel.Value)))
+            throw new FinancialTransactionValidationException("Provide a valid date, visibility and payment channel.");
+        var adjustment = await dbContext.TransactionRelations.FirstOrDefaultAsync(x => x.TransactionId == transaction.Id
+            && (x.RelationType == TransactionRelationType.RefundOf || x.RelationType == TransactionRelationType.ReversalOf), cancellationToken);
+        var original = adjustment is null ? null : await dbContext.Transactions.SingleAsync(x => x.Id == adjustment.RelatedTransactionId, cancellationToken);
+        if (original is not null)
+        {
+            await PostgresFinancialEventService.ValidateAdjustmentAsync(dbContext, original, currentKind, command.Amount ?? transaction.Amount, transaction.Id, cancellationToken);
+            if ((command.TransactionDate ?? transaction.TransactionDate) < original.TransactionDate)
+                throw new FinancialTransactionValidationException("An adjustment cannot precede its original event.");
+            if ((command.CategoryId is not null && command.CategoryId != original.CategoryId)
+                || (command.CategoryName is not null && command.CategoryName != await GetCategoryNameAsync(original.CategoryId, cancellationToken))
+                || (command.Visibility is not null && command.Visibility != original.Visibility))
+                throw new FinancialTransactionValidationException("Linked adjustments inherit the original category and visibility.");
+            adjustment!.Amount = command.Amount ?? transaction.Amount;
+        }
+        var changesFinancialMeaning = nextKind != currentKind || (command.Amount is not null && command.Amount != transaction.Amount)
+            || (command.CategoryId is not null && command.CategoryId != transaction.CategoryId)
+            || (command.CategoryName is not null && command.CategoryName != await GetCategoryNameAsync(transaction.CategoryId, cancellationToken))
+            || (command.MerchantName is not null && command.MerchantName != transaction.MerchantName)
+            || (command.TransactionDate is not null && command.TransactionDate != transaction.TransactionDate)
+            || (command.Visibility is not null && command.Visibility != transaction.Visibility)
+            || (command.AccountId is not null && command.AccountId != transaction.AccountId) || command.ClearAccount
+            || (command.CounterpartyAccountId is not null && command.CounterpartyAccountId != transaction.CounterpartyAccountId) || command.ClearCounterpartyAccount;
+        if (changesFinancialMeaning) await EnsureNoActiveAdjustmentsAsync(transaction.Id, cancellationToken);
+
         var originalTransactionDate = transaction.TransactionDate;
 
         var changes = new Dictionary<string, FieldChange>();
+        if (nextKind != currentKind)
+        {
+            changes["kind"] = new FieldChange(currentKind, nextKind);
+            transaction.Kind = nextKind;
+            transaction.Type = TransactionFinancialImpactCalculator.TypeFor(nextKind);
+            transaction.CategoryId = null;
+            transaction.EnrichmentJson = null;
+        }
+        if (command.AccountId is not null || command.ClearAccount)
+        {
+            var resolved = command.ClearAccount ? null : await accounts.ResolveAsync(userContext, transaction.HouseholdId, command.AccountId, null, cancellationToken);
+            changes["accountId"] = new FieldChange(transaction.AccountId, resolved?.Id);
+            transaction.AccountId = resolved?.Id;
+        }
+        if (command.CounterpartyAccountId is not null || command.ClearCounterpartyAccount)
+        {
+            var resolved = command.ClearCounterpartyAccount ? null : await accounts.ResolveAsync(userContext, transaction.HouseholdId, command.CounterpartyAccountId, null, cancellationToken);
+            changes["counterpartyAccountId"] = new FieldChange(transaction.CounterpartyAccountId, resolved?.Id);
+            transaction.CounterpartyAccountId = resolved?.Id;
+        }
+        if (command.PaymentChannel is not null && command.PaymentChannel != transaction.PaymentChannel)
+        {
+            changes["paymentChannel"] = new FieldChange(transaction.PaymentChannel, command.PaymentChannel);
+            transaction.PaymentChannel = command.PaymentChannel;
+        }
+        var fromAccount = transaction.AccountId is null ? null : await dbContext.FinancialAccounts.FindAsync([transaction.AccountId.Value], cancellationToken);
+        var toAccount = transaction.CounterpartyAccountId is null ? null : await dbContext.FinancialAccounts.FindAsync([transaction.CounterpartyAccountId.Value], cancellationToken);
+        PostgresFinancialEventService.ValidateAccounts(nextKind, await GetHouseholdCurrencyAsync(transaction.HouseholdId, cancellationToken), fromAccount, toAccount);
+
 
         if (command.Amount is not null && transaction.Amount != command.Amount.Value)
         {
@@ -331,10 +323,11 @@ internal sealed class PostgresTransactionService(
             RecordLifecycle("updated", transaction.Type.ToString().ToLowerInvariant());
         }
 
+        await mutation.CommitAsync(cancellationToken);
         return await MapTransactionAsync(
             transaction,
             await GetHouseholdCurrencyAsync(transaction.HouseholdId, cancellationToken),
-            cancellationToken);
+            userContext.UserProfileId, cancellationToken);
     }
 
     public async Task<TransactionModel?> DeleteAsync(
@@ -350,6 +343,12 @@ internal sealed class PostgresTransactionService(
             return null;
         }
 
+        await using var mutation = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await PostgresFinancialEventService.LockAsync(dbContext, transaction.HouseholdId, cancellationToken);
+        await dbContext.Entry(transaction).ReloadAsync(cancellationToken);
+        if (transaction.DeletedAt != null) return null;
+        await EnsureNoActiveAdjustmentsAsync(transaction.Id, cancellationToken);
+
         var now = timeProvider.GetUtcNow();
         transaction.DeletedAt = now;
         transaction.DeletedByUserProfileId = userContext.UserProfileId;
@@ -359,10 +358,11 @@ internal sealed class PostgresTransactionService(
         AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", false, true);
         await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("deleted", transaction.Type.ToString().ToLowerInvariant());
+        await mutation.CommitAsync(cancellationToken);
         return await MapTransactionAsync(
             transaction,
             await GetHouseholdCurrencyAsync(transaction.HouseholdId, cancellationToken),
-            cancellationToken);
+            userContext.UserProfileId, cancellationToken);
     }
 
     public async Task<TransactionModel?> RestoreAsync(
@@ -381,6 +381,20 @@ internal sealed class PostgresTransactionService(
             return null;
         }
 
+        await using var mutation = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await PostgresFinancialEventService.LockAsync(dbContext, transaction.HouseholdId, cancellationToken);
+        await dbContext.Entry(transaction).ReloadAsync(cancellationToken);
+        if (transaction.DeletedAt == null || transaction.PurgeAfter <= now) return null;
+        var relation = await dbContext.TransactionRelations.FirstOrDefaultAsync(x => x.TransactionId == transaction.Id
+            && (x.RelationType == TransactionRelationType.RefundOf || x.RelationType == TransactionRelationType.ReversalOf), cancellationToken);
+        if (transaction.Kind == TransactionKind.Reversal && relation is null)
+            throw new FinancialTransactionValidationException("The original transaction is no longer available.");
+        if (relation is not null)
+        {
+            var original = await dbContext.Transactions.SingleAsync(x => x.Id == relation.RelatedTransactionId, cancellationToken);
+            await PostgresFinancialEventService.ValidateAdjustmentAsync(dbContext, original, transaction.Kind!.Value, transaction.Amount, transaction.Id, cancellationToken);
+        }
+
         transaction.DeletedAt = null;
         transaction.DeletedByUserProfileId = null;
         transaction.PurgeAfter = null;
@@ -389,10 +403,11 @@ internal sealed class PostgresTransactionService(
         AddAudit(transaction.Id, userContext.UserProfileId, now, "deleted", true, false);
         await SaveAndRebuildAsync(transaction.HouseholdId, [transaction.TransactionDate], cancellationToken);
         RecordLifecycle("restored", transaction.Type.ToString().ToLowerInvariant());
+        await mutation.CommitAsync(cancellationToken);
         return await MapTransactionAsync(
             transaction,
             await GetHouseholdCurrencyAsync(transaction.HouseholdId, cancellationToken),
-            cancellationToken);
+            userContext.UserProfileId, cancellationToken);
     }
 
     public async Task<TransactionTrashModel> ListTrashAsync(
@@ -417,7 +432,7 @@ internal sealed class PostgresTransactionService(
             .Take(100)
             .ToArrayAsync(cancellationToken);
         return new TransactionTrashModel(
-            await MapTransactionsAsync(transactions, access.CurrencyCode, cancellationToken));
+            await MapTransactionsAsync(transactions, access.CurrencyCode, userContext.UserProfileId, cancellationToken));
     }
 
     public async Task<int> PurgeDeletedAsync(CancellationToken cancellationToken)
@@ -439,11 +454,19 @@ internal sealed class PostgresTransactionService(
     private async Task SaveAndRebuildAsync(Guid householdId, IEnumerable<DateOnly> dates,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         foreach (var date in dates.Distinct().Order())
             await dailyFinancialFactStore.RebuildAsync(householdId, date, cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task EnsureNoActiveAdjustmentsAsync(Guid transactionId, CancellationToken ct)
+    {
+        if (await (from relation in dbContext.TransactionRelations
+            join adjustment in dbContext.Transactions on relation.TransactionId equals adjustment.Id
+            where relation.RelatedTransactionId == transactionId && adjustment.DeletedAt == null
+                && (relation.RelationType == TransactionRelationType.RefundOf || relation.RelationType == TransactionRelationType.ReversalOf)
+            select relation.Id).AnyAsync(ct))
+            throw new FinancialTransactionValidationException("Remove linked refunds or reversals before changing or deleting the original event.");
     }
 
     private static void RecordLifecycle(string operation, string type) =>
@@ -541,92 +564,16 @@ internal sealed class PostgresTransactionService(
     private async Task<TransactionModel> MapTransactionAsync(
         Transaction transaction,
         string currencyCode,
+        Guid viewerId,
         CancellationToken cancellationToken)
     {
-        var mapped = await MapTransactionsAsync([transaction], currencyCode, cancellationToken);
+        var mapped = await MapTransactionsAsync([transaction], currencyCode, viewerId, cancellationToken);
         return mapped.Single();
     }
 
-    private async Task<IReadOnlyCollection<TransactionModel>> MapTransactionsAsync(
-        IReadOnlyCollection<Transaction> transactions,
-        string currencyCode,
-        CancellationToken cancellationToken)
-    {
-        var categoryIds = transactions
-            .Select(transaction => transaction.CategoryId)
-            .OfType<Guid>()
-            .Distinct()
-            .ToArray();
-        var userProfileIds = transactions
-            .Select(transaction => transaction.UpdatedByUserProfileId)
-            .OfType<Guid>()
-            .Distinct()
-            .ToArray();
-
-        var categories = await dbContext.Categories
-            .Where(category => categoryIds.Contains(category.Id))
-            .ToDictionaryAsync(
-                category => category.Id,
-                category => new CategoryProjection(
-                    category.Name,
-                    category.ParentCategoryId,
-                    category.Classification),
-                cancellationToken);
-        var parentIds = categories.Values
-            .Select(category => category.ParentCategoryId)
-            .OfType<Guid>()
-            .Distinct()
-            .ToArray();
-        var parentNames = await dbContext.Categories
-            .Where(category => parentIds.Contains(category.Id))
-            .ToDictionaryAsync(category => category.Id, category => category.Name, cancellationToken);
-        var userProfiles = await dbContext.UserProfiles
-            .Where(userProfile => userProfileIds.Contains(userProfile.Id))
-            .ToDictionaryAsync(userProfile => userProfile.Id, userProfile => userProfile.DisplayName, cancellationToken);
-
-        return transactions
-            .Select(transaction =>
-            {
-                CategoryProjection? category = null;
-                if (transaction.CategoryId is not null)
-                {
-                    categories.TryGetValue(transaction.CategoryId.Value, out category);
-                }
-
-                return new TransactionModel(
-                    transaction.Id,
-                    transaction.HouseholdId,
-                    transaction.UserProfileId,
-                    transaction.Amount,
-                    currencyCode,
-                    transaction.Type,
-                    category?.Name,
-                    transaction.Type == TransactionType.Income ? null : transaction.MerchantName,
-                    transaction.Type == TransactionType.Income ? null : transaction.Description,
-                    transaction.SourceText,
-                    transaction.TransactionDate,
-                    transaction.InputMode,
-                    transaction.Confidence,
-                    transaction.Visibility,
-                    transaction.CreatedAt,
-                    transaction.UpdatedAt,
-                    transaction.UpdatedByUserProfileId is null
-                        ? null
-                        : userProfiles.GetValueOrDefault(transaction.UpdatedByUserProfileId.Value))
-                {
-                    CategoryId = transaction.CategoryId,
-                    SenderName = transaction.Type == TransactionType.Income ? transaction.MerchantName : null,
-                    Reason = transaction.Type == TransactionType.Income ? transaction.Description : null,
-                    DeletedAt = transaction.DeletedAt,
-                    PurgeAfter = transaction.PurgeAfter,
-                    ParentCategoryName = category?.ParentCategoryId is null
-                        ? null
-                        : parentNames.GetValueOrDefault(category.ParentCategoryId.Value),
-                    CategoryClassification = category?.Classification
-                };
-            })
-            .ToArray();
-    }
+    private Task<IReadOnlyCollection<TransactionModel>> MapTransactionsAsync(
+        IReadOnlyCollection<Transaction> transactions, string currencyCode, Guid viewerId, CancellationToken cancellationToken) =>
+        mapper.MapAsync(transactions, currencyCode, viewerId, cancellationToken);
 
     private async Task<string?> GetCategoryNameAsync(
         Guid? categoryId,

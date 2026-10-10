@@ -33,10 +33,11 @@ public sealed class JevTransactionCategorizer(
         // Keep those exact guesses if Jev is unavailable or returns an invalid answer.
         var knownGuess = string.IsNullOrWhiteSpace(existingGuess) ? null : existingGuess.Trim();
 
+        logger.LogInformation("Jev categorization eligibility. JevConfigured={JevConfigured} HasSourceText={HasSourceText} CategoryType={CategoryType}",
+            jev.IsConfigured, !string.IsNullOrWhiteSpace(sourceText), type);
         if (!jev.IsConfigured || string.IsNullOrWhiteSpace(sourceText))
         {
-            MoneyMentorTelemetry.Categorization.Add(1,
-                new KeyValuePair<string, object?>("outcome", "unconfigured_fallback"));
+            RecordOutcome(!jev.IsConfigured ? "unconfigured_fallback" : "source_missing_fallback");
             return knownGuess ?? fallback;
         }
 
@@ -68,13 +69,11 @@ public sealed class JevTransactionCategorizer(
             if (decision.TryGetChoice("category", out var category, out _)
                 && criteria.ContainsKey(category))
             {
-                MoneyMentorTelemetry.Categorization.Add(1,
-                    new KeyValuePair<string, object?>("outcome", "jev_selected"));
+                RecordOutcome("jev_selected", category == fallback);
                 return category;
             }
 
-            MoneyMentorTelemetry.Categorization.Add(1,
-                new KeyValuePair<string, object?>("outcome", "invalid_choice_fallback"));
+            RecordOutcome("invalid_choice_fallback");
             logger.LogInformation("Jev category was invalid or outside the configured catalog; using capture fallback.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -84,13 +83,20 @@ public sealed class JevTransactionCategorizer(
         catch (Exception exception) when (exception is HttpRequestException
             or OperationCanceledException or JsonException or InvalidOperationException)
         {
-            MoneyMentorTelemetry.Categorization.Add(1,
-                new KeyValuePair<string, object?>("outcome", "provider_error_fallback"));
+            RecordOutcome("provider_error_fallback");
             // No transaction text or provider response is logged.
             logger.LogWarning("Jev category lookup failed ({FailureType}); using capture fallback.",
                 exception.GetType().Name);
         }
 
         return knownGuess ?? fallback;
+    }
+
+    private void RecordOutcome(string outcome, bool selectedFallbackCategory = false)
+    {
+        MoneyMentorTelemetry.Categorization.Add(1, new KeyValuePair<string, object?>("outcome", outcome));
+        // Correlates with the request ID without logging text, accounts, categories or credentials.
+        logger.LogInformation("Jev categorization outcome: {CategorizationOutcome}. SelectedFallbackCategory={SelectedFallbackCategory}",
+            outcome, selectedFallbackCategory);
     }
 }

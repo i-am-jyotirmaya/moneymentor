@@ -132,6 +132,7 @@ async function seedVoiceRecognition(page: Page) {
 
 async function mockBackend(page: Page) {
   let transactions: MockTransaction[] = [...baseTransactions];
+  let financialAccounts: Array<Record<string, unknown>> = [];
   let deletedTransactions: MockTransaction[] = [];
   let sentInvitations: Array<Record<string, unknown>> = [];
   let pendingInvitations = [
@@ -157,6 +158,17 @@ async function mockBackend(page: Page) {
     const url = new URL(route.request().url());
     const method = route.request().method();
 
+    if (url.pathname.startsWith("/api/financial-accounts")) {
+      if (method === "GET") await json(route, financialAccounts);
+      else {
+        const body = route.request().postDataJSON();
+        const id = method === "PUT" ? url.pathname.split("/").at(-1) : `account-${financialAccounts.length + 1}`;
+        const account = { ...body, id, ownerUserProfileId: body.shared ? null : "22222222-2222-4222-8222-222222222222", currencyCode: "INR" };
+        financialAccounts = [...financialAccounts.filter(x => x.id !== id), account];
+        await json(route, account);
+      }
+      return;
+    }
     if (url.pathname === "/api/auth/login" && method === "POST") {
       await json(route, mockSession);
       return;
@@ -1330,6 +1342,41 @@ test("shared goal dropdowns submit goal type and reset optional pace", async ({ 
     await expect(page.getByRole("button", { name: "Generate plan", exact: true })).toBeEnabled();
   }
   await expect(page.locator("select")).toHaveCount(0);
+});
+
+test("financial accounts save aliases and keep account setup optional", async ({ page }) => {
+  await page.goto("/settings");
+  const panel = page.locator("article").filter({ has: page.getByRole("heading", { name: "Financial accounts", exact: true }) });
+  await expect(panel.getByText("You can keep tracking without adding an account.")).toBeVisible();
+  await panel.getByLabel("Account name", { exact: true }).fill("HDFC Millennia");
+  await panel.getByRole("combobox", { name: "Account type", exact: true }).click();
+  await page.getByRole("option", { name: "Credit card", exact: true }).click();
+  await panel.getByLabel("Aliases (comma separated)", { exact: true }).fill("Millennia,HDFC card");
+  const request = page.waitForRequest(request => new URL(request.url()).pathname === "/api/financial-accounts" && request.method() === "POST");
+  await panel.getByRole("button", { name: "Add account", exact: true }).click();
+  expect((await request).postDataJSON()).toMatchObject({ name: "HDFC Millennia", accountType: "CreditCard", aliases: ["Millennia", "HDFC card"], shared: false });
+  await expect(panel.getByRole("status")).toHaveText("Financial account saved.");
+  await panel.getByRole("button", { name: "Edit HDFC Millennia", exact: true }).click();
+  await panel.getByLabel("Active", { exact: true }).uncheck();
+  await panel.getByRole("button", { name: "Save account", exact: true }).click();
+  await expect(panel.getByText(/Archived/)).toBeVisible();
+});
+
+test("transaction editor exposes financial kind independently of payment channel", async ({ page }) => {
+  await page.goto("/transactions");
+  await page.getByRole("button", { name: "Next transaction page", exact: true }).click();
+  await page.getByRole("button", { name: "Edit transaction Paid rent", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "Edit transaction", exact: true });
+  await expect(editor.getByRole("combobox", { name: "Account (optional)", exact: true })).toHaveText("Unspecified");
+  await editor.getByRole("combobox", { name: "Financial event", exact: true }).click();
+  await editor.getByRole("option", { name: "Credit Card Payment", exact: true }).click();
+  await expect(editor.getByRole("combobox", { name: "Source account (optional)", exact: true })).toBeVisible();
+  await expect(editor.getByRole("combobox", { name: "Destination account (optional)", exact: true })).toBeVisible();
+  await editor.getByRole("combobox", { name: "Payment channel (optional)", exact: true }).click();
+  await editor.getByRole("option", { name: "UPI", exact: true }).click();
+  const request = page.waitForRequest(request => request.url().endsWith("/api/transactions/txn-rent") && request.method() === "PATCH");
+  await editor.getByRole("button", { name: /Save/ }).click();
+  expect((await request).postDataJSON()).toMatchObject({ kind: "CreditCardPayment", paymentChannel: "UPI", amount: 18000 });
 });
 
 test("Enter submits valid login credentials and preserves browser validation", async ({ page }) => {

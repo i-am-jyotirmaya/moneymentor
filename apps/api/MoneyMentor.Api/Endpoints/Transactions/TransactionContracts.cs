@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using MoneyMentor.Domain.Enums;
 
 namespace MoneyMentor.Api.Endpoints.Transactions;
 
@@ -6,6 +7,13 @@ public sealed class UpdateTransactionRequest
 {
     [Range(typeof(decimal), "0.01", "999999999999")]
     public decimal? Amount { get; init; }
+
+    public TransactionKind? Kind { get; init; }
+    public Guid? AccountId { get; init; }
+    public Guid? CounterpartyAccountId { get; init; }
+    public bool ClearAccount { get; init; }
+    public bool ClearCounterpartyAccount { get; init; }
+    public PaymentChannel? PaymentChannel { get; init; }
 
     public Guid? CategoryId { get; init; }
 

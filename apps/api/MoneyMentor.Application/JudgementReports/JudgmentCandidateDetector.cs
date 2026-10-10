@@ -141,7 +141,7 @@ public static class JudgmentCandidateDetector
                 DetectorConfidence = baseline.Length >= 14 ? 0.85m : 0.60m,
                 EvidenceJson = JsonSerializer.Serialize(evidence),
                 DetectorVersion = options.DetectorVersion,
-                CalculationVersion = "v1",
+                CalculationVersion = facts.Any(x => x.CalculationVersion == "v2-account-aware") ? "v2-account-aware" : "v1",
                 Status = score >= options.MinInterestingness
                     ? JudgmentCandidateStatus.Queued : JudgmentCandidateStatus.Pending,
                 ExpiresAt = DateTimeOffset.UtcNow.AddDays(21)

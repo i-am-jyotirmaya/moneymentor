@@ -342,32 +342,91 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.DailyFinancialAggregate", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid");
-                    b.Property<Guid?>("CategoryId").HasColumnType("uuid");
-                    b.Property<string>("CalculationVersion").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
-                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone");
-                    b.Property<DateOnly>("Date").HasColumnType("date");
-                    b.Property<Guid>("HouseholdId").HasColumnType("uuid");
-                    b.Property<int>("TransactionCount").HasColumnType("integer");
-                    b.Property<int>("ExpenseTransactionCount").HasColumnType("integer");
-                    b.Property<int>("IncomeTransactionCount").HasColumnType("integer");
-                    b.Property<DateTimeOffset>("UpdatedAt").HasColumnType("timestamp with time zone");
-                    b.Property<Guid?>("UserProfileId").HasColumnType("uuid");
-                    b.Property<string>("Visibility").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
-                    b.Property<decimal>("Income").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
-                    b.Property<decimal>("Expense").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
-                    b.Property<decimal>("EssentialSpend").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
-                    b.Property<decimal>("DiscretionarySpend").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
-                    b.Property<decimal>("DebtSpend").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
-                    b.Property<decimal>("InvestmentAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
-                    b.Property<decimal>("AverageTransactionAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
-                    b.Property<decimal>("MaximumTransactionAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("AverageTransactionAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("CalculationVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("DebtSpend")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("DiscretionarySpend")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("EssentialSpend")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("Expense")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("ExpenseTransactionCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Income")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("IncomeTransactionCount")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("InvestmentAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("MaximumTransactionAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("TransactionCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UserProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.HasKey("Id");
+
                     b.HasIndex("CategoryId");
+
                     b.HasIndex("UserProfileId");
+
                     b.HasIndex("HouseholdId", "Date", "CategoryId");
+
                     b.HasIndex("HouseholdId", "UserProfileId", "Date", "Visibility", "CategoryId")
-                        .IsUnique().AreNullsDistinct(false);
+                        .IsUnique();
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("HouseholdId", "UserProfileId", "Date", "Visibility", "CategoryId"), false);
+
                     b.ToTable("daily_financial_aggregates", "app");
                 });
 
@@ -411,34 +470,168 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.ToTable("entitlement_changes", "app");
                 });
 
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.FinancialAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccountType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Institution")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Last4")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid?>("OwnerUserProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HouseholdId");
+
+                    b.HasIndex("OwnerUserProfileId");
+
+                    b.ToTable("financial_accounts", "app");
+                });
+
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.FinancialAccountAlias", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Alias")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("FinancialAccountId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FinancialAccountId", "Alias")
+                        .IsUnique();
+
+                    b.ToTable("financial_account_aliases", "app");
+                });
+
             modelBuilder.Entity("MoneyMentor.Domain.Entities.FinancialContextMemory", b =>
                 {
-                    b.Property<decimal>("Confidence").HasPrecision(5, 4).HasColumnType("numeric(5,4)");
-                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone");
-                    b.Property<string>("EmbeddingModel").HasMaxLength(100).HasColumnType("character varying(100)");
-                    b.Property<Guid>("HouseholdId").HasColumnType("uuid");
-                    b.Property<Guid>("Id").HasColumnType("uuid");
-                    b.Property<decimal>("Importance").HasPrecision(5, 2).HasColumnType("numeric(5,2)");
-                    b.Property<bool>("IsActive").HasColumnType("boolean");
-                    b.Property<string>("MemoryType").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
-                    b.Property<Guid?>("SourceFeedbackId").HasColumnType("uuid");
-                    b.Property<Guid?>("SourceJudgementId").HasColumnType("uuid");
-                    b.Property<Guid?>("SourceMessageId").HasColumnType("uuid");
-                    b.Property<string>("SourceType").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
-                    b.Property<string>("StructuredDataJson").IsRequired().HasColumnType("jsonb");
-                    b.Property<string>("Text").IsRequired().HasMaxLength(2000).HasColumnType("character varying(2000)");
-                    b.Property<DateTimeOffset>("UpdatedAt").HasColumnType("timestamp with time zone");
-                    b.Property<Guid>("UserProfileId").HasColumnType("uuid");
-                    b.Property<DateTimeOffset?>("ValidFrom").HasColumnType("timestamp with time zone");
-                    b.Property<DateTimeOffset?>("ValidUntil").HasColumnType("timestamp with time zone");
-                    b.Property<string>("Visibility").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Confidence")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EmbeddingModel")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Importance")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MemoryType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid?>("SourceFeedbackId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SourceJudgementId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SourceMessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("StructuredDataJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ValidFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ValidUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.HasKey("Id");
-                    b.HasIndex("SourceFeedbackId").IsUnique();
+
+                    b.HasIndex("SourceFeedbackId")
+                        .IsUnique();
+
                     b.HasIndex("SourceJudgementId");
+
                     b.HasIndex("SourceMessageId");
+
                     b.HasIndex("UserProfileId");
-                    b.HasIndex("HouseholdId", "UserProfileId", "IsActive", "ValidUntil", "MemoryType");
+
                     b.HasIndex("HouseholdId", "Visibility", "IsActive", "ValidUntil");
+
+                    b.HasIndex("HouseholdId", "UserProfileId", "IsActive", "ValidUntil", "MemoryType");
+
                     b.ToTable("financial_context_memories", "app");
                 });
 
@@ -1104,10 +1297,28 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<Guid?>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContextSnapshotJson")
+                        .HasColumnType("jsonb");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<string>("DecisionAction")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<decimal?>("DecisionConfidence")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)");
+
+                    b.Property<string>("DecisionSchemaVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("DeduplicationKey")
                         .IsRequired()
@@ -1137,8 +1348,16 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<string>("FollowUpQuestion")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
                     b.Property<Guid>("HouseholdId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Importance")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
 
                     b.Property<string>("InputsJson")
                         .IsRequired()
@@ -1154,8 +1373,20 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
+                    b.Property<string>("Model")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<DateOnly>("Period")
                         .HasColumnType("date");
+
+                    b.Property<string>("Provider")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
 
                     b.Property<DateTimeOffset?>("ResolvedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1238,26 +1469,6 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<Guid?>("CandidateId").HasColumnType("uuid");
-
-                    b.Property<string>("DecisionAction").HasMaxLength(32).HasColumnType("character varying(32)");
-
-                    b.Property<decimal?>("DecisionConfidence").HasPrecision(5, 4).HasColumnType("numeric(5,4)");
-
-                    b.Property<decimal?>("Importance").HasPrecision(5, 2).HasColumnType("numeric(5,2)");
-
-                    b.Property<string>("Reason").HasMaxLength(1024).HasColumnType("character varying(1024)");
-
-                    b.Property<string>("FollowUpQuestion").HasMaxLength(512).HasColumnType("character varying(512)");
-
-                    b.Property<string>("ContextSnapshotJson").HasColumnType("jsonb");
-
-                    b.Property<string>("Provider").HasMaxLength(64).HasColumnType("character varying(64)");
-
-                    b.Property<string>("Model").HasMaxLength(100).HasColumnType("character varying(100)");
-
-                    b.Property<string>("DecisionSchemaVersion").HasMaxLength(32).HasColumnType("character varying(32)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("CandidateId");
@@ -1300,8 +1511,14 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<Guid?>("CandidateId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContextSnapshotJson")
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("DeterministicInputJson")
                         .IsRequired()
@@ -1362,17 +1579,14 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.Property<bool>("Succeeded")
                         .HasColumnType("boolean");
 
-                    b.Property<Guid?>("CandidateId").HasColumnType("uuid");
-
-                    b.Property<string>("ContextSnapshotJson").HasColumnType("jsonb");
-
                     b.HasKey("Id");
 
                     b.HasIndex("JudgementWorkItemId");
 
-                    b.HasIndex("CandidateId", "Stage", "AttemptNumber").IsUnique();
-
                     b.HasIndex("Stage", "StartedAt");
+
+                    b.HasIndex("CandidateId", "Stage", "AttemptNumber")
+                        .IsUnique();
 
                     b.HasIndex("SpendingSummaryId", "Stage", "AttemptNumber")
                         .IsUnique();
@@ -1681,93 +1895,260 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.JudgmentCandidate", b =>
                 {
-                    b.Property<int>("AttemptCount").HasColumnType("integer");
-                    b.Property<DateTimeOffset>("AvailableAt").HasColumnType("timestamp with time zone");
-                    b.Property<decimal?>("BaselineValue").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
-                    b.Property<string>("CalculationVersion").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
-                    b.Property<string>("CandidateType").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
-                    b.Property<Guid?>("ClaimToken").HasColumnType("uuid");
-                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone");
-                    b.Property<decimal?>("CurrentValue").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
-                    b.Property<string>("DeduplicationKey").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
-                    b.Property<decimal>("DetectorConfidence").HasPrecision(5, 4).HasColumnType("numeric(5,4)");
-                    b.Property<string>("DetectorVersion").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
-                    b.Property<decimal?>("DeviationRatio").HasPrecision(12, 4).HasColumnType("numeric(12,4)");
-                    b.Property<DateTimeOffset?>("EvaluatedAt").HasColumnType("timestamp with time zone");
-                    b.Property<string>("EvidenceJson").IsRequired().HasColumnType("jsonb");
-                    b.Property<DateTimeOffset?>("ExpiresAt").HasColumnType("timestamp with time zone");
-                    b.Property<int?>("Frequency").HasColumnType("integer");
-                    b.Property<Guid>("HouseholdId").HasColumnType("uuid");
-                    b.Property<Guid>("Id").HasColumnType("uuid");
-                    b.Property<decimal>("InterestingnessScore").HasPrecision(5, 4).HasColumnType("numeric(5,4)");
-                    b.Property<DateTimeOffset?>("LeaseExpiresAt").HasColumnType("timestamp with time zone");
-                    b.Property<string>("Scope").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
-                    b.Property<string>("Status").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
-                    b.Property<Guid?>("SubjectId").HasColumnType("uuid");
-                    b.Property<string>("SubjectKey").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
-                    b.Property<string>("SubjectType").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
-                    b.Property<Guid?>("UserProfileId").HasColumnType("uuid");
-                    b.Property<DateOnly>("WindowEndExclusive").HasColumnType("date");
-                    b.Property<DateOnly>("WindowStart").HasColumnType("date");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("AvailableAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("BaselineValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("CalculationVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("CandidateType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid?>("ClaimToken")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("CurrentValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("DeduplicationKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<decimal>("DetectorConfidence")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)");
+
+                    b.Property<string>("DetectorVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<decimal?>("DeviationRatio")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)");
+
+                    b.Property<DateTimeOffset?>("EvaluatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("Frequency")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("InterestingnessScore")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("SubjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SubjectKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SubjectType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("UserProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("WindowEndExclusive")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("WindowStart")
+                        .HasColumnType("date");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("DeduplicationKey")
+                        .IsUnique();
+
                     b.HasIndex("UserProfileId");
-                    b.HasIndex("DeduplicationKey").IsUnique();
+
                     b.HasIndex("Status", "AvailableAt");
+
                     b.HasIndex("CandidateType", "SubjectKey", "WindowStart");
+
                     b.HasIndex("HouseholdId", "UserProfileId", "Status", "CreatedAt");
+
                     b.ToTable("judgment_candidates", "app");
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.JudgmentFeedback", b =>
                 {
-                    b.Property<int>("AttemptCount").HasColumnType("integer");
-                    b.Property<DateTimeOffset>("AvailableAt").HasColumnType("timestamp with time zone");
-                    b.Property<Guid?>("ClaimToken").HasColumnType("uuid");
-                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone");
-                    b.Property<Guid>("HouseholdId").HasColumnType("uuid");
-                    b.Property<Guid>("Id").HasColumnType("uuid");
-                    b.Property<Guid>("JudgementId").HasColumnType("uuid");
-                    b.Property<DateTimeOffset?>("LeaseExpiresAt").HasColumnType("timestamp with time zone");
-                    b.Property<DateTimeOffset?>("ProcessedAt").HasColumnType("timestamp with time zone");
-                    b.Property<string>("Status").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
-                    b.Property<string>("Text").IsRequired().HasMaxLength(2000).HasColumnType("character varying(2000)");
-                    b.Property<Guid>("UserProfileId").HasColumnType("uuid");
-                    b.Property<DateTimeOffset?>("ValidUntil").HasColumnType("timestamp with time zone");
-                    b.Property<string>("Visibility").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
-                    b.Property<string>("AdmissionJson").HasColumnType("jsonb");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdmissionJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("AvailableAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ClaimToken")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("JudgementId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("UserProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ValidUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.HasKey("Id");
+
                     b.HasIndex("JudgementId");
+
                     b.HasIndex("UserProfileId");
+
                     b.HasIndex("Status", "AvailableAt");
+
                     b.HasIndex("HouseholdId", "UserProfileId", "CreatedAt");
+
                     b.ToTable("judgment_feedback", "app");
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.Merchant", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid");
-                    b.Property<string>("CanonicalName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
-                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone");
-                    b.Property<Guid>("HouseholdId").HasColumnType("uuid");
-                    b.Property<string>("NormalizedName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
-                    b.Property<DateTimeOffset>("UpdatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CanonicalName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
-                    b.HasIndex("HouseholdId", "NormalizedName").IsUnique();
+
+                    b.HasIndex("HouseholdId", "NormalizedName")
+                        .IsUnique();
+
                     b.ToTable("merchants", "app");
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.MerchantAlias", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid");
-                    b.Property<string>("Alias").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
-                    b.Property<decimal>("Confidence").HasPrecision(5, 4).HasColumnType("numeric(5,4)");
-                    b.Property<Guid>("MerchantId").HasColumnType("uuid");
-                    b.Property<string>("NormalizedAlias").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
-                    b.Property<string>("Source").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Alias")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<decimal>("Confidence")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)");
+
+                    b.Property<Guid>("MerchantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NormalizedAlias")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.HasKey("Id");
+
                     b.HasIndex("NormalizedAlias");
-                    b.HasIndex("MerchantId", "NormalizedAlias").IsUnique();
+
+                    b.HasIndex("MerchantId", "NormalizedAlias")
+                        .IsUnique();
+
                     b.ToTable("merchant_aliases", "app");
                 });
 
@@ -2204,6 +2585,9 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AccountId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -2214,6 +2598,9 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.Property<decimal>("Confidence")
                         .HasPrecision(5, 4)
                         .HasColumnType("numeric(5,4)");
+
+                    b.Property<Guid?>("CounterpartyAccountId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -2230,7 +2617,12 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
-                    b.Property<string>("EnrichmentJson").HasColumnType("jsonb");
+                    b.Property<string>("EnrichmentJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ExternalReference")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<Guid>("HouseholdId")
                         .HasColumnType("uuid");
@@ -2240,14 +2632,30 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<Guid?>("MerchantId").HasColumnType("uuid");
+                    b.Property<string>("Kind")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("MerchantId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("MerchantName")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<Guid?>("ObservationAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PaymentChannel")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<DateTimeOffset?>("PurgeAfter")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReversedKind")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("SourceText")
                         .IsRequired()
@@ -2280,13 +2688,19 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AccountId");
+
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("CounterpartyAccountId");
 
                     b.HasIndex("DeletedByUserProfileId");
 
                     b.HasIndex("HouseholdId");
 
                     b.HasIndex("MerchantId");
+
+                    b.HasIndex("ObservationAccountId");
 
                     b.HasIndex("PurgeAfter")
                         .HasFilter("\"DeletedAt\" IS NOT NULL");
@@ -2297,6 +2711,10 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
                     b.HasIndex("HouseholdId", "TransactionDate")
                         .HasFilter("\"DeletedAt\" IS NULL");
+
+                    b.HasIndex("HouseholdId", "ObservationAccountId", "ExternalReference")
+                        .IsUnique()
+                        .HasFilter("\"ExternalReference\" IS NOT NULL AND \"ObservationAccountId\" IS NOT NULL");
 
                     b.ToTable("transactions", "app");
                 });
@@ -2330,6 +2748,43 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                     b.HasIndex("TransactionId");
 
                     b.ToTable("transaction_audit_entries", "app");
+                });
+
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.TransactionRelation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("Confidence")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RelatedTransactionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RelationType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("TransactionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RelatedTransactionId");
+
+                    b.HasIndex("TransactionId", "RelatedTransactionId", "RelationType")
+                        .IsUnique();
+
+                    b.ToTable("transaction_relations", "app");
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.UserProfile", b =>
@@ -2500,9 +2955,21 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.DailyFinancialAggregate", b =>
                 {
-                    b.HasOne("MoneyMentor.Domain.Entities.Category", null).WithMany().HasForeignKey("CategoryId").OnDelete(DeleteBehavior.SetNull);
-                    b.HasOne("MoneyMentor.Domain.Entities.Household", null).WithMany().HasForeignKey("HouseholdId").OnDelete(DeleteBehavior.Cascade).IsRequired();
-                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null).WithMany().HasForeignKey("UserProfileId").OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("MoneyMentor.Domain.Entities.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyMentor.Domain.Entities.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
+                        .WithMany()
+                        .HasForeignKey("UserProfileId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.EntitlementChange", b =>
@@ -2514,13 +2981,57 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.FinancialAccount", b =>
+                {
+                    b.HasOne("MoneyMentor.Domain.Entities.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserProfileId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.FinancialAccountAlias", b =>
+                {
+                    b.HasOne("MoneyMentor.Domain.Entities.FinancialAccount", null)
+                        .WithMany()
+                        .HasForeignKey("FinancialAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MoneyMentor.Domain.Entities.FinancialContextMemory", b =>
                 {
-                    b.HasOne("MoneyMentor.Domain.Entities.Household", null).WithMany().HasForeignKey("HouseholdId").OnDelete(DeleteBehavior.Cascade).IsRequired();
-                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null).WithMany().HasForeignKey("UserProfileId").OnDelete(DeleteBehavior.Cascade).IsRequired();
-                    b.HasOne("MoneyMentor.Domain.Entities.Judgement", null).WithMany().HasForeignKey("SourceJudgementId").OnDelete(DeleteBehavior.SetNull);
-                    b.HasOne("MoneyMentor.Domain.Entities.AssistantMessage", null).WithMany().HasForeignKey("SourceMessageId").OnDelete(DeleteBehavior.SetNull);
-                    b.HasOne("MoneyMentor.Domain.Entities.JudgmentFeedback", null).WithMany().HasForeignKey("SourceFeedbackId").OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("MoneyMentor.Domain.Entities.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyMentor.Domain.Entities.JudgmentFeedback", null)
+                        .WithMany()
+                        .HasForeignKey("SourceFeedbackId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyMentor.Domain.Entities.Judgement", null)
+                        .WithMany()
+                        .HasForeignKey("SourceJudgementId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyMentor.Domain.Entities.AssistantMessage", null)
+                        .WithMany()
+                        .HasForeignKey("SourceMessageId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
+                        .WithMany()
+                        .HasForeignKey("UserProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.FinancialGoal", b =>
@@ -2716,7 +3227,10 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.Judgement", b =>
                 {
-                    b.HasOne("MoneyMentor.Domain.Entities.JudgmentCandidate", null).WithMany().HasForeignKey("CandidateId").OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("MoneyMentor.Domain.Entities.JudgmentCandidate", null)
+                        .WithMany()
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
                         .WithMany()
@@ -2757,7 +3271,10 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.JudgementEvaluationRun", b =>
                 {
-                    b.HasOne("MoneyMentor.Domain.Entities.JudgmentCandidate", null).WithMany().HasForeignKey("CandidateId").OnDelete(DeleteBehavior.Cascade);
+                    b.HasOne("MoneyMentor.Domain.Entities.JudgmentCandidate", null)
+                        .WithMany()
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("MoneyMentor.Domain.Entities.JudgementWorkItem", null)
                         .WithMany()
@@ -2820,25 +3337,55 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.JudgmentCandidate", b =>
                 {
-                    b.HasOne("MoneyMentor.Domain.Entities.Household", null).WithMany().HasForeignKey("HouseholdId").OnDelete(DeleteBehavior.Cascade).IsRequired();
-                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null).WithMany().HasForeignKey("UserProfileId").OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("MoneyMentor.Domain.Entities.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
+                        .WithMany()
+                        .HasForeignKey("UserProfileId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.JudgmentFeedback", b =>
                 {
-                    b.HasOne("MoneyMentor.Domain.Entities.Household", null).WithMany().HasForeignKey("HouseholdId").OnDelete(DeleteBehavior.Cascade).IsRequired();
-                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null).WithMany().HasForeignKey("UserProfileId").OnDelete(DeleteBehavior.Cascade).IsRequired();
-                    b.HasOne("MoneyMentor.Domain.Entities.Judgement", null).WithMany().HasForeignKey("JudgementId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MoneyMentor.Domain.Entities.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyMentor.Domain.Entities.Judgement", null)
+                        .WithMany()
+                        .HasForeignKey("JudgementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
+                        .WithMany()
+                        .HasForeignKey("UserProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.Merchant", b =>
                 {
-                    b.HasOne("MoneyMentor.Domain.Entities.Household", null).WithMany().HasForeignKey("HouseholdId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MoneyMentor.Domain.Entities.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.MerchantAlias", b =>
                 {
-                    b.HasOne("MoneyMentor.Domain.Entities.Merchant", null).WithMany().HasForeignKey("MerchantId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MoneyMentor.Domain.Entities.Merchant", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.PendingAction", b =>
@@ -2905,9 +3452,19 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
 
             modelBuilder.Entity("MoneyMentor.Domain.Entities.Transaction", b =>
                 {
+                    b.HasOne("MoneyMentor.Domain.Entities.FinancialAccount", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("MoneyMentor.Domain.Entities.Category", null)
                         .WithMany()
                         .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyMentor.Domain.Entities.FinancialAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CounterpartyAccountId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
@@ -2915,16 +3472,21 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .HasForeignKey("DeletedByUserProfileId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("MoneyMentor.Domain.Entities.Merchant", null)
-                        .WithMany()
-                        .HasForeignKey("MerchantId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("MoneyMentor.Domain.Entities.Household", null)
                         .WithMany()
                         .HasForeignKey("HouseholdId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("MoneyMentor.Domain.Entities.Merchant", null)
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyMentor.Domain.Entities.FinancialAccount", null)
+                        .WithMany()
+                        .HasForeignKey("ObservationAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("MoneyMentor.Domain.Entities.UserProfile", null)
                         .WithMany()
@@ -2943,6 +3505,21 @@ namespace MoneyMentor.Infrastructure.Migrations.MoneyMentorDb
                         .WithMany()
                         .HasForeignKey("EditedByUserProfileId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MoneyMentor.Domain.Entities.Transaction", null)
+                        .WithMany()
+                        .HasForeignKey("TransactionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MoneyMentor.Domain.Entities.TransactionRelation", b =>
+                {
+                    b.HasOne("MoneyMentor.Domain.Entities.Transaction", null)
+                        .WithMany()
+                        .HasForeignKey("RelatedTransactionId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("MoneyMentor.Domain.Entities.Transaction", null)

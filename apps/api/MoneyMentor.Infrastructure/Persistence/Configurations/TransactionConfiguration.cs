@@ -24,6 +24,16 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
             .HasMaxLength(32)
             .IsRequired();
 
+        builder.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.ReversedKind).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.PaymentChannel).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.ExternalReference).HasMaxLength(128);
+        builder.HasOne<FinancialAccount>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<FinancialAccount>().WithMany().HasForeignKey(x => x.CounterpartyAccountId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<FinancialAccount>().WithMany().HasForeignKey(x => x.ObservationAccountId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasIndex(x => new { x.HouseholdId, x.ObservationAccountId, x.ExternalReference }).IsUnique()
+            .HasFilter("\"ExternalReference\" IS NOT NULL AND \"ObservationAccountId\" IS NOT NULL");
+
         builder.Property(transaction => transaction.MerchantName)
             .HasMaxLength(256);
 

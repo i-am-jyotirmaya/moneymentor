@@ -88,12 +88,17 @@ public static class DependencyInjection
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
         services.AddScoped<IAppUserProfileService, PostgresAppUserProfileService>();
         services.AddScoped<ITransactionService, PostgresTransactionService>();
+        services.AddScoped<TransactionModelMapper>();
+        services.AddScoped<PostgresFinancialAccountService>();
+        services.AddScoped<MoneyMentor.Application.FinancialAccounts.IFinancialAccountService>(sp => sp.GetRequiredService<PostgresFinancialAccountService>());
+        services.AddScoped<IFinancialEventService, PostgresFinancialEventService>();
         services.AddScoped<MerchantResolver>();
         services.AddScoped<JevTransactionCategorizer>();
         services.Configure<JevOptions>(options =>
         {
             configuration.GetSection(JevOptions.SectionName).Bind(options);
-            options.ApiKey = configuration["JEV_API_KEY"] ?? options.ApiKey;
+            var environmentKey = configuration["JEV_API_KEY"];
+            if (!string.IsNullOrWhiteSpace(environmentKey)) options.ApiKey = environmentKey;
         });
         services.AddHttpClient<IJevClient, JevClient>(client =>
         {

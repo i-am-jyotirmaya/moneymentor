@@ -25,7 +25,8 @@ public sealed class PrivacyContextTests
             return Task.CompletedTask;
         });
 
-        await middleware.InvokeAsync(httpContext, service);
+        await middleware.InvokeAsync(httpContext, service,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PrivacyConsentMiddleware>.Instance);
 
         Assert.True(invoked);
         Assert.Equal(1, service.ResolveCount);

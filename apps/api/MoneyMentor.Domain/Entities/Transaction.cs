@@ -14,6 +14,15 @@ public sealed class Transaction
 
     public TransactionType Type { get; set; }
 
+    // Null preserves the legacy type mapping for historical and older-client events.
+    public TransactionKind? Kind { get; set; }
+    public TransactionKind? ReversedKind { get; set; }
+    public Guid? AccountId { get; set; }
+    public Guid? CounterpartyAccountId { get; set; }
+    public PaymentChannel? PaymentChannel { get; set; }
+    public Guid? ObservationAccountId { get; set; }
+    public string? ExternalReference { get; set; }
+
     public Guid? CategoryId { get; set; }
 
     public string? MerchantName { get; set; }

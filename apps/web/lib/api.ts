@@ -27,6 +27,19 @@ export type UserPlan = "Free" | "Premium";
 export type HouseholdRole = "Owner" | "Admin" | "Member" | "Viewer";
 export type CategoryType = "Expense" | "Income";
 export type CategoryClassification = "Essential" | "Discretionary" | "Income" | "Savings" | "Debt";
+export type TransactionKind = "Purchase" | "Refund" | "Income" | "Transfer" | "CreditCardPayment" | "Reversal" | "Cashback" | "Fee" | "Interest" | "CashWithdrawal" | "Investment";
+export type PaymentChannel = "UPI" | "Card" | "Cash" | "BankTransfer" | "AutoDebit" | "Wallet" | "Cheque" | "Unknown";
+export type FinancialAccountType = "BankAccount" | "CreditCard" | "Cash" | "Wallet";
+export type FinancialAccount = {
+  id: string; householdId: string; ownerUserProfileId: string | null; name: string;
+  accountType: FinancialAccountType; institution: string | null; last4: string | null;
+  currencyCode: string; isActive: boolean; aliases: string[];
+};
+export type SaveFinancialAccount = {
+  householdId: string | null; name: string; accountType: FinancialAccountType;
+  institution: string | null; last4: string | null; aliases: string[]; shared: boolean; isActive: boolean;
+};
+
 export type TransactionType = "Expense" | "Income" | "Investment" | "Transfer";
 export type SpendingJudgment = "Healthy" | "Watch" | "NeedsAttention" | "Risky" | "Critical";
 export type JudgementSeverity = "Info" | "Nudge" | "Warning" | "Alert";
@@ -91,6 +104,15 @@ export type IncomeDraft = {
 };
 
 export type TransactionListItem = {
+  kind?: TransactionKind;
+  accountId?: string | null;
+  counterpartyAccountId?: string | null;
+  accountName?: string | null;
+  counterpartyAccountName?: string | null;
+  paymentChannel?: PaymentChannel | null;
+  relatedTransactionId?: string | null;
+  financialImpact?: { spending: number; income: number; investment: number; rewards: number };
+
   categoryId?: string | null;
   id: string;
   householdId: string;
@@ -801,6 +823,12 @@ export function updateTransaction(
   transactionId: string,
   input: Partial<{
     amount: number;
+    kind: TransactionKind;
+    accountId: string;
+    counterpartyAccountId: string;
+    clearAccount: boolean;
+    clearCounterpartyAccount: boolean;
+    paymentChannel: PaymentChannel;
     categoryId: string;
     categoryName: string;
     merchantName: string;
@@ -1275,5 +1303,15 @@ export function deleteAccount(
     accessToken,
     method: "DELETE",
     body: input,
+  });
+}
+
+export function listFinancialAccounts(accessToken: string, householdId: string | null) {
+  const query = householdId ? `?householdId=${encodeURIComponent(householdId)}` : "";
+  return apiRequest<FinancialAccount[]>(`/api/financial-accounts${query}`, { accessToken });
+}
+export function saveFinancialAccount(accessToken: string, input: SaveFinancialAccount, id?: string) {
+  return apiRequest<FinancialAccount>(`/api/financial-accounts${id ? `/${id}` : ""}`, {
+    accessToken, method: id ? "PUT" : "POST", body: input,
   });
 }

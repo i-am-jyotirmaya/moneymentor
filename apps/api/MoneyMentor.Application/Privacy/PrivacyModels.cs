@@ -22,7 +22,13 @@ public sealed record PrivacyExportModel(
     IReadOnlyCollection<HouseholdSummaryModel> Households,
     IReadOnlyCollection<HouseholdInvitationModel> Invitations,
     IReadOnlyCollection<TransactionModel> Transactions,
-    PrivacyOwnedRecordsModel OtherOwnedRecords);
+    PrivacyOwnedRecordsModel OtherOwnedRecords)
+{
+    public IReadOnlyCollection<MoneyMentor.Application.FinancialAccounts.FinancialAccountModel> FinancialAccounts { get; init; } = [];
+    public IReadOnlyCollection<PrivacyTransactionRelationModel> TransactionRelations { get; init; } = [];
+}
+public sealed record PrivacyTransactionRelationModel(Guid TransactionId, Guid RelatedTransactionId,
+    TransactionRelationType RelationType, decimal? Amount, decimal? Confidence);
 
 public sealed record PrivacyOwnedRecordsModel(
     IReadOnlyCollection<PrivacyFinancialGoalModel> FinancialGoals,

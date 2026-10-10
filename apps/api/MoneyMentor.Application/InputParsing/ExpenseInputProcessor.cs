@@ -304,7 +304,10 @@ public sealed class ExpenseInputProcessor(
             ? "Uncategorized"
             : transaction.CategoryName;
 
-        return $"Tracked {amount} for {description}{merchant} under {category}.";
+        var payment = string.IsNullOrWhiteSpace(transaction.AccountName)
+            ? string.Empty
+            : $" using {transaction.AccountName}{(transaction.PaymentChannel is null ? string.Empty : $" ({transaction.PaymentChannel})")}";
+        return $"Tracked {amount} for {description}{merchant} under {category}{payment}.";
     }
 
     private static string FormatAmount(decimal amount, string currencyCode)

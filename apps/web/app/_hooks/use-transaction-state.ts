@@ -2,6 +2,8 @@
 
 import type {
 TransactionListItem,
+TransactionKind,
+PaymentChannel,
 TransactionPageResponse,
 TransactionVisibility,
 } from "@/lib/api";
@@ -9,6 +11,10 @@ import { useState } from "react";
 
 export type TransactionEditForm = {
   amount: string;
+  kind: TransactionKind;
+  accountId: string | null;
+  counterpartyAccountId: string | null;
+  paymentChannel: PaymentChannel;
   categoryId: string | null;
   categoryName: string;
   merchantName: string;

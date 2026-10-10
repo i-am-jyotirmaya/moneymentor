@@ -193,6 +193,9 @@ public static class TransactionEndpoints
                     request.TransactionDate,
                     visibility)
                 {
+                    Kind = request.Kind, AccountId = request.AccountId, CounterpartyAccountId = request.CounterpartyAccountId,
+                    ClearAccount = request.ClearAccount, ClearCounterpartyAccount = request.ClearCounterpartyAccount,
+                    PaymentChannel = request.PaymentChannel,
                     CategoryId = request.CategoryId,
                     SenderName = request.SenderName,
                     Reason = request.Reason
@@ -202,6 +205,10 @@ public static class TransactionEndpoints
         catch (HouseholdWriteForbiddenException)
         {
             return Results.Forbid();
+        }
+        catch (FinancialTransactionValidationException ex)
+        {
+            return EndpointValidation.ValidationProblem("financialEvent", ex.Message);
         }
         catch (CategoryValidationException ex)
         {
@@ -270,6 +277,10 @@ public static class TransactionEndpoints
             transaction = restore
                 ? await transactionService.RestoreAsync(userContext, transactionId, cancellationToken)
                 : await transactionService.DeleteAsync(userContext, transactionId, cancellationToken);
+        }
+        catch (FinancialTransactionValidationException ex)
+        {
+            return EndpointValidation.ValidationProblem("financialEvent", ex.Message);
         }
         catch (HouseholdWriteForbiddenException)
         {
