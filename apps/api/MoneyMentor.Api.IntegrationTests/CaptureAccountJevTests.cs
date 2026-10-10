@@ -59,7 +59,7 @@ public sealed class CaptureAccountJevTests(MoneyMentorApiFactory factory)
         var bank = await accounts.SaveAsync(context, null,
             new(context.PersonalHouseholdId, "Kotak", FinancialAccountType.BankAccount, "Kotak", null, ["kotak"]), ct);
         var card = await accounts.SaveAsync(context, null,
-            new(context.PersonalHouseholdId, "Kotak upi", FinancialAccountType.CreditCard, "Kotak", null, ["kotak upi"]), ct);
+            new(context.PersonalHouseholdId, "Kotak Upi Card", FinancialAccountType.CreditCard, "Kotak", null, []), ct);
         if (scenario != "no-consent")
         {
             db.PrivacyConsents.Add(new PrivacyConsent { UserProfileId = context.UserProfileId, PolicyVersion = PrivacyPolicy.CurrentVersion });
@@ -112,17 +112,17 @@ public sealed class CaptureAccountJevTests(MoneyMentorApiFactory factory)
         Assert.NotNull(result?.Transaction);
         var saved = result.Transaction;
         Assert.Equal(40m, saved.Amount); Assert.Equal(TransactionKind.Purchase, saved.Kind);
-        Assert.Equal(card.Id, saved.AccountId); Assert.Equal("Kotak upi", saved.AccountName);
+        Assert.Equal(card.Id, saved.AccountId); Assert.Equal("Kotak Upi Card", saved.AccountName);
         Assert.NotEqual(bank.Id, saved.AccountId);
         Assert.Equal(PaymentChannel.UPI, saved.PaymentChannel); Assert.Equal("potatoes", saved.Description);
         Assert.Equal(source, saved.SourceText); Assert.Equal(expectedCategory, saved.CategoryName);
-        Assert.Equal($"Tracked ₹40 for potatoes under {expectedCategory} using Kotak upi (UPI).", result.AssistantMessage);
+        Assert.Equal($"Tracked ₹40 for potatoes under {expectedCategory} using Kotak Upi Card (UPI).", result.AssistantMessage);
         db.ChangeTracker.Clear();
         var persisted = await db.Transactions.AsNoTracking().SingleAsync(x => x.Id == saved.Id, ct);
         Assert.Equal(card.Id, persisted.AccountId); Assert.Equal(PaymentChannel.UPI, persisted.PaymentChannel);
         Assert.Equal("potatoes", persisted.Description);
         Assert.Contains(properties, p => p.TryGetProperty("CaptureRoute", out var route) && route.GetString() == "expense");
-        Assert.Contains(properties, p => p.TryGetProperty("AccountResolutionOutcome", out var outcome) && outcome.GetString() == "exact_matched"
+        Assert.Contains(properties, p => p.TryGetProperty("AccountResolutionOutcome", out var outcome) && outcome.GetString() == "card_descriptor_matched"
             && p.GetProperty("AccountType").GetString() == "CreditCard");
         Assert.Contains(properties, p => p.TryGetProperty("CategorizationOutcome", out var outcome) && outcome.GetString() == categoryOutcome);
         Assert.Contains(measurements, m => m.Name == "spndrr.capture.categorization" && m.Outcome == categoryOutcome && m.Count == 1);

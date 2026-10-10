@@ -181,6 +181,35 @@ public sealed class AccountAwareTransactionTests(MoneyMentorApiFactory factory)
         Assert.Equal(PaymentChannel.UPI, fallback.PaymentChannel);
     }
 
+    [Fact]
+    public async Task Short_card_names_precede_channel_fallback_and_ambiguous_cards_cannot_select_the_bank()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MoneyMentorDbContext>();
+        var (user, category) = await SeedAsync(db);
+        var accounts = scope.ServiceProvider.GetRequiredService<IFinancialAccountService>();
+        var bank = await accounts.SaveAsync(user, null, new(user.PersonalHouseholdId, "Kotak", FinancialAccountType.BankAccount, null, null, []), Ct);
+        var card = await accounts.SaveAsync(user, null, new(user.PersonalHouseholdId, "Kotak Upi Card", FinancialAccountType.CreditCard, null, null, []), Ct);
+        var wallet = await accounts.SaveAsync(user, null, new(user.PersonalHouseholdId, "Amazon Pay", FinancialAccountType.Wallet, null, null, []), Ct);
+        var amazonCard = await accounts.SaveAsync(user, null, new(user.PersonalHouseholdId, "Amazon Pay Card", FinancialAccountType.CreditCard, null, null, []), Ct);
+        var events = scope.ServiceProvider.GetRequiredService<IFinancialEventService>();
+        async Task<TransactionModel> CaptureAsync(string account) => await events.SaveAsync(user,
+            FinancialEventInterpreter.AddMetadata(Intent(user, TransactionKind.Purchase, 40) with
+                { CategoryId = category.Id, Description = "potatoes", SourceText = $"bought potatoes for rs 40 using {account}" },
+                $"bought potatoes for rs 40 using {account}"), Ct);
+        foreach (var (phrase, expected) in new[] { ("kotak upi", card.Id), ("KOTAK   UPI", card.Id), ("Kotak Upi Card", card.Id),
+            ("Kotak", bank.Id), ("Amazon Pay", wallet.Id), ("Amazon Pay Card", amazonCard.Id) })
+            Assert.Equal(expected, (await CaptureAsync(phrase)).AccountId);
+
+        var otherCard = await accounts.SaveAsync(user, null,
+            new(user.PersonalHouseholdId, "Kotak Upi Credit Card", FinancialAccountType.CreditCard, null, null, []), Ct);
+        var before = await db.Transactions.CountAsync(t => t.HouseholdId == user.PersonalHouseholdId, Ct);
+        await Assert.ThrowsAsync<FinancialTransactionValidationException>(() => CaptureAsync("Kotak upi"));
+        Assert.Equal(before, await db.Transactions.CountAsync(t => t.HouseholdId == user.PersonalHouseholdId, Ct));
+        Assert.Equal(card.Id, (await CaptureAsync("Kotak Upi Card")).AccountId);
+        Assert.Equal(otherCard.Id, (await CaptureAsync("Kotak Upi Credit Card")).AccountId);
+    }
+
     private static TransactionIntent Intent(AppUserContext user, TransactionKind kind, decimal amount) => new(kind, amount, user.CurrentDate) { HouseholdId = user.PersonalHouseholdId, SourceText = "integration financial event" };
     private static async Task<(AppUserContext, Category)> SeedAsync(MoneyMentorDbContext db)
     {

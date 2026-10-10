@@ -80,6 +80,8 @@ internal sealed class PostgresFinancialAccountService(MoneyMentorDbContext db, I
         var ids = candidates.Select(x => x.Id).ToArray();
         var aliases = await db.FinancialAccountAliases.Where(x => ids.Contains(x.FinancialAccountId)).ToArrayAsync(ct);
         static string Normalize(string value) => Regex.Replace(value.Trim(), @"\s+", " ");
+        static string WithoutCardDescriptor(string value) => Regex.Replace(value,
+            @"\s+(?:credit[ -]?card|card)$", "", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Trim();
         var search = Normalize(alias!);
         var outcome = "exact_matched";
         FinancialAccount[] matches;
@@ -88,6 +90,18 @@ internal sealed class PostgresFinancialAccountService(MoneyMentorDbContext db, I
             matches = candidates.Where(x => string.Equals(Normalize(x.Name), search, StringComparison.OrdinalIgnoreCase)
                 || aliases.Any(a => a.FinancialAccountId == x.Id && string.Equals(Normalize(a.Alias), search, StringComparison.OrdinalIgnoreCase))).ToArray();
             if (matches.Length > 0) break;
+            // A saved "Kotak Upi Card" can be named "Kotak upi" in chat.
+            // Match that distinctive name before discarding channel words from the input.
+            // Restrict optional card descriptors to accounts explicitly stored as credit cards.
+            matches = candidates.Where(x => x.AccountType == FinancialAccountType.CreditCard
+                && (string.Equals(WithoutCardDescriptor(Normalize(x.Name)), search, StringComparison.OrdinalIgnoreCase)
+                    || aliases.Any(a => a.FinancialAccountId == x.Id
+                        && string.Equals(WithoutCardDescriptor(Normalize(a.Alias)), search, StringComparison.OrdinalIgnoreCase)))).ToArray();
+            if (matches.Length > 0)
+            {
+                outcome = outcome == "exact_matched" ? "card_descriptor_matched" : "suffix_card_descriptor_matched";
+                break;
+            }
             // Strip only trailing payment metadata, one suffix at a time. Try the
             // longest remaining alias first, so "Kotak upi card" still selects the card.
             var shortened = Regex.Replace(search, @"\s+(?:credit[ -]?card|card|account|upi|cash|bank\s+transfer|auto\s?debit)$",
