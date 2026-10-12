@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spndrr · Entity lab</title>
+<style>
+body{font:16px system-ui,sans-serif;color:#152235;background:#f4f6fa;max-width:1100px;margin:36px auto;padding:0 24px}h1{margin-bottom:8px}p{line-height:1.5;color:#536078}section{background:white;padding:24px;border:1px solid #dde4ef;border-radius:16px;margin:20px 0}label{display:block;margin:12px 0 6px}select,textarea,button{font:inherit;border-radius:8px;border:1px solid #bbc7d9;padding:10px}textarea{width:100%;box-sizing:border-box}button{background:#215bd7;color:white;cursor:pointer;margin:12px 8px 0 0}button:disabled{opacity:.5;cursor:default}#stop{background:#58657a}pre{overflow:auto;max-height:460px;white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f6fa;padding:16px;border-radius:8px;font-size:13px}table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;padding:12px 8px;border-bottom:1px solid #dde4ef}#message{color:#a51b30}small{color:#536078}.scroll{overflow-x:auto}details{margin:14px 0}summary{cursor:pointer}
+</style>
+<h1>Spndrr entity lab</h1>
+<p>Test English inputs, run the seed benchmark, and compare saved results. Each run loads one model and releases it when its process exits.</p>
+<section>
+<label for="model">Model</label><select id="model"><option value="gliner-small">GLiNER 2.5 small · 74M</option><option value="gliner-base">GLiNER 2.5 base · 194M</option></select>
+<label><input id="offline" type="checkbox"> Use cached model only (offline)</label>
+<label for="text">Statement</label><textarea id="text" rows="3" maxlength="1000">Bought potatoes for rs 40 using Kotak upi.</textarea>
+<button id="extract">Extract statement</button><button id="benchmark">Run seed benchmark</button><button id="stop" disabled>Stop run</button>
+<p><small>CPU · 4 threads · benchmark repeats each case 3 times. First use downloads only the selected checkpoint. Use the CLI for custom datasets and settings.</small></p>
+<p id="message" role="alert"></p><p id="status" role="status">Ready</p><pre id="log">No run started.</pre>
+</section>
+<section><h2>Saved runs</h2><p>Accuracy and errors refer to the labelled seed set. Open details to inspect mistakes, raw spans, and individual entity scores. Compare only matching dataset/schema/code hashes; CLI comparison enforces this.</p>
+<div class="scroll"><table><thead><tr><th>Run</th><th>Model / mode</th><th>All exact</th><th>p95 ms</th><th>Peak RSS MB</th><th>Errors</th></tr></thead><tbody id="runs"></tbody></table></div><div id="details"></div></section>
+<script>
+const token='__TOKEN__';
+const el=id=>document.getElementById(id);
+let lastRunning=null;
+async function request(path,body){const response=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json','X-Lab-Token':token},body:JSON.stringify(body)}:{});const data=await response.json();if(!response.ok)throw Error(data.error||response.statusText);return data;}
+async function start(mode){el('message').textContent='';try{await request('/api/start',{mode,model:el('model').value,text:el('text').value,offline:el('offline').checked});await poll();}catch(e){el('message').textContent=e.message;}}
+el('extract').onclick=()=>start('extract');el('benchmark').onclick=()=>start('benchmark');
+el('stop').onclick=async()=>{try{await request('/api/stop',{});await poll();}catch(e){el('message').textContent=e.message;}};
+async function results(){const reports=await request('/api/results');el('runs').replaceChildren();el('details').replaceChildren();for(const r of reports){const s=r.summary;const row=document.createElement('tr');for(const v of [r.run_id,`${r.config.model} / ${r.mode} / ${r.status}`,s?(s.all_exact_accuracy*100).toFixed(1)+'%':'—',s?.latency_ms.p95?.toFixed(1)??'—',r.sampled_peak_rss_mb?.toFixed(0)??'—',s?.errors??'—']){const td=document.createElement('td');td.textContent=v;row.append(td);}el('runs').append(row);const detail=document.createElement('details');const title=document.createElement('summary');title.textContent=r.run_id;const pre=document.createElement('pre');pre.textContent=JSON.stringify(r,null,2);detail.append(title,pre);el('details').append(detail);}}
+async function poll(){try{const state=await request('/api/status');el('extract').disabled=el('benchmark').disabled=state.running;el('stop').disabled=!state.running;el('status').textContent=state.running?'Running one model…':state.exit_code===null?'Ready':`Process exited (${state.exit_code}); model released.`;el('log').textContent=state.log||'No run started.';if(lastRunning!==state.running){await results();lastRunning=state.running;}}catch(e){el('message').textContent=e.message;}}
+async function tick(){await poll();setTimeout(tick,1500);}tick();
+</script></html>

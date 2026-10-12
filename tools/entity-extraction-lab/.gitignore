@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+results/
+.cache/
+data/private*
+environment.lock.txt

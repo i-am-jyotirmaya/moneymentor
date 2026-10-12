@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "entities": {
+    "item": "The purchased product, service, expense purpose, or income source; exclude merchant and payment account.",
+    "amount": "A monetary amount including any explicitly attached currency or scale, not a date, quantity, account number, or balance unless a balance is explicitly mentioned.",
+    "account": "An explicitly named bank account, card, or wallet, including its bank name and stated suffix; do not treat UPI or a payment app as a bank account.",
+    "merchant": "The seller, store, service provider, or business receiving or returning a payment.",
+    "payment_channel": "An explicitly mentioned payment method or app such as cash, UPI, GPay, PhonePe, or bank transfer.",
+    "date": "The complete date or relative time phrase mentioned in the statement."
+  },
+  "classifications": {
+    "intent": ["expense", "income", "refund", "transfer", "card_payment", "query", "correction", "not_transaction", "mixed"],
+    "category": ["Groceries", "Snacks", "Food Delivery", "Restaurants", "Cafes / Coffee", "Rent", "Fuel", "Ride-Sharing / Taxi", "Public Transit", "Electricity", "Internet", "Mobile / Phone", "Pharmacy / Medication", "Clothing & Apparel", "Electronics & Gadgets", "General Merchandise", "Streaming Subscriptions", "Fitness", "Salary / Wages", "Refunds / Reimbursements", "Credit Card Payment", "Miscellaneous / Uncategorized", "mixed", "not_applicable"]
+  },
+  "classification_guidance": "Classify the entire statement. Transfers, questions, negated or hypothetical purchases, and corrections use category not_applicable. Use mixed for multiple different intents or categories. Category labels are a subset of Spndrr system categories; use Miscellaneous / Uncategorized for an expense outside this subset. Explicitly requested categories take priority over item inference."
+}

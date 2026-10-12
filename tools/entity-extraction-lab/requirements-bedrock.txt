@@ -1,0 +1,3 @@
+# Optional; local experiments do not need AWS dependencies or credentials.
+boto3>=1.40,<2
+psutil>=7,<8
