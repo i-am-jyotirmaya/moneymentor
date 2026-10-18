@@ -3,12 +3,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import secrets
+import re
 import subprocess
 import sys
 import threading
 from urllib.parse import urlparse
 
 from .providers import MODELS
+from .diagnostics import mistakes, paired_reports
+from .experiments import PROFILES, SUITES
 from .runtime import ROOT
 from .scoring import aggregate_entities
 
@@ -20,6 +23,15 @@ def display_report(report):
     report["classification_setup"] = report.get("provider", {}).get(
         "classification_setup", "shared_guidance_v0" if report.get("config", {}).get("model") in MODELS else "managed")
     return report
+
+
+def find_report(run_id):
+    if not isinstance(run_id, str) or not re.fullmatch(r"\d{8}T\d{6}Z-[0-9a-f]{8}", run_id):
+        raise ValueError("Invalid run ID")
+    paths = list((ROOT / "results").rglob(f"{run_id}.json"))
+    if len(paths) != 1:
+        raise ValueError("Run not found or duplicated; keep one copy under results")
+    return display_report(json.loads(paths[0].read_text(encoding="utf-8")))
 
 
 class Jobs:
@@ -38,12 +50,21 @@ class Jobs:
             model, mode = payload.get("model"), payload.get("mode")
             if model not in MODELS or mode not in ("extract", "benchmark"):
                 raise ValueError("Choose a local model and valid mode")
+            profile, suite = payload.get("profile", "labels"), payload.get("suite", "seed")
+            repeats = payload.get("repeats", 3)
+            if profile not in PROFILES or suite not in SUITES or type(repeats) is not int or repeats not in (1, 3):
+                raise ValueError("Choose a valid profile, suite, and repeat count")
             command = [sys.executable, "-u", str(ROOT / "lab.py"), mode, "--model", model]
+            command += ["--profile", profile]
+            if payload.get("catalog") is True:
+                command += ["--account-catalog", str(ROOT / "data/accounts.demo.json")]
             if mode == "extract":
                 text = payload.get("text")
                 if not isinstance(text, str) or not text.strip() or len(text) > 1000:
                     raise ValueError("Enter 1–1000 characters")
                 command += ["--text", text]
+            else:
+                command += ["--suite", suite, "--repeats", str(repeats)]
             if payload.get("offline") is True:
                 command.append("--offline")
             self.log_path.parent.mkdir(exist_ok=True)
@@ -108,13 +129,25 @@ def serve(port):
                 return self.reply(200, jobs.status())
             if path == "/api/results":
                 reports = []
-                for file in sorted((ROOT / "results").rglob("*.json"), reverse=True)[:50]:
+                files = sorted((ROOT / "results").rglob("*.json"), key=lambda p: p.name, reverse=True)
+                for file in files:
                     try:
                         report = json.loads(file.read_text(encoding="utf-8"))
-                        reports.append(display_report(report))
-                    except (ValueError, OSError):
+                        if not isinstance(report, dict) or "run_id" not in report or "config" not in report:
+                            continue
+                        reports.append({k: v for k, v in display_report(report).items() if k != "rows"})
+                        if len(reports) == 50:
+                            break
+                    except (ValueError, OSError, KeyError, TypeError):
                         continue
                 return self.reply(200, reports)
+            if path.startswith("/api/report/"):
+                try:
+                    report = find_report(path.rsplit("/", 1)[-1])
+                    review = mistakes(report) if report.get("mode") == "benchmark" and report.get("status") == "completed" else []
+                    return self.reply(200, {"report": report, "mistakes": review})
+                except (ValueError, OSError, KeyError) as exc:
+                    return self.reply(400, {"error": str(exc)})
             self.reply(404, {"error": "Not found"})
 
         def do_POST(self):
@@ -131,6 +164,9 @@ def serve(port):
                     jobs.start(payload)
                 elif self.path == "/api/stop":
                     jobs.stop()
+                elif self.path == "/api/compare":
+                    return self.reply(200, paired_reports(find_report(payload.get("baseline")),
+                                                         find_report(payload.get("candidate"))))
                 else:
                     return self.reply(404, {"error": "Not found"})
                 self.reply(200, jobs.status())

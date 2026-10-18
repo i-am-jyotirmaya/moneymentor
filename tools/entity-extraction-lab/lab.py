@@ -8,8 +8,17 @@ from pathlib import Path
 import sys
 
 from entity_lab.providers import MODELS
+from entity_lab.diagnostics import mistakes, paired_reports, read_reports
+from entity_lab.experiments import PROFILES, SUITES
 from entity_lab.runtime import ROOT, compare, execute
-from entity_lab.scoring import load_cases
+from entity_lab.scoring import load_suite
+
+
+def add_dataset_options(command):
+    source = command.add_mutually_exclusive_group()
+    source.add_argument("--suite", choices=SUITES, default="seed")
+    source.add_argument("--dataset", help="Custom labelled JSONL instead of a bundled suite")
+    command.add_argument("--slice", dest="slices", action="append", help="Only this slice; repeat to include several")
 
 
 def parser():
@@ -18,6 +27,8 @@ def parser():
     for command in ("extract", "benchmark"):
         run = commands.add_parser(command)
         run.add_argument("--model", choices=[*MODELS, "bedrock"], default="gliner-small")
+        run.add_argument("--profile", choices=PROFILES, default="labels")
+        run.add_argument("--account-catalog", help="Optional JSON catalog for literal account alias assistance")
         run.add_argument("--schema", default=str(ROOT / "schema.json"))
         run.add_argument("--output", default=str(ROOT / "results"))
         run.add_argument("--threads", type=int, default=4)
@@ -32,13 +43,20 @@ def parser():
         if command == "extract":
             run.add_argument("--text", required=True)
         else:
-            run.add_argument("--dataset", default=str(ROOT / "data" / "english.seed.jsonl"))
+            add_dataset_options(run)
     validate = commands.add_parser("validate", help="Validate labels without importing/downloading models")
-    validate.add_argument("--dataset", default=str(ROOT / "data" / "english.seed.jsonl"))
+    add_dataset_options(validate)
     validate.add_argument("--schema", default=str(ROOT / "schema.json"))
     comparison = commands.add_parser("compare", help="Compare saved benchmarks; loads no models")
     comparison.add_argument("reports", nargs="+", help="Paths or quoted glob patterns")
     comparison.add_argument("--csv", help="Also write summary CSV to this path")
+    paired = commands.add_parser("paired", help="Case-level wins/regressions; no model loaded")
+    paired.add_argument("baseline")
+    paired.add_argument("candidate")
+    paired.add_argument("--output", help="Also save the paired analysis as JSON")
+    failures = commands.add_parser("failures", help="Export first-pass mistakes for review")
+    failures.add_argument("report")
+    failures.add_argument("--output", required=True, help="Write review JSON; never modifies the report")
     serve = commands.add_parser("serve", help="Local browser playground at 127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
     return root
@@ -52,8 +70,22 @@ def main(argv=None):
             serve(args.port)
         elif args.command == "validate":
             schema = json.loads(Path(args.schema).read_text(encoding="utf-8"))
-            cases = load_cases(Path(args.dataset), schema)
-            print(f"Valid: {len(cases)} English seed/custom cases; no model loaded.")
+            cases = load_suite(ROOT, schema, args.suite, args.dataset, args.slices)
+            from collections import Counter
+            print(f"Valid: {len(cases)} English cases; no model loaded.")
+            print(json.dumps(dict(sorted(Counter(c['slice'] for c in cases).items())), indent=2))
+        elif args.command in ("paired", "failures"):
+            input_paths = [args.baseline, args.candidate] if args.command == "paired" else [args.report]
+            if args.output and Path(args.output).resolve() in {Path(p).resolve() for p in input_paths}:
+                raise ValueError("Analysis output must not overwrite an input report")
+            if args.command == "paired":
+                result = paired_reports(*read_reports([args.baseline, args.candidate]))
+            else:
+                result = mistakes(read_reports([args.report])[0])
+            rendered = json.dumps(result, indent=2, ensure_ascii=False)
+            print(rendered)
+            if args.output:
+                Path(args.output).write_text(rendered + "\n", encoding="utf-8")
         elif args.command == "compare":
             paths = []
             for pattern in args.reports:

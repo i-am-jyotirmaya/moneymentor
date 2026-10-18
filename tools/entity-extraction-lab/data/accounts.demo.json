@@ -1,0 +1,74 @@
+[
+  {
+    "id": "demo-kotak-card",
+    "aliases": [
+      "Kotak upi card",
+      "Kotak upi"
+    ]
+  },
+  {
+    "id": "demo-kotak-savings",
+    "aliases": [
+      "Kotak savings"
+    ]
+  },
+  {
+    "id": "demo-sbi",
+    "aliases": [
+      "SBI savings account",
+      "SBI savings"
+    ]
+  },
+  {
+    "id": "demo-hdfc-savings",
+    "aliases": [
+      "HDFC savings",
+      "salary account"
+    ]
+  },
+  {
+    "id": "demo-hdfc-card",
+    "aliases": [
+      "HDFC credit card ending 1234",
+      "HDFC credit card",
+      "travel card"
+    ]
+  },
+  {
+    "id": "demo-sbi-card",
+    "aliases": [
+      "SBI credit card",
+      "travel card"
+    ]
+  },
+  {
+    "id": "demo-icici-card",
+    "aliases": [
+      "ICICI card"
+    ]
+  },
+  {
+    "id": "demo-icici-savings",
+    "aliases": [
+      "ICICI savings"
+    ]
+  },
+  {
+    "id": "demo-axis",
+    "aliases": [
+      "Axis card"
+    ]
+  },
+  {
+    "id": "demo-joint",
+    "aliases": [
+      "joint savings"
+    ]
+  },
+  {
+    "id": "demo-4321",
+    "aliases": [
+      "card ending 4321"
+    ]
+  }
+]

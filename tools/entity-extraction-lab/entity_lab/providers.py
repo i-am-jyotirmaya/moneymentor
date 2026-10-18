@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from .scoring import validate_prediction
+from .experiments import CatalogProvider, compile_schemas, load_catalog
 
 MODELS = {
     "gliner-small": "fastino/gliner2.5-small-v1",
@@ -69,24 +70,31 @@ class GlinerProvider:
         self.torch = torch
         self.schema = schema
         self.threshold = config["threshold"]
-        self.compiled = self.model.create_schema().entities(schema["entities"])
-        for task, labels in schema["classifications"].items():
-            # Keep GLiNER task schemas separate from generative-model instructions.
-            # Repeating the shared cross-task guidance here caused the base
-            # checkpoint to predict intent=mixed on 43/48 seed cases.
-            self.compiled.classification(task, labels)
+        profile = config.get("profile", "labels")
+        self.compiled = compile_schemas(self.model, schema, profile)
         self.metadata = {"model_id": model_id, "resolved_revision": Path(snapshot).name,
                          "device": "cpu", "precision": "float32", "threads": config["threads"],
-                         "classification_setup": "task_labels_only_v1"}
+                         "classification_setup": {"labels": "task_labels_only_v1",
+                             "descriptions": "label_descriptions_v1", "split": "split_descriptions_v1"}[profile],
+                         "calls_per_statement": len(self.compiled)}
 
     def extract(self, text):
         with self.torch.inference_mode():
-            raw = self.model.extract(text, self.compiled, threshold=self.threshold,
-                                     include_confidence=True, include_spans=True)
+            parts = [self.model.extract(text, compiled, threshold=self.threshold,
+                                       include_confidence=True, include_spans=True)
+                     for compiled in self.compiled]
+        # Merge only the task owned by each call; classification-only calls may
+        # also return an empty entities object, which must not erase extraction.
+        raw = parts[0]
+        if len(parts) > 1:
+            raw = {"entities": parts[0].get("entities", {})}
+            for task, part in zip(self.schema["classifications"], parts[1:]):
+                raw[task] = part.get(task)
+        saved_raw = raw if len(parts) == 1 else {"merged": raw, "passes": parts}
         try:
-            return gliner_prediction(raw, self.schema), raw, {}
+            return gliner_prediction(raw, self.schema), saved_raw, {}
         except (ValueError, KeyError, TypeError) as exc:
-            raise PredictionError(str(exc), raw) from exc
+            raise PredictionError(str(exc), saved_raw) from exc
 
 
 class BedrockProvider:
@@ -124,7 +132,11 @@ class BedrockProvider:
 
 def create_provider(config, schema):
     if config["model"] in MODELS:
-        return GlinerProvider(config, schema)
-    if config["model"] == "bedrock":
-        return BedrockProvider(config, schema)
-    raise ValueError(f"Unknown model: {config['model']}")
+        provider = GlinerProvider(config, schema)
+    elif config["model"] == "bedrock":
+        provider = BedrockProvider(config, schema)
+    else:
+        raise ValueError(f"Unknown model: {config['model']}")
+    if config.get("account_catalog"):
+        provider = CatalogProvider(provider, load_catalog(Path(config["account_catalog"])))
+    return provider

@@ -15,7 +15,9 @@ import time
 import uuid
 
 from .providers import create_provider
-from .scoring import aggregate_entities, fingerprint, load_cases, score_case, summarize
+from .diagnostics import read_reports
+from .experiments import DESCRIPTIONS, PROFILES, load_catalog
+from .scoring import aggregate_entities, fingerprint, load_suite, score_case, summarize
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -98,9 +100,19 @@ def atomic_json(path, value):
 
 
 def execute(config, provider_factory=create_provider, sampler_factory=MemorySampler):
+    config = dict(config)
+    config.setdefault("profile", "labels")
+    if config["profile"] not in PROFILES:
+        raise ValueError("Unknown experiment profile")
+    if config["model"] == "bedrock" and config["profile"] != "labels":
+        raise ValueError("Description/split profiles are local GLiNER experiments")
     schema = json.loads(Path(config["schema"]).read_text(encoding="utf-8"))
+    if config["profile"] != "labels" and any(set(labels) != set(DESCRIPTIONS.get(task, {}))
+                                            for task, labels in schema["classifications"].items()):
+        raise ValueError("Description experiments require the bundled classification labels")
+    catalog = load_catalog(Path(config["account_catalog"])) if config.get("account_catalog") else None
     if config["command"] == "benchmark":
-        cases = load_cases(Path(config["dataset"]), schema)
+        cases = load_suite(ROOT, schema, config.get("suite", "seed"), config.get("dataset"), config.get("slices"))
     else:
         text = config["text"]
         if not text or len(text) > 1000:
@@ -114,9 +126,11 @@ def execute(config, provider_factory=create_provider, sampler_factory=MemorySamp
     result_dir = Path(config["output"])
     result_dir.mkdir(parents=True, exist_ok=True)
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
-    report = {"format_version": 1, "run_id": run_id, "created_at": datetime.now(timezone.utc).isoformat(),
+    report = {"format_version": 2, "run_id": run_id, "created_at": datetime.now(timezone.utc).isoformat(),
               "mode": config["command"], "config": config, "schema_hash": fingerprint(schema),
               "dataset_hash": fingerprint(cases), "code_hash": code_hash(),
+              "experiment": {"profile": config["profile"],
+                             "account_catalog_hash": fingerprint(catalog) if catalog else None},
               "environment": {"python": platform.python_version(), "platform": platform.platform(),
                               "processor": platform.processor(), "logical_cpus": os.cpu_count(),
                               "packages": {d.metadata["Name"]: d.version for d in importlib.metadata.distributions()}},
@@ -182,20 +196,15 @@ def execute(config, provider_factory=create_provider, sampler_factory=MemorySamp
 
 
 def compare(paths):
-    reports = [json.loads(Path(path).read_text(encoding="utf-8")) for path in paths]
-    if not reports:
-        raise ValueError("No reports found")
-    if any(r.get("mode") != "benchmark" or r.get("status") != "completed" for r in reports):
-        raise ValueError("Compare only completed benchmark JSON files (not extracts or failed runs)")
-    keys = {(r["dataset_hash"], r["schema_hash"], r["code_hash"]) for r in reports}
-    if len(keys) != 1:
-        raise ValueError("Dataset, schema, or lab code differs; rerun on the same versions for a fair comparison")
-    columns = ["run_id", "model", "all_exact", "entity_f1", "category_accuracy", "intent_accuracy", "errors",
+    reports = read_reports(paths)
+    columns = ["run_id", "model", "profile", "catalog_hash", "cases", "all_exact", "entity_f1", "category_accuracy", "intent_accuracy", "errors",
                "p50_ms", "p95_ms", "load_seconds", "peak_rss_mb"]
     values = []
     for r in reports:
         s = r["summary"]
-        values.append([r["run_id"], r["config"]["model"], s["all_exact_accuracy"], aggregate_entities(s["entities"])["f1"],
+        values.append([r["run_id"], r["config"]["model"], r["config"].get("profile", "labels"),
+                       r.get("experiment", {}).get("account_catalog_hash"), s["cases"],
+                       s["all_exact_accuracy"], aggregate_entities(s["entities"])["f1"],
                        s["classifications"]["category"], s["classifications"]["intent"], s["errors"],
                        s["latency_ms"]["p50"], s["latency_ms"]["p95"], r["load_seconds"], r["sampled_peak_rss_mb"]])
     return columns, values

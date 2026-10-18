@@ -2,45 +2,73 @@
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spndrr · Entity lab</title>
 <style>
-body{font:16px system-ui,sans-serif;color:#152235;background:#f4f6fa;max-width:1100px;margin:36px auto;padding:0 24px}h1{margin-bottom:8px}p{line-height:1.5;color:#536078}section{background:white;padding:24px;border:1px solid #dde4ef;border-radius:16px;margin:20px 0}label{display:block;margin:12px 0 6px}select,textarea,button{font:inherit;border-radius:8px;border:1px solid #bbc7d9;padding:10px}textarea{width:100%;box-sizing:border-box}button{background:#215bd7;color:white;cursor:pointer;margin:12px 8px 0 0}button:disabled{opacity:.5;cursor:default}#stop{background:#58657a}pre{overflow:auto;max-height:460px;white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f6fa;padding:16px;border-radius:8px;font-size:13px}table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;padding:12px 8px;border-bottom:1px solid #dde4ef}#message{color:#a51b30}small{color:#536078}.scroll{overflow-x:auto}details{margin:14px 0}summary{cursor:pointer}
+body{font:16px system-ui,sans-serif;color:#152235;background:#f4f6fa;max-width:1250px;margin:36px auto;padding:0 24px}h1{margin-bottom:8px}p{line-height:1.5;color:#536078}section{background:white;padding:24px;border:1px solid #dde4ef;border-radius:16px;margin:20px 0}label{display:block;margin:12px 0 6px}select,textarea,button{font:inherit;border-radius:8px;border:1px solid #bbc7d9;padding:10px;max-width:100%}textarea{width:100%;box-sizing:border-box}button{background:#215bd7;color:white;cursor:pointer;margin:12px 8px 0 0}button:disabled{opacity:.5;cursor:default}#stop{background:#58657a}pre{overflow:auto;max-height:460px;white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f6fa;padding:16px;border-radius:8px;font-size:13px}table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;padding:12px 8px;border-bottom:1px solid #dde4ef;vertical-align:top}#message{color:#a51b30}small{color:#536078}.scroll{overflow-x:auto}details{margin:14px 0}summary{cursor:pointer}.controls{display:flex;flex-wrap:wrap;gap:12px 24px}.controls>div{flex:1;min-width:180px}.controls select{width:100%}td{white-space:pre-line}.muted{font-size:14px}
 </style>
 <h1>Spndrr entity lab</h1>
-<p>Test English inputs, run the seed benchmark, and compare saved results. Each run loads one model and releases it when its process exits.</p>
+<p>Compare English extraction experiments. Each run loads one model; saved reports can be compared after its process exits.</p>
 <section>
-<label for="model">Model</label><select id="model"><option value="gliner-small">GLiNER 2.5 small · 74M</option><option value="gliner-base">GLiNER 2.5 base · 194M</option></select>
+<div class="controls">
+<div><label for="model">Model</label><select id="model"><option value="gliner-small">GLiNER 2.5 small · 74M</option><option value="gliner-base">GLiNER 2.5 base · 194M</option></select></div>
+<div><label for="profile">Experiment</label><select id="profile"><option value="labels">Labels only · reference</option><option value="descriptions">Label descriptions · 1 pass</option><option value="split">Separate tasks + descriptions · 3 passes</option></select></div>
+<div><label for="suite">Benchmark suite</label><select id="suite"><option value="seed">Seed · 48 cases</option><option value="challenge" selected>Challenge · 96 cases</option><option value="all">Seed + challenge · 144 cases</option></select></div>
+<div><label for="repeats">Measured repeats</label><select id="repeats"><option value="1" selected>1 · quality exploration</option><option value="3">3 · timing and stability</option></select></div>
+</div>
+<label><input id="catalog" type="checkbox"> Add account mentions from the demo alias catalog</label>
 <label><input id="offline" type="checkbox"> Use cached model only (offline)</label>
+<p class="muted">Compare one change at a time on the same suite. Separate tasks reuse one loaded model; reported latency includes all passes. The demo catalog tests literal mention recovery, not account-ID correctness.</p>
 <label for="text">Statement</label><textarea id="text" rows="3" maxlength="1000">Bought potatoes for rs 40 using Kotak upi.</textarea>
-<button id="extract">Extract statement</button><button id="benchmark">Run seed benchmark</button><button id="stop" disabled>Stop run</button>
-<p><small>CPU · 4 threads · benchmark repeats each case 3 times. First use downloads only the selected checkpoint. Use the CLI for custom datasets and settings.</small></p>
+<button id="extract">Extract statement</button><button id="benchmark">Run selected benchmark</button><button id="stop" disabled>Stop run</button>
+<p><small>CPU · 4 threads · first request and warmup excluded from quality/timing. Only the first measured pass counts toward accuracy. CLI supports custom datasets, catalogs, slices, revisions and settings.</small></p>
 <p id="message" role="alert"></p><p id="status" role="status">Ready</p><pre id="log">No run started.</pre>
 </section>
-<section><h2>Saved runs</h2><p>Entities F1 measures mention extraction; intent and category are separate classification tasks. All exact requires every field and both classifications to match. Open details to inspect mistakes. Compare matching dataset/schema/code hashes; CLI comparison enforces this. Runs marked shared_guidance_v0 use the old classification setup—rerun both models after updating.</p>
-<div class="scroll"><table><thead><tr><th>Run</th><th>Model / mode</th><th>Entities F1</th><th>Intent</th><th>Category</th><th>All exact</th><th>p95 ms</th><th>Peak RSS MB</th><th>Errors</th></tr></thead><tbody id="runs"></tbody></table></div><div id="details"></div></section>
+<section><h2>Saved runs</h2><p>Entities F1 measures mention extraction; intent and category are separate tasks. All exact requires every field to match. These synthetic development suites are not a production holdout. New and older code versions must be rerun together for a valid comparison.</p>
+<div class="scroll"><table><thead><tr><th>Run / cases</th><th>Model / experiment</th><th>Entities F1</th><th>Intent</th><th>Category</th><th>All exact</th><th>p95 ms</th><th>Peak RSS MB</th><th>Errors</th></tr></thead><tbody id="runs"></tbody></table></div>
+<div class="controls"><div><label for="baseline">Baseline run</label><select id="baseline"></select></div><div><label for="candidate">Candidate run</label><select id="candidate"></select></div></div>
+<button id="compare">Compare selected runs</button><div id="comparison" aria-live="polite"></div>
+</section>
+<section><h2>Inspect a run</h2><div id="details"><p>Select a run in the table to view field scores, confusion counts, slice results and first-pass mistakes.</p></div></section>
 <script>
 const token='__TOKEN__';
 const el=id=>document.getElementById(id);
 const percent=value=>typeof value==='number'?(value*100).toFixed(1)+'%':'—';
+const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 let lastRunning=null;
 async function request(path,body){const response=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json','X-Lab-Token':token},body:JSON.stringify(body)}:{});const data=await response.json();if(!response.ok)throw Error(data.error||response.statusText);return data;}
-async function start(mode){el('message').textContent='';try{await request('/api/start',{mode,model:el('model').value,text:el('text').value,offline:el('offline').checked});await poll();}catch(e){el('message').textContent=e.message;}}
+function table(headers,rows){const wrap=node('div');wrap.className='scroll';const t=node('table'),head=node('tr');headers.forEach(h=>head.append(node('th',h)));t.append(head);for(const values of rows){const tr=node('tr');values.forEach(v=>tr.append(node('td',v)));t.append(tr);}wrap.append(t);return wrap;}
+function jsonDetails(title,value){const d=node('details');d.append(node('summary',title),node('pre',JSON.stringify(value,null,2)));return d;}
+function download(name,value){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));const a=node('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+async function start(mode){el('message').textContent='';try{await request('/api/start',{mode,model:el('model').value,profile:el('profile').value,suite:el('suite').value,repeats:Number(el('repeats').value),catalog:el('catalog').checked,text:el('text').value,offline:el('offline').checked});await poll();}catch(e){el('message').textContent=e.message;}}
 el('extract').onclick=()=>start('extract');el('benchmark').onclick=()=>start('benchmark');
 el('stop').onclick=async()=>{try{await request('/api/stop',{});await poll();}catch(e){el('message').textContent=e.message;}};
+async function inspect(id){try{
+ const data=await request('/api/report/'+encodeURIComponent(id)),r=data.report,s=r.summary,d=el('details');d.replaceChildren(node('h3',id));
+ const save=node('button','Download report');save.onclick=()=>download(id+'.json',r);d.append(save);
+ if(s){
+  const review=node('button','Download mistakes');review.onclick=()=>download(id+'-mistakes.json',data.mistakes);d.append(review);
+  d.append(node('p',`${s.cases} distinct cases; ${s.requests} measured statements; ${s.unstable_cases} changed across repeats. Quality uses the first pass.`));
+  d.append(node('h3','Entity fields'),table(['Field','Precision','Recall','F1','Exact'],Object.entries(s.entities).map(([k,v])=>[k,percent(v.precision),percent(v.recall),percent(v.f1),percent(v.exact_accuracy)])));
+  d.append(node('h3','Slices'),table(['Slice','Cases','Entities F1','Intent','Category','All exact'],Object.entries(s.slices).map(([k,v])=>[k,v.cases,percent(v.entity_micro?.f1),percent(v.classifications?.intent),percent(v.classifications?.category),percent(v.all_exact)])));
+  if(s.false_creation_intent){const f=s.false_creation_intent;d.append(node('p',`Queries/corrections/non-transactions assigned a creation intent: ${f.count}/${f.cases} (${percent(f.rate)}). This is a routing diagnostic, not a measured transaction-write rate.`));}
+  if(s.confusion){const rows=Object.entries(s.confusion).flatMap(([task,cells])=>cells.filter(c=>c.expected!==c.predicted).map(c=>[task,c.expected,c.predicted,c.count]));d.append(node('h3','Classification mistakes'),table(['Task','Expected','Predicted','Cases'],rows));}
+  d.append(node('h3',`First-pass mistakes (${data.mistakes.length})`));
+  for(const m of data.mistakes)d.append(jsonDetails(`${m.id} · ${m.failed_fields.join(', ')} · ${m.text}`,m));
+ }
+ d.append(jsonDetails('Full report / raw outputs',r));
+ }catch(e){el('message').textContent=e.message;}}
 async function results(){
- const reports=await request('/api/results');
- el('runs').replaceChildren();el('details').replaceChildren();
+ const reports=await request('/api/results');el('runs').replaceChildren();
+ const old=[el('baseline').value,el('candidate').value];el('baseline').replaceChildren();el('candidate').replaceChildren();
  for(const r of reports){
-  const s=r.summary;
-  const row=document.createElement('tr');
-  const cells=[r.run_id,`${r.config.model} / ${r.mode} / ${r.status}\n${r.classification_setup}\ncode: ${r.code_hash?.slice(0,8)??'unknown'}`,
+  const s=r.summary;const row=node('tr');const first=node('td');const open=node('button',r.run_id);open.onclick=()=>inspect(r.run_id);first.append(open,node('div',s?`${s.cases} cases · ${r.config.suite??'custom/seed'}`:r.mode));row.append(first);
+  const cells=[`${r.config.model} / ${r.status}\n${r.classification_setup}\ncatalog: ${r.experiment?.account_catalog_hash?'on':'off'} · code: ${r.code_hash?.slice(0,8)??'unknown'}\ndata: ${r.dataset_hash?.slice(0,8)??'unknown'}`,
    percent(s?.entity_micro?.f1),percent(s?.classifications.intent),percent(s?.classifications.category),percent(s?.all_exact_accuracy),
    s?.latency_ms.p95?.toFixed(1)??'—',r.sampled_peak_rss_mb?.toFixed(0)??'—',s?.errors??'—'];
-  for(const value of cells){const td=document.createElement('td');td.textContent=value;td.style.whiteSpace='pre-line';row.append(td);}
-  el('runs').append(row);
-  const detail=document.createElement('details');const title=document.createElement('summary');
-  title.textContent=r.run_id;const pre=document.createElement('pre');pre.textContent=JSON.stringify(r,null,2);
-  detail.append(title,pre);el('details').append(detail);
+  for(const value of cells)row.append(node('td',value));el('runs').append(row);
+  if(r.mode==='benchmark'&&r.status==='completed')for(const id of ['baseline','candidate']){const option=node('option',`${r.run_id} · ${r.config.model} · ${r.config.profile??'labels'} · ${s.cases} cases${r.experiment?.account_catalog_hash?' · catalog':''}`);option.value=r.run_id;el(id).append(option);}
  }
+ ['baseline','candidate'].forEach((id,i)=>{if([...el(id).options].some(o=>o.value===old[i]))el(id).value=old[i];});
 }
+el('compare').onclick=async()=>{try{const result=await request('/api/compare',{baseline:el('baseline').value,candidate:el('candidate').value});const d=el('comparison');d.replaceChildren(node('p',`${result.cases} paired cases. Positive delta means the candidate improved. Entity rows below measure exact-field accuracy, not F1.`));d.append(table(['Field','Improved','Regressed','Both correct','Both wrong','Accuracy change'],Object.entries(result.changes).map(([k,v])=>[k,v.improved.length,v.regressed.length,v.both_correct,v.both_wrong,(v.accuracy_delta*100).toFixed(1)+' pp'])));result.notes.forEach(n=>d.append(node('p',n)));d.append(jsonDetails('Case IDs and regressions',result));}catch(e){el('comparison').replaceChildren(node('p',e.message));}};
 async function poll(){try{const state=await request('/api/status');el('extract').disabled=el('benchmark').disabled=state.running;el('stop').disabled=!state.running;el('status').textContent=state.running?'Running one model…':state.exit_code===null?'Ready':`Process exited (${state.exit_code}); model released.`;el('log').textContent=state.log||'No run started.';if(lastRunning!==state.running){await results();lastRunning=state.running;}}catch(e){el('message').textContent=e.message;}}
 async function tick(){await poll();setTimeout(tick,1500);}tick();
 </script></html>

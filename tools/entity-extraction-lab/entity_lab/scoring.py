@@ -55,6 +55,8 @@ def load_cases(path, schema):
         if not line.strip():
             continue
         case = json.loads(line)
+        if not isinstance(case, dict):
+            raise ValueError(f"Line {number}: case must be an object")
         if not isinstance(case.get("id"), str) or not case["id"] or case["id"] in ids:
             raise ValueError(f"Line {number}: missing or duplicate id")
         if not isinstance(case.get("text"), str) or not 1 <= len(case["text"]) <= 1000:
@@ -64,13 +66,34 @@ def load_cases(path, schema):
         validate_prediction(case.get("expected"), schema)
         # Labels must be extractive; decimal normalization happens only in scoring.
         for values in case["expected"]["entities"].values():
-            for value in values:
+            for value, occurrences in Counter(values).items():
                 if value not in case["text"]:
                     raise ValueError(f"Line {number}: gold mention {value!r} is not in source text")
+                if occurrences > case["text"].count(value):
+                    raise ValueError(f"Line {number}: gold mention {value!r} occurs too many times")
         ids.add(case["id"])
         cases.append(case)
     if not cases:
         raise ValueError("Dataset is empty")
+    return cases
+
+
+def load_suite(root, schema, suite="seed", dataset=None, slices=None):
+    if dataset:
+        from pathlib import Path
+        cases = load_cases(Path(dataset), schema)
+    else:
+        if suite not in ("seed", "challenge", "all"):
+            raise ValueError(f"Unknown suite: {suite}")
+        names = ("seed", "challenge") if suite == "all" else (suite,)
+        cases = [case for name in names for case in load_cases(root / f"data/english.{name}.jsonl", schema)]
+    if len({c["id"] for c in cases}) != len(cases):
+        raise ValueError("Duplicate case IDs across suites")
+    if slices:
+        unknown = set(slices) - {c["slice"] for c in cases}
+        if unknown:
+            raise ValueError(f"Unknown slices: {sorted(unknown)}")
+        cases = [c for c in cases if c["slice"] in slices]
     return cases
 
 
@@ -127,11 +150,27 @@ def summarize(rows, schema):
     slices = {}
     for name in sorted({r["slice"] for r in first}):
         group = [r for r in first if r["slice"] == name]
-        slices[name] = {"cases": len(group), "all_exact": sum(r["score"]["all_exact"] for r in group) / len(group)}
+        counts = {field: {key: sum(r["score"]["entities"][field][key] for r in group)
+                          for key in ("tp", "fp", "fn")} for field in schema["entities"]}
+        slices[name] = {"cases": len(group), "all_exact": sum(r["score"]["all_exact"] for r in group) / len(group),
+                        "entity_micro": aggregate_entities(counts),
+                        "classifications": {k: sum(r["score"]["classifications"][k] for r in group) / len(group)
+                                            for k in schema["classifications"]}}
     unstable = 0
     for row in first:
         variants = {fingerprint(r["prediction"]) for r in rows if r["id"] == row["id"]}
         unstable += len(variants) > 1
+    confusion = {}
+    for task in schema["classifications"]:
+        cells = Counter((r["expected"]["classifications"][task],
+                         r["prediction"]["classifications"][task] if r["prediction"] else "<error>")
+                        for r in first if "expected" in r)
+        confusion[task] = [{"expected": gold, "predicted": pred, "count": n}
+                           for (gold, pred), n in sorted(cells.items())]
+    noncreation = [r for r in first if r.get("expected", {}).get("classifications", {}).get("intent")
+                   in ("query", "correction", "not_transaction")]
+    false_creation = sum(r["prediction"] is not None and r["prediction"]["classifications"]["intent"]
+                         in ("expense", "income", "refund", "transfer", "card_payment", "mixed") for r in noncreation)
     return {"cases": count, "requests": len(rows), "errors": sum(r["error"] is not None for r in rows),
             "all_exact_accuracy": sum(s["all_exact"] for s in scores) / count,
             "entities_exact_accuracy": sum(all(s["entity_exact"].values()) for s in scores) / count,
@@ -140,4 +179,6 @@ def summarize(rows, schema):
             "classifications": {k: sum(s["classifications"][k] for s in scores) / count for k in schema["classifications"]},
             "latency_ms": {"p50": percentile(latencies, .5), "p95": percentile(latencies, .95),
                            "max": max(latencies) if latencies else None},
-            "unstable_cases": unstable, "slices": slices}
+            "unstable_cases": unstable, "slices": slices, "confusion": confusion,
+            "false_creation_intent": {"cases": len(noncreation), "count": false_creation,
+                                      "rate": false_creation / len(noncreation) if noncreation else None}}
