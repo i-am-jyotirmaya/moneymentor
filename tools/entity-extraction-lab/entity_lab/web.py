@@ -10,6 +10,16 @@ from urllib.parse import urlparse
 
 from .providers import MODELS
 from .runtime import ROOT
+from .scoring import aggregate_entities
+
+
+def display_report(report):
+    # Derive this metric for older JSON reports without rewriting their files.
+    if report.get("summary") is not None:
+        report["summary"]["entity_micro"] = aggregate_entities(report["summary"]["entities"])
+    report["classification_setup"] = report.get("provider", {}).get(
+        "classification_setup", "shared_guidance_v0" if report.get("config", {}).get("model") in MODELS else "managed")
+    return report
 
 
 class Jobs:
@@ -101,7 +111,7 @@ def serve(port):
                 for file in sorted((ROOT / "results").rglob("*.json"), reverse=True)[:50]:
                     try:
                         report = json.loads(file.read_text(encoding="utf-8"))
-                        reports.append(report)
+                        reports.append(display_report(report))
                     except (ValueError, OSError):
                         continue
                 return self.reply(200, reports)

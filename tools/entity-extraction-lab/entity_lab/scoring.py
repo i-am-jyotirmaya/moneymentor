@@ -99,6 +99,15 @@ def percentile(values, fraction):
     return values[low] + (values[high] - values[low]) * (position - low)
 
 
+def aggregate_entities(entities):
+    """Pool mention counts across fields; never average individual F1 scores."""
+    tp, fp, fn = (sum(field[key] for field in entities.values()) for key in ("tp", "fp", "fn"))
+    return {"tp": tp, "fp": fp, "fn": fn,
+            "precision": tp / (tp + fp) if tp + fp else None,
+            "recall": tp / (tp + fn) if tp + fn else None,
+            "f1": 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else None}
+
+
 def summarize(rows, schema):
     # Quality counts each case once. Repeats only measure latency/stability.
     first = [row for row in rows if row["repeat"] == 0]
@@ -125,6 +134,8 @@ def summarize(rows, schema):
         unstable += len(variants) > 1
     return {"cases": count, "requests": len(rows), "errors": sum(r["error"] is not None for r in rows),
             "all_exact_accuracy": sum(s["all_exact"] for s in scores) / count,
+            "entities_exact_accuracy": sum(all(s["entity_exact"].values()) for s in scores) / count,
+            "entity_micro": aggregate_entities(entities),
             "entities": entities,
             "classifications": {k: sum(s["classifications"][k] for s in scores) / count for k in schema["classifications"]},
             "latency_ms": {"p50": percentile(latencies, .5), "p95": percentile(latencies, .95),

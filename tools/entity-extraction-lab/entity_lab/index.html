@@ -14,17 +14,33 @@ body{font:16px system-ui,sans-serif;color:#152235;background:#f4f6fa;max-width:1
 <p><small>CPU · 4 threads · benchmark repeats each case 3 times. First use downloads only the selected checkpoint. Use the CLI for custom datasets and settings.</small></p>
 <p id="message" role="alert"></p><p id="status" role="status">Ready</p><pre id="log">No run started.</pre>
 </section>
-<section><h2>Saved runs</h2><p>Accuracy and errors refer to the labelled seed set. Open details to inspect mistakes, raw spans, and individual entity scores. Compare only matching dataset/schema/code hashes; CLI comparison enforces this.</p>
-<div class="scroll"><table><thead><tr><th>Run</th><th>Model / mode</th><th>All exact</th><th>p95 ms</th><th>Peak RSS MB</th><th>Errors</th></tr></thead><tbody id="runs"></tbody></table></div><div id="details"></div></section>
+<section><h2>Saved runs</h2><p>Entities F1 measures mention extraction; intent and category are separate classification tasks. All exact requires every field and both classifications to match. Open details to inspect mistakes. Compare matching dataset/schema/code hashes; CLI comparison enforces this. Runs marked shared_guidance_v0 use the old classification setup—rerun both models after updating.</p>
+<div class="scroll"><table><thead><tr><th>Run</th><th>Model / mode</th><th>Entities F1</th><th>Intent</th><th>Category</th><th>All exact</th><th>p95 ms</th><th>Peak RSS MB</th><th>Errors</th></tr></thead><tbody id="runs"></tbody></table></div><div id="details"></div></section>
 <script>
 const token='__TOKEN__';
 const el=id=>document.getElementById(id);
+const percent=value=>typeof value==='number'?(value*100).toFixed(1)+'%':'—';
 let lastRunning=null;
 async function request(path,body){const response=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json','X-Lab-Token':token},body:JSON.stringify(body)}:{});const data=await response.json();if(!response.ok)throw Error(data.error||response.statusText);return data;}
 async function start(mode){el('message').textContent='';try{await request('/api/start',{mode,model:el('model').value,text:el('text').value,offline:el('offline').checked});await poll();}catch(e){el('message').textContent=e.message;}}
 el('extract').onclick=()=>start('extract');el('benchmark').onclick=()=>start('benchmark');
 el('stop').onclick=async()=>{try{await request('/api/stop',{});await poll();}catch(e){el('message').textContent=e.message;}};
-async function results(){const reports=await request('/api/results');el('runs').replaceChildren();el('details').replaceChildren();for(const r of reports){const s=r.summary;const row=document.createElement('tr');for(const v of [r.run_id,`${r.config.model} / ${r.mode} / ${r.status}`,s?(s.all_exact_accuracy*100).toFixed(1)+'%':'—',s?.latency_ms.p95?.toFixed(1)??'—',r.sampled_peak_rss_mb?.toFixed(0)??'—',s?.errors??'—']){const td=document.createElement('td');td.textContent=v;row.append(td);}el('runs').append(row);const detail=document.createElement('details');const title=document.createElement('summary');title.textContent=r.run_id;const pre=document.createElement('pre');pre.textContent=JSON.stringify(r,null,2);detail.append(title,pre);el('details').append(detail);}}
+async function results(){
+ const reports=await request('/api/results');
+ el('runs').replaceChildren();el('details').replaceChildren();
+ for(const r of reports){
+  const s=r.summary;
+  const row=document.createElement('tr');
+  const cells=[r.run_id,`${r.config.model} / ${r.mode} / ${r.status}\n${r.classification_setup}\ncode: ${r.code_hash?.slice(0,8)??'unknown'}`,
+   percent(s?.entity_micro?.f1),percent(s?.classifications.intent),percent(s?.classifications.category),percent(s?.all_exact_accuracy),
+   s?.latency_ms.p95?.toFixed(1)??'—',r.sampled_peak_rss_mb?.toFixed(0)??'—',s?.errors??'—'];
+  for(const value of cells){const td=document.createElement('td');td.textContent=value;td.style.whiteSpace='pre-line';row.append(td);}
+  el('runs').append(row);
+  const detail=document.createElement('details');const title=document.createElement('summary');
+  title.textContent=r.run_id;const pre=document.createElement('pre');pre.textContent=JSON.stringify(r,null,2);
+  detail.append(title,pre);el('details').append(detail);
+ }
+}
 async function poll(){try{const state=await request('/api/status');el('extract').disabled=el('benchmark').disabled=state.running;el('stop').disabled=!state.running;el('status').textContent=state.running?'Running one model…':state.exit_code===null?'Ready':`Process exited (${state.exit_code}); model released.`;el('log').textContent=state.log||'No run started.';if(lastRunning!==state.running){await results();lastRunning=state.running;}}catch(e){el('message').textContent=e.message;}}
 async function tick(){await poll();setTimeout(tick,1500);}tick();
 </script></html>

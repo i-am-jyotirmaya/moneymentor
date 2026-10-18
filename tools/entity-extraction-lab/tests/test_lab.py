@@ -13,8 +13,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from entity_lab.providers import BedrockProvider, PredictionError, gliner_prediction
 from entity_lab.runtime import ROOT, compare, execute, model_lock
-from entity_lab.scoring import load_cases, normalize, score_case, summarize, validate_prediction
-from entity_lab.web import Jobs
+from entity_lab.scoring import aggregate_entities, load_cases, normalize, score_case, summarize, validate_prediction
+from entity_lab.web import Jobs, display_report
 
 SCHEMA = json.loads((ROOT / "schema.json").read_text(encoding="utf-8"))
 
@@ -97,6 +97,23 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(result["latency_ms"]["p95"], 10)
         self.assertIsNone(result["entities"]["amount"]["f1"])
 
+    def test_entity_micro_pools_counts_and_keeps_classification_separate(self):
+        entities = {"amount": {"tp": 9, "fp": 0, "fn": 1},
+                    "account": {"tp": 0, "fp": 1, "fn": 1}}
+        result = aggregate_entities(entities)
+        self.assertAlmostEqual(result["f1"], 18 / 21)
+        self.assertEqual(result["tp"], 9)
+        self.assertIsNone(aggregate_entities({})["f1"])
+        gold, prediction = empty_prediction(), empty_prediction()
+        gold["entities"]["amount"] = prediction["entities"]["amount"] = ["250"]
+        prediction["classifications"]["intent"] = "mixed"
+        rows = [{"id": "x", "slice": "s", "repeat": 0, "prediction": prediction,
+                 "error": None, "latency_ms": 1, "score": score_case(gold, prediction, SCHEMA)}]
+        summary = summarize(rows, SCHEMA)
+        self.assertEqual(summary["entity_micro"]["f1"], 1)
+        self.assertEqual(summary["entities_exact_accuracy"], 1)
+        self.assertEqual(summary["all_exact_accuracy"], 0)
+
 
 class AdapterTests(unittest.TestCase):
     def test_gliner_spans_and_classes(self):
@@ -136,6 +153,17 @@ class AdapterTests(unittest.TestCase):
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_old_reports_display_entity_f1_and_original_setup(self):
+        report = {"config": {"model": "gliner-base"}, "provider": {},
+                  "summary": {"entities": {"amount": {"tp": 9, "fp": 0, "fn": 1}},
+                              "all_exact_accuracy": .1}}
+        shown = display_report(deepcopy(report))
+        self.assertEqual(shown["classification_setup"], "shared_guidance_v0")
+        self.assertAlmostEqual(shown["summary"]["entity_micro"]["f1"], 18 / 19)
+        self.assertEqual(shown["summary"]["all_exact_accuracy"], .1)
+        report["provider"]["classification_setup"] = "task_labels_only_v1"
+        self.assertEqual(display_report(report)["classification_setup"], "task_labels_only_v1")
+
     def test_cross_process_lock_and_crash_release(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "model.lock"

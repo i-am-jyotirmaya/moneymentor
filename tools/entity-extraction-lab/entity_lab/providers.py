@@ -71,9 +71,13 @@ class GlinerProvider:
         self.threshold = config["threshold"]
         self.compiled = self.model.create_schema().entities(schema["entities"])
         for task, labels in schema["classifications"].items():
-            self.compiled.classification(task, labels, prompt=schema["classification_guidance"])
+            # Keep GLiNER task schemas separate from generative-model instructions.
+            # Repeating the shared cross-task guidance here caused the base
+            # checkpoint to predict intent=mixed on 43/48 seed cases.
+            self.compiled.classification(task, labels)
         self.metadata = {"model_id": model_id, "resolved_revision": Path(snapshot).name,
-                         "device": "cpu", "precision": "float32", "threads": config["threads"]}
+                         "device": "cpu", "precision": "float32", "threads": config["threads"],
+                         "classification_setup": "task_labels_only_v1"}
 
     def extract(self, text):
         with self.torch.inference_mode():

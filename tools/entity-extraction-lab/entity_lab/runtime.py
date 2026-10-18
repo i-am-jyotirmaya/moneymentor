@@ -15,7 +15,7 @@ import time
 import uuid
 
 from .providers import create_provider
-from .scoring import fingerprint, load_cases, score_case, summarize
+from .scoring import aggregate_entities, fingerprint, load_cases, score_case, summarize
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -190,12 +190,12 @@ def compare(paths):
     keys = {(r["dataset_hash"], r["schema_hash"], r["code_hash"]) for r in reports}
     if len(keys) != 1:
         raise ValueError("Dataset, schema, or lab code differs; rerun on the same versions for a fair comparison")
-    columns = ["run_id", "model", "all_exact", "category_accuracy", "intent_accuracy", "errors",
+    columns = ["run_id", "model", "all_exact", "entity_f1", "category_accuracy", "intent_accuracy", "errors",
                "p50_ms", "p95_ms", "load_seconds", "peak_rss_mb"]
     values = []
     for r in reports:
         s = r["summary"]
-        values.append([r["run_id"], r["config"]["model"], s["all_exact_accuracy"],
+        values.append([r["run_id"], r["config"]["model"], s["all_exact_accuracy"], aggregate_entities(s["entities"])["f1"],
                        s["classifications"]["category"], s["classifications"]["intent"], s["errors"],
                        s["latency_ms"]["p50"], s["latency_ms"]["p95"], r["load_seconds"], r["sampled_peak_rss_mb"]])
     return columns, values

@@ -24,6 +24,13 @@ fresh subprocess for each job; Stop waits for its exit before allowing another.
 Ctrl-C in the server terminal also stops its active worker. A forcibly killed
 server may leave its worker running; stop that Python worker before restarting.
 
+**Updating an earlier lab checkout:** pull this branch, restart the server, refresh
+the browser and rerun both models. Runs marked `shared_guidance_v0` used a shared
+classification prompt that caused base to overpredict `mixed`. New local runs use
+`task_labels_only_v1`. The UI now separates entity F1, intent accuracy, category
+accuracy and all-exact accuracy. Old reports remain readable and keep their
+original predictions; they are not silently relabelled or rescored as new runs.
+
 No virtual-environment activation is needed. On Linux/macOS, replace `py -3.12`
 with `python3.12` and `.venv\Scripts\python` with `.venv/bin/python`. On macOS,
 install PyTorch with `python -m pip install "torch>=2.1,<3"` from normal PyPI
@@ -49,6 +56,14 @@ Hub snapshot and load its local directory, recording the resolved commit. To pin
 a future run, pass `--revision <resolved_revision from previous JSON>`. After the
 first successful download, use `--offline` to require cached files. Set `HF_HOME`
 before starting Python if you want a different cache location.
+
+GLiNER receives the entity descriptions and each classification task's allowed
+labels. `classification_guidance` is still the annotation policy and is sent to
+the generative Bedrock adapter, but is no longer repeated as a GLiNER task prompt.
+On the 48-case seed set, removing that shared prompt from the base schema changed
+intent accuracy from 6/48 to 41/48 while keeping the same checkpoint, labels and
+entity threshold. This is a diagnostic result, not a held-out production score.
+Do not remove the `mixed` label or alter gold answers to hide incorrect predictions.
 
 Qwen/NuExtract, quantization, fine-tuning, and GPU comparisons are future adapters.
 This first experiment intentionally starts with the two small English extractors.
@@ -102,6 +117,8 @@ prediction, expected labels, errors and timings for every case, plus:
 | Metric | Meaning |
 |---|---|
 | Per-entity precision / recall / F1 | Micro counts of matched, extra and missing mention values |
+| Combined entities F1 | Pool TP/FP/FN across all entity fields; excludes classification and does not average field F1 scores |
+| Entities-only exact accuracy | All six entity fields match, independent of intent/category |
 | Per-entity exact accuracy | All mentions for that field match, including correct absence |
 | Intent/category accuracy | Exact allowed-label match |
 | All-exact accuracy | All six entity fields AND both classifications are correct |
@@ -126,6 +143,10 @@ revision, threshold, machine, Python version, dependency versions and thread cou
 `compare` refuses incompatible dataset/schema/code hashes, partial runs and manual
 extracts. Check matching hardware/settings yourself before comparing latency. Save
 `python -m pip freeze > environment.lock.txt` to reproduce the full local environment.
+
+The extraction `--threshold` controls entity decoding. Single-label intent and
+category choose the highest-scoring label; changing the entity threshold does not
+repair a classification collapse. Investigate task/schema construction separately.
 
 Reports and model inputs are plain local JSON, ignored by Git. Do not publish your
 real account details accidentally. The UI shows the latest 50 reports and serves
