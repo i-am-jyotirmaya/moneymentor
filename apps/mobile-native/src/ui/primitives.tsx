@@ -8,11 +8,11 @@ export function Button({ title, onPress, disabled, loading, secondary, testID, a
   title: string; onPress: () => void; disabled?: boolean; loading?: boolean; secondary?: boolean; testID?: string; accessibilityLabel?: string;
 }) {
   const scale = useSharedValue(1);
-  const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
   return <AnimatedPressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? title} accessibilityState={{ disabled: disabled || loading, busy: loading }}
     testID={testID} disabled={disabled || loading} onPress={onPress}
-    onPressIn={() => { scale.value = withSpring(0.975, { ...motion.spring, reduceMotion: ReduceMotion.System }); }}
-    onPressOut={() => { scale.value = withSpring(1, { ...motion.spring, reduceMotion: ReduceMotion.System }); }}
+    onPressIn={() => { scale.set(withSpring(0.975, { ...motion.spring, reduceMotion: ReduceMotion.System })); }}
+    onPressOut={() => { scale.set(withSpring(1, { ...motion.spring, reduceMotion: ReduceMotion.System })); }}
     style={[styles.button, secondary && styles.secondary, (disabled || loading) && styles.disabled, animated]}>
     {loading ? <ActivityIndicator color={secondary ? color.ink : color.surface} /> : null}
     <Text style={[styles.buttonText, secondary && styles.secondaryText]}>{title}</Text>

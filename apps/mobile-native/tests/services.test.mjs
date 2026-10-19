@@ -69,3 +69,4 @@ test('QA assistant asks for clarification then creates exactly one record', asyn
   assert.equal(result.transaction.amount, 30);
   assert.equal((await client.transactions('2026-10')).totalCount, 1);
 });
+import { Buffer } from 'node:buffer';

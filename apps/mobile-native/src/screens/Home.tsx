@@ -35,7 +35,8 @@ export function HomeScreen({ navigation }: ScreenProps<'Home'>) {
     getNextPageParam: last => last.page < last.totalPages ? last.page + 1 : undefined,
     retry: 1, staleTime: 30000,
   });
-  useFocusEffect(useCallback(() => { void history.refetch(); }, [history.refetch]));
+  const { refetch } = history;
+  useFocusEffect(useCallback(() => { void refetch(); }, [refetch]));
   const items = useMemo(() => history.data?.pages.flatMap(page => page.items).filter(t =>
     `${t.description ?? ''} ${t.categoryName ?? ''} ${t.accountName ?? ''} ${t.merchantName ?? ''}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())) ?? [], [history.data, search]);
   const signout = () => {

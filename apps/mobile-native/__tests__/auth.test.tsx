@@ -1,7 +1,7 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { FinanceClient } from '@spndrr/finance-core';
 import { LoginScreen } from '../src/screens/Auth';
-jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
+jest.mock('react-native-safe-area-context', () => jest.requireActual('react-native-safe-area-context/jest/mock').default);
 
 test('hardware keyboard submit signs in using the entered credentials', async () => {
   const login = jest.fn(async () => undefined);

@@ -1,9 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AppState } from 'react-native';
+import { AppState, View } from 'react-native';
 import { decodeComposerDraft, emptyDraft, type ComposerDraft, type EntryResources, type FinanceClient, type ManualDraft, type Transaction } from '@spndrr/finance-core';
 import type { SecureJsonStore } from '../services/secure-json';
 import { ErrorNotice, Loading, styles } from '../ui/primitives';
-import { View } from 'react-native';
 
 export type EntryContextValue = {
   client: FinanceClient; resources: EntryResources; draft: ComposerDraft; busy: boolean;

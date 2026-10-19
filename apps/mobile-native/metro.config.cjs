@@ -1,3 +1,4 @@
+/* global __dirname */
 const path = require('node:path');
 const { getDefaultConfig } = require('expo/metro-config');
 const config = getDefaultConfig(__dirname);

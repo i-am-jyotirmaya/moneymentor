@@ -9,7 +9,7 @@ import { ComposerScreen } from '../src/screens/Composer';
 import { PickerScreen } from '../src/screens/Picker';
 import { ManualForm } from '../src/ui/ManualForm';
 
-jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
+jest.mock('react-native-safe-area-context', () => jest.requireActual('react-native-safe-area-context/jest/mock').default);
 jest.mock('@react-native-community/datetimepicker', () => ({ __esModule: true, default: () => null, DateTimePickerAndroid: { open: jest.fn() } }));
 const navigation = { navigate: jest.fn(), goBack: jest.fn(), popToTop: jest.fn() };
 async function setup(mode: 'manual' | 'text' = 'manual', description = '') {

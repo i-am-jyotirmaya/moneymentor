@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePreventRemove } from '@react-navigation/native';
@@ -16,8 +16,8 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [unknown, setUnknown] = useState(false);
   const [saved, setSaved] = useState(false);
-  const baseline = useRef(JSON.stringify(entry.edit?.manual));
-  const dirty = JSON.stringify(entry.edit?.manual) !== baseline.current;
+  const [baseline, setBaseline] = useState(() => JSON.stringify(entry.edit?.manual));
+  const dirty = JSON.stringify(entry.edit?.manual) !== baseline;
   usePreventRemove((dirty || unknown) && !saved, ({ data }) => {
     Alert.alert(unknown ? 'Update not confirmed' : 'Keep your changes?', unknown ? 'The update may already be saved. Reload the transaction before making another change.' : 'Your unsaved edits will be discarded.',
       [{ text: 'Keep editing', style: 'cancel' }, { text: 'Close editor', style: 'destructive', onPress: () => navigation.dispatch(data.action) }]);
@@ -42,12 +42,12 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
   const reload = () => { void entry.runExclusive(async () => {
     try {
       const fresh = await entry.client.request<Transaction>(`/api/transactions/${encodeURIComponent(transaction.id)}`);
-      entry.beginEdit(fresh); baseline.current = JSON.stringify({
+      entry.beginEdit(fresh); setBaseline(JSON.stringify({
         ...entry.edit!.manual, amount: String(fresh.amount), date: fresh.transactionDate.slice(0, 10),
         accountId: fresh.accountId ?? null, categoryId: fresh.categoryId ?? null,
         merchant: fresh.merchantName ?? '', description: fresh.description ?? '',
         paymentChannel: fresh.paymentChannel ?? 'Unknown', visibility: fresh.visibility,
-      }); setUnknown(false); setError(null);
+      })); setUnknown(false); setError(null);
     } catch { setError('The saved transaction could not be reloaded yet.'); }
   }); };
   return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={96}>
