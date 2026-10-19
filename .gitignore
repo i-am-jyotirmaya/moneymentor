@@ -106,6 +106,8 @@ _ReSharper*/
 *.snupkg
 .nuget/packages/
 packages/
+!/packages/
+!/packages/finance-core/
 
 # =========================
 # Database / local storage
