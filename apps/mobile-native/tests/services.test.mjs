@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer';
 import assert from 'node:assert/strict';
 import { SecureJsonStore } from '../src/services/secure-json.ts';
 import { fixtureTransport } from '../src/services/fixture-transport.ts';
-import { authCookieSnapshot } from '../src/services/auth-cookie-policy.ts';
+import { authCookieSnapshot, usesAuthCookies } from '../src/services/auth-cookie-policy.ts';
 import { FinanceClient } from '../../../packages/finance-core/src/index.ts';
 
 function memoryBackend() {
@@ -49,6 +49,16 @@ test('cookie snapshots retain native expiry on either platform without broadenin
   const snapshot = authCookieSnapshot({ mm_refresh: { value: 'opaque', expires: '2026-11-01T00:00:00Z' } }, 'api.example.test');
   assert.equal(snapshot[0].expires, '2026-11-01T00:00:00Z');
   assert.equal(snapshot[0].path, '/api/auth');
+});
+test('anonymous registration and access requests do not require an existing refresh cookie', () => {
+  for (const path of ['/api/auth/registration', '/api/auth/access-requests', '/api/auth/signup-invitations/validate', '/api/auth/me']) {
+    assert.equal(usesAuthCookies(path, 'GET'), false);
+    assert.equal(usesAuthCookies(path, 'POST'), false);
+  }
+  for (const path of ['/api/auth/login', '/api/auth/users', '/api/auth/refresh', '/api/auth/logout']) {
+    assert.equal(usesAuthCookies(path, 'POST'), true);
+    assert.equal(usesAuthCookies(path, 'GET'), false);
+  }
 });
 test('QA backend exercises a lost response AFTER commit and deduplicates manual replay', async () => {
   const fixture = fixtureTransport(); const client = new FinanceClient(fixture.transport, fixture.clear);

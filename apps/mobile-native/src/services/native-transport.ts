@@ -3,7 +3,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import type { Transport } from '@spndrr/finance-core';
 import { SecureJsonStore, type SecureBackend } from './secure-json';
-import { authCookieNames, authCookieSnapshot } from './auth-cookie-policy';
+import { authCookieNames, authCookieSnapshot, usesAuthCookies } from './auth-cookie-policy';
 
 export const secureBackend: SecureBackend = {
   get: key => SecureStore.getItemAsync(key),
@@ -33,7 +33,7 @@ export async function createNativeTransport(origin: string): Promise<{ transport
   await clearJar();
   const clear = async () => { await cookies.remove(); await clearJar(); };
   const transport: Transport = async request => {
-    const auth = request.path.startsWith('/api/auth/');
+    const auth = usesAuthCookies(request.path, request.method);
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), 20000);
     try {
