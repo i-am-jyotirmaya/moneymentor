@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { Buffer } from 'node:buffer';
 import assert from 'node:assert/strict';
 import { SecureJsonStore } from '../src/services/secure-json.ts';
 import { fixtureTransport } from '../src/services/fixture-transport.ts';
@@ -69,4 +70,3 @@ test('QA assistant asks for clarification then creates exactly one record', asyn
   assert.equal(result.transaction.amount, 30);
   assert.equal((await client.transactions('2026-10')).totalCount, 1);
 });
-import { Buffer } from 'node:buffer';

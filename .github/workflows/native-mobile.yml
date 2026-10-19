@@ -39,13 +39,15 @@ jobs:
           cache: npm
           cache-dependency-path: apps/mobile-native/package-lock.json
       - name: Install isolated native dependencies
-        run: npm ci
+        # Refresh once for the navigation peer correction; restore npm ci with the reviewed artifact.
+        run: npm install
       - name: Preserve the resolved lockfile for review
         uses: actions/upload-artifact@v4
         with:
           name: native-dependency-lock
           path: apps/mobile-native/package-lock.json
       - run: npm run check:dependencies
+      - run: npm run doctor
       - run: npm run typecheck && npm run typecheck:core && npm run typecheck:services
       - run: npm run lint
       - run: npm test -- --ci
@@ -84,9 +86,9 @@ jobs:
             adb install -r android/app/build/outputs/apk/release/app-release.apk
             $HOME/.maestro/bin/maestro test .maestro/transaction.yml
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
-          name: native-runtime-diagnostics
+          name: native-android-runtime-evidence
           path: ~/.maestro/tests/**
           if-no-files-found: ignore
   native-ios:
@@ -107,7 +109,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/mobile-native/package-lock.json
       - name: Install isolated native dependencies
-        run: npm ci
+        run: npm install
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -145,9 +147,9 @@ jobs:
           xcrun simctl install "$native_device" "$native_app"
           $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/transaction.yml
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
-          name: native-ios-runtime-diagnostics
+          name: native-ios-runtime-evidence
           path: |
             ~/.maestro/tests/**
             apps/mobile-native/build/xcodebuild.log

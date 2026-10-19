@@ -11,18 +11,21 @@ appId: com.spndrr.app.native.e2e
 - inputText: fixture-only
 - hideKeyboard
 - tapOn: 'Sign in'
+- takeScreenshot: native-home
 - tapOn: 'Add a transaction'
 - tapOn: 'Enter details'
 - tapOn:
     id: amount-input
 - inputText: '40.29'
 - hideKeyboard
+- takeScreenshot: native-composer
 - tapOn: 'Category: Choose category or subcategory'
 - tapOn: 'Search category'
 - inputText: 'Groceries'
 - hideKeyboard
 - tapOn: 'Food / Groceries,.*'
 - tapOn: 'Account: Choose payment account'
+- takeScreenshot: native-accounts
 - tapOn: 'Kotak upi, Credit card'
 - scrollUntilVisible:
     element: 'Save transaction'
@@ -30,6 +33,7 @@ appId: com.spndrr.app.native.e2e
 - tapOn: 'Save transaction'
 - assertVisible: 'Transaction saved'
 - assertVisible: 'Kotak upi.*'
+- takeScreenshot: native-receipt
 - tapOn: 'Edit saved transaction'
 - tapOn:
     id: amount-input
@@ -41,6 +45,7 @@ appId: com.spndrr.app.native.e2e
     direction: DOWN
 - tapOn: 'Save changes'
 - assertVisible: 'Changes saved'
+- takeScreenshot: native-edited
 - tapOn: 'Done'
 - tapOn: 'Done'
 - tapOn: 'Add a transaction'
