@@ -11,6 +11,7 @@ mkdir -p "$native_evidence"
 adb shell pm revoke com.android.inputmethod.latin android.permission.READ_CONTACTS
 adb shell pm set-permission-flags com.android.inputmethod.latin android.permission.READ_CONTACTS user-set user-fixed
 adb install -r android/app/build/outputs/apk/release/app-release.apk
+adb shell pm clear "$native_package"
 
 adb shell getprop ro.build.fingerprint > "$native_evidence/device.txt"
 adb shell wm size >> "$native_evidence/device.txt"

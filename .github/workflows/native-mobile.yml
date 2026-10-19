@@ -177,12 +177,13 @@ jobs:
           xcodebuild -version
           npx expo prebuild --platform ios --no-install
           pod install --project-directory=ios
+          bash scripts/sign-simulator.sh prepare
       - name: Compile iOS simulator release
         run: |
           mkdir -p build
           native_workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
           native_scheme="$(basename "$native_workspace" .xcworkspace)"
-          xcodebuild -workspace "$native_workspace" -scheme "$native_scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES ARCHS="$(uname -m)" build >build/xcodebuild.log 2>&1 || { tail -n 120 build/xcodebuild.log; exit 1; }
+          xcodebuild -workspace "$native_workspace" -scheme "$native_scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= ONLY_ACTIVE_ARCH=YES ARCHS="$(uname -m)" build >build/xcodebuild.log 2>&1 || { tail -n 120 build/xcodebuild.log; exit 1; }
           native_app="$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)"
           bash scripts/sign-simulator.sh "$native_app"
           ditto -c -k --sequesterRsrc --keepParent "$native_app" spndrr-native-ios-simulator.zip
@@ -205,6 +206,7 @@ jobs:
           xcrun simctl bootstatus "$native_device" -b
           native_app="$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)"
           xcrun simctl install "$native_device" "$native_app"
+          xcrun simctl launch "$native_device" com.spndrr.app.rn.e2e
           $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/transaction.yml
       - uses: actions/upload-artifact@v4
         if: always()
