@@ -15,17 +15,22 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Hosted domain/service job | Passed on initial GitHub run 39203850380 |
 | Hosted native dependency installation | Succeeded on initial GitHub run; development-tool version corrections and maintained cookie adapter applied afterward |
 | Full native dependency installation | Hosted install succeeded and the resolved lockfile is committed; local registry access remains unavailable |
-| Native component tests | Nine implemented; pending hosted execution |
+| Native component tests | Nine implemented; initial hosted execution exposed an Expo-module transform configuration error, corrected for rerun |
 | Expo dependency compatibility | Passed in GitHub run 39204313055 after SDK tooling corrections |
 | Full native TypeScript | Passed, including shared/service checks, in GitHub run 39204973766 |
-| Native lint | Initial hosted failures corrected; rerun pending |
-| Expo Doctor and Metro exports | Not executed yet |
+| Native lint | Passed with zero warnings in GitHub run 39235443009 |
+| Expo Doctor | 21/21 checks passed in GitHub run 39235443009; the private platform-independent finance package is excluded from native-module catalog lookup |
+| Metro exports | Pending hosted execution after component tests |
 | Android compilation/runtime | Not executed; no native dependencies/SDK/device available in this task environment |
 | iOS compilation | Unsigned Release simulator build passed in GitHub run 39204973766; simulator app artifact uploaded |
 | iOS runtime | Native login rendered in run 39234097276 after simulator startup correction. Automation tapped text labels instead of input controls; selectors corrected. The complete transaction scenario has not passed yet |
 | Frame timing, startup, CPU, memory | NOT MEASURED |
 
 Node service tests use an in-memory mock of encrypted storage and a deterministic contract fixture. They test chunk commits, interrupted writes, user isolation, retry behavior and state transitions; they do not prove Keychain/Keystore encryption, native cookie handling, network integration, or smooth animations. No FPS, startup, or memory target has been achieved by evidence yet.
+
+## Dependency advisory record
+
+The native lock/audit artifact from run 39235443009 records 39 production-graph advisories (27 high, 12 moderate, no critical). Underlying packages are [braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), [node-forge](https://github.com/advisories/GHSA-86w9-cpqp-85rv), [sprintf-js](https://github.com/advisories/GHSA-hp3w-g68c-fv3c), and [uuid](https://github.com/advisories/GHSA-w5hq-g745-h8pq). Expo/React Native list build and test tools in their production dependency graph, so these counts do not establish exposure in the shipped bundle. The app uses Expo Crypto for transaction references and does not directly import these four packages. Release review must verify bundle reachability and upstream fixes; no unsupported major-version overrides or automatic audit fixes are applied. CI retains the audit JSON and blocks critical advisories. These unresolved advisories remain a release gate alongside device acceptance.
 
 ## Proposed budgets (pending a representative-device baseline)
 

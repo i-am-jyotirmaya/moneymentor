@@ -39,12 +39,11 @@ jobs:
           cache: npm
           cache-dependency-path: apps/mobile-native/package-lock.json
       - name: Install isolated native dependencies
-        # Refresh once for the navigation peer correction; restore npm ci with the reviewed artifact.
-        run: npm install
+        run: npm ci
       - name: Record runtime dependency advisories
-        continue-on-error: true
-        run: npm audit --omit=dev --json > dependency-audit.json
+        run: npm audit --omit=dev --audit-level=critical --json > dependency-audit.json
       - name: Preserve the resolved lockfile and audit for review
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: native-dependency-lock
@@ -116,7 +115,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/mobile-native/package-lock.json
       - name: Install isolated native dependencies
-        run: npm install
+        run: npm ci
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
