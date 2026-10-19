@@ -61,8 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     concurrency:
       group: native-android-${{ github.head_ref || github.ref }}
-      # Let a compiled runtime acceptance finish; GitHub keeps only the newest pending run.
-      cancel-in-progress: false
+      cancel-in-progress: true
     timeout-minutes: 60
     defaults:
       run:
@@ -150,7 +149,7 @@ jobs:
     runs-on: macos-latest
     concurrency:
       group: native-ios-${{ github.head_ref || github.ref }}
-      cancel-in-progress: false
+      cancel-in-progress: true
     timeout-minutes: 60
     defaults:
       run:
@@ -172,6 +171,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Boot iOS simulator while the native build compiles
+        run: |
+          native_device="$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for values in d["devices"].values() for x in values if x["name"].startswith("iPhone") and x["state"]=="Shutdown"))')"
+          echo "NATIVE_TEST_DEVICE=$native_device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$native_device"
+          open -a Simulator --args -CurrentDeviceUDID "$native_device"
       - name: Generate the unsigned simulator project
         run: |
           xcodebuild -version
@@ -200,9 +205,7 @@ jobs:
         env:
           MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
         run: |
-          native_device="$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for values in d["devices"].values() for x in values if x["name"].startswith("iPhone") and x["state"]=="Shutdown"))')"
-          xcrun simctl boot "$native_device"
-          open -a Simulator --args -CurrentDeviceUDID "$native_device"
+          native_device="$NATIVE_TEST_DEVICE"
           xcrun simctl bootstatus "$native_device" -b
           native_app="$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)"
           xcrun simctl install "$native_device" "$native_app"
