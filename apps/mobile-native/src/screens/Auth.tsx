@@ -23,9 +23,9 @@ export function LoginScreen({ client, unavailable, onRestore }: { client: Financ
       <Text style={styles.heading}>spndrr.</Text><Text accessibilityRole="header" style={styles.title}>{'Make room for\nwhat matters.'}</Text>
       <Text style={styles.body}>Sign in to your Spndrr account.</Text>
       {unavailable ? <ErrorNotice message="Your saved session could not be checked. Try again when your connection returns, or sign in below." onRetry={onRestore} /> : null}
-      <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false}
+      <Field label="Email" testID="email-input" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false}
         autoComplete="email" textContentType="username" returnKeyType="next" onSubmitEditing={() => passwordInput.current?.focus()} editable={!busy} />
-      <Field ref={passwordInput} label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" textContentType="password"
+      <Field ref={passwordInput} label="Password" testID="password-input" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" textContentType="password"
         returnKeyType="go" onSubmitEditing={login} editable={!busy} />
       <Button title="Sign in" onPress={login} loading={busy} disabled={!email.trim() || !password} />
       {error ? <ErrorNotice message={error} /> : null}

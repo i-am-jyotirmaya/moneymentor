@@ -22,7 +22,7 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Expo Doctor and Metro exports | Not executed yet |
 | Android compilation/runtime | Not executed; no native dependencies/SDK/device available in this task environment |
 | iOS compilation | Unsigned Release simulator build passed in GitHub run 39204973766; simulator app artifact uploaded |
-| iOS runtime | Maestro's XCTest driver did not start before its timeout; no app assertions executed. Simulator startup and driver timeout adjusted for rerun |
+| iOS runtime | Native login rendered in run 39234097276 after simulator startup correction. Automation tapped text labels instead of input controls; selectors corrected. The complete transaction scenario has not passed yet |
 | Frame timing, startup, CPU, memory | NOT MEASURED |
 
 Node service tests use an in-memory mock of encrypted storage and a deterministic contract fixture. They test chunk commits, interrupted writes, user isolation, retry behavior and state transitions; they do not prove Keychain/Keystore encryption, native cookie handling, network integration, or smooth animations. No FPS, startup, or memory target has been achieved by evidence yet.

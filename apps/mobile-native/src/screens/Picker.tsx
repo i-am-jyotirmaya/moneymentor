@@ -39,7 +39,7 @@ export function PickerScreen({ route, navigation }: ScreenProps<'Picker'>) {
     <FlatList data={options.filter(o => `${o.label} ${o.detail}`.toLocaleLowerCase().includes(term))} keyExtractor={item => item.id}
       contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       ListHeaderComponent={<View style={{ gap: 14 }}><Text accessibilityRole="header" style={styles.heading}>{kind === 'category' ? 'Find your category' : kind === 'account' ? 'Choose the exact account' : 'Choose an option'}</Text>
-        <Field label={`Search ${kind}`} value={search} onChangeText={setSearch} autoCorrect={false} autoCapitalize="none" placeholder="Search…" />
+        <Field label={`Search ${kind}`} testID={`${kind}-search`} value={search} onChangeText={setSearch} autoCorrect={false} autoCapitalize="none" placeholder="Search…" />
         {kind === 'account' ? <Button title="Refresh accounts" secondary loading={entry.busy} onPress={refresh} /> : null}
         {error ? <ErrorNotice message={error} /> : null}
         {kind === 'account' && target === 'manual' ? <Button title="Add an account" secondary onPress={() => navigation.navigate('AddAccount')} /> : null}</View>}

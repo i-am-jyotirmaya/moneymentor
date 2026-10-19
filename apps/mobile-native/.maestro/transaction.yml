@@ -5,9 +5,11 @@ appId: com.spndrr.app.native.e2e
 - extendedWaitUntil:
     visible: 'Sign in'
     timeout: 30000
-- tapOn: 'Email'
+- tapOn:
+    id: email-input
 - inputText: qa@example.test
-- tapOn: 'Password'
+- tapOn:
+    id: password-input
 - inputText: fixture-only
 - hideKeyboard
 - tapOn: 'Sign in'
@@ -23,7 +25,8 @@ appId: com.spndrr.app.native.e2e
 - hideKeyboard
 - takeScreenshot: native-composer
 - tapOn: 'Category: Choose category or subcategory'
-- tapOn: 'Search category'
+- tapOn:
+    id: category-search
 - inputText: 'Groceries'
 - hideKeyboard
 - tapOn: 'Food / Groceries,.*'
@@ -52,19 +55,22 @@ appId: com.spndrr.app.native.e2e
 - tapOn: 'Done'
 - tapOn: 'Done'
 - tapOn: 'Add a transaction'
-- tapOn: 'Transaction message'
+- tapOn:
+    id: assistant-input
 - inputText: 'coffee'
 - hideKeyboard
 - tapOn: 'Send & track'
 - assertVisible: 'How much did you spend?'
-- tapOn: 'Transaction message'
+- tapOn:
+    id: assistant-input
 - inputText: '30'
 - hideKeyboard
 - tapOn: 'Send & track'
 - assertVisible: 'Transaction saved'
 - tapOn: 'Done'
 - tapOn: 'Add a transaction'
-- tapOn: 'Transaction message'
+- tapOn:
+    id: assistant-input
 - inputText: 'simulate failure'
 - hideKeyboard
 - tapOn: 'Send & track'
