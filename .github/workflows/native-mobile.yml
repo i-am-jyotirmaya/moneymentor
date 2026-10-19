@@ -96,9 +96,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           working-directory: apps/mobile-native
-          script: |
-            adb install -r android/app/build/outputs/apk/release/app-release.apk
-            $HOME/.maestro/bin/maestro test .maestro/transaction.yml
+          script: bash scripts/android-acceptance.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -106,6 +104,7 @@ jobs:
           path: |
             ~/.maestro/tests/**
             apps/mobile-native/gradle-build.log
+            apps/mobile-native/runtime-evidence/**
           if-no-files-found: ignore
   native-ios:
     runs-on: macos-latest
@@ -145,6 +144,7 @@ jobs:
           native_scheme="$(basename "$native_workspace" .xcworkspace)"
           xcodebuild -workspace "$native_workspace" -scheme "$native_scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES ARCHS="$(uname -m)" build >build/xcodebuild.log 2>&1 || { tail -n 120 build/xcodebuild.log; exit 1; }
           native_app="$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)"
+          bash scripts/sign-simulator.sh "$native_app"
           ditto -c -k --sequesterRsrc --keepParent "$native_app" spndrr-native-ios-simulator.zip
       - uses: actions/upload-artifact@v4
         with:
@@ -173,4 +173,5 @@ jobs:
           path: |
             ~/.maestro/tests/**
             apps/mobile-native/build/xcodebuild.log
+            apps/mobile-native/build/simulator-*.plist
           if-no-files-found: ignore

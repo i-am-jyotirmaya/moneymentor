@@ -22,10 +22,10 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Expo Doctor | 21/21 checks passed in GitHub run 39235443009; the private platform-independent finance package is excluded from native-module catalog lookup |
 | Metro exports | Android and iOS succeeded in GitHub run 39237312769 |
 | Exported JS advisory-module review | No braces/node-forge/sprintf-js/uuid module paths in 1,355 Android and 1,351 iOS source-map entries in run 39237312769; does not audit native binaries or build-host exposure |
-| Android compilation/runtime | SDK setup and prebuild now pass. Run 39237793014 rejected the Java keyword in the original QA namespace; development/QA identifiers changed to valid `.rn` segments. Compilation/runtime rerun pending |
-| iOS compilation | Unsigned Release simulator build passed in GitHub run 39204973766; simulator app artifact uploaded |
-| iOS runtime | Native login and credential input exercised in run 39235443009 after input-selector correction. Maestro's generic keyboard dismissal failed; the app now exposes an explicit header keyboard control, used by the flow. The complete transaction scenario has not passed yet |
-| Frame timing, startup, CPU, memory | NOT MEASURED |
+| Android compilation/runtime | Release QA APK compiled in run 39239041550. Runtime reached login but the AOSP keyboard's first-use contacts prompt intercepted input. CI now denies that unrelated keyboard permission before the flow |
+| iOS compilation | Release simulator build passed in run 39239041550; simulator app artifact uploaded |
+| iOS runtime | Login passed in run 39239041550. Draft restoration then failed with Keychain error -34018: the unsigned simulator executable had no application identifier/access-group entitlements. CI now applies and verifies a simulator-only ad-hoc signature; device signing is unchanged. Complete transaction acceptance is pending |
+| Frame timing, startup, CPU, memory | NOT MEASURED. Android acceptance now retains Activity launch timing, gfxinfo frame statistics, device/display configuration and memory snapshots, including on flow failure |
 
 Node service tests use an in-memory mock of encrypted storage and a deterministic contract fixture. They test chunk commits, interrupted writes, user isolation, retry behavior and state transitions; they do not prove Keychain/Keystore encryption, native cookie handling, network integration, or smooth animations. No FPS, startup, or memory target has been achieved by evidence yet.
 
@@ -65,7 +65,7 @@ Use physical iPhone/TestFlight for real API, keyboard and session behavior. Quan
 
 ## Gate before bulk migration
 
-- The native lockfile, Expo compatibility/Doctor, type checks, lint, component tests and both Metro exports passed. Complete Android native compilation and platform runtime acceptance.
+- The native lockfile, Expo compatibility/Doctor, type checks, lint, component tests, both Metro exports and both native compilers passed. Complete platform runtime acceptance.
 - Execute the native Maestro flow on Android and iOS; attach artifacts rather than marking compilation as runtime acceptance.
 - Validate real HTTPS login/refresh/force-close/signout and transaction writes on physical devices.
 - Resolve keyboard, gesture, storage, accessibility and financial correctness issues; collect named-device motion/startup/memory results.

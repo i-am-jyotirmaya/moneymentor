@@ -17,3 +17,4 @@ spndrr-native-ios-simulator.zip
 build/
 dependency-audit.json
 bundle-dependency-review.json
+runtime-evidence/
