@@ -18,6 +18,45 @@ jobs:
           node-version: '24'
       - run: node --test packages/finance-core/tests/*.test.mjs apps/mobile-native/tests/*.test.mjs
       - run: node apps/mobile-native/scripts/check-boundaries.mjs
+  api-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg17
+        env:
+          POSTGRES_DB: native_acceptance
+          POSTGRES_USER: native_acceptance
+          POSTGRES_PASSWORD: native-acceptance-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ASPNETCORE_ENVIRONMENT: Testing
+      ConnectionStrings__MoneyMentorDb: Host=localhost;Port=5432;Database=native_acceptance;Username=native_acceptance;Password=native-acceptance-only
+      Registration__Mode: Open
+      Jwt__SigningKey: native-acceptance-only-local-signing-key-32-bytes
+      AuthCookie__Secure: 'true'
+      Product__SupportEmail: support@example.test
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Exercise the native shared client against the unchanged HTTPS API
+        run: bash apps/mobile-native/scripts/run-real-api.sh
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: native-real-api-diagnostics
+          path: apps/mobile-native/runtime-evidence/api/server.log
   native-android:
     runs-on: ubuntu-latest
     concurrency:
