@@ -102,13 +102,17 @@ As checked on 2026-10-19, Expo's pricing page lists a Free allowance of up to 15
 
 | Evidence | What it proves | Current status |
 | --- | --- | --- |
-| Metro export/type checks | JavaScript/types resolve | Not run: dependency install blocked |
+| Native type checks | Native/shared/service types resolve | Passed on hosted CI |
+| Metro export | JavaScript bundles resolve | Pending hosted execution |
 | Android Gradle compilation | Native Android binary compiles | Configured; not run |
 | EAS iOS compilation | iOS binary compiles on cloud macOS | Configured; account/signing not linked |
-| GitHub unsigned iOS simulator | Simulator release compiles and Maestro scenarios execute on hosted macOS | Configured; pending execution |
+| GitHub unsigned iOS simulator compilation | Simulator Release binary compiles on hosted macOS | Passed; app artifact uploaded |
+| GitHub iOS simulator execution | Maestro scenarios exercise the native app | Pending; initial XCTest-driver startup timed out |
 | Cloud Maestro execution | Tested scenarios ran in a simulator | Configured; not run |
 | Physical Android/iPhone tests | Actual device/API/keyboard/cookie behavior | Not run |
 | TestFlight upload | Apple accepted a processed build for testing | Not run |
 | Store publication | Approved public distribution | Deliberately not performed |
+
+The GitHub Android QA artifact targets the x86_64 emulator to keep build validation focused. Use EAS development/preview APKs for ARM Android phones. Native validation results and remaining device gates are recorded in [performance.md](performance.md).
 
 Sources: [Expo monorepo builds](https://docs.expo.dev/build-reference/build-with-monorepos/), [development builds](https://docs.expo.dev/develop/development-builds/introduction/), [iOS simulator builds](https://docs.expo.dev/build-reference/simulators/), [EAS Maestro](https://docs.expo.dev/eas/workflows/examples/e2e-tests/), [EAS CLI](https://docs.expo.dev/eas/cli/), [Expo pricing](https://expo.dev/pricing), [Apple enrollment](https://developer.apple.com/programs/enroll/).

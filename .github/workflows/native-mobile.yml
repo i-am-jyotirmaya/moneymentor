@@ -70,7 +70,7 @@ jobs:
         working-directory: apps/mobile-native/android
       - uses: actions/upload-artifact@v4
         with:
-          name: spndrr-native-qa-apk
+          name: spndrr-native-qa-x86_64-apk
           path: apps/mobile-native/android/app/build/outputs/apk/release/*.apk
       - name: Install Maestro
         env:
