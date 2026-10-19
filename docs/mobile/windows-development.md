@@ -71,6 +71,8 @@ EAS Build creates binaries; it does not establish that the app ran successfully.
 npx eas-cli@latest workflow:run .eas/workflows/native-acceptance.yml
 ```
 
+The mobile-specific GitHub workflow also compiles an unsigned iOS simulator release on a hosted macOS runner and runs Maestro. This route needs no personal Mac, Apple signing identity, or Expo account for the fixture suite. It cannot produce a signed installable iPhone/TestFlight build; that still follows the EAS/Apple workflow above.
+
 This fixture suite checks native UI behavior. It does not test the real HTTPS backend, production signing, native refresh-cookie behavior, receipt/image permissions, or physical-device performance. Treat those as separate acceptance items. EAS Workflows usage, supported workers, account eligibility, and plan quotas must be checked for the actual account.
 
 Interactive EAS Simulator is currently advertised as preview/access-controlled. It is optional and is not a release dependency. With an authenticated Expo account, check actual eligibility before attempting a session:
@@ -103,6 +105,7 @@ As checked on 2026-10-19, Expo's pricing page lists a Free allowance of up to 15
 | Metro export/type checks | JavaScript/types resolve | Not run: dependency install blocked |
 | Android Gradle compilation | Native Android binary compiles | Configured; not run |
 | EAS iOS compilation | iOS binary compiles on cloud macOS | Configured; account/signing not linked |
+| GitHub unsigned iOS simulator | Simulator release compiles and Maestro scenarios execute on hosted macOS | Configured; pending execution |
 | Cloud Maestro execution | Tested scenarios ran in a simulator | Configured; not run |
 | Physical Android/iPhone tests | Actual device/API/keyboard/cookie behavior | Not run |
 | TestFlight upload | Apple accepted a processed build for testing | Not run |

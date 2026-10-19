@@ -13,3 +13,5 @@ ios/
 credentials.json
 build-*.apk
 build-*.ipa
+spndrr-native-ios-simulator.zip
+build/

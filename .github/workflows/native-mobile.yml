@@ -88,3 +88,59 @@ jobs:
           name: native-runtime-diagnostics
           path: ~/.maestro/tests/**
           if-no-files-found: ignore
+  native-ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: apps/mobile-native
+    env:
+      APP_VARIANT: e2e
+      EXPO_PUBLIC_E2E: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/mobile-native/package.json
+      - name: Install isolated native dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Generate the unsigned simulator project
+        run: |
+          xcodebuild -version
+          npx expo prebuild --platform ios --no-install
+          pod install --project-directory=ios
+      - name: Compile iOS simulator release
+        run: |
+          native_workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
+          native_scheme="$(basename "$native_workspace" .xcworkspace)"
+          xcodebuild -workspace "$native_workspace" -scheme "$native_scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES ARCHS="$(uname -m)" build
+          native_app="$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)"
+          ditto -c -k --sequesterRsrc --keepParent "$native_app" spndrr-native-ios-simulator.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spndrr-native-ios-simulator
+          path: apps/mobile-native/spndrr-native-ios-simulator.zip
+      - name: Install Maestro
+        run: curl -Ls https://get.maestro.mobile.dev | bash
+      - name: Run native iOS transaction acceptance
+        run: |
+          native_device="$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for values in d["devices"].values() for x in values if x["name"].startswith("iPhone") and x["state"]=="Shutdown"))')"
+          xcrun simctl boot "$native_device"
+          xcrun simctl bootstatus "$native_device" -b
+          native_app="$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)"
+          xcrun simctl install "$native_device" "$native_app"
+          $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/transaction.yml
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: native-ios-runtime-diagnostics
+          path: ~/.maestro/tests/**
+          if-no-files-found: ignore

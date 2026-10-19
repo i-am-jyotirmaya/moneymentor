@@ -1,6 +1,6 @@
 # Spndrr native mobile migration
 
-Status: implementation in progress. This branch owns `apps/mobile-native`, the new universal `packages/finance-core`, and mobile documentation/workflows. `apps/web`, backend code, existing API contracts, and existing workflows are out of scope. The Capacitor app remains supported until native runtime acceptance passes.
+Status: milestones 1–2 code implemented; native acceptance pending. This branch owns `apps/mobile-native`, the new universal `packages/finance-core`, and mobile documentation/workflows. `apps/web`, backend code, existing API contracts, and existing workflows are out of scope. The Capacitor app remains supported until native runtime acceptance passes.
 
 ## Decision and dependency baseline
 
@@ -9,6 +9,15 @@ Use React Native with Expo development builds and a native presentation layer. F
 The baseline was verified on 2026-10-19 against the [Expo SDK 57 release branch](https://github.com/expo/expo/blob/sdk-57/packages/expo/bundledNativeModules.json): Expo 57.0.30, React Native 0.86.3, React 19.2.3, Reanimated 4.5.1, Worklets 0.10.1, Gesture Handler ~2.32.0, Screens ~4.26.0, Safe Area ~5.7.0. Use this SDK's recommendations rather than installing the latest independent native packages. Run `npx expo install --check` and Expo Doctor after dependency changes.
 
 React Navigation native-stack, accessible native controls, Expo SecureStore, and an injected universal API transport form the first slice. Do not add Skia until profiling demonstrates a need. Development builds include custom native modules; Expo Go is not the acceptance environment.
+
+| Decision factor | React Native + Expo | Flutter |
+| --- | --- | --- |
+| Motion and native behavior | Native screens/gestures plus UI-thread Reanimated; must profile actual devices | Flutter rendering/animation pipeline; must also profile actual devices |
+| Android/iOS and Windows development | Android locally; iOS builds on hosted macOS/EAS and tests on cloud simulator/iPhone | Android locally; iOS still needs hosted macOS compilation and an iOS runtime |
+| Existing TypeScript investment | Reuses universal DTOs, validation, and API orchestration | Requires Dart counterparts or an additional cross-language boundary |
+| Maintenance and ecosystem | Fits current React/TypeScript skills; SDK coordinates native dependency versions | Mature mobile ecosystem, but another language/toolchain for this team |
+| Profiling/debugging | React Native DevTools plus native profilers for release acceptance | Flutter DevTools plus native platform profiling |
+| Build/maintenance cost | Existing language reuse; cloud quotas/signing still apply | New Dart implementation effort; cloud quotas/signing still apply |
 
 ## Repository audit at main 6e89646f
 
@@ -28,6 +37,8 @@ React Navigation native-stack, accessible native controls, Expo SecureStore, and
 `packages/finance-core` owns platform-neutral DTOs, decimal input validation, category paths, immutable submission state, session coordination, and the API client. It has no runtime dependencies and imports no React, DOM, Node, or native modules. Native code owns transport, native cookies, encrypted persistence, UI, navigation, and haptics. Existing web exports remain unchanged.
 
 `apps/mobile-native` is an isolated npm project with a local `file:../../packages/finance-core` dependency. Keeping its React/native dependencies and lock separate avoids changing the existing pnpm React resolution used by the web and Capacitor app. Run native commands from that directory, not via existing `mobile:*` commands. The shared package remains discoverable by the existing `packages/*` workspace pattern. Cloud build archives must include the repository root so the local dependency is available.
+
+The native app is intentionally absent from the root pnpm workspace globs. Expo's package-manager resolver only adopts a parent workspace when the app matches that workspace's package globs; otherwise it uses the app's own lockfile. This boundary must remain explicit when adding future workspace paths. The only root changes are `.gitignore` exceptions for the universal package and a lock importer referencing the already-resolved TypeScript version; no existing dependency resolution changes.
 
 ## First vertical slice and safety
 
