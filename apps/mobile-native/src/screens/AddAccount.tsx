@@ -32,7 +32,7 @@ export function AddAccountScreen({ navigation }: ScreenProps<'AddAccount'>) {
       <Text style={styles.caption}>A credit card and bank account can have different names, such as Kotak upi and Kotak.</Text>
       <Field label="Account name" value={name} onChangeText={setName} maxLength={128} editable={!entry.busy && !unknown} />
       <View style={styles.row}>{(['BankAccount', 'CreditCard', 'Cash', 'Wallet'] as const).map(value =>
-        <Button key={value} title={value === 'CreditCard' ? 'Credit card' : value === 'BankAccount' ? 'Bank account' : value} secondary={value !== type} disabled={entry.busy || unknown} onPress={() => setType(value)} />)}</View>
+        <Button key={value} title={value === 'CreditCard' ? 'Credit card' : value === 'BankAccount' ? 'Bank account' : value} secondary={value !== type} selected={value === type} disabled={entry.busy || unknown} onPress={() => setType(value)} />)}</View>
       <Button title="Add account" onPress={save} loading={entry.busy} disabled={unknown || !name.trim()} />
       {unknown ? <Text accessibilityRole="alert" style={styles.body}>This account may already exist. Return to the account list and refresh before creating another.</Text> : null}
       {error ? <ErrorNotice message={error} /> : null}

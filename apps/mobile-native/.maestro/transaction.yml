@@ -11,6 +11,9 @@ appId: com.spndrr.app.native.e2e
 - inputText: fixture-only
 - hideKeyboard
 - tapOn: 'Sign in'
+- extendedWaitUntil:
+    visible: 'Add a transaction'
+    timeout: 30000
 - takeScreenshot: native-home
 - tapOn: 'Add a transaction'
 - tapOn: 'Enter details'

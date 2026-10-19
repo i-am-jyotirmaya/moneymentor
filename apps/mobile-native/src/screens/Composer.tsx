@@ -96,8 +96,8 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
   return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 96 : 0}>
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={styles.content}>
       <Text style={styles.caption}>Your draft stays here when you close this screen.</Text>
-      <View style={styles.row}><Button title="Use assistant" onPress={() => setMode('assistant')} disabled={entry.busy || !!entry.draft.pendingManual} secondary={mode !== 'assistant'} />
-        <Button title="Enter details" onPress={() => setMode('manual')} disabled={entry.busy || entry.draft.assistantUncertain} secondary={mode !== 'manual'} /></View>
+      <View style={styles.row}><Button title="Use assistant" onPress={() => setMode('assistant')} disabled={entry.busy || !!entry.draft.pendingManual} selected={mode === 'assistant'} secondary={mode !== 'assistant'} />
+        <Button title="Enter details" onPress={() => setMode('manual')} disabled={entry.busy || entry.draft.assistantUncertain} selected={mode === 'manual'} secondary={mode !== 'manual'} /></View>
       {mode === 'assistant' ? <>
         <Text accessibilityRole="header" style={styles.heading}>What did you spend on?</Text>
         <Field label="Transaction message" placeholder="Bought groceries for ₹240 using Kotak upi" multiline maxLength={4000} value={entry.draft.text}

@@ -21,8 +21,8 @@ export function ManualForm({ draft, resources, disabled, errors = {}, onChange, 
   };
   return <View style={{ gap: 18 }}>
     {!editing ? <View style={styles.row}>
-      <Button title="Expense" onPress={() => onChange({ eventKind: 'Purchase', categoryId: null })} disabled={disabled} secondary={draft.eventKind !== 'Purchase'} />
-      <Button title="Income" onPress={() => onChange({ eventKind: 'Income', categoryId: null })} disabled={disabled} secondary={draft.eventKind !== 'Income'} />
+      <Button title="Expense" onPress={() => onChange({ eventKind: 'Purchase', categoryId: null })} disabled={disabled} selected={draft.eventKind === 'Purchase'} secondary={draft.eventKind !== 'Purchase'} />
+      <Button title="Income" onPress={() => onChange({ eventKind: 'Income', categoryId: null })} disabled={disabled} selected={draft.eventKind === 'Income'} secondary={draft.eventKind !== 'Income'} />
     </View> : <Text style={styles.caption}>Editing {draft.eventKind === 'Income' ? 'income' : 'expense'} · Financial type is preserved.</Text>}
     <Field label={`Amount (${resources.settings.currencyCode})`} value={draft.amount} onChangeText={amount => onChange({ amount })}
       editable={!disabled} keyboardType="decimal-pad" inputMode="decimal" maxLength={15} placeholder="0.00" error={errors.amount} testID="amount-input" style={{ fontSize: 32, fontWeight: '600', minHeight: 76 }} />
