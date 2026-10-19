@@ -61,7 +61,8 @@ jobs:
     runs-on: ubuntu-latest
     concurrency:
       group: native-android-${{ github.head_ref || github.ref }}
-      cancel-in-progress: true
+      # Let a compiled runtime acceptance finish; GitHub keeps only the newest pending run.
+      cancel-in-progress: false
     timeout-minutes: 60
     defaults:
       run:
@@ -149,7 +150,7 @@ jobs:
     runs-on: macos-latest
     concurrency:
       group: native-ios-${{ github.head_ref || github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     timeout-minutes: 60
     defaults:
       run:
