@@ -79,6 +79,12 @@ assert.ok((await api.trash()).items.some(transaction => transaction.id === saved
 assert.ok(!(await client.transactions(today.slice(0, 7))).items.some(transaction => transaction.id === saved.id));
 await api.restoreTransaction(saved.id);
 assert.equal((await api.transaction(saved.id)).amount, 45.50);
+await client.createFinancialEvent({ ...intent, eventKind: 'CreditCardPayment', amount: 45.50,
+  accountId: bank.id, counterpartyAccountId: card.id, categoryId: undefined, externalReference: `native:${randomUUID()}` });
+assert.equal((await api.dashboard(today.slice(0, 7))).spends, 45.50, 'Card settlement must not count as another purchase');
+await client.createFinancialEvent({ ...intent, eventKind: 'Refund', amount: 5.25,
+  relatedTransactionId: saved.id, matchOriginal: false, categoryId: undefined, externalReference: `native:${randomUUID()}` });
+assert.equal((await api.dashboard(today.slice(0, 7))).spends, 40.25, 'A linked refund reduces consumption');
 const customCategory = await api.createCategory({ name: 'Native test category', type: 'Expense', classification: 'Discretionary' });
 await api.updateCategory(customCategory.id, { isHidden: true });
 assert.equal((await client.categories()).categories.find(candidate => candidate.id === customCategory.id).isHidden, true);
@@ -105,5 +111,5 @@ assert.ok((await reopened.transactions(today.slice(0, 7))).items.some(transactio
 await reopened.logout();
 assert.equal(jar.size, 0);
 assert.equal((await transport({ path: '/api/auth/refresh', method: 'POST' })).status, 401);
-assert.equal(writes, 2, 'No automatic financial retries');
+assert.equal(writes, 4, 'No automatic financial retries');
 console.log('Real HTTPS API acceptance passed: secure cookies, exact card identity, write/replay, edit, dashboard, trash/restore, category management, goals/contributions, commitments, household scope, settings, refresh rotation, restart restoration and logout.');

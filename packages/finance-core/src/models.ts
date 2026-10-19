@@ -29,6 +29,7 @@ export type Transaction = {
   categoryId?: string | null; categoryName: string | null; parentCategoryName?: string | null;
   accountId?: string | null; accountName?: string | null; counterpartyAccountId?: string | null;
   counterpartyAccountName?: string | null; paymentChannel?: PaymentChannel | null;
+  relatedTransactionId?: string | null; categoryClassification?: Category['classification'] | null;
   merchantName: string | null; description: string | null; senderName?: string | null; reason?: string | null;
   sourceText: string; transactionDate: string; inputMode: "Text" | "Voice" | "System";
   confidence: number; visibility: Visibility; createdAt: string; updatedAt: string;
@@ -41,6 +42,10 @@ export type TransactionIntent = {
   merchant: string | null; description: string | null; sourceText: string;
   paymentChannel: PaymentChannel; visibility: Visibility; inputMode: "Text";
   externalReference: string; confidence: number;
+};
+export type FinancialEventIntent = Omit<TransactionIntent, 'categoryId'> & {
+  categoryId?: string; counterpartyAccountId?: string; relatedTransactionId?: string;
+  matchOriginal?: boolean; observationAccountId?: string;
 };
 export type AssistantResponse = {
   status: "Responded" | "NeedsClarification" | "Unsupported" | "Failed";

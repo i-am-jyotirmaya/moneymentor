@@ -1,4 +1,4 @@
-import type { AssistantResponse, AuthSession, CategoryCatalog, FinancialAccount, Transaction, TransactionIntent, TransactionPage, TransactionPatch, UserSettings } from "./models.ts";
+import type { AssistantResponse, AuthSession, CategoryCatalog, FinancialAccount, FinancialEventIntent, Transaction, TransactionIntent, TransactionPage, TransactionPatch, UserSettings } from "./models.ts";
 import type { RegistrationPolicy, SignupInput, SignupInvitation } from "./workspace-models.ts";
 
 export type HttpRequest = { path: string; method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; body?: unknown; headers?: Record<string, string> };
@@ -181,6 +181,15 @@ export class FinanceClient {
   async updateTransaction(id: string, patch: TransactionPatch): Promise<Transaction> {
     const value = await this.request<unknown>(`/api/transactions/${encodeURIComponent(id)}`, "PATCH", patch);
     if (!isTransaction(value) || value.id !== id) throw new ApiError("The update response could not be verified. Check the saved transaction.", 0, "unknown");
+    return value;
+  }
+  async createFinancialEvent(intent: Readonly<FinancialEventIntent>): Promise<Transaction> {
+    const value = await this.request<unknown>('/api/transactions', 'POST', intent);
+    if (!isTransaction(value) || value.amount !== intent.amount || value.kind !== intent.eventKind
+      || value.accountId !== intent.accountId || value.householdId !== intent.householdId
+      || (value.counterpartyAccountId ?? null) !== (intent.counterpartyAccountId ?? null)
+      || (intent.categoryId && value.categoryId !== intent.categoryId)
+      || value.transactionDate.slice(0, 10) !== intent.date) throw new ApiError('The financial event response could not be verified. Check the saved event before another change.', 0, 'unknown');
     return value;
   }
   async sendAssistant(text: string, currencyCode: string, transactionDate: string): Promise<AssistantResponse> {
