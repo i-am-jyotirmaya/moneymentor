@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { FinanceClient, dateInTimeZone } from '../../../packages/finance-core/src/index.ts';
+import { FinanceClient, dateInTimeZone, workspaceApi } from '../../../packages/finance-core/src/index.ts';
 
 // Only an isolated CI backend is permitted. Never seed a public/user database.
 const origin = process.env.NATIVE_TEST_API_URL;
@@ -72,6 +72,26 @@ assert.equal(page.items.filter(transaction => transaction.id === saved.id).lengt
 const edited = await client.updateTransaction(saved.id, { amount: 45.50, accountId: card.id });
 assert.equal(edited.amount, 45.50);
 assert.equal(edited.kind, 'Purchase');
+const api = workspaceApi(client);
+assert.equal((await api.dashboard(today.slice(0, 7))).spends, 45.50);
+await api.deleteTransaction(saved.id);
+assert.ok((await api.trash()).items.some(transaction => transaction.id === saved.id));
+assert.ok(!(await client.transactions(today.slice(0, 7))).items.some(transaction => transaction.id === saved.id));
+await api.restoreTransaction(saved.id);
+assert.equal((await api.transaction(saved.id)).amount, 45.50);
+const customCategory = await api.createCategory({ name: 'Native test category', type: 'Expense', classification: 'Discretionary' });
+await api.updateCategory(customCategory.id, { isHidden: true });
+assert.equal((await client.categories()).categories.find(candidate => candidate.id === customCategory.id).isHidden, true);
+await api.deleteCategory(customCategory.id);
+const goal = await api.createGoal({ name: 'Native test goal', goalType: 'Saving', targetAmount: 1000, priority: 'Medium', isShared: false });
+await api.contribute(goal.id, { amount: 100.25, source: 'Manual', contributedAt: today });
+assert.equal((await api.goal(goal.id)).goal.currentAmount, 100.25);
+const commitment = await api.createCommitment({ name: 'Native test commitment', transactionType: 'Expense', amount: 50,
+  cadence: 'Monthly', nextDueDate: today, isShared: false });
+assert.equal((await api.updateCommitment(commitment.id, { isActive: false })).isActive, false);
+assert.ok((await api.households()).households.some(household => household.id === catalog.householdId));
+const updatedSettings = await api.updateSettings({ timeZone: 'Asia/Kolkata', defaultTransactionVisibility: 'Private' });
+assert.equal(updatedSettings.timeZone, 'Asia/Kolkata');
 
 const previousRefresh = jar.get('mm_refresh');
 const renewed = await client.refresh();
@@ -86,4 +106,4 @@ await reopened.logout();
 assert.equal(jar.size, 0);
 assert.equal((await transport({ path: '/api/auth/refresh', method: 'POST' })).status, 401);
 assert.equal(writes, 2, 'No automatic financial retries');
-console.log('Real HTTPS API acceptance passed: secure cookies, exact card identity, write/replay, edit, refresh rotation, restart restoration and logout.');
+console.log('Real HTTPS API acceptance passed: secure cookies, exact card identity, write/replay, edit, dashboard, trash/restore, category management, goals/contributions, commitments, household scope, settings, refresh rotation, restart restoration and logout.');
