@@ -15,13 +15,14 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Hosted domain/service job | Passed on initial GitHub run 39203850380 |
 | Hosted native dependency installation | Succeeded on initial GitHub run; development-tool version corrections and maintained cookie adapter applied afterward |
 | Full native dependency installation | Hosted install succeeded and the resolved lockfile is committed; local registry access remains unavailable |
-| Native component tests | Nine implemented; initial hosted execution exposed an Expo-module transform configuration error, corrected for rerun |
+| Native component tests | 9/9 passed in GitHub run 39237312769 after isolated-module and Worklets test setup corrections |
 | Expo dependency compatibility | Passed in GitHub run 39204313055 after SDK tooling corrections |
 | Full native TypeScript | Passed, including shared/service checks, in GitHub run 39204973766 |
 | Native lint | Passed with zero warnings in GitHub run 39235443009 |
 | Expo Doctor | 21/21 checks passed in GitHub run 39235443009; the private platform-independent finance package is excluded from native-module catalog lookup |
-| Metro exports | Pending hosted execution after component tests |
-| Android compilation/runtime | Not executed; no native dependencies/SDK/device available in this task environment |
+| Metro exports | Android and iOS succeeded in GitHub run 39237312769 |
+| Exported JS advisory-module review | No braces/node-forge/sprintf-js/uuid module paths in 1,355 Android and 1,351 iOS source-map entries in run 39237312769; does not audit native binaries or build-host exposure |
+| Android compilation/runtime | SDK setup initially requested the removed legacy tools package; corrected to explicit platform-tools. Compilation/runtime rerun pending |
 | iOS compilation | Unsigned Release simulator build passed in GitHub run 39204973766; simulator app artifact uploaded |
 | iOS runtime | Native login rendered in run 39234097276 after simulator startup correction. Automation tapped text labels instead of input controls; selectors corrected. The complete transaction scenario has not passed yet |
 | Frame timing, startup, CPU, memory | NOT MEASURED |
@@ -30,7 +31,7 @@ Node service tests use an in-memory mock of encrypted storage and a deterministi
 
 ## Dependency advisory record
 
-The native lock/audit artifact from run 39235443009 records 39 production-graph advisories (27 high, 12 moderate, no critical). Underlying packages are [braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), [node-forge](https://github.com/advisories/GHSA-86w9-cpqp-85rv), [sprintf-js](https://github.com/advisories/GHSA-hp3w-g68c-fv3c), and [uuid](https://github.com/advisories/GHSA-w5hq-g745-h8pq). Expo/React Native list build and test tools in their production dependency graph, so these counts do not establish exposure in the shipped bundle. The app uses Expo Crypto for transaction references and does not directly import these four packages. Release review must verify bundle reachability and upstream fixes; no unsupported major-version overrides or automatic audit fixes are applied. CI retains the audit JSON and blocks critical advisories. These unresolved advisories remain a release gate alongside device acceptance.
+The native lock/audit artifact from run 39235443009 records 39 production-graph advisories (27 high, 12 moderate, no critical). Underlying packages are [braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), [node-forge](https://github.com/advisories/GHSA-86w9-cpqp-85rv), [sprintf-js](https://github.com/advisories/GHSA-hp3w-g68c-fv3c), and [uuid](https://github.com/advisories/GHSA-w5hq-g745-h8pq). Expo/React Native list build and test tools in their production dependency graph. The app uses Expo Crypto for transaction references. Source-map review in run 39237312769 found none of these four packages in either exported native JavaScript bundle. This narrows app-JavaScript exposure; it does not prove native-binary or build-host security. Release review must track upstream fixes and assess build-tool exposure; no unsupported major-version overrides or automatic audit fixes are applied. CI retains audit and bundle-review JSON and blocks critical advisories. These unresolved advisories remain a release-review item alongside device acceptance.
 
 ## Proposed budgets (pending a representative-device baseline)
 
@@ -64,7 +65,7 @@ Use physical iPhone/TestFlight for real API, keyboard and session behavior. Quan
 
 ## Gate before bulk migration
 
-- The native lockfile is committed and Expo dependency compatibility passed. Complete Doctor checks, full type checks, lint, component tests, both Metro exports, and Android compilation.
+- The native lockfile, Expo compatibility/Doctor, type checks, lint, component tests and both Metro exports passed. Complete Android native compilation and platform runtime acceptance.
 - Execute the native Maestro flow on Android and iOS; attach artifacts rather than marking compilation as runtime acceptance.
 - Validate real HTTPS login/refresh/force-close/signout and transaction writes on physical devices.
 - Resolve keyboard, gesture, storage, accessibility and financial correctness issues; collect named-device motion/startup/memory results.
