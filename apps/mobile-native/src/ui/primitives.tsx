@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode, type Ref } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { color, motion } from './theme';
@@ -18,7 +18,7 @@ export function Button({ title, onPress, disabled, loading, secondary, testID }:
     <Text style={[styles.buttonText, secondary && styles.secondaryText]}>{title}</Text>
   </AnimatedPressable>;
 }
-export function Field({ label, error, ...props }: TextInputProps & { label: string; error?: string }) {
+export function Field({ label, error, ...props }: TextInputProps & { label: string; error?: string; ref?: Ref<TextInput> }) {
   return <View style={styles.field}>
     <Text style={styles.label}>{label}</Text>
     <TextInput accessibilityLabel={label} placeholderTextColor={color.muted} {...props}
