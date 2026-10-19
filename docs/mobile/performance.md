@@ -22,9 +22,9 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Expo Doctor | 21/21 checks passed in GitHub run 39235443009; the private platform-independent finance package is excluded from native-module catalog lookup |
 | Metro exports | Android and iOS succeeded in GitHub run 39237312769 |
 | Exported JS advisory-module review | No braces/node-forge/sprintf-js/uuid module paths in 1,355 Android and 1,351 iOS source-map entries in run 39237312769; does not audit native binaries or build-host exposure |
-| Android compilation/runtime | SDK setup initially requested the removed legacy tools package; corrected to explicit platform-tools. Compilation/runtime rerun pending |
+| Android compilation/runtime | SDK setup and prebuild now pass. Run 39237793014 rejected the Java keyword in the original QA namespace; development/QA identifiers changed to valid `.rn` segments. Compilation/runtime rerun pending |
 | iOS compilation | Unsigned Release simulator build passed in GitHub run 39204973766; simulator app artifact uploaded |
-| iOS runtime | Native login rendered in run 39234097276 after simulator startup correction. Automation tapped text labels instead of input controls; selectors corrected. The complete transaction scenario has not passed yet |
+| iOS runtime | Native login and credential input exercised in run 39235443009 after input-selector correction. Maestro's generic keyboard dismissal failed; the app now exposes an explicit header keyboard control, used by the flow. The complete transaction scenario has not passed yet |
 | Frame timing, startup, CPU, memory | NOT MEASURED |
 
 Node service tests use an in-memory mock of encrypted storage and a deterministic contract fixture. They test chunk commits, interrupted writes, user isolation, retry behavior and state transitions; they do not prove Keychain/Keystore encryption, native cookie handling, network integration, or smooth animations. No FPS, startup, or memory target has been achieved by evidence yet.

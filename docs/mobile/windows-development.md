@@ -103,11 +103,11 @@ As checked on 2026-10-19, Expo's pricing page lists a Free allowance of up to 15
 | Evidence | What it proves | Current status |
 | --- | --- | --- |
 | Native type checks | Native/shared/service types resolve | Passed on hosted CI |
-| Metro export | JavaScript bundles resolve | Pending hosted execution |
+| Metro export | JavaScript bundles resolve | Both platforms passed on hosted CI |
 | Android Gradle compilation | Native Android binary compiles | Configured; not run |
 | EAS iOS compilation | iOS binary compiles on cloud macOS | Configured; account/signing not linked |
 | GitHub unsigned iOS simulator compilation | Simulator Release binary compiles on hosted macOS | Passed; app artifact uploaded |
-| GitHub iOS simulator execution | Maestro scenarios exercise the native app | Pending; initial XCTest-driver startup timed out |
+| GitHub iOS simulator execution | Maestro scenarios exercise the native app | Login/input exercised; full scenario pending keyboard-control rerun |
 | Cloud Maestro execution | Tested scenarios ran in a simulator | Configured; not run |
 | Physical Android/iPhone tests | Actual device/API/keyboard/cookie behavior | Not run |
 | TestFlight upload | Apple accepted a processed build for testing | Not run |
