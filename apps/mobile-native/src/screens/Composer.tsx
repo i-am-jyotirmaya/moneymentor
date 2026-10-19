@@ -93,7 +93,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
     </ScrollView></SafeAreaView>;
   }
   const locked = entry.busy || !!entry.draft.pendingManual;
-  return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 96 : 0}>
+  return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 96 : 0}>
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={styles.content}>
       <Text style={styles.caption}>Your draft stays here when you close this screen.</Text>
       <View style={styles.row}><Button title="Use assistant" onPress={() => setMode('assistant')} disabled={entry.busy || !!entry.draft.pendingManual} selected={mode === 'assistant'} secondary={mode !== 'assistant'} />

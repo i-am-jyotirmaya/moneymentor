@@ -18,7 +18,7 @@ export function LoginScreen({ client, unavailable, onRestore }: { client: Financ
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not sign in.'); }
     finally { active.current = false; setBusy(false); }
   })(); };
-  return <SafeAreaView style={styles.screen}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  return <SafeAreaView style={styles.screen}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView contentContainerStyle={[styles.content, { flexGrow: 1, justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>spndrr.</Text><Text accessibilityRole="header" style={styles.title}>{'Make room for\nwhat matters.'}</Text>
       <Text style={styles.body}>Sign in to your Spndrr account.</Text>

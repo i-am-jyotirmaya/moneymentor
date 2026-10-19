@@ -25,9 +25,11 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Android compilation/runtime | Release QA APK compiled in run 39239041550. Runtime reached login but the AOSP keyboard's first-use contacts prompt intercepted input. CI now denies that unrelated keyboard permission before the flow |
 | iOS compilation | Release simulator build passed in run 39239041550; simulator app artifact uploaded |
 | iOS runtime | Login passed in run 39239041550. Draft restoration then failed with Keychain error -34018: the unsigned simulator executable had no application identifier/access-group entitlements. CI now applies and verifies a simulator-only ad-hoc signature; device signing is unchanged. Complete transaction acceptance is pending |
-| Frame timing, startup, CPU, memory | NOT MEASURED. Android acceptance now retains Activity launch timing, gfxinfo frame statistics, device/display configuration and memory snapshots, including on flow failure |
+| Initial Android emulator diagnostics | Run 39242838641: API 35 x86_64, Pixel 6 profile, 1080×2400/420 dpi, software GPU, Release QA. Activity cold TotalTime 765 ms; failed-login sample 120 frames, p95 125 ms, 80% janky frames; PSS 89,540 KB, RSS 218,952 KB. These are incomplete-flow diagnostics, not a passing transaction benchmark or physical-device performance |
 
 Node service tests use an in-memory mock of encrypted storage and a deterministic contract fixture. They test chunk commits, interrupted writes, user isolation, retry behavior and state transitions; they do not prove Keychain/Keystore encryption, native cookie handling, network integration, or smooth animations. No FPS, startup, or memory target has been achieved by evidence yet.
+
+The separate real-API job in run 39244003534 passed against the unchanged .NET application and a fresh PostgreSQL database over validated local HTTPS. It exercised secure cookie attributes/rotation, session restoration, card/account identity, transaction replay/edit, dashboard totals, trash/restore, category management, goals/contributions, commitments and settings. Its Node HTTP/cookie adapter does not replace native cookie acceptance. Android run 39242838641 exposed an IME layout/focus problem after keyboard permission provisioning; native forms now explicitly use Android keyboard height avoidance and the acceptance flow scrolls controls into view before tapping.
 
 ## Dependency advisory record
 

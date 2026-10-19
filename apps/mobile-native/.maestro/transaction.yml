@@ -8,9 +8,16 @@ appId: com.spndrr.app.rn.e2e
 - tapOn:
     id: email-input
 - inputText: qa@example.test
+- scrollUntilVisible:
+    element:
+      id: password-input
+    direction: DOWN
 - tapOn:
     id: password-input
 - inputText: fixture-only
+- scrollUntilVisible:
+    element: 'Sign in'
+    direction: DOWN
 - tapOn: 'Sign in'
 - extendedWaitUntil:
     visible: 'Add a transaction'

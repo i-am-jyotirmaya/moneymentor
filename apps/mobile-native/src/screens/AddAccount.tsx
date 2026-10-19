@@ -26,7 +26,7 @@ export function AddAccountScreen({ navigation }: ScreenProps<'AddAccount'>) {
       setError(caught instanceof Error ? caught.message : 'Could not add the account.');
     }
   }); };
-  return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={96}>
+  return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 96 : 0}>
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>Name it how you use it.</Text>
       <Text style={styles.caption}>A credit card and bank account can have different names, such as Kotak upi and Kotak.</Text>
