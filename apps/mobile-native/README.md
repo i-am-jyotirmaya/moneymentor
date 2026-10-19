@@ -11,7 +11,7 @@ From this directory, with Node 24 and npm:
 ```powershell
 Copy-Item .env.example .env
 # Set EXPO_PUBLIC_API_URL in .env to the actual HTTPS API origin, without /api.
-npm install
+npm ci
 npm run check:dependencies
 npm run typecheck
 npm run test:core
@@ -20,7 +20,7 @@ npm test
 npm run android
 ```
 
-Use `npm ci` once the native lockfile has been generated and committed. The current implementation environment could not reach the npm registry, so this branch does not fabricate a native lockfile. Native CI uploads its resolved lockfile for review; commit it before merging/releasing. Native dependency install, full type checking, component tests, Metro exports, and native builds are not yet verified.
+The native lockfile was resolved by GitHub CI and committed separately from the web's pnpm lock. Use `npm ci` for reproducible installs. Hosted installation and Expo's dependency compatibility check have run successfully; full native checks and device acceptance remain in progress. See the validation report for exact evidence.
 
 `npm run android` generates and compiles a development client with Android Studio/JDK installed. Subsequent JavaScript changes use `npm start`. Expo Go cannot validate the native cookie module. Native HTTP is restricted to HTTPS. No backend API keys, signing secrets, or credentials belong in `EXPO_PUBLIC_*` variables.
 

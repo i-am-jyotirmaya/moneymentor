@@ -39,8 +39,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/mobile-native/package.json
       - name: Install isolated native dependencies
-        run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+        run: npm ci
       - name: Preserve the resolved lockfile for review
         uses: actions/upload-artifact@v4
         with:
@@ -106,8 +105,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/mobile-native/package.json
       - name: Install isolated native dependencies
-        run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+        run: npm ci
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

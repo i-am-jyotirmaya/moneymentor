@@ -6,7 +6,7 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 
 | Check | Evidence/result |
 | --- | --- |
-| Universal finance/session tests | 17 passing Node tests |
+| Universal finance/session tests | 18 passing Node tests |
 | Native storage/cookie-policy/QA service fault tests | 8 passing Node tests |
 | Shared package strict TypeScript | Passed with TypeScript 5.9.3 |
 | Native service strict TypeScript | Passed for storage, fixture transport, and shared sources |
@@ -14,9 +14,11 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Presentation dependency boundaries | Passed: native sources do not import web/Next/DOM/Capacitor; universal modules import no platform runtime |
 | Hosted domain/service job | Passed on initial GitHub run 39203850380 |
 | Hosted native dependency installation | Succeeded on initial GitHub run; development-tool version corrections and maintained cookie adapter applied afterward |
-| Full native dependency installation | Blocked: HTTPS request to registry.npmjs.org timed out |
-| Native component tests | Eight implemented; not executed because native/Jest dependencies are unavailable |
-| Expo dependency/Doctor checks and Metro exports | First dependency check found React type/TypeScript version mismatches; corrected, awaiting rerun. Doctor/exports not executed |
+| Full native dependency installation | Hosted install succeeded and the resolved lockfile is committed; local registry access remains unavailable |
+| Native component tests | Nine implemented; pending hosted execution |
+| Expo dependency compatibility | Passed in GitHub run 39204313055 after SDK tooling corrections |
+| Full native TypeScript | Hosted check identified missing Jest globals; explicit type environments added, awaiting rerun |
+| Expo Doctor and Metro exports | Not executed yet |
 | Android compilation/runtime | Not executed; no native dependencies/SDK/device available in this task environment |
 | iOS compilation/runtime | Not executed; no linked EAS project/credentials or iPhone/cloud runtime |
 | Frame timing, startup, CPU, memory | NOT MEASURED |
@@ -55,7 +57,7 @@ Use physical iPhone/TestFlight for real API, keyboard and session behavior. Quan
 
 ## Gate before bulk migration
 
-- Resolve and commit the native lockfile; run Expo dependency/Doctor checks, full type checks, lint, component tests, both Metro exports, and Android compilation.
+- The native lockfile is committed and Expo dependency compatibility passed. Complete Doctor checks, full type checks, lint, component tests, both Metro exports, and Android compilation.
 - Execute the native Maestro flow on Android and iOS; attach artifacts rather than marking compilation as runtime acceptance.
 - Validate real HTTPS login/refresh/force-close/signout and transaction writes on physical devices.
 - Resolve keyboard, gesture, storage, accessibility and financial correctness issues; collect named-device motion/startup/memory results.
