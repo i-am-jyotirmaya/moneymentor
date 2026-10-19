@@ -133,3 +133,8 @@ test('a mismatched successful receipt cannot be displayed as the requested saved
   await client.login('a', 'p');
   await assert.rejects(client.createTransaction({ amount: 40, accountId: 'card', eventKind: 'Purchase', date: '2026-10-19', categoryId: 'groceries', householdId: 'home' }), error => error.outcome === 'unknown');
 });
+test('a malformed account-creation acknowledgement requires reconciliation before another create', async () => {
+  const client = new FinanceClient(async req => req.path.endsWith('/login') ? ok(session()) : ok({}), async () => {});
+  await client.login('a', 'p');
+  await assert.rejects(client.createAccount('Kotak upi', 'CreditCard'), error => error.outcome === 'unknown');
+});

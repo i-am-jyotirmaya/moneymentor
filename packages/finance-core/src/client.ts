@@ -179,11 +179,17 @@ export class FinanceClient {
     }
     return value;
   }
-  createAccount(name: string, accountType: FinancialAccount["accountType"]) {
-    return this.request<FinancialAccount>("/api/financial-accounts", "POST", {
+  async createAccount(name: string, accountType: FinancialAccount["accountType"]) {
+    const account = await this.request<FinancialAccount>("/api/financial-accounts", "POST", {
       householdId: null, name: name.trim(), accountType, institution: null, last4: null,
       aliases: [], shared: false, isActive: true,
     });
+    if (!account || typeof account.id !== 'string' || !account.id || typeof account.householdId !== 'string'
+      || typeof account.name !== 'string' || !['BankAccount', 'CreditCard', 'Cash', 'Wallet'].includes(account.accountType)
+      || typeof account.currencyCode !== 'string' || typeof account.isActive !== 'boolean') {
+      throw new ApiError('The account response could not be verified. Check the account list before creating another.', 0, 'unknown');
+    }
+    return account;
   }
   acceptPrivacy(policyVersion: string) {
     return this.request("/api/privacy/consents", "POST", { policyVersion, accepted: true });

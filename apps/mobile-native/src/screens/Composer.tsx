@@ -37,7 +37,8 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
       let transaction: Transaction;
       try { transaction = await entry.client.createTransaction(pending.payload); }
       catch (caught) {
-        if (!(caught instanceof ApiError) || caught.outcome === 'unknown') {
+        // A rejected retry does not resolve the FIRST attempt's unknown outcome.
+        if (entry.draft.pendingManual || !(caught instanceof ApiError) || caught.outcome === 'unknown') {
           const uncertain = { ...next, pendingManual: { ...pending, phase: 'uncertain' as const } };
           entry.update(uncertain); await entry.persist(uncertain).catch(() => undefined);
           setError('The save outcome is not confirmed. Retry uses the same reference and details.');
@@ -115,6 +116,11 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
         <ManualForm draft={entry.draft.manual} resources={entry.resources} disabled={locked} errors={fields}
           onChange={change => entry.updateManual(change)} onSelect={kind => navigation.navigate('Picker', { kind })} />
         {entry.draft.pendingManual ? <Text accessibilityRole="alert" style={styles.caption}>These details are locked until the outcome is confirmed. Retrying reuses the same transaction reference.</Text> : null}
+        {entry.draft.pendingManual ? <Card>
+          <Text style={styles.body}>If a retry is rejected, the earlier attempt may still have been saved. Check history before clearing this draft.</Text>
+          <Button title="Check recent transactions" secondary onPress={() => navigation.popToTop()} />
+          <Button title="I checked — clear pending draft" secondary disabled={entry.busy} onPress={() => { void entry.runExclusive(async () => { await entry.discardDraft(); setError(null); }); }} />
+        </Card> : null}
         <Button title={entry.draft.pendingManual ? 'Retry this transaction' : 'Save transaction'} onPress={submitManual} loading={entry.busy} disabled={entry.draft.assistantUncertain || !entry.resources.canWrite} testID="save-transaction" />
       </>}
       {error ? <ErrorNotice message={error} /> : null}

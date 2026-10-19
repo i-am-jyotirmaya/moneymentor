@@ -14,6 +14,7 @@ export type EntryContextValue = {
   complete: (transaction: Transaction) => Promise<void>; setReply: (reply: string | null) => void;
   beginEdit: (transaction: Transaction) => void; clearEdit: () => void; setSaved: (transaction: Transaction | null) => void;
   clearForLogout: () => Promise<void>;
+  discardDraft: () => Promise<void>;
 };
 export const EntryContext = createContext<EntryContextValue | null>(null);
 export function useEntry() { const context = useContext(EntryContext); if (!context) throw Error('Missing native entry provider.'); return context; }
@@ -33,6 +34,7 @@ export function EntryProvider({ children, ownerId, resources, client, vault }: {
   const [edit, setEdit] = useState<EntryContextValue['edit']>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closed = useRef(false);
+  const resetting = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -47,11 +49,12 @@ export function EntryProvider({ children, ownerId, resources, client, vault }: {
   const persist = useCallback(async (next?: ComposerDraft) => {
     if (timer.current) clearTimeout(timer.current);
     if (closed.current) throw Error('This session is closed.');
+    if (resetting.current) return;
     try { await vault.put(next ?? current.current); setPersistenceError(null); }
     catch { setPersistenceError('Your draft could not be saved securely. Free device storage and try again.'); throw Error('Secure draft storage is unavailable.'); }
   }, [vault]);
   const update = useCallback((change: Partial<ComposerDraft>) => {
-    if (closed.current) return;
+    if (closed.current || resetting.current) return;
     const next = { ...current.current, ...change };
     current.current = next; setDraft(next);
     if (timer.current) clearTimeout(timer.current);
@@ -79,9 +82,18 @@ export function EntryProvider({ children, ownerId, resources, client, vault }: {
       setSaved(transaction); setReply(null);
       // Keep the confirmed reference durable until clearing succeeds.
       if (timer.current) clearTimeout(timer.current);
+      resetting.current = true;
       try { await vault.remove(); setPersistenceError(null); }
       catch { setPersistenceError('The transaction is saved, but its local draft could not be cleared.'); return; }
+      finally { resetting.current = false; }
       current.current = initial; setDraft(initial);
+    },
+    discardDraft: async () => {
+      if (timer.current) clearTimeout(timer.current);
+      resetting.current = true;
+      try { await vault.remove(); current.current = initial; setDraft(initial); setReply(null); setPersistenceError(null); }
+      catch { setPersistenceError('Your pending draft could not be cleared securely.'); }
+      finally { resetting.current = false; }
     },
     beginEdit: transaction => {
       setEdit({ transaction, manual: { eventKind: transaction.type === 'Income' ? 'Income' : 'Purchase',

@@ -1,7 +1,7 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { FinanceClient, emptyDraft, type ComposerDraft, type EntryResources } from '@spndrr/finance-core';
+import { ApiError, FinanceClient, emptyDraft, type ComposerDraft, type EntryResources } from '@spndrr/finance-core';
 import { EntryProvider } from '../src/state/entry';
 import { SecureJsonStore } from '../src/services/secure-json';
 import { fixtureTransport } from '../src/services/fixture-transport';
@@ -61,6 +61,19 @@ test('backend validation leaves the manual input intact and editable', async () 
   await waitFor(() => expect(screen.getByText('Check this amount.')).toBeTruthy());
   expect(screen.getByLabelText('Amount (INR)').props.value).toBe('40.29');
   expect(screen.getByLabelText('Amount (INR)').props.editable).toBe(true);
+});
+test('a rejected retry cannot unlock the earlier uncertain save', async () => {
+  const { wrap, client } = await setup('manual', 'simulate lost response');
+  const original = client.createTransaction.bind(client);
+  jest.spyOn(client, 'createTransaction').mockImplementationOnce(original).mockRejectedValueOnce(new ApiError('The selected account is no longer active.', 400));
+  const screen = render(wrap(<ComposerScreen navigation={navigation as never} route={{ key: 'composer', name: 'Composer' }} />));
+  await waitFor(() => expect(screen.getByText('Save transaction')).toBeTruthy());
+  fireEvent.press(screen.getByText('Save transaction'));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Retry this transaction' }).props.accessibilityState.busy).toBe(false));
+  fireEvent.press(screen.getByText('Retry this transaction'));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Retry this transaction' }).props.accessibilityState.busy).toBe(false));
+  expect(screen.getByLabelText('Amount (INR)').props.editable).toBe(false);
+  expect((await client.transactions('2026-10')).items).toHaveLength(1);
 });
 test('assistant failure requires reconciliation before sending another message', async () => {
   const { wrap } = await setup('text');
