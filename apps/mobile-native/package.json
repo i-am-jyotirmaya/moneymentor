@@ -27,8 +27,9 @@
     "typecheck:core": "tsc -p ../../packages/finance-core/tsconfig.json",
     "check:dependencies": "expo install --check",
     "doctor": "expo-doctor",
-    "export:android": "expo export --platform android",
-    "export:ios": "expo export --platform ios",
+    "export:android": "expo export --platform android --output-dir dist/android --source-maps",
+    "export:ios": "expo export --platform ios --output-dir dist/ios --source-maps",
+    "check:bundles": "node scripts/check-bundle-tools.mjs",
     "check:boundaries": "node scripts/check-boundaries.mjs"
   },
   "dependencies": {
