@@ -1,0 +1,15 @@
+node_modules/
+.expo/
+dist/
+coverage/
+android/
+ios/
+.env
+.env.local
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+credentials.json
+build-*.apk
+build-*.ipa
