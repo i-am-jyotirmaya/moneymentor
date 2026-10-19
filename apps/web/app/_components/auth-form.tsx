@@ -3,7 +3,8 @@
 import { ApiError, createUser, login, requestMvpAccess } from "@/lib/api";
 import { saveAuthSession } from "@/lib/auth-session";
 import { FormEvent, useState } from "react";
-import { ArrowRightIcon, BrandMarkIcon } from "./icons";
+import { BrandLogo } from "./brand-logo";
+import { ArrowRightIcon } from "./icons";
 import {
   ProgressLink as Link,
   useProgressRouter as useRouter,
@@ -94,10 +95,7 @@ export function AuthForm({
           className="inline-flex items-center gap-3 rounded-lg text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] lg:hidden"
           href="/login"
         >
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
-            <BrandMarkIcon className="h-6 w-6" />
-          </span>
-          <span className="text-lg font-semibold">Spndrr</span>
+          <BrandLogo />
         </Link>
         <span className="hidden text-sm font-semibold text-[var(--muted)] lg:block">
           {isRequest

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BrandMarkIcon } from "./icons";
+import { BrandLogo } from "./brand-logo";
 
 // Static public content stays in the server component graph.
 export function AuthShell({ children }: { children: React.ReactNode }) {
@@ -11,10 +11,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             className="inline-flex items-center gap-3 rounded-lg text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             href="/login"
           >
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
-              <BrandMarkIcon className="h-6 w-6" />
-            </span>
-            <span className="text-lg font-semibold">Spndrr</span>
+            <BrandLogo />
           </Link>
 
           <div className="mt-16 max-w-xl">

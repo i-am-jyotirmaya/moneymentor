@@ -1,6 +1,6 @@
 "use client";
 
-import { BrandMarkIcon } from "./icons";
+import { BrandLogo } from "./brand-logo";
 import { WorkspaceSkeleton } from "./loading-ui";
 import { ProgressLink as Link } from "./navigation-progress";
 import { RegistrationLink } from "./registration-link";
@@ -34,10 +34,9 @@ export function SignedOutHome() {
   return (
     <main className="grid min-h-screen place-items-center bg-[var(--background)] px-5 text-[var(--ink)]">
       <section className="w-full max-w-md rounded-lg border border-[var(--border)] bg-white p-6 text-center shadow-[0_18px_55px_rgba(16,43,38,0.08)]">
-        <div className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-[var(--ink)] text-white">
-          <BrandMarkIcon className="h-7 w-7" />
-        </div>
-        <h1 className="mt-6 text-3xl font-semibold tracking-normal">Spndrr</h1>
+        <h1 className="flex justify-center">
+          <BrandLogo />
+        </h1>
         <p className="mt-3 text-base font-medium leading-7 text-[var(--muted)]">
           Sign in to use the assistant input workspace.
         </p>

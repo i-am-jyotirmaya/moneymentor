@@ -4,6 +4,7 @@ import type { HouseholdDashboard, UserPlan } from "@/lib/api";
 import { Bot, LogOut, Menu, Users, X } from "lucide-react";
 import { useWorkspaceUrl } from "../_hooks/use-workspace-url";
 import { SidebarStat } from "./common-ui";
+import { BrandLogo } from "./brand-logo";
 import { Dropdown } from "./dropdown";
 import { BrandMarkIcon } from "./icons";
 import { ProgressLink as Link } from "./navigation-progress";
@@ -38,11 +39,8 @@ export function DesktopSidebar({
     : "";
   return (
     <aside className="hidden w-[272px] shrink-0 border-r border-white/10 bg-[var(--sidebar)] px-5 py-6 text-white lg:flex lg:min-h-0 lg:flex-col">
-      <Link className="flex items-center gap-3" href="/">
-        <span className="grid h-10 w-10 place-items-center rounded-lg bg-white text-[var(--sidebar)]">
-          <BrandMarkIcon className="h-6 w-6" />
-        </span>
-        <span className="text-lg font-semibold">Spndrr</span>
+      <Link className="flex w-fit items-center rounded-lg bg-white px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" href="/">
+        <BrandLogo />
       </Link>
 
       <nav className="mt-9 space-y-1" aria-label="Desktop navigation">
@@ -147,8 +145,8 @@ export function MobileHeader({
           {sectionLabel(activeSection)}
         </h1>
       </div>
-      <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
-        <BrandMarkIcon className="h-6 w-6" />
+      <span aria-label="Spndrr" role="img" className="grid h-10 w-10 place-items-center">
+        <BrandMarkIcon className="h-10 w-10" />
       </span>
     </header>
   );
@@ -188,10 +186,7 @@ export function MobileMenu({
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--ink)] text-white">
-              <BrandMarkIcon className="h-6 w-6" />
-            </span>
-            <span className="text-base font-semibold">Spndrr</span>
+            <BrandLogo />
           </div>
           <button
             aria-label="Close menu"
