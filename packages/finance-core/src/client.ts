@@ -1,6 +1,7 @@
 import type { AssistantResponse, AuthSession, CategoryCatalog, FinancialAccount, Transaction, TransactionIntent, TransactionPage, TransactionPatch, UserSettings } from "./models.ts";
+import type { RegistrationPolicy, SignupInput, SignupInvitation } from "./workspace-models.ts";
 
-export type HttpRequest = { path: string; method: "GET" | "POST" | "PATCH"; body?: unknown; headers?: Record<string, string> };
+export type HttpRequest = { path: string; method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; body?: unknown; headers?: Record<string, string> };
 export type HttpResponse = { status: number; data: unknown };
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
 export class ApiError extends Error {
@@ -71,14 +72,26 @@ export class FinanceClient {
     return response.data;
   }
 
-  async login(email: string, password: string): Promise<AuthSession> {
+  login(email: string, password: string): Promise<AuthSession> {
+    return this.authenticate('/api/auth/login', { email: email.trim(), password });
+  }
+  signup(input: SignupInput): Promise<AuthSession> {
+    return this.authenticate('/api/auth/users', { ...input, email: input.email.trim() });
+  }
+  registration() { return this.raw({ path: '/api/auth/registration', method: 'GET' }) as Promise<RegistrationPolicy>; }
+  validateInvitation(token: string) { return this.raw({ path: '/api/auth/signup-invitations/validate', method: 'POST', body: { token } }) as Promise<SignupInvitation>; }
+  requestAccess(input: { name: string; email: string; reason?: string }) {
+    return this.raw({ path: '/api/auth/access-requests', method: 'POST', body: input });
+  }
+  privacyPolicy() { return this.raw({ path: '/api/public/privacy', method: 'GET' }) as Promise<{ version: string; effectiveDate: string; policyUrl: string; supportEmail: string }>; }
+  private async authenticate(path: string, body: unknown): Promise<AuthSession> {
     const epoch = ++this.epoch;
     this.publish({ status: "loading", session: null });
     return this.serializeAuth(async () => {
       try {
         // A different sign-in must not inherit the previous user's refresh cookie.
         await this.clearLocalSession();
-        const session = await this.raw({ path: "/api/auth/login", method: "POST", body: { email: email.trim(), password } });
+        const session = await this.raw({ path, method: "POST", body });
         if (epoch !== this.epoch) throw new SessionChangedError();
         if (!isSession(session)) throw new ApiError("The server returned an invalid sign-in response.");
         this.publish({ status: "authenticated", session });
@@ -129,14 +142,14 @@ export class FinanceClient {
       finally { await this.clearLocalSession(); }
     });
   }
-  async request<T>(path: string, method: HttpRequest["method"] = "GET", body?: unknown): Promise<T> {
+  async request<T>(path: string, method: HttpRequest["method"] = "GET", body?: unknown, headers?: Record<string, string>): Promise<T> {
     if (!path.startsWith("/api/") || path.includes("://") || path.includes("..")) throw new ApiError("Invalid API path.");
     const epoch = this.epoch;
     let session = this.state.session;
     if (!session) throw new ApiError("Please sign in again.", 401);
     if (Date.parse(session.accessTokenExpiresAt) <= Date.now() + 30000) session = await this.refresh();
     if (epoch !== this.epoch) throw new SessionChangedError();
-    const send = (token: string) => this.raw({ path, method, body, headers: { Authorization: `Bearer ${token}` } });
+    const send = (token: string) => this.raw({ path, method, body, headers: { ...headers, Authorization: `Bearer ${token}` } });
     let result: unknown;
     try { result = await send(session.accessToken); }
     catch (error) {
@@ -152,11 +165,11 @@ export class FinanceClient {
     }
     return result as T;
   }
-  categories() { return this.request<CategoryCatalog>("/api/categories"); }
-  accounts() { return this.request<FinancialAccount[]>("/api/financial-accounts"); }
+  categories(householdId?: string) { return this.request<CategoryCatalog>(`/api/categories${householdId ? `?householdId=${encodeURIComponent(householdId)}` : ''}`); }
+  accounts(householdId?: string) { return this.request<FinancialAccount[]>(`/api/financial-accounts${householdId ? `?householdId=${encodeURIComponent(householdId)}` : ''}`); }
   settings() { return this.request<UserSettings>("/api/settings/me"); }
-  transactions(month: string, page = 1) {
-    return this.request<TransactionPage>(`/api/transactions?month=${encodeURIComponent(month)}&page=${page}&pageSize=30`);
+  transactions(month: string, page = 1, householdId?: string) {
+    return this.request<TransactionPage>(`/api/transactions?month=${encodeURIComponent(month)}&page=${page}&pageSize=30${householdId ? `&householdId=${encodeURIComponent(householdId)}` : ''}`);
   }
   async createTransaction(intent: Readonly<TransactionIntent>): Promise<Transaction> {
     const value = await this.request<unknown>("/api/transactions", "POST", intent);
