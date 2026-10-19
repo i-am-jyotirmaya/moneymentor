@@ -8,9 +8,6 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: native-${{ github.workflow }}-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
 jobs:
   domain:
     runs-on: ubuntu-latest
@@ -23,6 +20,9 @@ jobs:
       - run: node apps/mobile-native/scripts/check-boundaries.mjs
   native-android:
     runs-on: ubuntu-latest
+    concurrency:
+      group: native-android-${{ github.head_ref || github.ref }}
+      cancel-in-progress: true
     timeout-minutes: 60
     defaults:
       run:
@@ -106,6 +106,10 @@ jobs:
           if-no-files-found: ignore
   native-ios:
     runs-on: macos-latest
+    # Let the running simulator scenario finish while newer JS checks iterate.
+    concurrency:
+      group: native-ios-${{ github.head_ref || github.ref }}
+      cancel-in-progress: false
     timeout-minutes: 60
     defaults:
       run:
