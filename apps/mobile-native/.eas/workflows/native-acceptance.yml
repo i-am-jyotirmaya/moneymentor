@@ -1,0 +1,25 @@
+name: Native transaction acceptance
+# Run explicitly with eas workflow:run. No production release or OTA publication.
+jobs:
+  android_build:
+    type: build
+    params:
+      platform: android
+      profile: e2e
+  ios_build:
+    type: build
+    params:
+      platform: ios
+      profile: e2e
+  android_runtime:
+    needs: [android_build]
+    type: maestro
+    params:
+      build_id: ${{ needs.android_build.outputs.build_id }}
+      flow_path: [.maestro/transaction.yml]
+  ios_runtime:
+    needs: [ios_build]
+    type: maestro
+    params:
+      build_id: ${{ needs.ios_build.outputs.build_id }}
+      flow_path: [.maestro/transaction.yml]

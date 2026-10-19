@@ -1,0 +1,68 @@
+appId: com.spndrr.app.native.e2e
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: 'Sign in'
+    timeout: 30000
+- tapOn: 'Email'
+- inputText: qa@example.test
+- tapOn: 'Password'
+- inputText: fixture-only
+- hideKeyboard
+- tapOn: 'Sign in'
+- tapOn: 'Add a transaction'
+- tapOn: 'Enter details'
+- tapOn:
+    id: amount-input
+- inputText: '40.29'
+- hideKeyboard
+- tapOn: 'Category: Choose category or subcategory'
+- tapOn: 'Search category'
+- inputText: 'Groceries'
+- hideKeyboard
+- tapOn: 'Food / Groceries,.*'
+- tapOn: 'Account: Choose payment account'
+- tapOn: 'Kotak upi, Credit card'
+- scrollUntilVisible:
+    element: 'Save transaction'
+    direction: DOWN
+- tapOn: 'Save transaction'
+- assertVisible: 'Transaction saved'
+- assertVisible: 'Kotak upi.*'
+- tapOn: 'Edit saved transaction'
+- tapOn:
+    id: amount-input
+- eraseText
+- inputText: '45.50'
+- hideKeyboard
+- scrollUntilVisible:
+    element: 'Save changes'
+    direction: DOWN
+- tapOn: 'Save changes'
+- assertVisible: 'Changes saved'
+- tapOn: 'Done'
+- tapOn: 'Done'
+- tapOn: 'Add a transaction'
+- tapOn: 'Transaction message'
+- inputText: 'coffee'
+- hideKeyboard
+- tapOn: 'Send & track'
+- assertVisible: 'How much did you spend?'
+- tapOn: 'Transaction message'
+- inputText: '30'
+- hideKeyboard
+- tapOn: 'Send & track'
+- assertVisible: 'Transaction saved'
+- tapOn: 'Done'
+- tapOn: 'Add a transaction'
+- tapOn: 'Transaction message'
+- inputText: 'simulate failure'
+- hideKeyboard
+- tapOn: 'Send & track'
+- assertVisible: 'Check recent transactions'
+- assertNotVisible: 'Send & track'
+- tapOn: 'Check recent transactions'
+- tapOn: 'Sign out'
+- tapOn: 'Sign out and clear draft'
+- assertVisible: 'Sign in'

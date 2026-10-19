@@ -2,6 +2,7 @@
   "name": "spndrr-native",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "main": "index.ts",
   "engines": {
     "node": ">=22.13.0"
@@ -14,6 +15,9 @@
     "lint": "eslint . --max-warnings=0",
     "test": "jest --runInBand",
     "test:core": "node --test ../../packages/finance-core/tests/*.test.mjs",
+    "test:services": "node --test tests/*.test.mjs",
+    "typecheck:services": "tsc -p tsconfig.services.json",
+    "typecheck:core": "tsc -p ../../packages/finance-core/tsconfig.json",
     "check:dependencies": "expo install --check",
     "export:android": "expo export --platform android",
     "export:ios": "expo export --platform ios",
@@ -42,6 +46,7 @@
     "@react-native-community/datetimepicker": "9.1.0"
   },
   "devDependencies": {
+    "@react-native/jest-preset": "0.86.3",
     "@testing-library/react-native": "13.3.3",
     "@types/jest": "29.5.14",
     "@types/react": "19.2.2",

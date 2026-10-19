@@ -1,0 +1,90 @@
+name: native-mobile
+on:
+  pull_request:
+    paths: ['apps/mobile-native/**', 'packages/finance-core/**', 'docs/mobile/**', '.github/workflows/native-mobile.yml']
+  push:
+    branches: [main]
+    paths: ['apps/mobile-native/**', 'packages/finance-core/**', '.github/workflows/native-mobile.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  domain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test packages/finance-core/tests/*.test.mjs apps/mobile-native/tests/*.test.mjs
+      - run: node apps/mobile-native/scripts/check-boundaries.mjs
+  native-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: apps/mobile-native
+    env:
+      APP_VARIANT: e2e
+      EXPO_PUBLIC_E2E: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/mobile-native/package.json
+      - name: Install isolated native dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Preserve the resolved lockfile for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-dependency-lock
+          path: apps/mobile-native/package-lock.json
+      - run: npm run check:dependencies
+      - run: npm run typecheck && npm run typecheck:core && npm run typecheck:services
+      - run: npm run lint
+      - run: npm test -- --ci
+      - run: npm run export:android && npm run export:ios
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Generate the QA Android project
+        run: npx expo prebuild --platform android --no-install
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compile QA release APK
+        run: ./gradlew :app:assembleRelease --no-daemon
+        working-directory: apps/mobile-native/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spndrr-native-qa-apk
+          path: apps/mobile-native/android/app/build/outputs/apk/release/*.apk
+      - name: Install Maestro
+        run: curl -Ls https://get.maestro.mobile.dev | bash
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          working-directory: apps/mobile-native
+          script: |
+            adb install -r android/app/build/outputs/apk/release/app-release.apk
+            $HOME/.maestro/bin/maestro test .maestro/transaction.yml
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: native-runtime-diagnostics
+          path: ~/.maestro/tests/**
+          if-no-files-found: ignore

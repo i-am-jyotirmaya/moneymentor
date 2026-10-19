@@ -26,7 +26,9 @@ export async function createNativeTransport(origin: string): Promise<{ transport
   const cookies = await scopedVault(origin, 'session');
   const names = ['mm_refresh', 'mm_session'];
   const clearJar = async () => {
-    for (const name of names) await CookieManager.clearByName(authUrl, name, false);
+    // This native app has one API cookie jar and no embedded web sessions.
+    // clearByName is iOS-only; Android must clear the app-owned jar.
+    await CookieManager.clearAll(false);
     if (Platform.OS === 'android') await CookieManager.flush();
   };
   // The platform jar is used only during auth requests. SecureStore owns persistence.
@@ -50,8 +52,14 @@ export async function createNativeTransport(origin: string): Promise<{ transport
       });
       if (auth && response.ok && !request.path.endsWith('/logout')) {
         const jar = await CookieManager.get(authUrl, false);
-        const snapshot = names.flatMap(name => jar[name] ? [jar[name]!] : []);
-        if (!snapshot.some(c => c.name === 'mm_refresh' && c.httpOnly && c.secure)) throw Error('The native refresh cookie was not available securely.');
+        // Android getCookie returns name/value without the original attributes.
+        // Apply the backend's known HTTPS-only /api/auth policy on restoration.
+        const snapshot = names.flatMap(name => jar[name]?.value ? [{
+          name, value: jar[name]!.value, domain: new URL(origin).hostname, path: '/api/auth',
+          secure: true, httpOnly: true,
+          ...(Platform.OS === 'ios' && jar[name]?.expires ? { expires: jar[name]!.expires } : {}),
+        }] : []);
+        if (!snapshot.some(c => c.name === 'mm_refresh')) throw Error('The native refresh cookie was not available securely.');
         await cookies.put(snapshot);
       }
       const text = await response.text();
