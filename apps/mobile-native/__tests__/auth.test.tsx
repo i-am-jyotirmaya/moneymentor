@@ -1,5 +1,6 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { FinanceClient } from '@spndrr/finance-core';
+import { ApiError } from '@spndrr/finance-core';
 import { LoginScreen } from '../src/screens/Auth';
 jest.mock('react-native-safe-area-context', () => jest.requireActual('react-native-safe-area-context/jest/mock').default);
 
@@ -19,4 +20,30 @@ test('failed sign-in preserves the entered email and exposes the correction path
   fireEvent.press(screen.getByText('Sign in'));
   await waitFor(() => expect(screen.getByText('Check your email or password.')).toBeTruthy());
   expect(screen.getByLabelText('Email').props.value).toBe('qa@example.test');
+});
+
+test('request-only signup cannot submit without an invitation and privacy acceptance', async () => {
+  const signup = jest.fn();
+  const client = { signup, registration: async () => ({ mode: 'RequestOnly' }), privacyPolicy: async () => ({ version: 'current', policyUrl: 'https://example.test/privacy' }) } as unknown as FinanceClient;
+  const screen = render(<LoginScreen client={client} unavailable={false} onRestore={jest.fn()} />);
+  fireEvent.press(screen.getByText('Create an account'));
+  await waitFor(() => expect(screen.getByText('Spndrr beta uses signup invitations.')).toBeTruthy());
+  fireEvent.changeText(screen.getByLabelText('Your name'), 'Alice');
+  fireEvent.changeText(screen.getByLabelText('Email'), 'alice@example.test');
+  fireEvent.changeText(screen.getByLabelText('New password'), 'fixture-only');
+  fireEvent(screen.getByLabelText('I accept the current privacy policy'), 'valueChange', true);
+  expect(screen.getByRole('button', { name: 'Create account' }).props.accessibilityState.disabled).toBe(true);
+  expect(signup).not.toHaveBeenCalled();
+});
+
+test('an access request with an uncertain outcome offers email reconciliation and blocks a second send', async () => {
+  const requestAccess = jest.fn(async () => { throw new ApiError('Response lost', 0, 'unknown'); });
+  const screen = render(<LoginScreen client={{ requestAccess } as unknown as FinanceClient} unavailable={false} onRestore={jest.fn()} />);
+  fireEvent.press(screen.getByText('Request beta access'));
+  fireEvent.changeText(screen.getByLabelText('Your name'), 'Alice');
+  fireEvent.changeText(screen.getByLabelText('Email'), 'alice@example.test');
+  fireEvent.press(screen.getByText('Request access'));
+  await waitFor(() => expect(screen.getByText('Your request may already have arrived. Check your email before requesting again.')).toBeTruthy());
+  expect(screen.getByRole('button', { name: 'Request access' }).props.accessibilityState.disabled).toBe(true);
+  expect(requestAccess).toHaveBeenCalledTimes(1);
 });

@@ -1,16 +1,29 @@
-import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { FinanceClient } from '@spndrr/finance-core';
+import { ApiError, type FinanceClient } from '@spndrr/finance-core';
 import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
 
 export function LoginScreen({ client, unavailable, onRestore }: { client: FinanceClient; unavailable: boolean; onRestore: () => void }) {
+  const [mode, setMode] = useState<'login' | 'signup' | 'access'>('login');
+  const [invitation, setInvitation] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const active = useRef(false);
   const passwordInput = useRef<TextInput>(null);
+  useEffect(() => {
+    const receive = (url: string | null) => {
+      if (!url) return;
+      try { const link = new URL(url); if (link.protocol === 'spndrr-native:' && (link.hostname === 'signup' || link.pathname === '/signup')) {
+        setInvitation(link.searchParams.get('token') ?? ''); setMode('signup');
+      } } catch { /* Ignore unrelated/malformed links. Never log invitation tokens. */ }
+    };
+    void Linking.getInitialURL().then(receive).catch(() => undefined);
+    const listener = Linking.addEventListener('url', event => receive(event.url));
+    return () => listener.remove();
+  }, []);
   const login = () => { void (async () => {
     if (active.current || !email.trim() || !password) return;
     active.current = true; setBusy(true); setError(null);
@@ -18,6 +31,7 @@ export function LoginScreen({ client, unavailable, onRestore }: { client: Financ
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not sign in.'); }
     finally { active.current = false; setBusy(false); }
   })(); };
+  if (mode !== 'login') return <RegistrationScreen client={client} mode={mode} invitation={invitation} onBack={() => setMode('login')} onRequestAccess={() => setMode('access')} />;
   return <SafeAreaView style={styles.screen}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView contentContainerStyle={[styles.content, { flexGrow: 1, justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>spndrr.</Text><Text accessibilityRole="header" style={styles.title}>{'Make room for\nwhat matters.'}</Text>
@@ -28,6 +42,66 @@ export function LoginScreen({ client, unavailable, onRestore }: { client: Financ
       <Field ref={passwordInput} label="Password" testID="password-input" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" textContentType="password"
         returnKeyType="go" onSubmitEditing={login} editable={!busy} />
       <Button title="Sign in" onPress={login} loading={busy} disabled={!email.trim() || !password} />
+      {error ? <ErrorNotice message={error} /> : null}
+      <Button title="Create an account" secondary onPress={() => setMode('signup')} disabled={busy} />
+      <Button title="Request beta access" secondary onPress={() => setMode('access')} disabled={busy} />
+    </ScrollView></KeyboardAvoidingView></SafeAreaView>;
+}
+
+function RegistrationScreen({ client, mode, invitation, onBack, onRequestAccess }: {
+  client: FinanceClient; mode: 'signup' | 'access'; invitation: string; onBack: () => void; onRequestAccess: () => void;
+}) {
+  const [name, setName] = useState(''); const [email, setEmail] = useState('');
+  const [password, setPassword] = useState(''); const [reason, setReason] = useState('');
+  const [token, setToken] = useState(invitation); const [accepted, setAccepted] = useState(false);
+  const [open, setOpen] = useState(false); const [policy, setPolicy] = useState<Awaited<ReturnType<FinanceClient['privacyPolicy']>> | null>(null);
+  const [ready, setReady] = useState(mode === 'access'); const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false); const [unknown, setUnknown] = useState(false); const [error, setError] = useState<string | null>(null);
+  const active = useRef(false);
+  useEffect(() => {
+    if (mode === 'access') { setReady(true); return; }
+    let alive = true;
+    void Promise.all([client.registration(), client.privacyPolicy()]).then(([registration, current]) => {
+      if (alive) { setOpen(registration.mode === 'Open'); setPolicy(current); setReady(true); }
+    }).catch(() => { if (alive) setError('Registration details could not be loaded. Return to sign in and try again.'); });
+    return () => { alive = false; };
+  }, [client, mode]);
+  const validate = () => { if (active.current || !token.trim()) return; active.current = true; setBusy(true); setError(null);
+    void client.validateInvitation(token.trim()).then(value => { setEmail(value.email); setName(value.name); })
+      .catch(caught => setError(caught instanceof Error ? caught.message : 'This invitation could not be checked.'))
+      .finally(() => { active.current = false; setBusy(false); }); };
+  const submit = () => { if (active.current || unknown || !ready || !name.trim() || !email.trim()) return;
+    if (mode === 'signup' && (!accepted || !policy || password.length < 8 || (!open && !token.trim()))) return;
+    active.current = true; setBusy(true); setError(null);
+    void (mode === 'access' ? client.requestAccess({ name: name.trim(), email: email.trim(), reason: reason.trim() || undefined })
+      : client.signup({ displayName: name.trim(), email: email.trim(), password, acceptPrivacyPolicy: accepted,
+        privacyPolicyVersion: policy!.version, invitationToken: token.trim() || undefined }))
+      .then(() => { setPassword(''); setDone(true); })
+      .catch(caught => { setError(caught instanceof Error ? caught.message : 'The request could not be confirmed.');
+        if (!(caught instanceof ApiError) || caught.outcome === 'unknown') setUnknown(true); })
+      .finally(() => { active.current = false; setBusy(false); });
+  };
+  return <SafeAreaView style={styles.screen}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <Button title="Back to sign in" secondary onPress={onBack} disabled={busy} />
+      <Text accessibilityRole="header" style={styles.title}>{mode === 'access' ? 'A little more clarity.' : 'Welcome to Spndrr.'}</Text>
+      {done ? <Card><Text style={styles.body}>Your request has been received. We’ll email you if access is approved.</Text></Card> : <>
+        {mode === 'signup' && !open ? <><Text style={styles.body}>Spndrr beta uses signup invitations.</Text>
+          <Field label="Signup invitation token" value={token} onChangeText={setToken} autoCapitalize="none" autoCorrect={false} editable={!busy && !unknown} />
+          <Button title="Check invitation" secondary onPress={validate} loading={busy} disabled={!ready || !token.trim() || unknown} />
+          <Button title="Request an invitation" secondary onPress={onRequestAccess} disabled={busy} /></> : null}
+        <Field label="Your name" value={name} onChangeText={setName} maxLength={128} autoComplete="name" editable={!busy && !unknown} />
+        <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" editable={!busy && !unknown} />
+        {mode === 'access' ? <Field label="What would you like help with? (optional)" value={reason} onChangeText={setReason} maxLength={1000} multiline editable={!busy && !unknown} /> : <>
+          <Field label="New password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" textContentType="newPassword" editable={!busy && !unknown} />
+          <Text style={styles.caption}>Use at least 8 characters. The server applies the account password rules.</Text>
+          {policy ? <Button title="Read current privacy policy" secondary onPress={() => { if (policy.policyUrl.startsWith('https://')) void Linking.openURL(policy.policyUrl).catch(() => setError('The privacy policy could not be opened.')); }} /> : null}
+          <View style={styles.row}><Switch accessibilityLabel="I accept the current privacy policy" value={accepted} onValueChange={setAccepted} disabled={busy || unknown} /><Text style={styles.body}>I accept the current privacy policy.</Text></View>
+        </>}
+        <Button title={mode === 'access' ? 'Request access' : 'Create account'} onPress={submit} loading={busy}
+          disabled={!ready || unknown || !name.trim() || !email.trim() || (mode === 'signup' && (!accepted || password.length < 8 || (!open && !token.trim())))} />
+      </>}
+      {unknown ? <Text accessibilityRole="alert" style={styles.body}>{mode === 'access' ? 'Your request may already have arrived. Check your email before requesting again.' : 'Your account may already exist. Return to sign in before creating another account.'}</Text> : null}
       {error ? <ErrorNotice message={error} /> : null}
     </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
