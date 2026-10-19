@@ -10,6 +10,8 @@ The baseline was verified on 2026-10-19 against the [Expo SDK 57 release branch]
 
 React Navigation native-stack, accessible native controls, Expo SecureStore, and an injected universal API transport form the first slice. Do not add Skia until profiling demonstrates a need. Development builds include custom native modules; Expo Go is not the acceptance environment.
 
+The first hosted dependency check confirmed the SDK's development-tool recommendations: native TypeScript 6.0.3 and React types 19.2.4. The universal package retains its existing-compatible TypeScript 5.9.3 development checker. The native cookie adapter uses the maintained New Architecture TurboModule `@preeternal/react-native-cookie-manager` 7.0.0, following the deprecated upstream package's migration guidance. Its Foundation store is used for iOS networking; no WebKit screen is introduced.
+
 | Decision factor | React Native + Expo | Flutter |
 | --- | --- | --- |
 | Motion and native behavior | Native screens/gestures plus UI-thread Reanimated; must profile actual devices | Flutter rendering/animation pipeline; must also profile actual devices |

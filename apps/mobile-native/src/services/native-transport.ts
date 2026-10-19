@@ -1,4 +1,4 @@
-import CookieManager, { type Cookie } from '@react-native-cookies/cookies';
+import CookieManager, { type Cookie } from '@preeternal/react-native-cookie-manager';
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
@@ -27,9 +27,8 @@ export async function createNativeTransport(origin: string): Promise<{ transport
   const cookies = await scopedVault(origin, 'session');
   const clearJar = async () => {
     // This native app has one API cookie jar and no embedded web sessions.
-    // clearByName is iOS-only; Android must clear the app-owned jar.
-    await CookieManager.clearAll(false);
-    if (Platform.OS === 'android') await CookieManager.flush();
+    // Clear the app-owned Foundation/Android jar; the maintained TurboModule flushes mutations.
+    await CookieManager.clearAll();
   };
   // The platform jar is used only during auth requests. SecureStore owns persistence.
   await clearJar();
@@ -42,7 +41,7 @@ export async function createNativeTransport(origin: string): Promise<{ transport
       if (auth) {
         const stored = await cookies.get();
         if (Array.isArray(stored)) for (const cookie of stored as Cookie[]) {
-          if (cookie && authCookieNames.some(name => name === cookie.name) && cookie.httpOnly && cookie.secure) await CookieManager.set(authUrl, cookie, false);
+          if (cookie && authCookieNames.some(name => name === cookie.name) && cookie.httpOnly && cookie.secure) await CookieManager.set(authUrl, cookie);
         }
       }
       const response = await fetch(`${origin}${request.path}`, {
@@ -51,7 +50,7 @@ export async function createNativeTransport(origin: string): Promise<{ transport
         body: request.body === undefined ? undefined : JSON.stringify(request.body),
       });
       if (auth && response.ok && !request.path.endsWith('/logout')) {
-        const jar = await CookieManager.get(authUrl, false);
+        const jar = await CookieManager.get(authUrl);
         // Android getCookie returns name/value without the original attributes.
         // Apply the backend's known HTTPS-only /api/auth policy on restoration.
         const snapshot = authCookieSnapshot(jar, new URL(origin).hostname, Platform.OS === 'ios');

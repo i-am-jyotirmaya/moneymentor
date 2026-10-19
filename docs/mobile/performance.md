@@ -12,9 +12,11 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Native service strict TypeScript | Passed for storage, fixture transport, and shared sources |
 | Native TS/TSX syntax transpilation | Passed; does not resolve native dependency types |
 | Presentation dependency boundaries | Passed: native sources do not import web/Next/DOM/Capacitor; universal modules import no platform runtime |
+| Hosted domain/service job | Passed on initial GitHub run 39203850380 |
+| Hosted native dependency installation | Succeeded on initial GitHub run; development-tool version corrections and maintained cookie adapter applied afterward |
 | Full native dependency installation | Blocked: HTTPS request to registry.npmjs.org timed out |
 | Native component tests | Eight implemented; not executed because native/Jest dependencies are unavailable |
-| Expo dependency/Doctor checks and Metro exports | Not executed |
+| Expo dependency/Doctor checks and Metro exports | First dependency check found React type/TypeScript version mismatches; corrected, awaiting rerun. Doctor/exports not executed |
 | Android compilation/runtime | Not executed; no native dependencies/SDK/device available in this task environment |
 | iOS compilation/runtime | Not executed; no linked EAS project/credentials or iPhone/cloud runtime |
 | Frame timing, startup, CPU, memory | NOT MEASURED |
