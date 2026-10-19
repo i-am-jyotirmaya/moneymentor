@@ -4,12 +4,12 @@ import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withSpring } 
 import { color, motion } from './theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-export function Button({ title, onPress, disabled, loading, secondary, testID }: {
-  title: string; onPress: () => void; disabled?: boolean; loading?: boolean; secondary?: boolean; testID?: string;
+export function Button({ title, onPress, disabled, loading, secondary, testID, accessibilityLabel }: {
+  title: string; onPress: () => void; disabled?: boolean; loading?: boolean; secondary?: boolean; testID?: string; accessibilityLabel?: string;
 }) {
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  return <AnimatedPressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ disabled: disabled || loading, busy: loading }}
+  return <AnimatedPressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? title} accessibilityState={{ disabled: disabled || loading, busy: loading }}
     testID={testID} disabled={disabled || loading} onPress={onPress}
     onPressIn={() => { scale.value = withSpring(0.975, { ...motion.spring, reduceMotion: ReduceMotion.System }); }}
     onPressOut={() => { scale.value = withSpring(1, { ...motion.spring, reduceMotion: ReduceMotion.System }); }}

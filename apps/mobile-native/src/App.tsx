@@ -25,6 +25,8 @@ const navigationTheme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, pri
 
 function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSession }) {
   const reduced = useReducedMotion();
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 60000); return () => clearInterval(timer); }, []);
   const query = useQuery({ queryKey: ['entry', session.user.id], queryFn: async () => {
     const [catalog, accounts, settings] = await Promise.all([runtime.client.categories(), runtime.client.accounts(), runtime.client.settings()]);
     return { catalog, accounts, settings };
@@ -38,7 +40,7 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
   }, [runtime, session.user.id]);
   const resources = useMemo<EntryResources | null>(() => query.data ? ({ categories: query.data.catalog.categories, accounts: query.data.accounts,
     settings: query.data.settings, householdId: query.data.catalog.householdId, canWrite: query.data.catalog.canWrite,
-    today: dateInTimeZone(query.data.settings.timeZone) }) : null, [query.data]);
+    today: dateInTimeZone(query.data.settings.timeZone, new Date(clock)) }) : null, [query.data, clock]);
   if (query.isError || vaultError) return <View style={styles.center}><ErrorNotice message={vaultError ? 'Secure device storage is unavailable.' : 'Your categories and accounts could not be loaded.'} onRetry={() => { void query.refetch(); }} />
     <Button title="Sign out" secondary onPress={() => { void runtime.client.logout().catch(() => undefined); }} /></View>;
   if (!resources || !vault) return <Loading />;

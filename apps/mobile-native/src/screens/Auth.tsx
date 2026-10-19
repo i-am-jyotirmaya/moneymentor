@@ -20,7 +20,7 @@ export function LoginScreen({ client, unavailable, onRestore }: { client: Financ
   })(); };
   return <SafeAreaView style={styles.screen}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView contentContainerStyle={[styles.content, { flexGrow: 1, justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
-      <Text style={styles.heading}>spndrr.</Text><Text accessibilityRole="header" style={styles.title}>Make room for\nwhat matters.</Text>
+      <Text style={styles.heading}>spndrr.</Text><Text accessibilityRole="header" style={styles.title}>{'Make room for\nwhat matters.'}</Text>
       <Text style={styles.body}>Sign in to your Spndrr account.</Text>
       {unavailable ? <ErrorNotice message="Your saved session could not be checked. Try again when your connection returns, or sign in below." onRetry={onRestore} /> : null}
       <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false}

@@ -105,7 +105,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
         {entry.reply ? <Card><Text accessibilityLiveRegion="polite" style={styles.body}>{entry.reply}</Text></Card> : null}
         {entry.draft.assistantUncertain ? <Card>
           <Text accessibilityRole="alert" style={styles.body}>This message may already have been saved. Check recent transactions before sending it again.</Text>
-          <Button title="Check recent transactions" secondary onPress={() => navigation.navigate('Home')} />
+          <Button title="Check recent transactions" secondary onPress={() => navigation.popToTop()} />
           <Button title="I checked — allow another message" secondary disabled={entry.busy} onPress={() => {
             entry.update({ assistantUncertain: false }); void entry.persist().catch(() => undefined);
           }} />

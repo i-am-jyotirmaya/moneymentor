@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePreventRemove } from '@react-navigation/native';
@@ -16,7 +16,8 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [unknown, setUnknown] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const baseline = useRef(JSON.stringify(entry.edit?.manual));
+  const dirty = JSON.stringify(entry.edit?.manual) !== baseline.current;
   usePreventRemove((dirty || unknown) && !saved, ({ data }) => {
     Alert.alert(unknown ? 'Update not confirmed' : 'Keep your changes?', unknown ? 'The update may already be saved. Reload the transaction before making another change.' : 'Your unsaved edits will be discarded.',
       [{ text: 'Keep editing', style: 'cancel' }, { text: 'Close editor', style: 'destructive', onPress: () => navigation.dispatch(data.action) }]);
@@ -30,7 +31,7 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
       const patch: TransactionPatch = { amount: intent.amount, transactionDate: intent.date, categoryId: intent.categoryId, accountId: intent.accountId,
         merchantName: manual.merchant.trim(), description: manual.description.trim(), paymentChannel: manual.paymentChannel, visibility: manual.visibility };
       const updated = await entry.client.updateTransaction(transaction.id, patch);
-      entry.setSaved(updated); entry.beginEdit(updated); setSaved(true); setDirty(false);
+      entry.setSaved(updated); entry.beginEdit(updated); setSaved(true);
       void query.invalidateQueries({ queryKey: ['history'] });
     } catch (caught) {
       if (caught instanceof ValidationError) setErrors(caught.fields);
@@ -41,7 +42,12 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
   const reload = () => { void entry.runExclusive(async () => {
     try {
       const fresh = await entry.client.request<Transaction>(`/api/transactions/${encodeURIComponent(transaction.id)}`);
-      entry.beginEdit(fresh); setUnknown(false); setDirty(false); setError(null);
+      entry.beginEdit(fresh); baseline.current = JSON.stringify({
+        ...entry.edit!.manual, amount: String(fresh.amount), date: fresh.transactionDate.slice(0, 10),
+        accountId: fresh.accountId ?? null, categoryId: fresh.categoryId ?? null,
+        merchant: fresh.merchantName ?? '', description: fresh.description ?? '',
+        paymentChannel: fresh.paymentChannel ?? 'Unknown', visibility: fresh.visibility,
+      }); setUnknown(false); setError(null);
     } catch { setError('The saved transaction could not be reloaded yet.'); }
   }); };
   return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={96}>
@@ -49,7 +55,7 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
       {saved ? <><Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.heading}>Changes saved</Text><Button title="Done" onPress={() => navigation.goBack()} /></> : <>
         <Text style={styles.caption}>Editing the existing saved record.</Text>
         <ManualForm draft={manual} resources={entry.resources} disabled={entry.busy || unknown} errors={errors} editing
-          onChange={change => { entry.updateManual(change, 'edit'); setDirty(true); }} onSelect={kind => navigation.navigate('Picker', { kind, target: 'edit' })} />
+          onChange={change => entry.updateManual(change, 'edit')} onSelect={kind => navigation.navigate('Picker', { kind, target: 'edit' })} />
         <Button title={unknown ? 'Reload saved transaction' : 'Save changes'} onPress={unknown ? reload : submit} loading={entry.busy} />
       </>}
       {error ? <ErrorNotice message={error} /> : null}

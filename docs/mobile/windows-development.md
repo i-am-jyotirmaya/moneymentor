@@ -1,0 +1,111 @@
+# Native development and iOS distribution from Windows
+
+These are reproducible setup instructions, not evidence of successful builds. Dependency installation and native acceptance remain blocked in the implementation environment. Complete the checks in [performance.md](performance.md) before advancing the migration.
+
+## Install and Android iteration
+
+Use Node 24 LTS, npm, Git, Android Studio, its Android SDK/emulator tools, and JDK 21. Configure `ANDROID_HOME` and `JAVA_HOME` for your installation. Run commands from `apps/mobile-native`; root `mobile:*` commands still select Capacitor.
+
+```powershell
+Copy-Item .env.example .env
+# Edit .env: EXPO_PUBLIC_API_URL=https://YOUR-ACTUAL-API-ORIGIN
+npm install
+npm run check:dependencies
+npx expo-doctor@latest
+npm run typecheck
+npm run typecheck:core
+npm run typecheck:services
+npm run lint
+npm run test:core
+npm run test:services
+npm test
+npm run android
+```
+
+Commit the generated `apps/mobile-native/package-lock.json`, then use `npm ci` locally and in CI. The initial environment has no registry connectivity; no invented lockfile is provided. The new GitHub workflow publishes the first successful resolution as `native-dependency-lock` so it can be reviewed and committed. No native dependency graph or binary has yet been certified.
+
+Start an Android emulator or attach a USB-debugging phone before `npm run android`. After the first development build, use `npm start` for Metro reloads. Rebuild for native dependency/plugin/config changes. The app ships native screens and does not use an embedded website. Use a real reachable HTTPS API with a trusted certificate; `localhost` on a phone is the phone itself. Environment values are compiled into the app and require rebuilding when changed.
+
+## Link EAS once
+
+Create an Expo account/project. Interactive commands run on Windows; EAS performs compilation on its own workers.
+
+```powershell
+npx eas-cli@latest login
+npx eas-cli@latest init
+```
+
+Because the app uses dynamic configuration, copy the resulting real project UUID into `EAS_PROJECT_ID` in the local `.env`. Set `EXPO_OWNER` if the project belongs to an organization. Configure the same non-secret project ID and `EXPO_PUBLIC_API_URL` in the EAS development/preview/production environments. Keep the repository root in the build archive: the app depends on `../../packages/finance-core`. Verify the archive with `eas build:inspect` if a cloud worker cannot find that dependency. A nested native `package-lock.json` must be present before cloud-build acceptance.
+
+For automation, put `EXPO_TOKEN` in GitHub/EAS secrets. Never commit that token, Apple signing material, or App Store Connect private keys. No Expo account, project UUID, signing identity, or token was supplied for this implementation; placeholder credentials are not embedded.
+
+## Build profiles
+
+| Profile | Purpose | Installation/signing |
+| --- | --- | --- |
+| `development` | Native dev client + Metro | Android APK; iOS registered-device development/ad-hoc provisioning |
+| `development-simulator` | iOS simulator dev client | Simulator `.app`; no iPhone installation |
+| `preview` | Standalone internal review | Android APK; iOS ad-hoc registered devices |
+| `e2e` | Standalone fixture-driven native acceptance | Android QA APK and unsigned iOS simulator build; separate app ID |
+| `production` | Future store candidate after all gates pass | Android AAB and signed iOS archive; existing `com.spndrr.app` identifier |
+
+The default native development/preview ID is `com.spndrr.app.native`, allowing installation beside Capacitor. The QA ID adds `.e2e`. Do not replace the existing production app before parity, account controls, and device acceptance are complete.
+
+## iPhone development without a local Mac
+
+Enroll in the Apple Developer Program for the physical-device signing/distribution workflow. Register the iPhone UDID and let EAS manage or use your Apple certificates/provisioning profiles:
+
+```powershell
+npx eas-cli@latest device:create
+npx eas-cli@latest build --platform ios --profile development
+npx expo start --dev-client --tunnel
+```
+
+Install the generated development build on the registered iPhone and open its dev-client link. A physical device and functioning network are still needed for runtime testing. Simulator `.app` builds cannot run on an iPhone or in Windows' local Android emulator. A new registered device generally requires a new matching ad-hoc build/provisioning profile.
+
+## Cloud iOS runtime testing
+
+EAS Build creates binaries; it does not establish that the app ran successfully. The checked-in EAS workflow separately builds and runs Maestro on Android and iOS cloud simulator workers:
+
+```powershell
+npx eas-cli@latest workflow:run .eas/workflows/native-acceptance.yml
+```
+
+This fixture suite checks native UI behavior. It does not test the real HTTPS backend, production signing, native refresh-cookie behavior, receipt/image permissions, or physical-device performance. Treat those as separate acceptance items. EAS Workflows usage, supported workers, account eligibility, and plan quotas must be checked for the actual account.
+
+Interactive EAS Simulator is currently advertised as preview/access-controlled. It is optional and is not a release dependency. With an authenticated Expo account, check actual eligibility before attempting a session:
+
+```powershell
+npx eas-cli@latest simulator:availability --json --non-interactive
+```
+
+Eligibility was not checked because Expo credentials were unavailable. If unavailable, use EAS Workflows simulator tests and a signed build on a physical iPhone/TestFlight. Do not install macOS in a Windows VM as a prerequisite for this workflow.
+
+## TestFlight and eventual App Store submission
+
+After the migration and release gates are complete:
+
+1. Register the production bundle ID and app record in Apple Developer / App Store Connect. Review existing version/build numbers before replacing the Capacitor app.
+2. Build explicitly: `npx eas-cli@latest build --platform ios --profile production`.
+3. Configure App Store Connect credentials with EAS, including the real app ID (`ascAppId`) in the submit profile if using non-interactive submission.
+4. Submit explicitly: `npx eas-cli@latest submit --platform ios --profile production --id BUILD_ID`.
+5. Complete processing, export-compliance questions, privacy disclosures, tester groups, and any external-test beta review in App Store Connect. Install through TestFlight and record actual runtime results.
+6. Submit the store listing/screenshots and release candidate for App Review separately. EAS Submit uploading a binary does not publish it to the store.
+
+There is no production deployment or OTA publishing trigger in this branch. Expo Updates remains deferred until a compatible runtime-version policy, signed update ownership, rollback procedure, and store-policy review are in place.
+
+## Costs and evidence
+
+As checked on 2026-10-19, Expo's pricing page lists a Free allowance of up to 15 Android and 15 iOS builds, a low-priority queue, and 60 workflow minutes. Starter is listed at USD 19/month plus additional usage, with USD 45 in build credit. Workflows/simulator usage and repeated native builds can exceed included quotas; confirm current pricing before enabling paid runs. Apple lists Developer Program enrollment at USD 99/year (or local currency where available). A personal Mac purchase is unnecessary for this cloud-build/physical-device path.
+
+| Evidence | What it proves | Current status |
+| --- | --- | --- |
+| Metro export/type checks | JavaScript/types resolve | Not run: dependency install blocked |
+| Android Gradle compilation | Native Android binary compiles | Configured; not run |
+| EAS iOS compilation | iOS binary compiles on cloud macOS | Configured; account/signing not linked |
+| Cloud Maestro execution | Tested scenarios ran in a simulator | Configured; not run |
+| Physical Android/iPhone tests | Actual device/API/keyboard/cookie behavior | Not run |
+| TestFlight upload | Apple accepted a processed build for testing | Not run |
+| Store publication | Approved public distribution | Deliberately not performed |
+
+Sources: [Expo monorepo builds](https://docs.expo.dev/build-reference/build-with-monorepos/), [development builds](https://docs.expo.dev/develop/development-builds/introduction/), [iOS simulator builds](https://docs.expo.dev/build-reference/simulators/), [EAS Maestro](https://docs.expo.dev/eas/workflows/examples/e2e-tests/), [EAS CLI](https://docs.expo.dev/eas/cli/), [Expo pricing](https://expo.dev/pricing), [Apple enrollment](https://developer.apple.com/programs/enroll/).

@@ -1,4 +1,5 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FinanceClient, emptyDraft, type ComposerDraft, type EntryResources } from '@spndrr/finance-core';
 import { EntryProvider } from '../src/state/entry';
@@ -22,7 +23,7 @@ async function setup(mode: 'manual' | 'text' = 'manual', description = '') {
     manual: { ...emptyDraft(settings, resources.today), amount: mode === 'manual' ? '40.29' : '', accountId: accounts[1]!.id, categoryId: 'groceries', description } };
   await vault.put(draft);
   const query = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  const wrap = (element: React.ReactNode) => <QueryClientProvider client={query}><EntryProvider ownerId="alice" resources={resources} client={client} vault={vault}>{element}</EntryProvider></QueryClientProvider>;
+  const wrap = (element: ReactNode) => <QueryClientProvider client={query}><EntryProvider ownerId="alice" resources={resources} client={client} vault={vault}>{element}</EntryProvider></QueryClientProvider>;
   return { client, resources, draft, wrap };
 }
 beforeEach(() => jest.clearAllMocks());

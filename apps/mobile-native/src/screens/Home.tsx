@@ -57,16 +57,17 @@ export function HomeScreen({ navigation }: ScreenProps<'Home'>) {
       ListHeaderComponent={<View style={{ gap: 22 }}>
         <View style={[styles.row, { justifyContent: 'space-between' }]}><Text accessibilityRole="header" style={styles.heading}>spndrr<Text style={{ color: color.muted }}>.</Text></Text>
           <Button title="Sign out" onPress={signout} disabled={entry.busy} secondary /></View>
-        <View style={{ gap: 8 }}><Text style={styles.caption}>A little clarity, every day.</Text><Text style={styles.title}>Your money.\nA calmer mind.</Text></View>
+        <View style={{ gap: 8 }}><Text style={styles.caption}>A little clarity, every day.</Text><Text style={styles.title}>{'Your money.\nA calmer mind.'}</Text></View>
         <Card dark><Text style={[styles.heading, { color: color.surface }]}>What happened today?</Text>
           <Text style={[styles.body, { color: '#dbe7d5' }]}>Tell Spndrr about a transaction, or enter the details yourself.</Text>
           <Button title={entry.draft.pendingManual || entry.draft.assistantUncertain ? 'Review pending transaction' : entry.draft.text || entry.draft.manual.amount ? 'Continue your draft' : 'Add a transaction'}
             onPress={() => { entry.setSaved(null); navigation.navigate('Composer'); }} disabled={!entry.resources.canWrite || (entry.saved !== null && entry.persistenceError !== null)} secondary />
         </Card>
         {entry.saved ? <Text accessibilityLiveRegion="polite" style={styles.caption}>Last saved: {formatMoney(entry.saved.amount, entry.saved.currencyCode)} · {entry.saved.accountName ?? entry.saved.kind}</Text> : null}
+        {entry.saved && entry.persistenceError ? <ErrorNotice message="The transaction is saved. Its local draft still needs clearing." onRetry={() => { void entry.complete(entry.saved!); }} /> : null}
         <View style={[styles.row, { justifyContent: 'space-between' }]}><Text accessibilityRole="header" style={styles.heading}>Recent transactions</Text>
-          <View style={styles.row}><Button title="Previous month" secondary onPress={() => setMonth(previous => shiftMonth(previous, -1))} />
-            <Button title="Next month" secondary disabled={month >= entry.resources.today.slice(0, 7)} onPress={() => setMonth(previous => shiftMonth(previous, 1))} /></View></View>
+          <View style={styles.row}><Button title="‹" accessibilityLabel="Previous month" secondary onPress={() => setMonth(previous => shiftMonth(previous, -1))} />
+            <Button title="›" accessibilityLabel="Next month" secondary disabled={month >= entry.resources.today.slice(0, 7)} onPress={() => setMonth(previous => shiftMonth(previous, 1))} /></View></View>
         <Text style={styles.caption}>{month} · Pull down to refresh</Text>
         <Field label="Search loaded transactions" value={search} onChangeText={setSearch} placeholder="Description, category, account…" />
         {history.isError ? <ErrorNotice message="Recent transactions could not be refreshed. Pull down or try again." onRetry={() => { void history.refetch(); }} /> : null}
