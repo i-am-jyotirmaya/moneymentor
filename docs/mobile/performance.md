@@ -17,10 +17,12 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Full native dependency installation | Hosted install succeeded and the resolved lockfile is committed; local registry access remains unavailable |
 | Native component tests | Nine implemented; pending hosted execution |
 | Expo dependency compatibility | Passed in GitHub run 39204313055 after SDK tooling corrections |
-| Full native TypeScript | Hosted check identified missing Jest globals; explicit type environments added, awaiting rerun |
+| Full native TypeScript | Passed, including shared/service checks, in GitHub run 39204973766 |
+| Native lint | Initial hosted failures corrected; rerun pending |
 | Expo Doctor and Metro exports | Not executed yet |
 | Android compilation/runtime | Not executed; no native dependencies/SDK/device available in this task environment |
-| iOS compilation/runtime | Not executed; no linked EAS project/credentials or iPhone/cloud runtime |
+| iOS compilation | Unsigned Release simulator build passed in GitHub run 39204973766; simulator app artifact uploaded |
+| iOS runtime | Maestro's XCTest driver did not start before its timeout; no app assertions executed. Simulator startup and driver timeout adjusted for rerun |
 | Frame timing, startup, CPU, memory | NOT MEASURED |
 
 Node service tests use an in-memory mock of encrypted storage and a deterministic contract fixture. They test chunk commits, interrupted writes, user isolation, retry behavior and state transitions; they do not prove Keychain/Keystore encryption, native cookie handling, network integration, or smooth animations. No FPS, startup, or memory target has been achieved by evidence yet.
