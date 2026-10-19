@@ -31,7 +31,7 @@ export function LoginScreen({ client, unavailable, onRestore }: { client: Financ
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not sign in.'); }
     finally { active.current = false; setBusy(false); }
   })(); };
-  if (mode !== 'login') return <RegistrationScreen client={client} mode={mode} invitation={invitation} onBack={() => setMode('login')} onRequestAccess={() => setMode('access')} />;
+  if (mode !== 'login') return <RegistrationScreen key={mode} client={client} mode={mode} invitation={invitation} onBack={() => setMode('login')} onRequestAccess={() => setMode('access')} />;
   return <SafeAreaView style={styles.screen}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView contentContainerStyle={[styles.content, { flexGrow: 1, justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>spndrr.</Text><Text accessibilityRole="header" style={styles.title}>{'Make room for\nwhat matters.'}</Text>
@@ -59,7 +59,7 @@ function RegistrationScreen({ client, mode, invitation, onBack, onRequestAccess 
   const [done, setDone] = useState(false); const [unknown, setUnknown] = useState(false); const [error, setError] = useState<string | null>(null);
   const active = useRef(false);
   useEffect(() => {
-    if (mode === 'access') { setReady(true); return; }
+    if (mode === 'access') return;
     let alive = true;
     void Promise.all([client.registration(), client.privacyPolicy()]).then(([registration, current]) => {
       if (alive) { setOpen(registration.mode === 'Open'); setPolicy(current); setReady(true); }
