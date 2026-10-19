@@ -4,6 +4,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import type { Transport } from '@spndrr/finance-core';
 import { SecureJsonStore, type SecureBackend } from './secure-json';
+import { authCookieNames, authCookieSnapshot } from './auth-cookie-policy';
 
 export const secureBackend: SecureBackend = {
   get: key => SecureStore.getItemAsync(key),
@@ -24,7 +25,6 @@ export async function scopedVault(origin: string, purpose: string): Promise<Secu
 export async function createNativeTransport(origin: string): Promise<{ transport: Transport; clear: () => Promise<void> }> {
   const authUrl = `${origin}/api/auth`;
   const cookies = await scopedVault(origin, 'session');
-  const names = ['mm_refresh', 'mm_session'];
   const clearJar = async () => {
     // This native app has one API cookie jar and no embedded web sessions.
     // clearByName is iOS-only; Android must clear the app-owned jar.
@@ -36,15 +36,15 @@ export async function createNativeTransport(origin: string): Promise<{ transport
   const clear = async () => { await cookies.remove(); await clearJar(); };
   const transport: Transport = async request => {
     const auth = request.path.startsWith('/api/auth/');
-    if (auth) {
-      const stored = await cookies.get();
-      if (Array.isArray(stored)) for (const cookie of stored as Cookie[]) {
-        if (names.includes(cookie.name) && cookie.httpOnly && cookie.secure) await CookieManager.set(authUrl, cookie, false);
-      }
-    }
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), 20000);
     try {
+      if (auth) {
+        const stored = await cookies.get();
+        if (Array.isArray(stored)) for (const cookie of stored as Cookie[]) {
+          if (cookie && authCookieNames.some(name => name === cookie.name) && cookie.httpOnly && cookie.secure) await CookieManager.set(authUrl, cookie, false);
+        }
+      }
       const response = await fetch(`${origin}${request.path}`, {
         method: request.method, credentials: auth ? 'include' : 'omit', signal: abort.signal,
         headers: { Accept: 'application/json', ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }), ...request.headers },
@@ -54,11 +54,7 @@ export async function createNativeTransport(origin: string): Promise<{ transport
         const jar = await CookieManager.get(authUrl, false);
         // Android getCookie returns name/value without the original attributes.
         // Apply the backend's known HTTPS-only /api/auth policy on restoration.
-        const snapshot = names.flatMap(name => jar[name]?.value ? [{
-          name, value: jar[name]!.value, domain: new URL(origin).hostname, path: '/api/auth',
-          secure: true, httpOnly: true,
-          ...(Platform.OS === 'ios' && jar[name]?.expires ? { expires: jar[name]!.expires } : {}),
-        }] : []);
+        const snapshot = authCookieSnapshot(jar, new URL(origin).hostname, Platform.OS === 'ios');
         if (!snapshot.some(c => c.name === 'mm_refresh')) throw Error('The native refresh cookie was not available securely.');
         await cookies.put(snapshot);
       }

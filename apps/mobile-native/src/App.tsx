@@ -33,15 +33,16 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
   }, staleTime: 60000, retry: 1 });
   const [vault, setVault] = useState<SecureJsonStore | null>(null);
   const [vaultError, setVaultError] = useState(false);
+  const [vaultAttempt, setVaultAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
     void runtime.draftVault(session.user.id).then(value => { if (alive) setVault(value); }).catch(() => { if (alive) setVaultError(true); });
     return () => { alive = false; };
-  }, [runtime, session.user.id]);
+  }, [runtime, session.user.id, vaultAttempt]);
   const resources = useMemo<EntryResources | null>(() => query.data ? ({ categories: query.data.catalog.categories, accounts: query.data.accounts,
     settings: query.data.settings, householdId: query.data.catalog.householdId, canWrite: query.data.catalog.canWrite,
     today: dateInTimeZone(query.data.settings.timeZone, new Date(clock)) }) : null, [query.data, clock]);
-  if (query.isError || vaultError) return <View style={styles.center}><ErrorNotice message={vaultError ? 'Secure device storage is unavailable.' : 'Your categories and accounts could not be loaded.'} onRetry={() => { void query.refetch(); }} />
+  if ((query.isError && !query.data) || vaultError) return <View style={styles.center}><ErrorNotice message={vaultError ? 'Secure device storage is unavailable.' : 'Your categories and accounts could not be loaded.'} onRetry={() => { setVaultError(false); setVaultAttempt(previous => previous + 1); void query.refetch(); }} />
     <Button title="Sign out" secondary onPress={() => { void runtime.client.logout().catch(() => undefined); }} /></View>;
   if (!resources || !vault) return <Loading />;
   return <EntryProvider ownerId={session.user.id} client={runtime.client} resources={resources} vault={vault}>

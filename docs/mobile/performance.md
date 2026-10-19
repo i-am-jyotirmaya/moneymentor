@@ -6,14 +6,14 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 
 | Check | Evidence/result |
 | --- | --- |
-| Universal finance/session tests | 15 passing Node tests |
-| Native storage/QA service fault tests | 6 passing Node tests |
+| Universal finance/session tests | 17 passing Node tests |
+| Native storage/cookie-policy/QA service fault tests | 8 passing Node tests |
 | Shared package strict TypeScript | Passed with TypeScript 5.9.3 |
 | Native service strict TypeScript | Passed for storage, fixture transport, and shared sources |
 | Native TS/TSX syntax transpilation | Passed; does not resolve native dependency types |
 | Presentation dependency boundaries | Passed: native sources do not import web/Next/DOM/Capacitor; universal modules import no platform runtime |
 | Full native dependency installation | Blocked: HTTPS request to registry.npmjs.org timed out |
-| Native component tests | Six implemented; not executed because native/Jest dependencies are unavailable |
+| Native component tests | Eight implemented; not executed because native/Jest dependencies are unavailable |
 | Expo dependency/Doctor checks and Metro exports | Not executed |
 | Android compilation/runtime | Not executed; no native dependencies/SDK/device available in this task environment |
 | iOS compilation/runtime | Not executed; no linked EAS project/credentials or iPhone/cloud runtime |

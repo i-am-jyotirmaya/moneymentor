@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SecureJsonStore } from '../src/services/secure-json.ts';
 import { fixtureTransport } from '../src/services/fixture-transport.ts';
+import { authCookieSnapshot } from '../src/services/auth-cookie-policy.ts';
 import { FinanceClient } from '../../../packages/finance-core/src/index.ts';
 
 function memoryBackend() {
@@ -38,6 +39,15 @@ test('corrupt/incomplete secure metadata is rejected instead of silently losing 
   memory.values.set('draft', JSON.stringify({ slot: 'a', count: 2 }));
   memory.values.set('draft.a.0', '{');
   await assert.rejects(vault.get(), /incomplete/);
+});
+test('Android cookie snapshots restore a secure auth-only policy without relying on missing attributes', () => {
+  const snapshot = authCookieSnapshot({ mm_refresh: { value: 'opaque-refresh-value', secure: false, httpOnly: false }, unrelated: { value: 'not-auth' } }, 'api.example.test', false);
+  assert.deepEqual(snapshot, [{ name: 'mm_refresh', value: 'opaque-refresh-value', domain: 'api.example.test', path: '/api/auth', secure: true, httpOnly: true }]);
+});
+test('iOS cookie snapshots retain expiry without broadening the auth path', () => {
+  const snapshot = authCookieSnapshot({ mm_refresh: { value: 'opaque', expires: '2026-11-01T00:00:00Z' } }, 'api.example.test', true);
+  assert.equal(snapshot[0].expires, '2026-11-01T00:00:00Z');
+  assert.equal(snapshot[0].path, '/api/auth');
 });
 test('QA backend exercises a lost response AFTER commit and deduplicates manual replay', async () => {
   const fixture = fixtureTransport(); const client = new FinanceClient(fixture.transport, fixture.clear);

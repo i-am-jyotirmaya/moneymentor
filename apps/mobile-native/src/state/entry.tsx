@@ -24,6 +24,7 @@ export function EntryProvider({ children, ownerId, resources, client, vault }: {
   const [draft, setDraft] = useState(initial);
   const current = useRef(draft);
   const [ready, setReady] = useState(false);
+  const [restoreError, setRestoreError] = useState(false);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -39,7 +40,7 @@ export function EntryProvider({ children, ownerId, resources, client, vault }: {
       const restored = decodeComposerDraft(value, ownerId);
       if (value !== null && !restored) throw Error('The draft format could not be restored.');
       if (alive && restored) { current.current = restored; setDraft(restored); }
-    }).catch(() => { if (alive) setPersistenceError('Your encrypted draft could not be restored. Retry before entering another transaction.'); })
+    }).catch(() => { if (alive) { setRestoreError(true); setPersistenceError('Your encrypted draft could not be restored. Retry before entering another transaction.'); } })
       .finally(() => { if (alive) setReady(true); });
     return () => { alive = false; };
   }, [ownerId, vault]);
@@ -96,9 +97,9 @@ export function EntryProvider({ children, ownerId, resources, client, vault }: {
     },
   };
   if (!ready) return <Loading label="Restoring your draft…" />;
-  if (persistenceError && !draft.pendingManual && !draft.text && !draft.manual.amount) return <View style={styles.center}><ErrorNotice message={persistenceError} onRetry={() => { setReady(false); void vault.get().then(value => {
+  if (restoreError) return <View style={styles.center}><ErrorNotice message={persistenceError ?? 'Your encrypted draft is unavailable.'} onRetry={() => { setReady(false); void vault.get().then(value => {
     const restored = decodeComposerDraft(value, ownerId); if (value && !restored) throw Error();
-    if (restored) { current.current = restored; setDraft(restored); } setPersistenceError(null);
+    if (restored) { current.current = restored; setDraft(restored); } setPersistenceError(null); setRestoreError(false);
   }).catch(() => setPersistenceError('Your encrypted draft is still unavailable.')).finally(() => setReady(true)); }} /></View>;
   return <EntryContext.Provider value={value}>{children}</EntryContext.Provider>;
 }

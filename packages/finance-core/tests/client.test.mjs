@@ -6,7 +6,7 @@ const session = (token = 'access', id = 'alice') => ({ accessToken: token, acces
   user: { id, displayName: id, email: `${id}@example.test`, roles: [] }, requiresPrivacyConsent: false });
 const ok = (data, status = 200) => ({ status, data });
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
-const transaction = { id: 'tx', amount: 40, currencyCode: 'INR', transactionDate: '2026-10-19', type: 'Expense' };
+const transaction = { id: 'tx', amount: 40, currencyCode: 'INR', transactionDate: '2026-10-19', type: 'Expense', kind: 'Purchase', accountId: 'card', categoryId: 'groceries', householdId: 'home' };
 
 test('concurrent unauthorized reads share one refresh and use the new token', async () => {
   let refreshes = 0;
@@ -85,7 +85,7 @@ test('manual retry replays the exact reference; malformed success is not reporte
     bodies.push(req.body); return ok(malformed ? {} : transaction);
   }, async () => {});
   await client.login('a', 'p');
-  const intent = Object.freeze({ amount: 40, externalReference: 'native:stable-123', accountId: 'card' });
+  const intent = Object.freeze({ amount: 40, externalReference: 'native:stable-123', accountId: 'card', eventKind: 'Purchase', date: '2026-10-19', categoryId: 'groceries', householdId: 'home' });
   await assert.rejects(client.createTransaction(intent), e => e.outcome === 'unknown');
   malformed = false;
   assert.equal((await client.createTransaction(intent)).id, 'tx');
@@ -114,4 +114,22 @@ test('one unauthorized replay is allowed, but a second unauthorized response is 
   await client.login('a', 'p');
   await assert.rejects(client.accounts(), error => error.status === 401);
   assert.equal(reads, 2);
+});
+test('a completed write from a previous session retains an unknown outcome rather than inviting a new submission', async () => {
+  const pending = deferred();
+  const client = new FinanceClient(async req => {
+    if (req.path.endsWith('/login')) return ok(session());
+    if (req.path.endsWith('/logout')) return ok(null, 204);
+    return pending.promise;
+  }, async () => {});
+  await client.login('a', 'p');
+  const write = client.createTransaction({});
+  await client.logout();
+  pending.resolve(ok(transaction));
+  await assert.rejects(write, error => error instanceof ApiError && error.outcome === 'unknown');
+});
+test('a mismatched successful receipt cannot be displayed as the requested saved transaction', async () => {
+  const client = new FinanceClient(async req => req.path.endsWith('/login') ? ok(session()) : ok({ ...transaction, accountId: 'bank' }), async () => {});
+  await client.login('a', 'p');
+  await assert.rejects(client.createTransaction({ amount: 40, accountId: 'card', eventKind: 'Purchase', date: '2026-10-19', categoryId: 'groceries', householdId: 'home' }), error => error.outcome === 'unknown');
 });

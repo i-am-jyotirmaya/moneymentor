@@ -146,7 +146,10 @@ export class FinanceClient {
       if (epoch !== this.epoch) throw new SessionChangedError();
       result = await send(renewed.accessToken);
     }
-    if (epoch !== this.epoch) throw new SessionChangedError();
+    if (epoch !== this.epoch) {
+      if (method !== 'GET') throw new ApiError('The session changed while saving. Check the transaction before starting another.', 0, 'unknown');
+      throw new SessionChangedError();
+    }
     return result as T;
   }
   categories() { return this.request<CategoryCatalog>("/api/categories"); }
@@ -157,12 +160,14 @@ export class FinanceClient {
   }
   async createTransaction(intent: Readonly<TransactionIntent>): Promise<Transaction> {
     const value = await this.request<unknown>("/api/transactions", "POST", intent);
-    if (!isTransaction(value)) throw new ApiError("The save response could not be verified. Retry the same transaction reference.", 0, "unknown");
+    if (!isTransaction(value) || value.amount !== intent.amount || value.kind !== intent.eventKind
+      || value.accountId !== intent.accountId || value.categoryId !== intent.categoryId || value.householdId !== intent.householdId
+      || value.transactionDate.slice(0, 10) !== intent.date) throw new ApiError("The save response could not be verified. Retry the same transaction reference.", 0, "unknown");
     return value;
   }
   async updateTransaction(id: string, patch: TransactionPatch): Promise<Transaction> {
     const value = await this.request<unknown>(`/api/transactions/${encodeURIComponent(id)}`, "PATCH", patch);
-    if (!isTransaction(value)) throw new ApiError("The update response could not be verified. Check the saved transaction.", 0, "unknown");
+    if (!isTransaction(value) || value.id !== id) throw new ApiError("The update response could not be verified. Check the saved transaction.", 0, "unknown");
     return value;
   }
   async sendAssistant(text: string, currencyCode: string, transactionDate: string): Promise<AssistantResponse> {

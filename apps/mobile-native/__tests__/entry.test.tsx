@@ -47,7 +47,7 @@ test('unknown manual outcome locks details and retries the same operation withou
   const screen = render(wrap(<ComposerScreen navigation={navigation as never} route={{ key: 'composer', name: 'Composer' }} />));
   await waitFor(() => expect(screen.getByText('Save transaction')).toBeTruthy());
   fireEvent.press(screen.getByText('Save transaction'));
-  await waitFor(() => expect(screen.getByText('Retry this transaction')).toBeTruthy());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Retry this transaction' }).props.accessibilityState.busy).toBe(false));
   expect(screen.getByLabelText('Amount (INR)').props.editable).toBe(false);
   fireEvent.press(screen.getByText('Retry this transaction'));
   await waitFor(() => expect(screen.getByText('Transaction saved')).toBeTruthy());
@@ -68,7 +68,8 @@ test('assistant failure requires reconciliation before sending another message',
   await waitFor(() => expect(screen.getByLabelText('Transaction message')).toBeTruthy());
   fireEvent.changeText(screen.getByLabelText('Transaction message'), 'simulate failure');
   fireEvent.press(screen.getByText('Send & track'));
-  await waitFor(() => expect(screen.getByText('Check recent transactions')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText(/The connection was interrupted/)).toBeTruthy());
+  expect(screen.getByText('Check recent transactions')).toBeTruthy();
   expect(screen.getByLabelText('Transaction message').props.editable).toBe(false);
   expect(screen.queryByText('Send & track')).toBeNull();
 });

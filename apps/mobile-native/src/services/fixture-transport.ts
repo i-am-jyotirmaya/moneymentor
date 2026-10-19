@@ -1,4 +1,4 @@
-import type { AuthSession, Transport, Transaction, TransactionIntent } from '@spndrr/finance-core';
+import type { AuthSession, Category, FinancialAccount, Transport, Transaction, TransactionIntent } from '@spndrr/finance-core';
 
 /** Deterministic QA transport. Only the separately identified e2e binary can select it. */
 export function fixtureTransport() {
@@ -8,14 +8,15 @@ export function fixtureTransport() {
   const references = new Map<string, Transaction>();
   const householdId = '00000000-0000-4000-8000-000000000010';
   const userId = '00000000-0000-4000-8000-000000000011';
-  const accounts = [
-    { id: '00000000-0000-4000-8000-000000000021', householdId, name: 'Kotak', accountType: 'BankAccount', currencyCode: 'INR', isActive: true, aliases: [] },
-    { id: '00000000-0000-4000-8000-000000000022', householdId, name: 'Kotak upi', accountType: 'CreditCard', currencyCode: 'INR', isActive: true, aliases: [] },
+  const accounts: FinancialAccount[] = [
+    { id: '00000000-0000-4000-8000-000000000021', householdId, ownerUserProfileId: userId, name: 'Kotak', accountType: 'BankAccount', currencyCode: 'INR', isActive: true, aliases: [], institution: 'Kotak', last4: null },
+    { id: '00000000-0000-4000-8000-000000000022', householdId, ownerUserProfileId: userId, name: 'Kotak upi', accountType: 'CreditCard', currencyCode: 'INR', isActive: true, aliases: [], institution: 'Kotak', last4: null },
   ];
-  const categories = [
-    { id: 'food', name: 'Food', parentCategoryId: null, type: 'Expense', isHidden: false, sortOrder: 0 },
-    { id: 'groceries', name: 'Groceries', parentCategoryId: 'food', type: 'Expense', isHidden: false, sortOrder: 1 },
-    { id: 'salary', name: 'Salary', parentCategoryId: null, type: 'Income', isHidden: false, sortOrder: 2 },
+  const categoryDefaults = { householdId: null, isSystemCategory: true, icon: null, createdAt: '2026-01-01T00:00:00Z' };
+  const categories: Category[] = [
+    { ...categoryDefaults, id: 'food', name: 'Food', parentCategoryId: null, type: 'Expense', classification: 'Essential', isHidden: false, sortOrder: 0 },
+    { ...categoryDefaults, id: 'groceries', name: 'Groceries', parentCategoryId: 'food', type: 'Expense', classification: 'Essential', isHidden: false, sortOrder: 1 },
+    { ...categoryDefaults, id: 'salary', name: 'Salary', parentCategoryId: null, type: 'Income', classification: 'Income', isHidden: false, sortOrder: 2 },
   ];
   const session = (): AuthSession => ({ accessToken: 'fixture-only-token', accessTokenExpiresAt: '2099-01-01T00:00:00Z', requiresPrivacyConsent: false,
     user: { id: userId, displayName: 'Jyoti', email: 'qa@example.test', roles: [] } });
@@ -44,7 +45,11 @@ export function fixtureTransport() {
     if (request.path === '/api/financial-accounts') {
       const account = { ...accounts[0]!, ...body, id: `account-${++sequence}`, householdId }; accounts.push(account as typeof accounts[number]); return ok(account);
     }
-    if (request.path.startsWith('/api/transactions?')) return ok({ items: transactions, totalCount: transactions.length, totalPages: 1, page: 1, pageSize: 30, month: new Date().toISOString().slice(0, 7) });
+    if (request.path.startsWith('/api/transactions?')) {
+      const month = request.path.split('month=')[1]?.split('&')[0] ?? new Date().toISOString().slice(0, 7);
+      const items = transactions.filter(transaction => transaction.transactionDate.startsWith(month));
+      return ok({ items, totalCount: items.length, totalPages: 1, page: 1, pageSize: 30, month });
+    }
     if (request.path === '/api/transactions' && request.method === 'POST') {
       const intent = request.body as TransactionIntent;
       const prior = references.has(`${intent.accountId}|${intent.externalReference}`);

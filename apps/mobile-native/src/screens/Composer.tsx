@@ -37,7 +37,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
       let transaction: Transaction;
       try { transaction = await entry.client.createTransaction(pending.payload); }
       catch (caught) {
-        if (caught instanceof ApiError && caught.outcome === 'unknown') {
+        if (!(caught instanceof ApiError) || caught.outcome === 'unknown') {
           const uncertain = { ...next, pendingManual: { ...pending, phase: 'uncertain' as const } };
           entry.update(uncertain); await entry.persist(uncertain).catch(() => undefined);
           setError('The save outcome is not confirmed. Retry uses the same reference and details.');
@@ -60,7 +60,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
       let result;
       try { result = await entry.client.sendAssistant(before.text, entry.resources.settings.currencyCode, entry.resources.today); }
       catch (caught) {
-        if (!(caught instanceof ApiError) || caught.outcome !== 'unknown') entry.update({ assistantUncertain: false });
+        if (caught instanceof ApiError && caught.outcome === 'rejected') entry.update({ assistantUncertain: false });
         setError(caught instanceof Error ? caught.message : 'The message could not be delivered.');
         return;
       }
