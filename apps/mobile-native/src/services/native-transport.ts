@@ -1,5 +1,4 @@
 import CookieManager, { type Cookie } from '@preeternal/react-native-cookie-manager';
-import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import type { Transport } from '@spndrr/finance-core';
@@ -53,7 +52,7 @@ export async function createNativeTransport(origin: string): Promise<{ transport
         const jar = await CookieManager.get(authUrl);
         // Android getCookie returns name/value without the original attributes.
         // Apply the backend's known HTTPS-only /api/auth policy on restoration.
-        const snapshot = authCookieSnapshot(jar, new URL(origin).hostname, Platform.OS === 'ios');
+        const snapshot = authCookieSnapshot(jar, new URL(origin).hostname);
         if (!snapshot.some(c => c.name === 'mm_refresh')) throw Error('The native refresh cookie was not available securely.');
         await cookies.put(snapshot);
       }

@@ -41,11 +41,11 @@ test('corrupt/incomplete secure metadata is rejected instead of silently losing 
   await assert.rejects(vault.get(), /incomplete/);
 });
 test('Android cookie snapshots restore a secure auth-only policy without relying on missing attributes', () => {
-  const snapshot = authCookieSnapshot({ mm_refresh: { value: 'opaque-refresh-value', secure: false, httpOnly: false }, unrelated: { value: 'not-auth' } }, 'api.example.test', false);
+  const snapshot = authCookieSnapshot({ mm_refresh: { value: 'opaque-refresh-value', secure: false, httpOnly: false }, unrelated: { value: 'not-auth' } }, 'api.example.test');
   assert.deepEqual(snapshot, [{ name: 'mm_refresh', value: 'opaque-refresh-value', domain: 'api.example.test', path: '/api/auth', secure: true, httpOnly: true }]);
 });
-test('iOS cookie snapshots retain expiry without broadening the auth path', () => {
-  const snapshot = authCookieSnapshot({ mm_refresh: { value: 'opaque', expires: '2026-11-01T00:00:00Z' } }, 'api.example.test', true);
+test('cookie snapshots retain native expiry on either platform without broadening the auth path', () => {
+  const snapshot = authCookieSnapshot({ mm_refresh: { value: 'opaque', expires: '2026-11-01T00:00:00Z' } }, 'api.example.test');
   assert.equal(snapshot[0].expires, '2026-11-01T00:00:00Z');
   assert.equal(snapshot[0].path, '/api/auth');
 });
