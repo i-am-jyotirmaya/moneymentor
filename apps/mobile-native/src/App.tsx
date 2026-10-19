@@ -10,7 +10,7 @@ import { dateInTimeZone, type AuthSession, type EntryResources } from '@spndrr/f
 import { createRuntime, type Runtime } from './services/runtime';
 import type { SecureJsonStore } from './services/secure-json';
 import { EntryProvider } from './state/entry';
-import { Button, ErrorNotice, Loading, styles, useReducedMotion } from './ui/primitives';
+import { Button, ErrorNotice, KeyboardDismissButton, Loading, styles, useReducedMotion } from './ui/primitives';
 import { color } from './ui/theme';
 import { LoginScreen, PrivacyScreen } from './screens/Auth';
 import { ComposerScreen } from './screens/Composer';
@@ -48,7 +48,7 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
   return <EntryProvider ownerId={session.user.id} client={runtime.client} resources={resources} vault={vault}>
     <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: color.background }, headerStyle: { backgroundColor: color.background }, headerTintColor: color.ink,
-        headerShadowVisible: false, animation: reduced ? 'none' : 'default', gestureEnabled: true }}>
+        headerShadowVisible: false, headerRight: () => <KeyboardDismissButton />, animation: reduced ? 'none' : 'default', gestureEnabled: true }}>
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Composer" component={ComposerScreen} options={{ title: 'Add transaction', presentation: 'modal', animation: reduced ? 'none' : 'slide_from_bottom' }} />
         <Stack.Screen name="Picker" component={PickerScreen} options={{ title: 'Choose', presentation: 'formSheet', sheetAllowedDetents: [1], sheetGrabberVisible: true }} />

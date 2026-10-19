@@ -30,7 +30,7 @@ For Windows/iPhone cloud builds, EAS project linking, signing, TestFlight, cloud
 
 ## QA builds
 
-The `e2e` EAS profile builds a separately identified `com.spndrr.app.native.e2e` binary with a deterministic in-process contract fixture. It accepts `qa@example.test` / `fixture-only`; these are test values, not backend credentials. Production and preview profiles cannot enable that transport.
+The `e2e` EAS profile builds a separately identified `com.spndrr.app.rn.e2e` binary with a deterministic in-process contract fixture. It accepts `qa@example.test` / `fixture-only`; these are test values, not backend credentials. Production and preview profiles cannot enable that transport.
 
 ```powershell
 $env:APP_VARIANT="e2e"

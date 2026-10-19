@@ -49,7 +49,7 @@ For automation, put `EXPO_TOKEN` in GitHub/EAS secrets. Never commit that token,
 | `e2e` | Standalone fixture-driven native acceptance | Android QA APK and unsigned iOS simulator build; separate app ID |
 | `production` | Future store candidate after all gates pass | Android AAB and signed iOS archive; existing `com.spndrr.app` identifier |
 
-The default native development/preview ID is `com.spndrr.app.native`, allowing installation beside Capacitor. The QA ID adds `.e2e`. Do not replace the existing production app before parity, account controls, and device acceptance are complete.
+The default native development/preview ID is `com.spndrr.app.rn`, allowing installation beside Capacitor. The QA ID adds `.e2e`. Each segment is a valid Java identifier; avoid reserved words such as `native`. Do not replace the existing production app before parity, account controls, and device acceptance are complete.
 
 ## iPhone development without a local Mac
 

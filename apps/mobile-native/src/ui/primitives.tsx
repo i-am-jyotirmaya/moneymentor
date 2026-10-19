@@ -1,9 +1,22 @@
 import { useEffect, useState, type ReactNode, type Ref } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Keyboard, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { color, motion } from './theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+export function KeyboardDismissButton() {
+  const [visible, setVisible] = useState(() => Keyboard.isVisible());
+  useEffect(() => {
+    const shown = Keyboard.addListener('keyboardDidShow', () => setVisible(true));
+    const hidden = Keyboard.addListener('keyboardDidHide', () => setVisible(false));
+    return () => { shown.remove(); hidden.remove(); };
+  }, []);
+  if (!visible) return null;
+  return <Pressable accessibilityRole="button" accessibilityLabel="Hide keyboard" testID="keyboard-dismiss" onPress={Keyboard.dismiss}
+    style={{ minHeight: 44, minWidth: 44, paddingHorizontal: 8, justifyContent: 'center', alignItems: 'center' }}>
+    <Text style={{ color: color.ink, fontSize: 16, fontWeight: '600' }}>Done</Text>
+  </Pressable>;
+}
 export function Button({ title, onPress, disabled, loading, secondary, selected, testID, accessibilityLabel }: {
   title: string; onPress: () => void; disabled?: boolean; loading?: boolean; secondary?: boolean; selected?: boolean; testID?: string; accessibilityLabel?: string;
 }) {

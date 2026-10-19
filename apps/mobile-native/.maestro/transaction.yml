@@ -1,4 +1,4 @@
-appId: com.spndrr.app.native.e2e
+appId: com.spndrr.app.rn.e2e
 ---
 - launchApp:
     clearState: true
@@ -11,7 +11,6 @@ appId: com.spndrr.app.native.e2e
 - tapOn:
     id: password-input
 - inputText: fixture-only
-- hideKeyboard
 - tapOn: 'Sign in'
 - extendedWaitUntil:
     visible: 'Add a transaction'
@@ -22,13 +21,17 @@ appId: com.spndrr.app.native.e2e
 - tapOn:
     id: amount-input
 - inputText: '40.29'
-- hideKeyboard
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
 - takeScreenshot: native-composer
 - tapOn: 'Category: Choose category or subcategory'
 - tapOn:
     id: category-search
 - inputText: 'Groceries'
-- hideKeyboard
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
 - tapOn: 'Food / Groceries,.*'
 - tapOn: 'Account: Choose payment account'
 - takeScreenshot: native-accounts
@@ -45,7 +48,9 @@ appId: com.spndrr.app.native.e2e
     id: amount-input
 - eraseText
 - inputText: '45.50'
-- hideKeyboard
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
 - scrollUntilVisible:
     element: 'Save changes'
     direction: DOWN
@@ -58,13 +63,17 @@ appId: com.spndrr.app.native.e2e
 - tapOn:
     id: assistant-input
 - inputText: 'coffee'
-- hideKeyboard
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
 - tapOn: 'Send & track'
 - assertVisible: 'How much did you spend?'
 - tapOn:
     id: assistant-input
 - inputText: '30'
-- hideKeyboard
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
 - tapOn: 'Send & track'
 - assertVisible: 'Transaction saved'
 - tapOn: 'Done'
@@ -72,7 +81,9 @@ appId: com.spndrr.app.native.e2e
 - tapOn:
     id: assistant-input
 - inputText: 'simulate failure'
-- hideKeyboard
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
 - tapOn: 'Send & track'
 - assertVisible: 'Check recent transactions'
 - assertNotVisible: 'Send & track'
