@@ -23,6 +23,7 @@ export async function createRuntime() {
   return { client: new FinanceClient(adapter.transport, adapter.clear), fixture,
     draftVault: (ownerId: string, householdId?: string) => scopedVault(origin, `composer:${ownerId}${householdId ? `:${householdId}` : ''}`),
     planningVault: (ownerId: string) => scopedVault(origin, `planning-runs:${ownerId}`),
+    historyVault: (ownerId: string, householdId: string) => scopedVault(origin, `assistant-history:${ownerId}:${householdId}`),
     operationVault: (ownerId: string) => scopedVault(origin, `operations:${ownerId}`) };
 }
 export type Runtime = Awaited<ReturnType<typeof createRuntime>>;

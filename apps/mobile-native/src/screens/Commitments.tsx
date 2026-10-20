@@ -8,6 +8,7 @@ import { OperationNotice } from '../state/operations';
 import { Button, Card, ErrorNotice, Field, Loading, styles } from '../ui/primitives';
 import { CalendarField, ChoiceField, MoneyField, Page, Toggle } from '../ui/forms';
 import { choices, EmptyState, ScopeLabel } from '../ui/workspace';
+import { useFormExit } from '../ui/useFormExit';
 import type { FeatureNavigationProps, ScreenProps } from '../navigation';
 
 export function CommitmentsScreen({ navigation }: FeatureNavigationProps) {
@@ -38,6 +39,7 @@ function CommitmentEditor({ navigation, original }: ScreenProps<'CommitmentForm'
   const [type, setType] = useState<'Expense' | 'Investment'>(original?.transactionType ?? 'Expense'); const [cadence, setCadence] = useState<CommitmentCadence>(original?.cadence ?? 'Monthly');
   const [date, setDate] = useState(original?.nextDueDate ?? today); const [category, setCategory] = useState(original?.categoryId ?? 'none'); const [goal, setGoal] = useState(original?.goalId ?? 'none');
   const [shared, setShared] = useState(original ? original.userProfileId === null : false); const [active, setActive] = useState(original?.isActive ?? true); const [saved, setSaved] = useState(false);
+  useFormExit({ name, amount, type, cadence, date, category, goal, shared, active }, mutation.busy, saved, navigation);
   const save = () => {
     const cents = parseMoney(amount); if (!name.trim() || cents === null) { mutation.setError('Enter a commitment name and a positive amount with up to two decimal places.'); return; }
     const input: CreateCommitment = { householdId: scope, name: name.trim(), amount: cents / 100, transactionType: type, cadence, nextDueDate: date, isShared: shared,

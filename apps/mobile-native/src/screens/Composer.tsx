@@ -72,6 +72,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
         setError(caught instanceof Error ? caught.message : 'The message could not be delivered.');
         return;
       }
+      await entry.recordExchange(before.text, result.assistantMessage ?? result.errors?.[0] ?? (result.transaction ? 'Transaction saved.' : 'Please add more detail.'), result.transaction?.id ?? null);
       if (result.transaction) { await confirmed(result.transaction); return; }
       entry.update({ assistantUncertain: false, text: result.status === 'Failed' || result.status === 'Unsupported' ? before.text : '' });
       entry.setReply(result.assistantMessage ?? result.errors?.[0] ?? 'Please add more detail.');
@@ -97,6 +98,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
       {entry.persistenceError ? <ErrorNotice message="The transaction is saved. Clear its local draft before adding another." onRetry={() => { void entry.complete(transaction); }} /> : null}
       {editable ? <Button title="Edit saved transaction" secondary onPress={() => { entry.beginEdit(transaction); navigation.navigate('Edit'); }} /> : null}
       <Button title="Done" onPress={() => navigation.popToTop()} />
+      {entry.historyError ? <Text style={styles.caption}>{entry.historyError}</Text> : null}
     </ScrollView></SafeAreaView>;
   }
   const locked = entry.busy || operations.blocked || !!entry.draft.pendingManual;

@@ -10,6 +10,7 @@ import { Button, Card, ErrorNotice, Field, Loading, styles } from '../ui/primiti
 import { CalendarField, ChoiceField, MoneyField, Page, Toggle } from '../ui/forms';
 import { Progress } from '../ui/finance';
 import { choices, EmptyState, ScopeLabel } from '../ui/workspace';
+import { useFormExit } from '../ui/useFormExit';
 import type { FeatureNavigationProps, ScreenProps } from '../navigation';
 
 export function GoalsScreen({ navigation }: FeatureNavigationProps) {
@@ -41,6 +42,7 @@ function GoalEditor({ navigation, goal }: ScreenProps<'GoalForm'> & { goal?: Goa
   const [target, setTarget] = useState(goal ? String(goal.targetAmount) : ''); const [monthly, setMonthly] = useState(goal?.monthlyTarget === null || !goal ? '' : String(goal.monthlyTarget));
   const [date, setDate] = useState(goal?.targetDate ?? ''); const [priority, setPriority] = useState<FinancialGoalPriority>(goal?.priority ?? 'Medium');
   const [status, setStatus] = useState<FinancialGoalStatus>(goal?.status ?? 'Active'); const [shared, setShared] = useState(goal ? goal.userProfileId === null : false); const [saved, setSaved] = useState(false);
+  useFormExit({ name, type, target, monthly, date, priority, status, shared }, mutation.busy, saved, navigation);
   const save = () => {
     const targetCents = parseMoney(target); const monthlyCents = monthly ? parseMoney(monthly) : null;
     if (!name.trim() || targetCents === null || (monthly && monthlyCents === null)) { mutation.setError('Enter a name and positive amounts with up to two decimal places.'); return; }

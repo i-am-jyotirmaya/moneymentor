@@ -9,6 +9,7 @@ import { OperationNotice } from '../state/operations';
 import { Button, Card, ErrorNotice, Field, Loading, styles } from '../ui/primitives';
 import { CalendarField, ChoiceField, MoneyField, Page, Toggle } from '../ui/forms';
 import { choices } from '../ui/workspace';
+import { useFormExit } from '../ui/useFormExit';
 import type { ScreenProps } from '../navigation';
 
 export function FinancialEventScreen(props: ScreenProps<'FinancialEvent'>) {
@@ -24,6 +25,7 @@ function FinancialEventEditor({ navigation, route, original }: ScreenProps<'Fina
   const [saved, setSaved] = useState(false); const [errors, setErrors] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<FinancialEventDraft>({ eventKind: route.params?.kind ?? 'Transfer', amount: original ? String(original.amount) : '', date: today, accountId: original?.accountId ?? null, counterpartyAccountId: null,
     categoryId: null, merchant: '', description: '', paymentChannel: 'BankTransfer', visibility: original?.visibility ?? entry.resources.settings.defaultTransactionVisibility, unlinkedRefund: false });
+  useFormExit(draft, mutation.busy, saved, navigation);
   const change = (patch: Partial<FinancialEventDraft>) => setDraft(previous => ({ ...previous, ...patch }));
   const paired = ['Transfer', 'CreditCardPayment', 'CashWithdrawal'].includes(draft.eventKind);
   const submit = () => {

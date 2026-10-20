@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState, View } from 'react-native';
 import { decodeComposerDraft, emptyDraft, type ComposerDraft, type EntryResources, type FinanceClient, type ManualDraft, type Transaction } from '@spndrr/finance-core';
 import type { SecureJsonStore } from '../services/secure-json';
+import { appendAssistantHistory, decodeAssistantHistory, type AssistantExchange } from '../services/assistant-history';
 import { ErrorNotice, Loading, styles } from '../ui/primitives';
 
 export type EntryContextValue = {
@@ -14,11 +15,13 @@ export type EntryContextValue = {
   beginEdit: (transaction: Transaction) => void; clearEdit: () => void; setSaved: (transaction: Transaction | null) => void;
   clearForLogout: () => Promise<void>;
   discardDraft: () => Promise<void>;
+  conversation: AssistantExchange[]; historyError: string | null; clearConversation: () => Promise<void>;
+  recordExchange: (text: string, reply: string, transactionId: string | null) => Promise<void>;
 };
 export const EntryContext = createContext<EntryContextValue | null>(null);
 export function useEntry() { const context = useContext(EntryContext); if (!context) throw Error('Missing native entry provider.'); return context; }
-export function EntryProvider({ children, ownerId, resources, client, vault }: {
-  children: ReactNode; ownerId: string; resources: EntryResources; client: FinanceClient; vault: SecureJsonStore;
+export function EntryProvider({ children, ownerId, resources, client, vault, historyVault }: {
+  children: ReactNode; ownerId: string; resources: EntryResources; client: FinanceClient; vault: SecureJsonStore; historyVault?: SecureJsonStore;
 }) {
   const initial = useMemo<ComposerDraft>(() => ({ version: 1, ownerId, manual: emptyDraft(resources.settings, resources.today), text: '', pendingManual: null, assistantUncertain: false }), [ownerId, resources.settings, resources.today]);
   const [draft, setDraft] = useState(initial);
@@ -34,6 +37,18 @@ export function EntryProvider({ children, ownerId, resources, client, vault }: {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closed = useRef(false);
   const resetting = useRef(false);
+  const [conversation, setConversation] = useState<AssistantExchange[]>([]); const conversationRef = useRef<AssistantExchange[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null); const historyReady = useRef(!historyVault);
+  useEffect(() => {
+    if (!historyVault) return;
+    let alive = true;
+    void historyVault.get().then(value => {
+      const restored = value === null ? [] : decodeAssistantHistory(value, ownerId, resources.householdId);
+      if (!restored) throw Error('Unrecognized assistant history.');
+      if (alive) { conversationRef.current = restored; setConversation(restored); historyReady.current = true; }
+    }).catch(() => { if (alive) setHistoryError('Your on-device conversation preview could not be restored. Saved transactions are unaffected.'); });
+    return () => { alive = false; };
+  }, [historyVault, ownerId, resources.householdId]);
 
   useEffect(() => {
     let alive = true;
@@ -68,6 +83,19 @@ export function EntryProvider({ children, ownerId, resources, client, vault }: {
 
   const value: EntryContextValue = {
     client, resources, draft, busy, persistenceError, saved, reply, edit, update, persist, setReply, setSaved,
+    conversation, historyError,
+    recordExchange: async (text, reply, transactionId) => {
+      if (closed.current || !historyReady.current) return;
+      const date = new Date().toISOString();
+      const exchanges = appendAssistantHistory(conversationRef.current, { id: `${date}:${conversationRef.current.length}`, text, reply, date, transactionId });
+      try {
+        await historyVault?.put({ version: 1, ownerId, householdId: resources.householdId, exchanges });
+        if (!closed.current) { conversationRef.current = exchanges; setConversation(exchanges); setHistoryError(null); }
+      } catch { setHistoryError('The reply was received, but its on-device preview could not be saved.'); }
+    },
+    clearConversation: async () => {
+      await historyVault?.remove(); conversationRef.current = []; setConversation([]); historyReady.current = true; setHistoryError(null);
+    },
     updateManual: (change, target = 'manual') => {
       if (target === 'edit') setEdit(previous => previous ? { ...previous, manual: { ...previous.manual, ...change } } : null);
       else if (!current.current.pendingManual) update({ manual: { ...current.current.manual, ...change } });
@@ -104,7 +132,7 @@ export function EntryProvider({ children, ownerId, resources, client, vault }: {
     clearForLogout: async () => {
       closed.current = true;
       if (timer.current) clearTimeout(timer.current);
-      await vault.closeAndRemove();
+      await Promise.all([vault.closeAndRemove(), historyVault?.closeAndRemove()]);
     },
   };
   if (!ready) return <Loading label="Restoring your draft…" />;

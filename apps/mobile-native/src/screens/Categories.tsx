@@ -7,6 +7,7 @@ import { OperationNotice } from '../state/operations';
 import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
 import { ChoiceField, Page, Toggle } from '../ui/forms';
 import { choices, ScopeLabel } from '../ui/workspace';
+import { useFormExit } from '../ui/useFormExit';
 import type { FeatureNavigationProps, ScreenProps } from '../navigation';
 
 export function CategoriesScreen({ navigation }: FeatureNavigationProps) {
@@ -29,6 +30,7 @@ export function CategoryFormScreen({ navigation, route }: ScreenProps<'CategoryF
   const [classification, setClassification] = useState<Category['classification']>(original?.classification ?? 'Discretionary');
   const [parent, setParent] = useState(original?.parentCategoryId ?? 'none'); const [hidden, setHidden] = useState(original?.isHidden ?? false);
   const [icon, setIcon] = useState(original?.icon ?? ''); const [saved, setSaved] = useState(false);
+  useFormExit({ name, type, classification, parent, hidden, icon }, mutation.busy, saved, navigation);
   const save = () => {
     if (!name.trim()) { mutation.setError('Give this category a name.'); return; }
     void mutation.execute(original ? 'Update category' : 'Add category', () => original

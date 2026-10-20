@@ -8,6 +8,7 @@ export type Routes = {
   Goals: undefined; Goal: { id: string }; GoalForm: { id?: string } | undefined;
   Commitments: undefined; CommitmentForm: { id?: string } | undefined;
   Insights: undefined; Households: undefined; Settings: undefined;
+  AssistantHistory: undefined;
 };
 export type ScreenProps<T extends keyof Routes> = NativeStackScreenProps<Routes, T>;
 export type FeatureNavigationProps = { navigation: Pick<NativeStackNavigationProp<Routes>, 'navigate'> };

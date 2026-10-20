@@ -27,6 +27,7 @@ import { CommitmentFormScreen, CommitmentsScreen } from './screens/Commitments';
 import { InsightsScreen } from './screens/Insights';
 import { HouseholdsScreen } from './screens/Households';
 import { SettingsScreen } from './screens/Settings';
+import { AssistantHistoryScreen } from './screens/AssistantHistory';
 import { PickerScreen } from './screens/Picker';
 import { EditScreen } from './screens/Edit';
 import { AddAccountScreen } from './screens/AddAccount';
@@ -46,7 +47,7 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
     if (!household) throw Error('This household is no longer available.');
     return { catalog, accounts, settings, households, household };
   }, staleTime: 60000, retry: 1 });
-  const [draftStore, setDraftStore] = useState<{ scope: string; vault: SecureJsonStore } | null>(null);
+  const [draftStore, setDraftStore] = useState<{ scope: string; vault: SecureJsonStore; history: SecureJsonStore } | null>(null);
   const [operationVault, setOperationVault] = useState<SecureJsonStore | null>(null);
   const [planningVault, setPlanningVault] = useState<SecureJsonStore | null>(null);
   const [vaultError, setVaultError] = useState(false);
@@ -63,7 +64,7 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
   useEffect(() => {
     if (!scope) return;
     let alive = true;
-    void runtime.draftVault(session.user.id, scope === defaultScope ? undefined : scope).then(vault => { if (alive) setDraftStore({ scope, vault }); }).catch(() => { if (alive) setVaultError(true); });
+    void Promise.all([runtime.draftVault(session.user.id, scope === defaultScope ? undefined : scope), runtime.historyVault(session.user.id, scope)]).then(([vault, history]) => { if (alive) setDraftStore({ scope, vault, history }); }).catch(() => { if (alive) setVaultError(true); });
     return () => { alive = false; };
   }, [runtime, session.user.id, scope, defaultScope, vaultAttempt]);
   const resources = useMemo<EntryResources | null>(() => query.data ? ({ categories: query.data.catalog.categories, accounts: query.data.accounts,
@@ -74,7 +75,7 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
     <Button title="Sign out" secondary onPress={() => { void runtime.client.logout().catch(() => undefined); }} /></View>;
   if (!resources || !draftStore || draftStore.scope !== scope || !operationVault || !planningVault || !query.data) return <Loading />;
   return <OperationsProvider key={session.user.id} ownerId={session.user.id} vault={operationVault}><PlanningRunsProvider ownerId={session.user.id} vault={planningVault}>
-    <EntryProvider key={scope} ownerId={session.user.id} client={runtime.client} resources={resources} vault={draftStore.vault}>
+    <EntryProvider key={scope} ownerId={session.user.id} client={runtime.client} resources={resources} vault={draftStore.vault} historyVault={draftStore.history}>
     <WorkspaceProvider household={query.data.household} settings={query.data.settings} onSwitch={(household: HouseholdSummary) => setSelectedScope(household.id)}>
     <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: color.background }, headerStyle: { backgroundColor: color.background }, headerTintColor: color.ink,
@@ -100,6 +101,7 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
         <Stack.Screen name="Insights" component={InsightsScreen} options={{ title: 'Insights' }} />
         <Stack.Screen name="Households" component={HouseholdsScreen} options={{ title: 'Households' }} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings and privacy' }} />
+        <Stack.Screen name="AssistantHistory" component={AssistantHistoryScreen} options={{ title: 'Conversations on this device' }} />
       </Stack.Navigator>
     </NavigationContainer>
   </WorkspaceProvider></EntryProvider></PlanningRunsProvider></OperationsProvider>;

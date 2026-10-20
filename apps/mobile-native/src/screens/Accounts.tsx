@@ -7,6 +7,7 @@ import { OperationNotice } from '../state/operations';
 import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
 import { ChoiceField, Page, Toggle } from '../ui/forms';
 import { choices, EmptyState, ScopeLabel } from '../ui/workspace';
+import { useFormExit } from '../ui/useFormExit';
 import type { FeatureNavigationProps, ScreenProps } from '../navigation';
 
 export function AccountsScreen({ navigation }: FeatureNavigationProps) {
@@ -31,6 +32,7 @@ export function AccountFormScreen({ navigation, route }: ScreenProps<'AccountFor
   const [institution, setInstitution] = useState(original?.institution ?? ''); const [last4, setLast4] = useState(original?.last4 ?? '');
   const [aliases, setAliases] = useState(original?.aliases.join(', ') ?? ''); const [shared, setShared] = useState(original ? original.ownerUserProfileId === null : false); const [active, setActive] = useState(original?.isActive ?? true);
   const [saved, setSaved] = useState(false);
+  useFormExit({ name, type, institution, last4, aliases, shared, active }, mutation.busy, saved, navigation);
   const save = () => {
     if (!name.trim()) { mutation.setError('Give this account a name.'); return; }
     if (last4 && !/^\d{4}$/.test(last4)) { mutation.setError('Enter exactly four digits, or leave the last four blank.'); return; }

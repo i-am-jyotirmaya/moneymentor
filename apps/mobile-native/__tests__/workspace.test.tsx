@@ -18,7 +18,8 @@ import { TransactionScreen } from '../src/screens/Transactions';
 jest.mock('react-native-safe-area-context', () => jest.requireActual('react-native-safe-area-context/jest/mock').default);
 jest.mock('@react-native-community/datetimepicker', () => ({ __esModule: true, default: () => null, DateTimePickerAndroid: { open: jest.fn() } }));
 jest.mock('../src/services/share-export', () => ({ clearExportCache: jest.fn() }));
-const navigation = { navigate: jest.fn(), goBack: jest.fn(), push: jest.fn() };
+jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), usePreventRemove: jest.fn() }));
+const navigation = { navigate: jest.fn(), goBack: jest.fn(), push: jest.fn(), dispatch: jest.fn() };
 async function setup(readOnly = false) {
   const fixture = fixtureTransport(); const client = new FinanceClient(fixture.transport, fixture.clear);
   await client.login('qa@example.test', 'fixture-only'); const api = workspaceApi(client);
