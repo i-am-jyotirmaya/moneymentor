@@ -1,5 +1,5 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { Alert, AppState } from 'react-native';
+import { Alert, AppState, type AppStateStatus } from 'react-native';
 import { ExpoSpeechRecognitionModule as speech, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { VoiceInput } from '../src/ui/VoiceInput';
 
@@ -58,7 +58,7 @@ test('denied permission leaves the typed draft untouched and offers device setti
 });
 
 test('the iOS permission dialog becoming inactive does not cancel an allowed request', async () => {
-  let stateChange!: (state: string) => void; let resolve!: (value: never) => void;
+  let stateChange!: (state: AppStateStatus) => void; let resolve!: (value: never) => void;
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, handler) => { stateChange = handler; return { remove: jest.fn() }; });
   jest.mocked(speech.requestPermissionsAsync).mockReturnValue(new Promise(done => { resolve = done; }));
   const screen = render(<VoiceInput text="" disabled={false} onTranscript={jest.fn()} onBusyChange={jest.fn()} />);
@@ -77,7 +77,7 @@ test('network speech requires explicit consent before requesting permissions', a
 });
 
 test('backgrounding aborts dictation and ignores results after unmount', async () => {
-  let stateChange!: (state: string) => void;
+  let stateChange!: (state: AppStateStatus) => void;
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, handler) => { stateChange = handler; return { remove: jest.fn() }; });
   const transcript = jest.fn(); const screen = render(<VoiceInput text="" disabled={false} onTranscript={transcript} onBusyChange={jest.fn()} />);
   fireEvent.press(screen.getByText('Use voice')); await waitFor(() => expect(speech.start).toHaveBeenCalled()); emit('start');
