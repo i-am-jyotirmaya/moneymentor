@@ -10,6 +10,7 @@ import { useEntry } from '../state/entry';
 import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
 import { color } from '../ui/theme';
 import { ManualForm } from '../ui/ManualForm';
+import { VoiceInput } from '../ui/VoiceInput';
 import type { ScreenProps } from '../navigation';
 
 export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
@@ -18,6 +19,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
   const [mode, setMode] = useState<'assistant' | 'manual'>(entry.draft.pendingManual || entry.draft.manual.amount ? 'manual' : 'assistant');
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const refresh = () => { void query.invalidateQueries({ queryKey: ['history'] }); };
   const confirmed = async (transaction: Transaction) => {
     // The receipt is authoritative even if subsequent local cleanup fails.
@@ -52,14 +54,14 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
     }
   }); };
   const submitAssistant = () => { void entry.runExclusive(async () => {
-    if (!entry.draft.text.trim() || entry.draft.assistantUncertain) return;
+    if (!entry.draft.text.trim() || entry.draft.assistantUncertain || voiceBusy) return;
     setError(null);
     const before = entry.draft;
     const pending = { ...before, assistantUncertain: true };
     try {
       entry.update(pending); await entry.persist(pending);
       let result;
-      try { result = await entry.client.sendAssistant(before.text, entry.resources.settings.currencyCode, entry.resources.today); }
+      try { result = await entry.client.sendAssistant(before.text, entry.resources.settings.currencyCode, entry.resources.today, { inputMode: before.inputMode ?? 'Text', householdId: entry.resources.householdId }); }
       catch (caught) {
         if (caught instanceof ApiError && caught.outcome === 'rejected') entry.update({ assistantUncertain: false });
         setError(caught instanceof Error ? caught.message : 'The message could not be delivered.');
@@ -101,7 +103,8 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
       {mode === 'assistant' ? <>
         <Text accessibilityRole="header" style={styles.heading}>What did you spend on?</Text>
         <Field label="Transaction message" placeholder="Bought groceries for ₹240 using Kotak upi" multiline maxLength={4000} value={entry.draft.text}
-          editable={!entry.busy && !entry.draft.assistantUncertain} onChangeText={text => entry.update({ text })} testID="assistant-input" />
+          editable={!entry.busy && !entry.draft.assistantUncertain && !voiceBusy} onChangeText={text => entry.update({ text, ...(text ? {} : { inputMode: 'Text' }) })} testID="assistant-input" />
+        <VoiceInput text={entry.draft.text} disabled={entry.busy || entry.draft.assistantUncertain} onBusyChange={setVoiceBusy} onTranscript={text => entry.update({ text, inputMode: 'Voice' })} />
         <Text style={styles.caption}>Sending can save a transaction immediately. The assistant asks for missing details.</Text>
         {entry.reply ? <Card><Text accessibilityLiveRegion="polite" style={styles.body}>{entry.reply}</Text></Card> : null}
         {entry.draft.assistantUncertain ? <Card>
@@ -110,7 +113,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
           <Button title="I checked — allow another message" secondary disabled={entry.busy} onPress={() => {
             entry.update({ assistantUncertain: false }); void entry.persist().catch(() => undefined);
           }} />
-        </Card> : <Button title="Send & track" onPress={submitAssistant} loading={entry.busy} disabled={!entry.draft.text.trim()} testID="send-assistant" />}
+        </Card> : <Button title="Send & track" onPress={submitAssistant} loading={entry.busy} disabled={!entry.draft.text.trim() || voiceBusy} testID="send-assistant" />}
       </> : <>
         <Text accessibilityRole="header" style={styles.heading}>Make it a little clearer.</Text>
         <ManualForm draft={entry.draft.manual} resources={entry.resources} disabled={locked} errors={fields}

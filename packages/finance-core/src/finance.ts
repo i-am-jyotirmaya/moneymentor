@@ -91,7 +91,7 @@ export function buildTransactionIntent(draft: ManualDraft, resources: EntryResou
 
 /** An uncertain manual operation is immutable and can only replay this same intent. */
 export type PendingManual = { payload: Readonly<TransactionIntent>; phase: "sending" | "uncertain" };
-export type ComposerDraft = { version: 1; ownerId: string; manual: ManualDraft; text: string; pendingManual: PendingManual | null; assistantUncertain: boolean };
+export type ComposerDraft = { version: 1; ownerId: string; manual: ManualDraft; text: string; inputMode?: 'Text' | 'Voice'; pendingManual: PendingManual | null; assistantUncertain: boolean };
 
 export function decodeComposerDraft(value: unknown, ownerId: string): ComposerDraft | null {
   if (!value || typeof value !== "object") return null;
@@ -109,7 +109,7 @@ export function decodeComposerDraft(value: unknown, ownerId: string): ComposerDr
       || typeof p.amount !== "number" || !Number.isFinite(p.amount) || p.amount <= 0
       || !["Purchase", "Income"].includes(p.eventKind) || typeof p.date !== "string") return null;
   }
-  return { version: 1, ownerId, manual: d, text: v.text,
+  return { version: 1, ownerId, manual: d, text: v.text, inputMode: v.inputMode === 'Voice' ? 'Voice' : 'Text',
     pendingManual: v.pendingManual ? { payload: Object.freeze(v.pendingManual.payload), phase: "uncertain" } : null,
     assistantUncertain: v.assistantUncertain === true };
 }
