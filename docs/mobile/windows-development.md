@@ -115,6 +115,25 @@ As checked on 2026-10-19, Expo's pricing page lists a Free allowance of up to 15
 | TestFlight upload | Apple accepted a processed build for testing | Not run |
 | Store publication | Approved public distribution | Deliberately not performed |
 
-The GitHub Android QA artifact targets the x86_64 emulator to keep build validation focused. Use EAS development/preview APKs for ARM Android phones. Native validation results and remaining device gates are recorded in [performance.md](performance.md).
+GitHub builds separate QA APKs for the x86_64 emulator and ARM64 phones. Download `spndrr-native-qa-arm64-v8a-apk` after its build succeeds to profile a physical Android phone from Windows without an Expo account. The ARM build is configured but not yet validated. This fixture-only QA app has its own identifier and does not replace Capacitor or connect to production data. Use EAS development/preview builds for the real configured HTTPS API. Native validation results and remaining device gates are recorded in [performance.md](performance.md).
+
+With Android platform-tools on Windows, extract that QA artifact and enable USB debugging on your own test phone:
+
+```powershell
+adb devices
+adb install -r .\app-release.apk
+adb shell am start -W -S -n com.spndrr.app.rn.e2e/.MainActivity
+adb shell dumpsys gfxinfo com.spndrr.app.rn.e2e reset
+# Run the fixture transaction/large-history/keyboard scenarios on the phone.
+adb shell dumpsys gfxinfo com.spndrr.app.rn.e2e framestats > phone-frames.txt
+adb shell dumpsys meminfo com.spndrr.app.rn.e2e > phone-memory.txt
+adb shell getprop ro.product.model > phone-device.txt
+adb shell getprop ro.build.version.release >> phone-device.txt
+adb shell wm size >> phone-device.txt
+adb shell wm density >> phone-device.txt
+adb shell dumpsys display > phone-display.txt
+```
+
+Use `qa@example.test` / `fixture-only`, seed `simulate history` in the assistant, and record the commit/build, device refresh rate, scenario/repetition count and whether reduced motion/large text is enabled. Share only fixture-run diagnostics, not real financial records or session material. The emulator scenario and the phone results must be kept separate. iPhone hardware acceptance still follows the EAS/Apple provisioning steps above.
 
 Sources: [Expo monorepo builds](https://docs.expo.dev/build-reference/build-with-monorepos/), [development builds](https://docs.expo.dev/develop/development-builds/introduction/), [iOS simulator builds](https://docs.expo.dev/build-reference/simulators/), [EAS Maestro](https://docs.expo.dev/eas/workflows/examples/e2e-tests/), [EAS CLI](https://docs.expo.dev/eas/cli/), [Expo pricing](https://expo.dev/pricing), [Apple enrollment](https://developer.apple.com/programs/enroll/).

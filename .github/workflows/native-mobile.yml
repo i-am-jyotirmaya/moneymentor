@@ -102,8 +102,16 @@ jobs:
   native-android:
     needs: [domain, native-js]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x86_64
+            runtime: true
+          - architecture: arm64-v8a
+            runtime: false
     concurrency:
-      group: native-android-${{ github.head_ref || github.ref }}
+      group: native-android-${{ matrix.architecture }}-${{ github.head_ref || github.ref }}
       cancel-in-progress: false
     timeout-minutes: 60
     defaults:
@@ -134,7 +142,7 @@ jobs:
         id: apk-cache
         with:
           path: apps/mobile-native/android/app/build/outputs/apk/release/app-release.apk
-          key: native-qa-apk-x86_64-v1-${{ runner.os }}-${{ hashFiles('apps/mobile-native/src/**', 'apps/mobile-native/index.ts', 'apps/mobile-native/package*.json', 'apps/mobile-native/tsconfig*.json', 'apps/mobile-native/app.config.ts', 'apps/mobile-native/babel.config.cjs', 'apps/mobile-native/metro.config.cjs', 'apps/mobile-native/assets/**', 'apps/mobile-native/plugins/**', 'packages/finance-core/src/**', 'packages/finance-core/package.json', '.github/workflows/native-mobile.yml') }}
+          key: native-qa-apk-${{ matrix.architecture }}-v1-${{ runner.os }}-${{ hashFiles('apps/mobile-native/src/**', 'apps/mobile-native/index.ts', 'apps/mobile-native/package*.json', 'apps/mobile-native/tsconfig*.json', 'apps/mobile-native/app.config.ts', 'apps/mobile-native/babel.config.cjs', 'apps/mobile-native/metro.config.cjs', 'apps/mobile-native/assets/**', 'apps/mobile-native/plugins/**', 'packages/finance-core/src/**', 'packages/finance-core/package.json', '.github/workflows/native-mobile.yml') }}
       - name: Generate the QA Android project
         if: steps.apk-cache.outputs.cache-hit != 'true'
         run: npx expo prebuild --platform android --no-install
@@ -142,7 +150,7 @@ jobs:
         if: steps.apk-cache.outputs.cache-hit != 'true'
       - name: Compile QA release APK
         if: steps.apk-cache.outputs.cache-hit != 'true'
-        run: ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=x86_64 >../gradle-build.log 2>&1 || { tail -n 120 ../gradle-build.log; exit 1; }
+        run: ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=${{ matrix.architecture }} >../gradle-build.log 2>&1 || { tail -n 120 ../gradle-build.log; exit 1; }
         working-directory: apps/mobile-native/android
       - uses: actions/cache/save@v4
         if: steps.apk-cache.outputs.cache-hit != 'true'
@@ -151,18 +159,21 @@ jobs:
           key: ${{ steps.apk-cache.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v4
         with:
-          name: spndrr-native-qa-x86_64-apk
+          name: spndrr-native-qa-${{ matrix.architecture }}-apk
           path: apps/mobile-native/android/app/build/outputs/apk/release/*.apk
       - name: Install Maestro
+        if: matrix.runtime
         env:
           MAESTRO_VERSION: '2.11.0'
         run: curl -Ls https://get.maestro.mobile.dev | bash
       - name: Enable emulator acceleration
+        if: matrix.runtime
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - uses: reactivecircus/android-emulator-runner@v2
+        if: matrix.runtime
         with:
           api-level: 35
           arch: x86_64
@@ -173,7 +184,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-android-runtime-evidence
+          name: native-android-${{ matrix.architecture }}-evidence
           path: |
             ~/.maestro/tests/**
             apps/mobile-native/gradle-build.log
