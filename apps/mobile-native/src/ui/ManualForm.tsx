@@ -34,7 +34,7 @@ export function ManualForm({ draft, resources, disabled, errors = {}, onChange, 
     <Selection label="Transaction date" value={draft.date} onPress={chooseDate} disabled={disabled} error={errors.date} />
     {showDate && !disabled ? <DateTimePicker accessibilityLabel="Choose transaction date" value={localDate(draft.date)} maximumDate={localDate(resources.today)} mode="date" display="inline" onChange={(_, value) => changeDate(value)} /> : null}
     <Field label={draft.eventKind === 'Income' ? 'From (optional)' : 'Merchant (optional)'} value={draft.merchant} onChangeText={merchant => onChange({ merchant })} editable={!disabled} maxLength={256} error={errors.merchant} />
-    <Field label="Note (optional)" value={draft.description} onChangeText={description => onChange({ description })} editable={!disabled} maxLength={1024} multiline error={errors.description} />
+    <Field label="Note (optional)" testID="note-input" value={draft.description} onChangeText={description => onChange({ description })} editable={!disabled} maxLength={1024} multiline error={errors.description} />
     <Selection label="Visibility" value={draft.visibility === 'Private' ? 'Only me' : 'Household members'} onPress={() => onSelect('visibility')} disabled={disabled} />
   </View>;
 }

@@ -44,9 +44,11 @@ appId: com.spndrr.app.rn.e2e
 - tapOn: 'Account: Choose payment account'
 - tapOn: 'Kotak upi, Credit card'
 - scrollUntilVisible:
-    element: 'Note \(optional\)'
+    element:
+      id: note-input
     direction: DOWN
-- tapOn: 'Note \(optional\)'
+- tapOn:
+    id: note-input
 - inputText: Native cookie acceptance
 - tapOn:
     id: keyboard-dismiss
