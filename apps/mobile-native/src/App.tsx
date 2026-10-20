@@ -10,6 +10,7 @@ import { dateInTimeZone, type AuthSession, type EntryResources } from '@spndrr/f
 import { createRuntime, type Runtime } from './services/runtime';
 import type { SecureJsonStore } from './services/secure-json';
 import { EntryProvider } from './state/entry';
+import { OperationsProvider } from './state/operations';
 import { Button, ErrorNotice, KeyboardDismissButton, Loading, styles, useReducedMotion } from './ui/primitives';
 import { color } from './ui/theme';
 import { LoginScreen, PrivacyScreen } from './screens/Auth';
@@ -32,11 +33,14 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
     return { catalog, accounts, settings };
   }, staleTime: 60000, retry: 1 });
   const [vault, setVault] = useState<SecureJsonStore | null>(null);
+  const [operationVault, setOperationVault] = useState<SecureJsonStore | null>(null);
   const [vaultError, setVaultError] = useState(false);
   const [vaultAttempt, setVaultAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
-    void runtime.draftVault(session.user.id).then(value => { if (alive) setVault(value); }).catch(() => { if (alive) setVaultError(true); });
+    void Promise.all([runtime.draftVault(session.user.id), runtime.operationVault(session.user.id)]).then(([draft, operations]) => {
+      if (alive) { setVault(draft); setOperationVault(operations); }
+    }).catch(() => { if (alive) setVaultError(true); });
     return () => { alive = false; };
   }, [runtime, session.user.id, vaultAttempt]);
   const resources = useMemo<EntryResources | null>(() => query.data ? ({ categories: query.data.catalog.categories, accounts: query.data.accounts,
@@ -44,8 +48,8 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
     today: dateInTimeZone(query.data.settings.timeZone, new Date(clock)) }) : null, [query.data, clock]);
   if ((query.isError && !query.data) || vaultError) return <View style={styles.center}><ErrorNotice message={vaultError ? 'Secure device storage is unavailable.' : 'Your categories and accounts could not be loaded.'} onRetry={() => { setVaultError(false); setVaultAttempt(previous => previous + 1); void query.refetch(); }} />
     <Button title="Sign out" secondary onPress={() => { void runtime.client.logout().catch(() => undefined); }} /></View>;
-  if (!resources || !vault) return <Loading />;
-  return <EntryProvider ownerId={session.user.id} client={runtime.client} resources={resources} vault={vault}>
+  if (!resources || !vault || !operationVault) return <Loading />;
+  return <OperationsProvider key={session.user.id} ownerId={session.user.id} vault={operationVault}><EntryProvider ownerId={session.user.id} client={runtime.client} resources={resources} vault={vault}>
     <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: color.background }, headerStyle: { backgroundColor: color.background }, headerTintColor: color.ink,
         headerShadowVisible: false, headerRight: () => <KeyboardDismissButton />, animation: reduced ? 'none' : 'default', gestureEnabled: true }}>
@@ -56,7 +60,7 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
         <Stack.Screen name="AddAccount" component={AddAccountScreen} options={{ title: 'Add account' }} />
       </Stack.Navigator>
     </NavigationContainer>
-  </EntryProvider>;
+  </EntryProvider></OperationsProvider>;
 }
 
 function SessionGate({ runtime }: { runtime: Runtime }) {

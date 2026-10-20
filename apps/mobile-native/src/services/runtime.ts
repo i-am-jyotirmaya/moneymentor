@@ -9,6 +9,7 @@ export async function createRuntime() {
   const origin = fixture ? 'https://e2e.invalid' : validateApiOrigin(process.env.EXPO_PUBLIC_API_URL);
   const adapter = fixture ? fixtureTransport() : await createNativeTransport(origin);
   return { client: new FinanceClient(adapter.transport, adapter.clear), fixture,
-    draftVault: (ownerId: string) => scopedVault(origin, `composer:${ownerId}`) };
+    draftVault: (ownerId: string) => scopedVault(origin, `composer:${ownerId}`),
+    operationVault: (ownerId: string) => scopedVault(origin, `operations:${ownerId}`) };
 }
 export type Runtime = Awaited<ReturnType<typeof createRuntime>>;
