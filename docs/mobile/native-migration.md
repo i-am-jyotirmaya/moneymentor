@@ -1,6 +1,6 @@
 # Spndrr native mobile migration
 
-Status: milestones 1–2 code implemented; native acceptance pending. This branch owns `apps/mobile-native`, the new universal `packages/finance-core`, and mobile documentation/workflows. `apps/web`, backend code, existing API contracts, and existing workflows are out of scope. The Capacitor app remains supported until native runtime acceptance passes.
+Status: all existing API-supported screen groups implemented; broader native and release acceptance pending. This branch owns `apps/mobile-native`, the new universal `packages/finance-core`, and mobile documentation/workflows. `apps/web`, backend code, existing API contracts, and existing workflows are out of scope. The Capacitor app remains supported until native runtime acceptance passes.
 
 ## Decision and dependency baseline
 
@@ -81,19 +81,20 @@ Backend reference deduplication is not a generic idempotency API. It is scoped t
 
 ## Validation gate and rollout
 
-Transaction entry has passed hosted Android and iOS functional acceptance. Android large-history acceptance and both x86_64/ARM64 QA builds also pass. Software-emulator frame measurements missed the proposed budget; representative physical-device profiling remains a release acceptance item while the remaining native screens are implemented. Preserve the working Capacitor application until feature and release acceptance. See [performance.md](performance.md) and [windows-development.md](windows-development.md) for evidence and build instructions.
+Transaction entry has passed hosted Android and iOS functional acceptance. Android large-history acceptance and both x86_64/ARM64 QA builds also pass. Software-emulator frame measurements missed the proposed budget; representative physical-device profiling remains a release acceptance item, separate from the now-implemented screen inventory. Preserve the working Capacitor application until feature and release acceptance. See [performance.md](performance.md) and [windows-development.md](windows-development.md) for evidence and build instructions.
 
 Milestone 1: audit, decision, shared boundaries, native bootstrap and build configuration.
 Milestone 2: transaction entry, native design/motion foundations, automated tests, device acceptance.
-Milestones 3–5 are in progress: financial screens; supported native inputs; performance and distribution sign-off. Each feature's incomplete status must stay visible in the PR. Image processing still requires an actual backend contract. Do not claim the entire migration or release acceptance until the corresponding checks pass.
+Milestone 3 financial-screen code is implemented, with broader runtime acceptance in progress. Milestones 4–5 still require actual image-processing contracts, native service/device acceptance, performance and distribution sign-off. Each feature's incomplete status must stay visible in the PR. Do not claim the entire migration or release acceptance until the corresponding checks pass.
 
 ## Remaining acceptance and contract gaps
 
-The existing API-supported screen inventory is implemented. Hosted strict native TypeScript/lint, 49 component/adapter tests, Android/iOS Metro exports and the real HTTPS API contract suite passed for the financial-screen checkpoint (run 39375158212). Subsequent conversation/privacy refinements and the broader native `workspace.yml` flow are still under validation. Do not equate screen implementation or compilation with passing runtime acceptance for every feature.
+The existing API-supported screen inventory is implemented. Hosted strict native TypeScript/lint, 50 component/adapter tests, 64 Node tests, Android/iOS Metro exports and the expanded real HTTPS API contract suite passed in run 39403340870. Both platforms completed goal creation, contributions, plan generation and account creation in run 39375609810 before a below-viewport account assertion stopped the flow. That test now scrolls; the remaining workspace steps and native-cookie scenario await a fresh passing run. A subsequent all-owner deletion-cleanup regression test is also pending. Do not equate screen implementation or compilation with passing runtime acceptance for every feature.
 
 - The current backend has no receipt/image/multiple-attachment endpoint, server conversation-history API, budget CRUD endpoint or household member-list/role-edit/removal API. Native UI does not invent these contracts. Budget values are presented from server summaries; households show the roles/memberships/invitations the API exposes.
 - Existing goal target dates/monthly targets, category parent links and commitment goal/category links can be changed where the API permits, but null PATCH fields do not clear them. Forms preserve that behavior. System categories cannot be changed. Account sharing cannot be changed after creation.
 - Plan run IDs are encrypted and restored for polling after process restart. Non-idempotent writes record an owner/household marker before sending. Unknown outcomes block further writes; users can view another household to reconcile the correct data. Assistant previews are bounded local copies, not server conversation synchronization.
+- Account deletion closes the active device session immediately and removes encrypted drafts, previews, planning IDs and pending-operation markers across all recorded household scopes for that owner. Other owners' device data is retained. Temporary export copies are removed on cleanup/cold start; copies explicitly shared to another application cannot be recalled.
 - Physical-device motion, large-text/screen-reader/high-refresh acceptance, real microphone service behavior, iOS device signing/TestFlight and production API/EAS identity remain release checks. Software-emulator frame budgets have not passed.
 - Keep Capacitor available until feature and release acceptance. No production deployment, OTA publication, web/backend change or pre-existing workflow modification is part of this PR.
 
