@@ -38,12 +38,13 @@ export function isTransaction(value: unknown): value is Transaction {
   const t = value as Transaction | null;
   return !!t && typeof t.id === "string" && t.id.length > 0 && typeof t.amount === "number"
     && Number.isFinite(t.amount) && t.amount > 0 && typeof t.transactionDate === "string"
-    && typeof t.currencyCode === "string" && ["Expense", "Income", "Transfer", "Investment"].includes(t.type);
+    && typeof t.currencyCode === "string" && /^[A-Z]{3}$/.test(t.currencyCode) && ["Expense", "Income", "Transfer", "Investment"].includes(t.type);
 }
 const isAccount = (a: FinancialAccount | null) => !!a && typeof a.id === 'string' && !!a.id
   && typeof a.householdId === 'string' && typeof a.name === 'string' && typeof a.isActive === 'boolean'
   && typeof a.currencyCode === 'string' && /^[A-Z]{3}$/.test(a.currencyCode)
-  && ['BankAccount', 'CreditCard', 'Cash', 'Wallet'].includes(a.accountType);
+  && ['BankAccount', 'CreditCard', 'Cash', 'Wallet'].includes(a.accountType)
+  && Array.isArray(a.aliases) && a.aliases.every(alias => typeof alias === 'string');
 function validSettings(value: UserSettings | null): value is UserSettings {
   if (!value || typeof value.userProfileId !== 'string' || typeof value.displayName !== 'string'
     || typeof value.email !== 'string' || typeof value.currencyCode !== 'string' || !/^[A-Z]{3}$/.test(value.currencyCode)

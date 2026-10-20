@@ -24,7 +24,7 @@ test('invalid currency/time-zone settings fail as a recoverable read instead of 
 test('history requires a matching page/month and validated records without silently falling back to another scope', async () => {
   const transaction = { id: 'tx', amount: 12.34, currencyCode: 'INR', type: 'Expense', transactionDate: '2026-10-20', householdId: 'home' };
   const page = { month: '2026-10', page: 1, pageSize: 30, totalCount: 1, totalPages: 1, items: [transaction] };
-  for (const change of [{ month: '2026-09' }, { page: 2 }, { items: null }, { items: [{ ...transaction, amount: Number.NaN }] }, { items: [{ ...transaction, householdId: 'other' }] }]) {
+  for (const change of [{ month: '2026-09' }, { page: 2 }, { items: null }, { items: [{ ...transaction, amount: Number.NaN }] }, { items: [{ ...transaction, currencyCode: '' }] }, { items: [{ ...transaction, householdId: 'other' }] }]) {
     const { client } = await clientFor({ ...page, ...change }); await assert.rejects(client.transactions('2026-10', 1, 'home'), ApiError);
   }
   const { client } = await clientFor(page); assert.deepEqual(await client.transactions('2026-10', 1, 'home'), page);
