@@ -38,7 +38,7 @@ appId: com.spndrr.app.rn.e2e
 - tapOn:
     id: composer-close
 - scrollUntilVisible:
-    element: 'Benchmark item 1'
+    element: 'Benchmark item 1.*'
     direction: DOWN
 - repeat:
     times: 16
