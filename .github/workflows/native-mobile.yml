@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     concurrency:
       group: native-android-${{ github.head_ref || github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     timeout-minutes: 60
     defaults:
       run:

@@ -70,8 +70,8 @@ Backend reference deduplication is not a generic idempotency API. It is scoped t
 | Transfers/card payments/refunds | Account-aware backend semantics | Milestone 3 after slice validation; never model as generic income/expense |
 | Account/category management | Web settings | Basic account creation needed for first entry; broader management milestone 3 |
 | Household/privacy/settings/export | Web screens/native share adapter | Milestone 3/4 |
-| Signup/access/invitations | Shared web request-only flow and links | Milestone 3; existing installed app remains available |
-| Voice | Capacitor native system recognizer | Milestone 4, native recognizer development build and permission tests |
+| Signup/access/invitations | Shared web request-only flow and links | Native signup/request-only access, privacy and invitation deep links implemented; actual email delivery/links still need device acceptance |
+| Voice | Capacitor native system recognizer | Reviewed system dictation implemented; permission/cancellation component coverage added, native service acceptance pending |
 | Multiple screenshots/OCR | Separate unmerged input pipeline work | Milestone 4 once actual API contract is available |
 | Offline | Bundled UI, online API only | Encrypted unsent drafts; no background write queue |
 
