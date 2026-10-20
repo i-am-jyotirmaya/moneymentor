@@ -15,7 +15,7 @@ Implementation baseline: 2026-10-20, branch `feat/native-mobile-migration`, star
 | Hosted domain/service job | Passed on initial GitHub run 39203850380 |
 | Hosted native dependency installation | Succeeded on initial GitHub run; development-tool version corrections and maintained cookie adapter applied afterward |
 | Full native dependency installation | Hosted install succeeded and the resolved lockfile is committed; local registry access remains unavailable |
-| Native component/adapter tests | 38/38 passed in GitHub run 39368894813, including income, permission/cancel/background dictation, exact account choice, optional dates, progress accessibility, net-refund chart detail, native-cookie adapter boundaries and QA routing isolation |
+| Native component/adapter tests | 40/40 passed in GitHub run 39369471150, including income, permission/cancel/background dictation, exact account choice, optional dates, progress accessibility, net-refund chart detail, native-cookie adapter boundaries, QA routing isolation and current-policy consent/retry |
 | Expo dependency compatibility | Passed in GitHub run 39204313055 after SDK tooling corrections |
 | Full native TypeScript | Passed, including shared/service checks, in GitHub run 39204973766 |
 | Native lint | Passed with zero warnings in GitHub run 39235443009 |
