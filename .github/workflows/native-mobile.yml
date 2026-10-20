@@ -214,6 +214,21 @@ jobs:
           xcrun simctl launch "$native_device" com.spndrr.app.rn.e2e
           $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/transaction.yml
           $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/performance.yml
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Prepare isolated PostgreSQL for native HTTPS acceptance
+        run: |
+          brew install postgresql@17
+          native_pg_work="$(mktemp -d "$RUNNER_TEMP/spndrr-pgvector.XXXXXX")"
+          git clone --depth 1 --branch v0.8.6 https://github.com/pgvector/pgvector.git "$native_pg_work"
+          make -C "$native_pg_work" PG_CONFIG="$(brew --prefix postgresql@17)/bin/pg_config" -j2
+          make -C "$native_pg_work" PG_CONFIG="$(brew --prefix postgresql@17)/bin/pg_config" install
+      - name: Exercise native iOS cookies and restart restoration against real HTTPS
+        timeout-minutes: 15
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+        run: bash scripts/ios-api-acceptance.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -222,4 +237,5 @@ jobs:
             ~/.maestro/tests/**
             apps/mobile-native/build/xcodebuild.log
             apps/mobile-native/build/simulator-*.plist
+            apps/mobile-native/runtime-evidence/native-api/*.log
           if-no-files-found: ignore

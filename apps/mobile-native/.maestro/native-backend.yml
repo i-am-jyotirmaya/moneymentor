@@ -1,0 +1,97 @@
+appId: com.spndrr.app.rn.e2e
+---
+- stopApp
+- openLink: 'spndrr-native://qa?api=https%3A%2F%2Flocalhost%3A7443'
+- extendedWaitUntil:
+    visible: 'Sign in'
+    timeout: 30000
+- tapOn:
+    id: email-input
+- inputText: qa@example.test
+- scrollUntilVisible:
+    element:
+      id: password-input
+    direction: DOWN
+- tapOn:
+    id: password-input
+- inputText: Native-fixture-only-123!
+- scrollUntilVisible:
+    element: 'Sign in'
+    direction: DOWN
+- tapOn: 'Sign in'
+- extendedWaitUntil:
+    visible:
+      id: open-composer
+    timeout: 30000
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- tapOn:
+    id: open-composer
+- tapOn: 'Enter details'
+- tapOn:
+    id: amount-input
+- inputText: '40.29'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- tapOn: 'Category: Choose category or subcategory'
+- tapOn:
+    id: category-search
+- inputText: 'Groceries'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- tapOn: 'Food & Groceries / Groceries,.*'
+- tapOn: 'Account: Choose payment account'
+- tapOn: 'Kotak upi, Credit card'
+- scrollUntilVisible:
+    element: 'Note \(optional\)'
+    direction: DOWN
+- tapOn: 'Note \(optional\)'
+- inputText: Native cookie acceptance
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Save transaction'
+    direction: DOWN
+- tapOn: 'Save transaction'
+- extendedWaitUntil:
+    visible: 'Transaction saved'
+    timeout: 30000
+- tapOn: 'Edit saved transaction'
+- tapOn:
+    id: amount-input
+- eraseText
+- inputText: '45.50'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Save changes'
+    direction: DOWN
+- tapOn: 'Save changes'
+- assertVisible: 'Changes saved'
+- tapOn: 'Done'
+- tapOn: 'Done'
+- stopApp
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      id: open-composer
+    timeout: 30000
+- scrollUntilVisible:
+    element: 'Native cookie acceptance,.*'
+    direction: DOWN
+- takeScreenshot: native-api-restored-session
+- scrollUntilVisible:
+    element: 'Sign out'
+    direction: UP
+- tapOn: 'Sign out'
+- assertVisible: 'Sign in'
+- stopApp
+- launchApp:
+    stopApp: true
+- assertVisible: 'Sign in'
