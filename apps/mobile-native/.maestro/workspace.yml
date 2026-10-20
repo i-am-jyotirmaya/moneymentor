@@ -92,6 +92,9 @@ appId: com.spndrr.app.rn.e2e
 - tapOn: 'Save account'
 - assertVisible: 'Account saved'
 - tapOn: 'Done'
+- scrollUntilVisible:
+    element: 'Manage Daily wallet'
+    direction: DOWN
 - assertVisible: 'Manage Daily wallet'
 - runFlow: go-back.yml
 - scrollUntilVisible:

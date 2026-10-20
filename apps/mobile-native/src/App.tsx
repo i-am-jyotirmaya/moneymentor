@@ -76,7 +76,7 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
     <Button title="Sign out" secondary onPress={() => { void runtime.client.logout().catch(() => undefined); }} /></View>;
   if (!resources || !draftStore || draftStore.scope !== scope || !operationVault || !planningVault || !query.data) return <Loading />;
   return <OperationsProvider key={session.user.id} ownerId={session.user.id} vault={operationVault}><PlanningRunsProvider ownerId={session.user.id} vault={planningVault}>
-    <EntryProvider key={scope} ownerId={session.user.id} client={runtime.client} resources={resources} vault={draftStore.vault} historyVault={draftStore.history}>
+    <EntryProvider key={scope} ownerId={session.user.id} client={runtime.client} resources={resources} vault={draftStore.vault} historyVault={draftStore.history} onDeleteDeviceData={() => runtime.clearOwnerData(session.user.id)}>
     <WorkspaceProvider household={query.data.household} settings={query.data.settings} onSwitch={(household: HouseholdSummary) => setSelectedScope(household.id)}>
     <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: color.background }, headerStyle: { backgroundColor: color.background }, headerTintColor: color.ink,
@@ -128,6 +128,8 @@ function SessionGate({ runtime }: { runtime: Runtime }) {
   if (!state.session) return <LoginScreen client={runtime.client} unavailable={state.status === 'unavailable'} onRestore={restore} />;
   if (state.session.requiresPrivacyConsent) return <PrivacyScreen client={runtime.client} onLogout={() => {
     void Promise.allSettled([runtime.draftVault(state.session!.user.id).then(vault => vault.closeAndRemove()), Promise.resolve().then(clearExportCache)]).finally(() => runtime.client.logout()).catch(() => undefined);
+  }} onDeleted={() => {
+    void Promise.allSettled([runtime.clearOwnerData(state.session!.user.id), Promise.resolve().then(clearExportCache)]).finally(() => runtime.client.logout()).catch(() => undefined);
   }} />;
   return <Workspace key={state.session.user.id} runtime={runtime} session={state.session} />;
 }

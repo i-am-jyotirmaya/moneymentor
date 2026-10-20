@@ -1,5 +1,9 @@
 appId: com.spndrr.app.rn.e2e
 ---
+- tapOn:
+    text: 'Open'
+    optional: true
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: 'Sign in'
     timeout: 30000

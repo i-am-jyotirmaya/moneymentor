@@ -3,6 +3,7 @@ import { Alert, KeyboardAvoidingView, Linking, Platform, ScrollView, Switch, Tex
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, type FinanceClient } from '@spndrr/finance-core';
 import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
+import { clearExportCache, sharePrivacyExport } from '../services/share-export';
 
 export function LoginScreen({ client, unavailable, onRestore }: { client: FinanceClient; unavailable: boolean; onRestore: () => void }) {
   const [mode, setMode] = useState<'login' | 'signup' | 'access'>('login');
@@ -106,7 +107,7 @@ function RegistrationScreen({ client, mode, invitation, onBack, onRequestAccess 
     </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
 
-export function PrivacyScreen({ client, onLogout }: { client: FinanceClient; onLogout: () => void }) {
+export function PrivacyScreen({ client, onLogout, onDeleted = onLogout }: { client: FinanceClient; onLogout: () => void; onDeleted?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [dataBusy, setDataBusy] = useState(false); const [deletionUncertain, setDeletionUncertain] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +134,7 @@ export function PrivacyScreen({ client, onLogout }: { client: FinanceClient; onL
     {error ? <ErrorNotice message={error} onRetry={load} /> : null}
     <Button title="Accept privacy policy" loading={busy} disabled={!policy || dataBusy || deletionUncertain} onPress={accept} />
     <Button title="Sign out" secondary disabled={busy || dataBusy} onPress={onLogout} />
-    <PrivacyDataOptions client={client} onDeleted={onLogout} consentBusy={busy} onBusyChange={setDataBusy} onDeletionUncertain={() => setDeletionUncertain(true)} />
+    <PrivacyDataOptions client={client} onDeleted={onDeleted} consentBusy={busy} onBusyChange={setDataBusy} onDeletionUncertain={() => setDeletionUncertain(true)} />
   </ScrollView></SafeAreaView>;
 }
 
@@ -142,7 +143,7 @@ function PrivacyDataOptions({ client, onDeleted, consentBusy, onBusyChange, onDe
   const [password, setPassword] = useState(''); const [confirmation, setConfirmation] = useState(''); const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const exportData = () => { if (active.current || consentBusy) return; active.current = true; setBusy(true); onBusyChange(true); setError(null);
-    void import('../services/share-export').then(module => module.sharePrivacyExport(() => client.request<unknown>('/api/privacy/export')))
+    void sharePrivacyExport(() => client.request<unknown>('/api/privacy/export'))
       .catch(caught => setError(caught instanceof Error ? caught.message : 'Your export could not be prepared.')).finally(() => { active.current = false; setBusy(false); onBusyChange(false); });
   };
   const remove = () => Alert.alert('Permanently delete your account?', 'This deletes private data and anonymizes eligible shared records. This cannot be undone.', [
@@ -157,7 +158,7 @@ function PrivacyDataOptions({ client, onDeleted, consentBusy, onBusyChange, onDe
     <Button title="Privacy data options" secondary disabled={consentBusy || busy} onPress={() => setOpen(value => !value)} />
     {open ? <><Button title="Export my data without accepting" secondary disabled={consentBusy || busy} loading={busy} onPress={exportData} />
       <Text style={styles.caption}>Choose a trusted destination for the JSON export in the native share sheet.</Text>
-      <Button title="Remove temporary export" secondary disabled={busy} onPress={() => { void import('../services/share-export').then(module => module.clearExportCache()).catch(() => setError('The temporary export could not be removed.')); }} />
+      <Button title="Remove temporary export" secondary disabled={busy} onPress={() => { try { clearExportCache(); } catch { setError('The temporary export could not be removed.'); } }} />
       <Field label="Password to delete account" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} editable={!busy && !uncertain} />
       <Field label="Type DELETE to confirm account deletion" value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" maxLength={6} editable={!busy && !uncertain} />
       <Button title="Delete account without accepting" secondary disabled={busy || consentBusy || uncertain || !password || confirmation !== 'DELETE'} onPress={remove} />

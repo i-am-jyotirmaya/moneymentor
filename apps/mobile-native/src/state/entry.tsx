@@ -13,15 +13,15 @@ export type EntryContextValue = {
   persist: (next?: ComposerDraft) => Promise<void>; runExclusive: (work: () => Promise<void>) => Promise<void>;
   complete: (transaction: Transaction) => Promise<void>; setReply: (reply: string | null) => void;
   beginEdit: (transaction: Transaction) => void; clearEdit: () => void; setSaved: (transaction: Transaction | null) => void;
-  clearForLogout: () => Promise<void>;
+  clearForLogout: (deleteAccount?: boolean) => Promise<void>;
   discardDraft: () => Promise<void>;
   conversation: AssistantExchange[]; historyError: string | null; clearConversation: () => Promise<void>;
   recordExchange: (text: string, reply: string, transactionId: string | null) => Promise<void>;
 };
 export const EntryContext = createContext<EntryContextValue | null>(null);
 export function useEntry() { const context = useContext(EntryContext); if (!context) throw Error('Missing native entry provider.'); return context; }
-export function EntryProvider({ children, ownerId, resources, client, vault, historyVault }: {
-  children: ReactNode; ownerId: string; resources: EntryResources; client: FinanceClient; vault: SecureJsonStore; historyVault?: SecureJsonStore;
+export function EntryProvider({ children, ownerId, resources, client, vault, historyVault, onDeleteDeviceData }: {
+  children: ReactNode; ownerId: string; resources: EntryResources; client: FinanceClient; vault: SecureJsonStore; historyVault?: SecureJsonStore; onDeleteDeviceData?: () => Promise<void>;
 }) {
   const initial = useMemo<ComposerDraft>(() => ({ version: 1, ownerId, manual: emptyDraft(resources.settings, resources.today), text: '', pendingManual: null, assistantUncertain: false }), [ownerId, resources.settings, resources.today]);
   const [draft, setDraft] = useState(initial);
@@ -131,10 +131,11 @@ export function EntryProvider({ children, ownerId, resources, client, vault, his
         sourceText: transaction.sourceText, paymentChannel: transaction.paymentChannel ?? 'Unknown', visibility: transaction.visibility } });
     },
     clearEdit: () => setEdit(null),
-    clearForLogout: async () => {
+    clearForLogout: async (deleteAccount = false) => {
       closed.current = true;
       if (timer.current) clearTimeout(timer.current);
       await Promise.all([vault.closeAndRemove(), historyVault?.closeAndRemove()]);
+      if (deleteAccount) await onDeleteDeviceData?.();
     },
   };
   if (!ready) return <Loading label="Restoring your draft…" />;
