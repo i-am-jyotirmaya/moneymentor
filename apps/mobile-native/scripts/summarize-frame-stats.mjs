@@ -34,7 +34,7 @@ export function summarizeFrames(text) {
 export function summarizeEvidence(directory) {
   const read = name => { const file = path.join(directory, name); return existsSync(file) ? readFileSync(file, 'utf8') : ''; };
   return { version: 1, coldActivityMs: Number(/TotalTime: (\d+)/.exec(read('activity-start.txt'))?.[1]) || null,
-    scenarios: Object.fromEntries(['transaction', 'performance'].map(name => {
+    scenarios: Object.fromEntries(['transaction', 'workspace', 'performance'].map(name => {
       const memory = read(`${name}-memory.txt`); const frames = read(`${name}-frames.txt`);
       return [name, { frames: frames ? summarizeFrames(frames) : null,
         memoryKB: { pss: Number(/TOTAL PSS:\s+(\d+)/.exec(memory)?.[1]) || null, rss: Number(/TOTAL RSS:\s+(\d+)/.exec(memory)?.[1]) || null } }];

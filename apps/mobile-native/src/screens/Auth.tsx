@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Linking, Platform, ScrollView, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Linking, Platform, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, type FinanceClient } from '@spndrr/finance-core';
 import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
@@ -132,5 +132,36 @@ export function PrivacyScreen({ client, onLogout }: { client: FinanceClient; onL
     {error ? <ErrorNotice message={error} onRetry={load} /> : null}
     <Button title="Accept privacy policy" loading={busy} disabled={!policy} onPress={accept} />
     <Button title="Sign out" secondary disabled={busy} onPress={onLogout} />
+    <PrivacyDataOptions client={client} onDeleted={onLogout} consentBusy={busy} />
   </ScrollView></SafeAreaView>;
+}
+
+function PrivacyDataOptions({ client, onDeleted, consentBusy }: { client: FinanceClient; onDeleted: () => void; consentBusy: boolean }) {
+  const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false); const active = useRef(false);
+  const [password, setPassword] = useState(''); const [confirmation, setConfirmation] = useState(''); const [uncertain, setUncertain] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const exportData = () => { if (active.current) return; active.current = true; setBusy(true); setError(null);
+    void import('../services/share-export').then(module => module.sharePrivacyExport(() => client.request<unknown>('/api/privacy/export')))
+      .catch(caught => setError(caught instanceof Error ? caught.message : 'Your export could not be prepared.')).finally(() => { active.current = false; setBusy(false); });
+  };
+  const remove = () => Alert.alert('Permanently delete your account?', 'This deletes private data and anonymizes eligible shared records. This cannot be undone.', [
+    { text: 'Keep account', style: 'cancel' }, { text: 'Delete my account', style: 'destructive', onPress: () => {
+      if (active.current || uncertain || !password || confirmation !== 'DELETE') return; active.current = true; setBusy(true); setError(null);
+      void client.request<void>('/api/privacy/account', 'DELETE', { password, confirmation: 'DELETE' }).then(() => { setPassword(''); onDeleted(); })
+        .catch(caught => { if (!(caught instanceof ApiError) || caught.outcome === 'unknown') setUncertain(true); setError(caught instanceof Error ? caught.message : 'Deletion could not be confirmed.'); })
+        .finally(() => { active.current = false; setBusy(false); });
+    } },
+  ]);
+  return <Card><Text style={styles.heading}>Your data remains yours</Text><Text style={styles.caption}>You can export or delete your account without accepting the updated policy.</Text>
+    <Button title="Privacy data options" secondary disabled={consentBusy || busy} onPress={() => setOpen(value => !value)} />
+    {open ? <><Button title="Export my data without accepting" secondary disabled={consentBusy || busy} loading={busy} onPress={exportData} />
+      <Text style={styles.caption}>Choose a trusted destination for the JSON export in the native share sheet.</Text>
+      <Button title="Remove temporary export" secondary disabled={busy} onPress={() => { void import('../services/share-export').then(module => module.clearExportCache()).catch(() => setError('The temporary export could not be removed.')); }} />
+      <Field label="Password to delete account" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} editable={!busy && !uncertain} />
+      <Field label="Type DELETE to confirm account deletion" value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" maxLength={6} editable={!busy && !uncertain} />
+      <Button title="Delete account without accepting" secondary disabled={busy || consentBusy || uncertain || !password || confirmation !== 'DELETE'} onPress={remove} />
+      {uncertain ? <Text style={styles.caption}>Deletion may already have completed. Sign out and check whether the account still exists before trying again.</Text> : null}
+    </> : null}
+    {error ? <ErrorNotice message={error} /> : null}
+  </Card>;
 }
