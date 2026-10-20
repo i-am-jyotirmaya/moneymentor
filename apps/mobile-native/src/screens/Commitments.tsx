@@ -48,8 +48,8 @@ function CommitmentEditor({ navigation, original }: ScreenProps<'CommitmentForm'
   };
   return <Page title={original ? 'Manage commitment' : 'Plan a commitment'} error={mutation.error}><OperationNotice refresh={mutation.refresh} />
     {saved ? <Card><Text accessibilityLiveRegion="polite" style={styles.heading}>Commitment saved</Text><Button title="Done" onPress={() => navigation.goBack()} /></Card> : <>
-      <Field label="Commitment name" value={name} onChangeText={setName} maxLength={160} editable={!mutation.blocked} />
-      <MoneyField label="Amount" currency={currency} value={amount} onChange={setAmount} disabled={mutation.blocked} />
+      <Field label="Commitment name" testID="commitment-name-input" value={name} onChangeText={setName} maxLength={160} editable={!mutation.blocked} />
+      <MoneyField label="Amount" testID="commitment-amount-input" currency={currency} value={amount} onChange={setAmount} disabled={mutation.blocked} />
       <ChoiceField label="Commitment type" value={type} options={choices(['Expense', 'Investment'])} onChange={value => setType(value as 'Expense' | 'Investment')} disabled={mutation.blocked} />
       <ChoiceField label="Cadence" value={cadence} options={choices(['Monthly', 'Quarterly', 'Annual'])} onChange={value => setCadence(value as CommitmentCadence)} disabled={mutation.blocked} />
       <CalendarField label="Next due date" value={date} onChange={setDate} today={today} allowFuture disabled={mutation.blocked} />

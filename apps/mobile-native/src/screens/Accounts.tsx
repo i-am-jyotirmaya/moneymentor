@@ -40,7 +40,7 @@ export function AccountFormScreen({ navigation, route }: ScreenProps<'AccountFor
   };
   return <Page title={original ? 'Manage account' : 'Add an account'} error={mutation.error}><OperationNotice refresh={mutation.refresh} />
     {route.params?.id && !original ? <ErrorNotice message="This account is no longer available in this household." /> : saved ? <Card><Text accessibilityLiveRegion="polite" style={styles.heading}>Account saved</Text><Button title="Done" onPress={() => navigation.goBack()} /></Card> : <>
-      <Field label="Account name" value={name} onChangeText={setName} maxLength={128} editable={!mutation.blocked} />
+      <Field label="Account name" testID="account-name-input" value={name} onChangeText={setName} maxLength={128} editable={!mutation.blocked} />
       <ChoiceField label="Account type" value={type} options={choices(['BankAccount', 'CreditCard', 'Cash', 'Wallet'])} onChange={value => setType(value as FinancialAccount['accountType'])} disabled={mutation.blocked} />
       <Field label="Institution (optional)" value={institution} onChangeText={setInstitution} maxLength={128} editable={!mutation.blocked} />
       <Field label="Last four digits (optional)" value={last4} onChangeText={setLast4} keyboardType="number-pad" maxLength={4} editable={!mutation.blocked} />

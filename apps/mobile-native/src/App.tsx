@@ -78,7 +78,7 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
     <WorkspaceProvider household={query.data.household} settings={query.data.settings} onSwitch={(household: HouseholdSummary) => setSelectedScope(household.id)}>
     <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: color.background }, headerStyle: { backgroundColor: color.background }, headerTintColor: color.ink,
-        headerShadowVisible: false, headerRight: () => <KeyboardDismissButton />, animation: reduced ? 'none' : 'default', gestureEnabled: true }}>
+        headerShadowVisible: false, headerBackTitle: 'Back', headerRight: () => <KeyboardDismissButton />, animation: reduced ? 'none' : 'default', gestureEnabled: true }}>
         <Stack.Screen name="Home" component={NativeTabs} options={{ headerShown: false }} />
         <Stack.Screen name="Composer" component={ComposerScreen} options={({ navigation }) => ({ title: 'Add transaction', presentation: 'modal', animation: reduced ? 'none' : 'slide_from_bottom',
           headerLeft: () => <Button title="Close" accessibilityLabel="Close transaction composer" testID="composer-close" secondary onPress={() => navigation.goBack()} /> })} />

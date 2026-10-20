@@ -51,9 +51,9 @@ function GoalEditor({ navigation, goal }: ScreenProps<'GoalForm'> & { goal?: Goa
   };
   return <Page title={goal ? 'Edit goal' : 'A new goal'} error={mutation.error}><OperationNotice refresh={mutation.refresh} />
     {saved ? <Card><Text accessibilityLiveRegion="polite" style={styles.heading}>Goal saved</Text><Button title="Done" onPress={() => navigation.goBack()} /></Card> : <>
-      <Field label="Goal name" value={name} onChangeText={setName} maxLength={160} editable={!mutation.blocked} />
+      <Field label="Goal name" testID="goal-name-input" value={name} onChangeText={setName} maxLength={160} editable={!mutation.blocked} />
       <ChoiceField label="Goal type" value={type} options={choices(['Saving', 'DebtPayoff', 'Purchase', 'Investment', 'EmergencyFund'])} onChange={value => setType(value as FinancialGoalType)} disabled={mutation.blocked} />
-      <MoneyField label="Target amount" currency={currency} value={target} onChange={setTarget} disabled={mutation.blocked} />
+      <MoneyField label="Target amount" testID="goal-target-input" currency={currency} value={target} onChange={setTarget} disabled={mutation.blocked} />
       <MoneyField label="Monthly target (optional)" currency={currency} value={monthly} onChange={setMonthly} disabled={mutation.blocked} />
       <CalendarField label="Target date" value={date} onChange={setDate} today={today} allowFuture optional disabled={mutation.blocked} />
       <ChoiceField label="Priority" value={priority} options={choices(['Low', 'Medium', 'High'])} onChange={value => setPriority(value as FinancialGoalPriority)} disabled={mutation.blocked} />
@@ -103,7 +103,7 @@ export function GoalScreen({ navigation, route }: ScreenProps<'Goal'>) {
         <Button title="Edit goal" secondary disabled={mutation.blocked} onPress={() => navigation.navigate('GoalForm', { id })} />
       </Card>
       <Card><Text style={styles.heading}>Add a contribution</Text><Text style={styles.caption}>Records progress toward this goal. This does not create a separate account transaction.</Text>
-        <MoneyField label="Contribution" currency={currency} value={amount} onChange={setAmount} disabled={mutation.blocked} />
+        <MoneyField label="Contribution" testID="goal-contribution-input" currency={currency} value={amount} onChange={setAmount} disabled={mutation.blocked} />
         <CalendarField label="Contribution date" today={today} value={contributionDate} onChange={setContributionDate} disabled={mutation.blocked} />
         <Button title="Record contribution" disabled={mutation.blocked} loading={mutation.busy} onPress={contribute} />
         {message ? <Text accessibilityLiveRegion="polite" style={styles.caption}>{message}</Text> : null}

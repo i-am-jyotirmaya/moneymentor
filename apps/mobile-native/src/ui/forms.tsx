@@ -78,6 +78,6 @@ export function CalendarField({ label, value, onChange, today, allowFuture = fal
   </View>;
 }
 
-export function MoneyField({ label, currency, value, onChange, disabled, error }: { label: string; currency: string; value: string; onChange: (value: string) => void; disabled?: boolean; error?: string }) {
-  return <Field label={`${label} (${currency})`} value={value} onChangeText={onChange} keyboardType="decimal-pad" inputMode="decimal" maxLength={15} editable={!disabled} error={error} placeholder="0.00" />;
+export function MoneyField({ label, currency, value, onChange, disabled, error, testID }: { label: string; currency: string; value: string; onChange: (value: string) => void; disabled?: boolean; error?: string; testID?: string }) {
+  return <Field label={`${label} (${currency})`} value={value} onChangeText={onChange} keyboardType="decimal-pad" inputMode="decimal" maxLength={15} editable={!disabled} error={error} placeholder="0.00" testID={testID} />;
 }

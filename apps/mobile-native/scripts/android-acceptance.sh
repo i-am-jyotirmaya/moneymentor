@@ -31,6 +31,10 @@ collect_evidence() {
 trap collect_evidence EXIT
 "$HOME/.maestro/bin/maestro" test .maestro/transaction.yml
 collect_evidence
+native_scenario=workspace
+adb shell dumpsys gfxinfo "$native_package" reset > /dev/null
+"$HOME/.maestro/bin/maestro" test .maestro/workspace.yml
+collect_evidence
 native_scenario=performance
 adb shell dumpsys gfxinfo "$native_package" reset > /dev/null
 "$HOME/.maestro/bin/maestro" test .maestro/performance.yml

@@ -276,6 +276,11 @@ jobs:
           xcrun simctl install "$native_device" "$native_app"
           xcrun simctl launch "$native_device" com.spndrr.app.rn.e2e
           $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/transaction.yml
+      - name: Run native iOS financial workspace acceptance
+        timeout-minutes: 15
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+        run: $HOME/.maestro/bin/maestro --device "$NATIVE_TEST_DEVICE" test .maestro/workspace.yml
       - name: Run native iOS history and interaction stress scenario
         timeout-minutes: 15
         env:

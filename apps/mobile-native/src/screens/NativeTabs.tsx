@@ -23,10 +23,10 @@ export function NativeTabs({ navigation }: ScreenProps<'Home'>) {
     headerRight: () => <KeyboardDismissButton />, tabBarActiveTintColor: color.ink, tabBarInactiveTintColor: color.muted,
     tabBarStyle: { backgroundColor: color.surface, borderTopColor: color.border }, tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
     tabBarIcon: ({ color: tint }) => <Text accessible={false} style={{ color: tint, fontSize: 21 }}>{({ Today: '＋', Overview: '◉', Plan: '⚑', Insights: '✦', More: '•••' })[route.name]}</Text> })}>
-    <Tabs.Screen name="Today" options={{ headerShown: false }}>{() => <HomeScreen navigation={navigation} />}</Tabs.Screen>
-    <Tabs.Screen name="Overview">{() => <DashboardScreen navigation={navigation} />}</Tabs.Screen>
-    <Tabs.Screen name="Plan">{() => <GoalsScreen navigation={navigation} />}</Tabs.Screen>
-    <Tabs.Screen name="Insights" component={InsightsScreen} />
-    <Tabs.Screen name="More">{() => <MoreScreen navigation={navigation} />}</Tabs.Screen>
+    <Tabs.Screen name="Today" options={{ headerShown: false, tabBarAccessibilityLabel: 'Today tab' }}>{() => <HomeScreen navigation={navigation} />}</Tabs.Screen>
+    <Tabs.Screen name="Overview" options={{ tabBarAccessibilityLabel: 'Overview tab' }}>{() => <DashboardScreen navigation={navigation} />}</Tabs.Screen>
+    <Tabs.Screen name="Plan" options={{ tabBarAccessibilityLabel: 'Plan tab' }}>{() => <GoalsScreen navigation={navigation} />}</Tabs.Screen>
+    <Tabs.Screen name="Insights" component={InsightsScreen} options={{ tabBarAccessibilityLabel: 'Insights tab' }} />
+    <Tabs.Screen name="More" options={{ tabBarAccessibilityLabel: 'More tab' }}>{() => <MoreScreen navigation={navigation} />}</Tabs.Screen>
   </Tabs.Navigator>;
 }
