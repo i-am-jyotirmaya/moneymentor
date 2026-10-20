@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
+import { useHeaderHeight } from '@react-navigation/elements';
 import type { FinancialAccount } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
 import { OperationNotice, useOperations } from '../state/operations';
@@ -11,6 +12,7 @@ import type { ScreenProps } from '../navigation';
 export function AddAccountScreen({ navigation }: ScreenProps<'AddAccount'>) {
   const entry = useEntry();
   const query = useQueryClient();
+  const headerHeight = useHeaderHeight();
   const operations = useOperations();
   const [name, setName] = useState('');
   const [type, setType] = useState<FinancialAccount['accountType']>('BankAccount');
@@ -27,7 +29,7 @@ export function AddAccountScreen({ navigation }: ScreenProps<'AddAccount'>) {
       setError(caught instanceof Error ? caught.message : 'Could not add the account.');
     }
   }); };
-  return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 96 : 0}>
+  return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}>
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>Name it how you use it.</Text>
       <Text style={styles.caption}>A credit card and bank account can have different names, such as Kotak upi and Kotak.</Text>

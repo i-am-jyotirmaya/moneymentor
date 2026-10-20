@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePreventRemove } from '@react-navigation/native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError, buildTransactionIntent, ValidationError, type Transaction, type TransactionPatch } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
@@ -12,6 +13,7 @@ import type { ScreenProps } from '../navigation';
 export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
   const entry = useEntry();
   const query = useQueryClient();
+  const headerHeight = useHeaderHeight();
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [unknown, setUnknown] = useState(false);
@@ -50,7 +52,7 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
       })); setUnknown(false); setError(null);
     } catch { setError('The saved transaction could not be reloaded yet.'); }
   }); };
-  return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 96 : 0}>
+  return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       {saved ? <><Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.heading}>Changes saved</Text><Button title="Done" onPress={() => navigation.goBack()} /></> : <>
         <Text style={styles.caption}>Editing the existing saved record.</Text>

@@ -57,6 +57,16 @@ test('denied permission leaves the typed draft untouched and offers device setti
   expect(speech.start).not.toHaveBeenCalled(); expect(transcript).not.toHaveBeenCalled();
 });
 
+test('the iOS permission dialog becoming inactive does not cancel an allowed request', async () => {
+  let stateChange!: (state: string) => void; let resolve!: (value: never) => void;
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, handler) => { stateChange = handler; return { remove: jest.fn() }; });
+  jest.mocked(speech.requestPermissionsAsync).mockReturnValue(new Promise(done => { resolve = done; }));
+  const screen = render(<VoiceInput text="" disabled={false} onTranscript={jest.fn()} onBusyChange={jest.fn()} />);
+  fireEvent.press(screen.getByText('Use voice')); act(() => stateChange('inactive'));
+  await act(async () => { resolve(permission as never); });
+  expect(speech.start).toHaveBeenCalledTimes(1);
+});
+
 test('network speech requires explicit consent before requesting permissions', async () => {
   jest.mocked(speech.supportsOnDeviceRecognition).mockReturnValue(false);
   const alert = jest.spyOn(Alert, 'alert');

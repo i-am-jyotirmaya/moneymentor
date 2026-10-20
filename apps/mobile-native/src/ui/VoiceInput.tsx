@@ -23,7 +23,10 @@ export function VoiceInput({ text, disabled, onTranscript, onBusyChange }: {
   useEffect(() => {
     alive.current = true;
     const subscription = AppState.addEventListener('change', next => {
-      if (next !== 'active') {
+      // iOS marks its own permission dialog inactive. Only an actual background
+      // transition should cancel that request; an existing recording stops on
+      // either interruption.
+      if (next === 'background' || (next === 'inactive' && started.current)) {
         active.current = false; generation.current++; draining.current = started.current;
         setSettling(started.current || permissionPending.current); setPreview('');
         if (started.current) ExpoSpeechRecognitionModule.abort();

@@ -5,6 +5,7 @@ import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { ApiError, buildTransactionIntent, formatMoney, ValidationError, type ComposerDraft, type Transaction } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
 import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
@@ -16,6 +17,7 @@ import type { ScreenProps } from '../navigation';
 export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
   const entry = useEntry();
   const query = useQueryClient();
+  const headerHeight = useHeaderHeight();
   const [mode, setMode] = useState<'assistant' | 'manual'>(entry.draft.pendingManual || entry.draft.manual.amount ? 'manual' : 'assistant');
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -95,7 +97,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
     </ScrollView></SafeAreaView>;
   }
   const locked = entry.busy || !!entry.draft.pendingManual;
-  return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 96 : 0}>
+  return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}>
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={styles.content}>
       <Text style={styles.caption}>Your draft stays here when you close this screen.</Text>
       <View style={styles.row}><Button title="Use assistant" onPress={() => setMode('assistant')} disabled={entry.busy || !!entry.draft.pendingManual} selected={mode === 'assistant'} secondary={mode !== 'assistant'} />
