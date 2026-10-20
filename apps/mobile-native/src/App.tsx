@@ -27,6 +27,7 @@ import { CommitmentFormScreen, CommitmentsScreen } from './screens/Commitments';
 import { InsightsScreen } from './screens/Insights';
 import { HouseholdsScreen } from './screens/Households';
 import { SettingsScreen } from './screens/Settings';
+import { clearExportCache } from './services/share-export';
 import { AssistantHistoryScreen } from './screens/AssistantHistory';
 import { PickerScreen } from './screens/Picker';
 import { EditScreen } from './screens/Edit';
@@ -126,7 +127,7 @@ function SessionGate({ runtime }: { runtime: Runtime }) {
   if (!restored || state.status === 'loading') return <Loading label="Checking your session…" />;
   if (!state.session) return <LoginScreen client={runtime.client} unavailable={state.status === 'unavailable'} onRestore={restore} />;
   if (state.session.requiresPrivacyConsent) return <PrivacyScreen client={runtime.client} onLogout={() => {
-    void runtime.draftVault(state.session!.user.id).then(vault => vault.closeAndRemove()).finally(() => runtime.client.logout()).catch(() => undefined);
+    void Promise.allSettled([runtime.draftVault(state.session!.user.id).then(vault => vault.closeAndRemove()), Promise.resolve().then(clearExportCache)]).finally(() => runtime.client.logout()).catch(() => undefined);
   }} />;
   return <Workspace key={state.session.user.id} runtime={runtime} session={state.session} />;
 }

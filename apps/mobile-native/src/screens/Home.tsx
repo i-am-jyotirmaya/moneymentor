@@ -45,7 +45,7 @@ export function HomeScreen({ navigation }: FeatureNavigationProps) {
   const signout = () => {
     if (operations.busy) return;
     const execute = () => { void entry.runExclusive(async () => {
-      try { clearExportCache(); await entry.clearForLogout(); }
+      try { await Promise.allSettled([entry.clearForLogout(), Promise.resolve().then(clearExportCache)]); }
       finally { await entry.client.logout().catch(() => { setError('The device is signed out. Server session revocation could not be confirmed.'); }); }
     }); };
     if (entry.draft.text || entry.draft.manual.amount || entry.draft.pendingManual || entry.draft.assistantUncertain || operations.pending) Alert.alert('Sign out and clear draft?', 'This removes the unsent transaction draft. A pending change may already be saved; check saved data first. Any pending-change safety marker is retained for review when you sign in again.', [
