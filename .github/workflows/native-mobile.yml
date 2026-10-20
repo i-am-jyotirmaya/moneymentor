@@ -203,6 +203,7 @@ jobs:
           MAESTRO_VERSION: '2.11.0'
         run: curl -Ls https://get.maestro.mobile.dev | bash
       - name: Run native iOS transaction acceptance
+        id: transaction
         timeout-minutes: 20
         env:
           MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
@@ -213,11 +214,17 @@ jobs:
           xcrun simctl install "$native_device" "$native_app"
           xcrun simctl launch "$native_device" com.spndrr.app.rn.e2e
           $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/transaction.yml
-          $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/performance.yml
+      - name: Run native iOS history and interaction stress scenario
+        timeout-minutes: 15
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+        run: $HOME/.maestro/bin/maestro --device "$NATIVE_TEST_DEVICE" test .maestro/performance.yml
       - uses: actions/setup-dotnet@v6
+        if: ${{ !cancelled() && steps.transaction.outcome == 'success' }}
         with:
           dotnet-version: 10.0.x
       - name: Prepare isolated PostgreSQL for native HTTPS acceptance
+        if: ${{ !cancelled() && steps.transaction.outcome == 'success' }}
         run: |
           brew install postgresql@17
           native_pg_work="$(mktemp -d "$RUNNER_TEMP/spndrr-pgvector.XXXXXX")"
@@ -225,6 +232,7 @@ jobs:
           make -C "$native_pg_work" PG_CONFIG="$(brew --prefix postgresql@17)/bin/pg_config" -j2
           make -C "$native_pg_work" PG_CONFIG="$(brew --prefix postgresql@17)/bin/pg_config" install
       - name: Exercise native iOS cookies and restart restoration against real HTTPS
+        if: ${{ !cancelled() && steps.transaction.outcome == 'success' }}
         timeout-minutes: 15
         env:
           MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'

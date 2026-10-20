@@ -19,13 +19,13 @@ appId: com.spndrr.app.rn.e2e
     element: 'Sign in'
     direction: DOWN
 - tapOn: 'Sign in'
+- tapOn:
+    text: 'Not Now'
+    optional: true
 - extendedWaitUntil:
     visible:
       id: open-composer
     timeout: 30000
-- tapOn:
-    text: 'Not Now'
-    optional: true
 - tapOn:
     id: open-composer
 - tapOn:
