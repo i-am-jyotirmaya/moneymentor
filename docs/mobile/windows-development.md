@@ -71,7 +71,7 @@ EAS Build creates binaries; it does not establish that the app ran successfully.
 npx eas-cli@latest workflow:run .eas/workflows/native-acceptance.yml
 ```
 
-The mobile-specific GitHub workflow also compiles an unsigned iOS simulator release on a hosted macOS runner and runs Maestro. This route needs no personal Mac, Apple signing identity, or Expo account for the fixture suite. It cannot produce a signed installable iPhone/TestFlight build; that still follows the EAS/Apple workflow above.
+The mobile-specific GitHub workflow also compiles an iOS simulator release on a hosted macOS runner and runs Maestro. Xcode applies a simulator-only ad-hoc identity and embeds the Keychain entitlements; no Apple signing account is required. The generated entitlement changes are restricted to the QA simulator application. This route needs no personal Mac or Expo account for the fixture suite. It cannot produce a signed installable iPhone/TestFlight build; that still follows the EAS/Apple workflow above.
 
 This fixture suite checks native UI behavior. It does not test the real HTTPS backend, production signing, native refresh-cookie behavior, receipt/image permissions, or physical-device performance. Treat those as separate acceptance items. EAS Workflows usage, supported workers, account eligibility, and plan quotas must be checked for the actual account.
 
@@ -104,7 +104,7 @@ As checked on 2026-10-19, Expo's pricing page lists a Free allowance of up to 15
 | --- | --- | --- |
 | Native type checks | Native/shared/service types resolve | Passed on hosted CI |
 | Metro export | JavaScript bundles resolve | Both platforms passed on hosted CI |
-| Android Gradle compilation | Native Android binary compiles | Configured; not run |
+| Android Gradle compilation | Native Android binary compiles | Passed; full native transaction scenario passed in run 39246337227 |
 | EAS iOS compilation | iOS binary compiles on cloud macOS | Configured; account/signing not linked |
 | GitHub unsigned iOS simulator compilation | Simulator Release binary compiles on hosted macOS | Passed; app artifact uploaded |
 | GitHub iOS simulator execution | Maestro scenarios exercise the native app | Login/input exercised; full scenario pending keyboard-control rerun |

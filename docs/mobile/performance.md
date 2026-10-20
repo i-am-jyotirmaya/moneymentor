@@ -15,21 +15,24 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Hosted domain/service job | Passed on initial GitHub run 39203850380 |
 | Hosted native dependency installation | Succeeded on initial GitHub run; development-tool version corrections and maintained cookie adapter applied afterward |
 | Full native dependency installation | Hosted install succeeded and the resolved lockfile is committed; local registry access remains unavailable |
-| Native component tests | 9/9 passed in GitHub run 39237312769 after isolated-module and Worklets test setup corrections |
+| Native component tests | 11/11 passed in GitHub run 39246337227, including request-only signup and uncertain access-request recovery; dictation coverage added afterward |
 | Expo dependency compatibility | Passed in GitHub run 39204313055 after SDK tooling corrections |
 | Full native TypeScript | Passed, including shared/service checks, in GitHub run 39204973766 |
 | Native lint | Passed with zero warnings in GitHub run 39235443009 |
 | Expo Doctor | 21/21 checks passed in GitHub run 39235443009; the private platform-independent finance package is excluded from native-module catalog lookup |
 | Metro exports | Android and iOS succeeded in GitHub run 39237312769 |
 | Exported JS advisory-module review | No braces/node-forge/sprintf-js/uuid module paths in 1,355 Android and 1,351 iOS source-map entries in run 39237312769; does not audit native binaries or build-host exposure |
-| Android compilation/runtime | Release QA APK compiled in run 39239041550. Runtime reached login but the AOSP keyboard's first-use contacts prompt intercepted input. CI now denies that unrelated keyboard permission before the flow |
+| Android compilation/runtime | Release QA APK and full native transaction acceptance passed in run 39246337227: login, category and exact card choice, manual save/edit, assistant clarification, unknown-write reconciliation and logout. Screenshots retained and composer/receipt inspected |
 | iOS compilation | Release simulator build passed in run 39239041550; simulator app artifact uploaded |
-| iOS runtime | Login passed in run 39239041550. Draft restoration then failed with Keychain error -34018: the unsigned simulator executable had no application identifier/access-group entitlements. CI now applies and verifies a simulator-only ad-hoc signature; device signing is unchanged. Complete transaction acceptance is pending |
+| iOS runtime | Login passed in run 39239041550, then draft restoration exposed missing Keychain entitlements. Post-build signing in run 39242838641 failed launch verification. Run 39245986909 successfully compiles with Xcode embedding simulator entitlements; runtime acceptance is in progress. Device signing is unchanged |
 | Initial Android emulator diagnostics | Run 39242838641: API 35 x86_64, Pixel 6 profile, 1080×2400/420 dpi, software GPU, Release QA. Activity cold TotalTime 765 ms; failed-login sample 120 frames, p95 125 ms, 80% janky frames; PSS 89,540 KB, RSS 218,952 KB. These are incomplete-flow diagnostics, not a passing transaction benchmark or physical-device performance |
+| Full transaction emulator diagnostics | Run 39246337227, same profile/software rendering: cold Activity TotalTime 871 ms; 761 frames, p95 85 ms, 66.89% janky frames; PSS 112,810 KB, RSS 248,232 KB. Functional flow passed; the frame budget did not. Emulator logged invalid ColorBuffer/texture errors, and CI now selects the supported software renderer rather than deprecated swiftshader_indirect. No physical-device FPS inference |
 
 Node service tests use an in-memory mock of encrypted storage and a deterministic contract fixture. They test chunk commits, interrupted writes, user isolation, retry behavior and state transitions; they do not prove Keychain/Keystore encryption, native cookie handling, network integration, or smooth animations. No FPS, startup, or memory target has been achieved by evidence yet.
 
 The separate real-API job in run 39244003534 passed against the unchanged .NET application and a fresh PostgreSQL database over validated local HTTPS. It exercised secure cookie attributes/rotation, session restoration, card/account identity, transaction replay/edit, dashboard totals, trash/restore, category management, goals/contributions, commitments and settings. Its Node HTTP/cookie adapter does not replace native cookie acceptance. Android run 39242838641 exposed an IME layout/focus problem after keyboard permission provisioning; native forms now explicitly use Android keyboard height avoidance and the acceptance flow scrolls controls into view before tapping.
+
+Real-API run 39245986909 additionally passed card settlement and linked-refund checks: a card payment leaves consumption unchanged, and a refund reduces it. The new native profiling scenario seeds 10,000 fixture records, scrolls paginated history, and repeats six composer/keyboard/category-sheet cycles. Results are pending. The fixture holds its simulated server data inside the app process, so its memory use is not comparable to a remote production backend. The local domain/service suite currently passes 43 tests.
 
 ## Dependency advisory record
 

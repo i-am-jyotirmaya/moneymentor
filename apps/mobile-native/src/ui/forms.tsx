@@ -2,15 +2,17 @@ import { useState, type ReactNode } from 'react';
 import { FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { Button, ErrorNotice, Field, KeyboardDismissButton, Selection, styles, useReducedMotion } from './primitives';
 import { color } from './theme';
 
-export function Page({ title, subtitle, children, error, onRefresh, refreshing = false, keyboardOffset = 96 }: {
+export function Page({ title, subtitle, children, error, onRefresh, refreshing = false, keyboardOffset }: {
   title?: string; subtitle?: string; children: ReactNode; error?: string | null;
   onRefresh?: () => void; refreshing?: boolean; keyboardOffset?: number;
 }) {
+  const headerHeight = useHeaderHeight();
   return <SafeAreaView style={styles.screen} edges={['bottom']}>
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? keyboardOffset : 0}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? keyboardOffset ?? headerHeight : 0}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={color.ink} colors={[color.ink]} /> : undefined}>
         {title ? <Text accessibilityRole="header" style={styles.title}>{title}</Text> : null}
