@@ -54,7 +54,8 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
       <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: color.background }, headerStyle: { backgroundColor: color.background }, headerTintColor: color.ink,
         headerShadowVisible: false, headerRight: () => <KeyboardDismissButton />, animation: reduced ? 'none' : 'default', gestureEnabled: true }}>
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Composer" component={ComposerScreen} options={{ title: 'Add transaction', presentation: 'modal', animation: reduced ? 'none' : 'slide_from_bottom' }} />
+        <Stack.Screen name="Composer" component={ComposerScreen} options={({ navigation }) => ({ title: 'Add transaction', presentation: 'modal', animation: reduced ? 'none' : 'slide_from_bottom',
+          headerLeft: () => <Button title="Close" accessibilityLabel="Close transaction composer" testID="composer-close" secondary onPress={() => navigation.goBack()} /> })} />
         <Stack.Screen name="Picker" component={PickerScreen} options={{ title: 'Choose', presentation: 'formSheet', sheetAllowedDetents: [1], sheetGrabberVisible: true }} />
         <Stack.Screen name="Edit" component={EditScreen} options={{ title: 'Edit transaction' }} />
         <Stack.Screen name="AddAccount" component={AddAccountScreen} options={{ title: 'Add account' }} />

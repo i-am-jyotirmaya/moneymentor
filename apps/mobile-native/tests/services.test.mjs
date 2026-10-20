@@ -80,3 +80,14 @@ test('QA assistant asks for clarification then creates exactly one record', asyn
   assert.equal(result.transaction.amount, 30);
   assert.equal((await client.transactions('2026-10')).totalCount, 1);
 });
+test('the large-history fixture yields work and paginates 10,000 records through the real client boundary', async () => {
+  let yields = 0;
+  const fixture = fixtureTransport({ pause: async () => { yields++; } }); const client = new FinanceClient(fixture.transport, fixture.clear);
+  await client.login('qa@example.test', 'fixture-only');
+  await client.sendAssistant('simulate history', 'INR', '2026-10-19');
+  const first = await client.transactions('2026-10'); const last = await client.transactions('2026-10', 334);
+  assert.equal(first.totalCount, 10000); assert.equal(first.items.length, 30);
+  assert.equal(last.items.length, 10); assert.equal(last.totalPages, 334); assert.equal(yields, 40);
+  first.items[0].description = 'Client-only edit';
+  assert.equal((await client.transactions('2026-10')).items[0].description, 'Benchmark item 1');
+});

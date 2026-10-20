@@ -1,7 +1,7 @@
 import type { AuthSession, Category, FinancialAccount, Transport, Transaction, TransactionIntent } from '@spndrr/finance-core';
 
 /** Deterministic QA transport. Only the separately identified e2e binary can select it. */
-export function fixtureTransport() {
+export function fixtureTransport({ pause = async () => {} }: { pause?: (milliseconds: number) => Promise<void> } = {}) {
   let authenticated = false;
   let sequence = 0;
   const transactions: Transaction[] = [];
@@ -20,7 +20,8 @@ export function fixtureTransport() {
   ];
   const session = (): AuthSession => ({ accessToken: 'fixture-only-token', accessTokenExpiresAt: '2099-01-01T00:00:00Z', requiresPrivacyConsent: false,
     user: { id: userId, displayName: 'Jyoti', email: 'qa@example.test', roles: [] } });
-  const ok = (data: unknown, status = 200) => ({ status, data });
+  // Match an HTTP JSON boundary: UI caches must not share mutable server objects.
+  const ok = (data: unknown, status = 200) => ({ status, data: JSON.parse(JSON.stringify(data)) as unknown });
   function save(intent: TransactionIntent): Transaction {
     const key = `${intent.accountId}|${intent.externalReference}`;
     const previous = references.get(key);
@@ -35,7 +36,10 @@ export function fixtureTransport() {
   let pendingText: string | null = null;
   const transport: Transport = async request => {
     const body = request.body as Record<string, unknown> | undefined;
-    if (request.path === '/api/auth/login') { authenticated = true; return ok(session()); }
+    if (request.path === '/api/auth/login') {
+      if (body?.email !== 'qa@example.test' || body?.password !== 'fixture-only') return ok({}, 401);
+      authenticated = true; return ok(session());
+    }
     if (request.path === '/api/auth/refresh') return authenticated ? ok(session()) : ok({}, 401);
     if (request.path === '/api/auth/logout') { authenticated = false; return ok(null, 204); }
     if (!authenticated) return ok({}, 401);
@@ -48,7 +52,8 @@ export function fixtureTransport() {
     if (request.path.startsWith('/api/transactions?')) {
       const month = request.path.split('month=')[1]?.split('&')[0] ?? new Date().toISOString().slice(0, 7);
       const items = transactions.filter(transaction => transaction.transactionDate.startsWith(month));
-      return ok({ items, totalCount: items.length, totalPages: 1, page: 1, pageSize: 30, month });
+      const page = Math.max(1, Number(/[?&]page=(\d+)/.exec(request.path)?.[1] ?? 1));
+      return ok({ items: items.slice((page - 1) * 30, page * 30), totalCount: items.length, totalPages: Math.ceil(items.length / 30), page, pageSize: 30, month });
     }
     if (request.path === '/api/transactions' && request.method === 'POST') {
       const intent = request.body as TransactionIntent;
@@ -56,6 +61,7 @@ export function fixtureTransport() {
       if (intent.description === 'simulate validation') return ok({ errors: { amount: ['Check this amount.'] } }, 400);
       const transaction = save(intent);
       if (intent.description === 'simulate lost response' && !prior) throw Error('Simulated response loss after commit');
+      if (intent.description === 'simulate slow response') await pause(10000);
       return ok(transaction);
     }
     if (request.path.startsWith('/api/transactions/')) {
@@ -66,6 +72,18 @@ export function fixtureTransport() {
     }
     if (request.path === '/api/assistant/messages') {
       const text = String(body?.text ?? '');
+      if (text === 'simulate history') {
+        const date = String(body?.transactionDate);
+        const template = save({ eventKind: 'Purchase', amount: 1, date, categoryId: 'groceries', accountId: accounts[0]!.id,
+          householdId, merchant: 'Fixture market', description: 'Benchmark item', sourceText: '', paymentChannel: 'UPI', inputMode: 'Text', confidence: 1,
+          visibility: 'Private', externalReference: 'fixture-benchmark-template' });
+        transactions.length = 0; references.clear();
+        for (let index = 0; index < 10000; index++) {
+          transactions.push({ ...template, id: `fixture-benchmark-${++sequence}`, description: `Benchmark item ${index + 1}`, amount: ((index % 10000) + 1) / 100 });
+          if (index % 250 === 249) await pause(0);
+        }
+        return ok({ status: 'Responded', intent: 'AskFinanceQuestion', assistantMessage: 'Benchmark history ready.', transaction: null, errors: [] });
+      }
       if (text === 'simulate failure') throw Error('Simulated network loss');
       const amount = /\d+(?:\.\d{1,2})?/.exec(text)?.[0];
       if (!amount) { pendingText = text; return ok({ status: 'NeedsClarification', intent: 'CreateExpense', assistantMessage: 'How much did you spend?', transaction: null, errors: [] }); }
