@@ -108,6 +108,7 @@ function RegistrationScreen({ client, mode, invitation, onBack, onRequestAccess 
 
 export function PrivacyScreen({ client, onLogout }: { client: FinanceClient; onLogout: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [dataBusy, setDataBusy] = useState(false); const [deletionUncertain, setDeletionUncertain] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [policy, setPolicy] = useState<Awaited<ReturnType<FinanceClient['privacyPolicy']>> | null>(null);
   const alive = useRef(true); const loading = useRef(false);
@@ -118,7 +119,7 @@ export function PrivacyScreen({ client, onLogout }: { client: FinanceClient; onL
       .finally(() => { loading.current = false; });
   }, [client]);
   useEffect(() => { alive.current = true; load(); return () => { alive.current = false; }; }, [load]);
-  const accept = () => { if (busy || !policy) return; setBusy(true); void client.acceptPrivacy(policy.version)
+  const accept = () => { if (busy || dataBusy || deletionUncertain || !policy) return; setBusy(true); void client.acceptPrivacy(policy.version)
     .then(() => client.refresh()).catch(() => setError('Your consent could not be confirmed. Please try again.')).finally(() => setBusy(false)); };
   return <SafeAreaView style={styles.screen}><ScrollView contentContainerStyle={styles.content}>
     <Text accessibilityRole="header" style={styles.title}>Your money is personal.</Text>
@@ -130,26 +131,26 @@ export function PrivacyScreen({ client, onLogout }: { client: FinanceClient; onL
     <Card><Text style={styles.heading}>Visibility and your controls</Text><Text style={styles.body}>Private transactions are visible only to you. Household-visible transactions can be read by active members; viewers cannot change financial records. Spndrr supports data export, a 30-day transaction trash period, and account deletion. Shared household records may remain anonymized to preserve accurate totals.</Text></Card>
     <Text style={styles.caption}>This screen is a summary. Read the current policy before accepting. This device stores refresh credentials and unsent drafts securely.</Text>
     {error ? <ErrorNotice message={error} onRetry={load} /> : null}
-    <Button title="Accept privacy policy" loading={busy} disabled={!policy} onPress={accept} />
-    <Button title="Sign out" secondary disabled={busy} onPress={onLogout} />
-    <PrivacyDataOptions client={client} onDeleted={onLogout} consentBusy={busy} />
+    <Button title="Accept privacy policy" loading={busy} disabled={!policy || dataBusy || deletionUncertain} onPress={accept} />
+    <Button title="Sign out" secondary disabled={busy || dataBusy} onPress={onLogout} />
+    <PrivacyDataOptions client={client} onDeleted={onLogout} consentBusy={busy} onBusyChange={setDataBusy} onDeletionUncertain={() => setDeletionUncertain(true)} />
   </ScrollView></SafeAreaView>;
 }
 
-function PrivacyDataOptions({ client, onDeleted, consentBusy }: { client: FinanceClient; onDeleted: () => void; consentBusy: boolean }) {
+function PrivacyDataOptions({ client, onDeleted, consentBusy, onBusyChange, onDeletionUncertain }: { client: FinanceClient; onDeleted: () => void; consentBusy: boolean; onBusyChange: (busy: boolean) => void; onDeletionUncertain: () => void }) {
   const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false); const active = useRef(false);
   const [password, setPassword] = useState(''); const [confirmation, setConfirmation] = useState(''); const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const exportData = () => { if (active.current) return; active.current = true; setBusy(true); setError(null);
+  const exportData = () => { if (active.current || consentBusy) return; active.current = true; setBusy(true); onBusyChange(true); setError(null);
     void import('../services/share-export').then(module => module.sharePrivacyExport(() => client.request<unknown>('/api/privacy/export')))
-      .catch(caught => setError(caught instanceof Error ? caught.message : 'Your export could not be prepared.')).finally(() => { active.current = false; setBusy(false); });
+      .catch(caught => setError(caught instanceof Error ? caught.message : 'Your export could not be prepared.')).finally(() => { active.current = false; setBusy(false); onBusyChange(false); });
   };
   const remove = () => Alert.alert('Permanently delete your account?', 'This deletes private data and anonymizes eligible shared records. This cannot be undone.', [
     { text: 'Keep account', style: 'cancel' }, { text: 'Delete my account', style: 'destructive', onPress: () => {
-      if (active.current || uncertain || !password || confirmation !== 'DELETE') return; active.current = true; setBusy(true); setError(null);
+      if (active.current || consentBusy || uncertain || !password || confirmation !== 'DELETE') return; active.current = true; setBusy(true); onBusyChange(true); setError(null);
       void client.request<void>('/api/privacy/account', 'DELETE', { password, confirmation: 'DELETE' }).then(() => { setPassword(''); onDeleted(); })
-        .catch(caught => { if (!(caught instanceof ApiError) || caught.outcome === 'unknown') setUncertain(true); setError(caught instanceof Error ? caught.message : 'Deletion could not be confirmed.'); })
-        .finally(() => { active.current = false; setBusy(false); });
+        .catch(caught => { if (!(caught instanceof ApiError) || caught.outcome === 'unknown') { setUncertain(true); onDeletionUncertain(); } setError(caught instanceof Error ? caught.message : 'Deletion could not be confirmed.'); })
+        .finally(() => { active.current = false; setBusy(false); onBusyChange(false); });
     } },
   ]);
   return <Card><Text style={styles.heading}>Your data remains yours</Text><Text style={styles.caption}>You can export or delete your account without accepting the updated policy.</Text>
