@@ -57,12 +57,9 @@ jobs:
         with:
           name: native-real-api-diagnostics
           path: apps/mobile-native/runtime-evidence/api/server.log
-  native-android:
+  native-js:
     runs-on: ubuntu-latest
-    concurrency:
-      group: native-android-${{ github.head_ref || github.ref }}
-      cancel-in-progress: false
-    timeout-minutes: 60
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/mobile-native
@@ -102,6 +99,29 @@ jobs:
           name: native-bundle-dependency-review
           path: apps/mobile-native/bundle-dependency-review.json
           if-no-files-found: ignore
+  native-android:
+    needs: [domain, native-js]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: native-android-${{ github.head_ref || github.ref }}
+      cancel-in-progress: false
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: apps/mobile-native
+    env:
+      APP_VARIANT: e2e
+      EXPO_PUBLIC_E2E: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/mobile-native/package-lock.json
+      - name: Install isolated native dependencies
+        run: npm ci
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -147,6 +167,7 @@ jobs:
             apps/mobile-native/runtime-evidence/**
           if-no-files-found: ignore
   native-ios:
+    needs: [domain, native-js]
     runs-on: macos-latest
     concurrency:
       group: native-ios-${{ github.head_ref || github.ref }}
