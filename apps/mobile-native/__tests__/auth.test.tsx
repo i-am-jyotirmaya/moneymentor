@@ -1,7 +1,7 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { FinanceClient } from '@spndrr/finance-core';
 import { ApiError } from '@spndrr/finance-core';
-import { LoginScreen } from '../src/screens/Auth';
+import { LoginScreen, PrivacyScreen } from '../src/screens/Auth';
 jest.mock('react-native-safe-area-context', () => jest.requireActual('react-native-safe-area-context/jest/mock').default);
 
 test('hardware keyboard submit signs in using the entered credentials', async () => {
@@ -46,4 +46,24 @@ test('an access request with an uncertain outcome offers email reconciliation an
   await waitFor(() => expect(screen.getByText('Your request may already have arrived. Check your email before requesting again.')).toBeTruthy());
   expect(screen.getByRole('button', { name: 'Request access' }).props.accessibilityState.disabled).toBe(true);
   expect(requestAccess).toHaveBeenCalledTimes(1);
+});
+test('privacy acceptance waits for and submits the actual server policy version', async () => {
+  const policy = { version: 'server-policy-2026-10', effectiveDate: '2026-10-20', policyUrl: 'https://example.test/privacy', supportEmail: 'support@example.test' };
+  let resolve!: (value: typeof policy) => void;
+  const acceptPrivacy = jest.fn(async () => {}); const refresh = jest.fn(async () => {});
+  const client = { privacyPolicy: () => new Promise(done => { resolve = done; }), acceptPrivacy, refresh } as unknown as FinanceClient;
+  const screen = render(<PrivacyScreen client={client} onLogout={jest.fn()} />);
+  expect(screen.getByRole('button', { name: 'Accept privacy policy' }).props.accessibilityState.disabled).toBe(true);
+  await act(async () => resolve(policy)); fireEvent.press(screen.getByText('Accept privacy policy'));
+  await waitFor(() => expect(acceptPrivacy).toHaveBeenCalledWith(policy.version)); expect(refresh).toHaveBeenCalledTimes(1);
+});
+test('a failed privacy-policy read cannot enable acceptance and can be retried', async () => {
+  const privacyPolicy = jest.fn().mockRejectedValueOnce(Error('offline')).mockResolvedValueOnce({ version: 'current', effectiveDate: '2026-10-20', policyUrl: 'https://example.test/privacy' });
+  const acceptPrivacy = jest.fn();
+  const screen = render(<PrivacyScreen client={{ privacyPolicy, acceptPrivacy } as unknown as FinanceClient} onLogout={jest.fn()} />);
+  await waitFor(() => expect(screen.getByText('The current privacy policy could not be loaded. Retry before accepting.')).toBeTruthy());
+  expect(screen.getByRole('button', { name: 'Accept privacy policy' }).props.accessibilityState.disabled).toBe(true);
+  fireEvent.press(screen.getByText('Try again'));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Accept privacy policy' }).props.accessibilityState.disabled).toBe(false));
+  expect(acceptPrivacy).not.toHaveBeenCalled();
 });

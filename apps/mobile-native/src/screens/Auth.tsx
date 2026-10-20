@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, type FinanceClient } from '@spndrr/finance-core';
@@ -109,18 +109,28 @@ function RegistrationScreen({ client, mode, invitation, onBack, onRequestAccess 
 export function PrivacyScreen({ client, onLogout }: { client: FinanceClient; onLogout: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const accept = () => { if (busy) return; setBusy(true); void client.acceptPrivacy('2026-07-26-ai-planning.1')
+  const [policy, setPolicy] = useState<Awaited<ReturnType<FinanceClient['privacyPolicy']>> | null>(null);
+  const alive = useRef(true); const loading = useRef(false);
+  const load = useCallback(() => {
+    if (loading.current) return; loading.current = true;
+    void client.privacyPolicy().then(value => { if (alive.current) { setPolicy(value); setError(null); } })
+      .catch(() => { if (alive.current) setError('The current privacy policy could not be loaded. Retry before accepting.'); })
+      .finally(() => { loading.current = false; });
+  }, [client]);
+  useEffect(() => { alive.current = true; load(); return () => { alive.current = false; }; }, [load]);
+  const accept = () => { if (busy || !policy) return; setBusy(true); void client.acceptPrivacy(policy.version)
     .then(() => client.refresh()).catch(() => setError('Your consent could not be confirmed. Please try again.')).finally(() => setBusy(false)); };
   return <SafeAreaView style={styles.screen}><ScrollView contentContainerStyle={styles.content}>
     <Text accessibilityRole="header" style={styles.title}>Your money is personal.</Text>
-    <Text style={styles.caption}>Spndrr beta privacy policy · 2026-07-26-ai-planning.1</Text>
+    <Text style={styles.caption}>{policy ? `Spndrr privacy policy · ${policy.version} · Effective ${policy.effectiveDate}` : 'Loading the current privacy policy…'}</Text>
+    {policy ? <Button title="Read current privacy policy" secondary onPress={() => { void Linking.openURL(policy.policyUrl).catch(() => setError('The privacy policy could not be opened. Please try again.')); }} /> : null}
     <Card><Text style={styles.heading}>What Spndrr stores</Text><Text style={styles.body}>Your account profile, settings, household memberships and invitations, assistant messages, and the financial records you choose to capture.</Text></Card>
     <Card><Text style={styles.heading}>How your data is used</Text><Text style={styles.body}>To run Spndrr, calculate reports from stored data, deliver invitations, secure sessions, and diagnose reliability problems. AI can help interpret messages; it is not the source of truth for financial totals.</Text></Card>
     <Card><Text style={styles.heading}>AI goal planning</Text><Text style={styles.body}>When you request an AI goal plan, a minimized summary of calculated totals and planning constraints is sent to the configured model provider, without transaction descriptions, merchant names, account identity, email, or raw transaction history. Shared goals use another member’s private aggregates only after their consent for that goal. They can revoke consent for future runs.</Text></Card>
     <Card><Text style={styles.heading}>Visibility and your controls</Text><Text style={styles.body}>Private transactions are visible only to you. Household-visible transactions can be read by active members; viewers cannot change financial records. Spndrr supports data export, a 30-day transaction trash period, and account deletion. Shared household records may remain anonymized to preserve accurate totals.</Text></Card>
-    <Text style={styles.caption}>This beta policy is a product draft pending legal review before general availability. This device stores refresh credentials and unsent drafts securely.</Text>
-    {error ? <ErrorNotice message={error} /> : null}
-    <Button title="Accept privacy policy" loading={busy} onPress={accept} />
+    <Text style={styles.caption}>This screen is a summary. Read the current policy before accepting. This device stores refresh credentials and unsent drafts securely.</Text>
+    {error ? <ErrorNotice message={error} onRetry={load} /> : null}
+    <Button title="Accept privacy policy" loading={busy} disabled={!policy} onPress={accept} />
     <Button title="Sign out" secondary disabled={busy} onPress={onLogout} />
   </ScrollView></SafeAreaView>;
 }

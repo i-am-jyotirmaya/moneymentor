@@ -32,7 +32,7 @@ function isSession(value: unknown): value is AuthSession {
   const s = value as AuthSession | null;
   return !!s && typeof s.accessToken === "string" && s.accessToken.length > 0
     && typeof s.accessTokenExpiresAt === "string" && Number.isFinite(Date.parse(s.accessTokenExpiresAt))
-    && typeof s.user?.id === "string" && typeof s.user?.displayName === "string" && typeof s.requiresPrivacyConsent === "boolean";
+    && typeof s.user?.id === "string" && s.user.id.length > 0 && typeof s.user?.displayName === "string" && typeof s.requiresPrivacyConsent === "boolean";
 }
 export function isTransaction(value: unknown): value is Transaction {
   const t = value as Transaction | null;
@@ -89,12 +89,23 @@ export class FinanceClient {
   signup(input: SignupInput): Promise<AuthSession> {
     return this.authenticate('/api/auth/users', { ...input, email: input.email.trim() });
   }
-  registration() { return this.raw({ path: '/api/auth/registration', method: 'GET' }) as Promise<RegistrationPolicy>; }
+  async registration(): Promise<RegistrationPolicy> {
+    const value = await this.raw({ path: '/api/auth/registration', method: 'GET' }) as RegistrationPolicy | null;
+    if (!value || !['Open', 'RequestOnly'].includes(value.mode)) throw new ApiError('Registration availability could not be verified. Try again.');
+    return value;
+  }
   validateInvitation(token: string) { return this.raw({ path: '/api/auth/signup-invitations/validate', method: 'POST', body: { token } }) as Promise<SignupInvitation>; }
   requestAccess(input: { name: string; email: string; reason?: string }) {
     return this.raw({ path: '/api/auth/access-requests', method: 'POST', body: input });
   }
-  privacyPolicy() { return this.raw({ path: '/api/public/privacy', method: 'GET' }) as Promise<{ version: string; effectiveDate: string; policyUrl: string; supportEmail: string }>; }
+  async privacyPolicy(): Promise<{ version: string; effectiveDate: string; policyUrl: string; supportEmail: string }> {
+    const value = await this.raw({ path: '/api/public/privacy', method: 'GET' }) as { version: string; effectiveDate: string; policyUrl: string; supportEmail: string } | null;
+    if (!value || typeof value.version !== 'string' || !value.version.trim() || typeof value.effectiveDate !== 'string'
+      || typeof value.policyUrl !== 'string' || !value.policyUrl.startsWith('https://') || typeof value.supportEmail !== 'string') {
+      throw new ApiError('The current privacy policy could not be verified. Try again before accepting.');
+    }
+    return value;
+  }
   private async authenticate(path: string, body: unknown): Promise<AuthSession> {
     const epoch = ++this.epoch;
     this.publish({ status: "loading", session: null });
