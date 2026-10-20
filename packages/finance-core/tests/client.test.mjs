@@ -115,6 +115,19 @@ test('one unauthorized replay is allowed, but a second unauthorized response is 
   await assert.rejects(client.accounts(), error => error.status === 401);
   assert.equal(reads, 2);
 });
+test('reviewed dictation retains voice provenance and the explicit household in the assistant request', async () => {
+  const messages = [];
+  const client = new FinanceClient(async request => {
+    if (request.path.endsWith('/login')) return ok(session());
+    messages.push(request);
+    return ok({ status: 'NeedsClarification', intent: 'CreateExpense', assistantMessage: 'How much?', transaction: null, errors: [] });
+  }, async () => {});
+  await client.login('a', 'p');
+  await client.sendAssistant('coffee', 'INR', '2026-10-19', { inputMode: 'Voice', householdId: 'family' });
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].body.inputMode, 'Voice');
+  assert.equal(messages[0].body.householdId, 'family');
+});
 test('a completed write from a previous session retains an unknown outcome rather than inviting a new submission', async () => {
   const pending = deferred();
   const client = new FinanceClient(async req => {

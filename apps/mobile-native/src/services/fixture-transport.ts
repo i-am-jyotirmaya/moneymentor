@@ -90,6 +90,7 @@ export function fixtureTransport({ pause = async () => {} }: { pause?: (millisec
       const transaction = save({ eventKind: 'Purchase', amount: Number(amount), date: String(body?.transactionDate), categoryId: 'groceries', accountId: accounts[0]!.id,
         householdId, merchant: null, description: pendingText ?? text, sourceText: text, paymentChannel: 'Unknown', inputMode: 'Text', confidence: 1,
         visibility: 'Private', externalReference: `fixture-${++sequence}` }); pendingText = null;
+      transaction.inputMode = body?.inputMode === 'Voice' ? 'Voice' : 'Text';
       return ok({ status: 'Responded', intent: 'CreateExpense', assistantMessage: 'Tracked your transaction.', transaction, errors: [] });
     }
     return ok({}, 404);

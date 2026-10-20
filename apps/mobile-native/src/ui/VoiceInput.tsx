@@ -12,6 +12,7 @@ export function VoiceInput({ text, disabled, onTranscript, onBusyChange }: {
   const finish = () => { active.current = false; if (alive.current) { setPhase('idle'); onBusyChange(false); } };
   const cancel = () => { active.current = false; ExpoSpeechRecognitionModule.abort(); finish(); setPreview(''); };
   useEffect(() => {
+    alive.current = true;
     const subscription = AppState.addEventListener('change', next => {
       if (next !== 'active') { active.current = false; ExpoSpeechRecognitionModule.abort(); setPhase('idle'); onBusyChange(false); }
     });
@@ -62,6 +63,6 @@ export function VoiceInput({ text, disabled, onTranscript, onBusyChange }: {
     </>}
     {preview ? <Text accessibilityLiveRegion="polite" style={styles.caption}>{preview}</Text> : null}
     {error ? <ErrorNotice message={error} /> : null}
-    {denied ? <Button title="Open speech permissions" secondary onPress={() => { void Linking.openSettings(); }} /> : null}
+    {denied ? <Button title="Open speech permissions" secondary onPress={() => { void Linking.openSettings().catch(() => setError('Open your device Settings to change microphone and speech permissions.')); }} /> : null}
   </View>;
 }

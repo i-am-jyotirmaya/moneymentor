@@ -34,6 +34,15 @@ test('currency input and hierarchical/exact account labels remain accessible', a
   expect(screen.getByLabelText('Category: Food / Groceries')).toBeTruthy();
   expect(screen.getByLabelText('Account: Kotak upi · Credit card')).toBeTruthy();
 });
+test('unavailable dictation preserves text input and never sends an assistant message', async () => {
+  const { wrap, client } = await setup('text'); const send = jest.spyOn(client, 'sendAssistant');
+  const screen = render(wrap(<ComposerScreen navigation={navigation as never} route={{ key: 'composer', name: 'Composer' }} />));
+  await waitFor(() => expect(screen.getByText('Use voice')).toBeTruthy());
+  fireEvent.press(screen.getByText('Use voice'));
+  expect(screen.getByText('Speech recognition is not available on this device. You can type instead.')).toBeTruthy();
+  expect(send).not.toHaveBeenCalled();
+  expect(screen.getByLabelText('Transaction message').props.editable).toBe(true);
+});
 test('manual entry persists a real receipt only after API acknowledgement', async () => {
   const { wrap, client } = await setup();
   const screen = render(wrap(<ComposerScreen navigation={navigation as never} route={{ key: 'composer', name: 'Composer' }} />));
