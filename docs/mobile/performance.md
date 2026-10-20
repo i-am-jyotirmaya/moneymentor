@@ -74,10 +74,10 @@ For Android release QA builds, start with `adb shell am start -W PACKAGE/.MainAc
 
 Use physical iPhone/TestFlight for real API, keyboard and session behavior. Quantitative iOS release profiling requires an actual iOS profiling environment, such as a hosted Mac with Instruments or a profiling partner; owning a Mac is not required. Cloud simulator UI execution and screen recording do not establish physical-device FPS or memory stability.
 
-## Gate before bulk migration
+## Release acceptance alongside screen migration
 
 - The native lockfile, Expo compatibility/Doctor, type checks, lint, component tests, both Metro exports and both native compilers passed. Complete platform runtime acceptance.
 - Execute the native Maestro flow on Android and iOS; attach artifacts rather than marking compilation as runtime acceptance.
 - Validate real HTTPS login/refresh/force-close/signout and transaction writes on physical devices.
 - Resolve keyboard, gesture, storage, accessibility and financial correctness issues; collect named-device motion/startup/memory results.
-- Only then start dashboard/planning/household/voice/image parity migration. Keep Capacitor until the replacement meets feature and release criteria.
+- Continue dashboard/planning/household and supported input parity using the validated architecture. Physical-device profiling and distribution remain open release checks. Keep Capacitor until the replacement meets feature and release criteria.

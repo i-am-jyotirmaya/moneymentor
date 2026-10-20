@@ -44,8 +44,9 @@ export function fixtureTransport({ pause = async () => {} }: { pause?: (millisec
     if (request.path === '/api/auth/logout') { authenticated = false; return ok(null, 204); }
     if (!authenticated) return ok({}, 401);
     if (request.path === '/api/settings/me') return ok({ userProfileId: userId, displayName: 'Jyoti', email: 'qa@example.test', currencyCode: 'INR', timeZone: 'Asia/Kolkata', plan: 'Free', requireMerchantForExpenses: false, defaultTransactionVisibility: 'Private' });
-    if (request.path === '/api/categories') return ok({ householdId, canWrite: true, categories });
-    if (request.path === '/api/financial-accounts' && request.method === 'GET') return ok(accounts);
+    if (request.path === '/api/households') return ok({ plan: 'Free', canUseHouseholds: false, defaultHouseholdId: householdId, households: [{ id: householdId, name: 'Personal', kind: 'Personal', currencyCode: 'INR', timeZone: 'Asia/Kolkata', role: 'Owner', status: 'Active', canWrite: true, memberCount: 1, createdAt: '2026-01-01T00:00:00Z' }] });
+    if (request.path.split('?')[0] === '/api/categories') return ok({ householdId, canWrite: true, categories });
+    if (request.path.split('?')[0] === '/api/financial-accounts' && request.method === 'GET') return ok(accounts);
     if (request.path === '/api/financial-accounts') {
       const account = { ...accounts[0]!, ...body, id: `account-${++sequence}`, householdId }; accounts.push(account as typeof accounts[number]); return ok(account);
     }

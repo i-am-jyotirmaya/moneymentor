@@ -8,7 +8,8 @@ import { useEntry } from '../state/entry';
 import { OperationNotice, useOperations } from '../state/operations';
 import { Button, Card, ErrorNotice, Field, Loading, styles } from '../ui/primitives';
 import { color } from '../ui/theme';
-import type { ScreenProps } from '../navigation';
+import type { FeatureNavigationProps } from '../navigation';
+import { clearExportCache } from '../services/share-export';
 
 export const TransactionRow = memo(function TransactionRow({ transaction, onPress }: { transaction: Transaction; onPress?: () => void }) {
   return <Pressable accessibilityRole={onPress ? 'button' : undefined} onPress={onPress} disabled={!onPress}
@@ -25,15 +26,15 @@ function shiftMonth(month: string, delta: number) {
   const [year, number] = month.split('-').map(Number);
   return new Date(Date.UTC(year ?? 2026, (number ?? 1) - 1 + delta, 1)).toISOString().slice(0, 7);
 }
-export function HomeScreen({ navigation }: ScreenProps<'Home'>) {
+export function HomeScreen({ navigation }: FeatureNavigationProps) {
   const entry = useEntry();
   const operations = useOperations(); const query = useQueryClient();
   const [month, setMonth] = useState(entry.resources.today.slice(0, 7));
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
   const history = useInfiniteQuery({
-    queryKey: ['history', entry.draft.ownerId, month], initialPageParam: 1,
-    queryFn: ({ pageParam }) => entry.client.transactions(month, pageParam),
+    queryKey: ['history', entry.draft.ownerId, entry.resources.householdId, month], initialPageParam: 1,
+    queryFn: ({ pageParam }) => entry.client.transactions(month, pageParam, entry.resources.householdId),
     getNextPageParam: last => last.page < last.totalPages ? last.page + 1 : undefined,
     retry: 1, staleTime: 30000,
   });
@@ -44,7 +45,7 @@ export function HomeScreen({ navigation }: ScreenProps<'Home'>) {
   const signout = () => {
     if (operations.busy) return;
     const execute = () => { void entry.runExclusive(async () => {
-      try { await entry.clearForLogout(); }
+      try { clearExportCache(); await entry.clearForLogout(); }
       finally { await entry.client.logout().catch(() => { setError('The device is signed out. Server session revocation could not be confirmed.'); }); }
     }); };
     if (entry.draft.text || entry.draft.manual.amount || entry.draft.pendingManual || entry.draft.assistantUncertain || operations.pending) Alert.alert('Sign out and clear draft?', 'This removes the unsent transaction draft. A pending change may already be saved; check saved data first. Any pending-change safety marker is retained for review when you sign in again.', [
@@ -76,6 +77,7 @@ export function HomeScreen({ navigation }: ScreenProps<'Home'>) {
             <Button title="›" accessibilityLabel="Next month" secondary disabled={month >= entry.resources.today.slice(0, 7)} onPress={() => setMonth(previous => shiftMonth(previous, 1))} /></View></View>
         <Text style={styles.caption}>{month} · Pull down to refresh</Text>
         <Field label="Search loaded transactions" value={search} onChangeText={setSearch} placeholder="Description, category, account…" />
+        <Button title="Filters, transfers and trash" secondary onPress={() => navigation.navigate('Transactions')} />
         {history.isError ? <ErrorNotice message="Recent transactions could not be refreshed. Pull down or try again." onRetry={() => { void history.refetch(); }} /> : null}
         {error ? <ErrorNotice message={error} /> : null}
       </View>}

@@ -77,11 +77,11 @@ Backend reference deduplication is not a generic idempotency API. It is scoped t
 
 ## Validation gate and rollout
 
-The requirements prohibit bulk screen migration before functional AND native performance validation of transaction entry. Stop at that gate if device/cloud access is unavailable; preserve the working Capacitor application. Static checks and mocked API tests do not prove Android/iOS runtime behavior. See [performance.md](performance.md) for evidence and acceptance scenarios, and [windows-development.md](windows-development.md) for build/signing instructions.
+Transaction entry has passed hosted Android and iOS functional acceptance. Android large-history acceptance and both x86_64/ARM64 QA builds also pass. Software-emulator frame measurements missed the proposed budget; representative physical-device profiling remains a release acceptance item while the remaining native screens are implemented. Preserve the working Capacitor application until feature and release acceptance. See [performance.md](performance.md) and [windows-development.md](windows-development.md) for evidence and build instructions.
 
 Milestone 1: audit, decision, shared boundaries, native bootstrap and build configuration.
 Milestone 2: transaction entry, native design/motion foundations, automated tests, device acceptance.
-Milestones 3–5 remain gated: financial screens; speech/images; performance and distribution sign-off. Each feature's incomplete status must stay visible in the PR. Never describe this first slice as the completed migration.
+Milestones 3–5 are in progress: financial screens; supported native inputs; performance and distribution sign-off. Each feature's incomplete status must stay visible in the PR. Image processing still requires an actual backend contract. Do not claim the entire migration or release acceptance until the corresponding checks pass.
 
 ## Sources
 

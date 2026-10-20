@@ -91,7 +91,7 @@ export function EntryProvider({ children, ownerId, resources, client, vault }: {
       if (timer.current) clearTimeout(timer.current);
       resetting.current = true;
       try { await vault.remove(); current.current = initial; setDraft(initial); setReply(null); setPersistenceError(null); }
-      catch { setPersistenceError('Your pending draft could not be cleared securely.'); }
+      catch { setPersistenceError('Your pending draft could not be cleared securely.'); throw Error('Your pending draft could not be cleared securely.'); }
       finally { resetting.current = false; }
     },
     beginEdit: transaction => {

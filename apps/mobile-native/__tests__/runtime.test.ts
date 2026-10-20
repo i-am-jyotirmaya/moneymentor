@@ -4,6 +4,7 @@ import { createNativeTransport, scopedVault, validateApiOrigin } from '../src/se
 import { createRuntime } from '../src/services/runtime';
 
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { extra: {} } } }));
+jest.mock('../src/services/share-export', () => ({ clearExportCache: jest.fn() }));
 jest.mock('../src/services/native-transport', () => ({
   createNativeTransport: jest.fn(), scopedVault: jest.fn(), validateApiOrigin: jest.fn(),
 }));
