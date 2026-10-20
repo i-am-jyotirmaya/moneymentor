@@ -54,3 +54,19 @@ test('the default QA installation remains a deterministic fixture with no native
   expect(vault.remove).toHaveBeenCalled(); await runtime.client.login('qa@example.test', 'fixture-only');
   expect(runtime.client.getSnapshot().session?.user.email).toBe('qa@example.test');
 });
+test('account cleanup removes previously visited household data and retains another owner data', async () => {
+  const values = new Map<string, unknown>();
+  jest.mocked(scopedVault).mockImplementation(async (_origin, purpose) => ({
+    get: async () => values.get(purpose) ?? null, put: async (value: unknown) => { values.set(purpose, value); },
+    remove: async () => { values.delete(purpose); }, closeAndRemove: async () => { values.delete(purpose); },
+  }) as never);
+  const runtime = await createRuntime();
+  await (await runtime.historyVault('alice', 'personal')).put({ text: 'Alice personal' });
+  await (await runtime.historyVault('alice', 'family')).put({ text: 'Alice family' });
+  await (await runtime.draftVault('alice', 'family')).put({ amount: '40.29' });
+  await (await runtime.planningVault('alice')).put({ runId: 'alice-plan' });
+  await (await runtime.historyVault('bob', 'family')).put({ text: 'Bob private' });
+  await runtime.clearOwnerData('alice');
+  expect([...values.keys()].some(key => key.includes(':alice'))).toBe(false);
+  expect(values.get('assistant-history:bob:family')).toEqual({ text: 'Bob private' });
+});

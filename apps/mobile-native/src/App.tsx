@@ -127,9 +127,9 @@ function SessionGate({ runtime }: { runtime: Runtime }) {
   if (!restored || state.status === 'loading') return <Loading label="Checking your session…" />;
   if (!state.session) return <LoginScreen client={runtime.client} unavailable={state.status === 'unavailable'} onRestore={restore} />;
   if (state.session.requiresPrivacyConsent) return <PrivacyScreen client={runtime.client} onLogout={() => {
-    void Promise.allSettled([runtime.draftVault(state.session!.user.id).then(vault => vault.closeAndRemove()), Promise.resolve().then(clearExportCache)]).finally(() => runtime.client.logout()).catch(() => undefined);
+    void Promise.allSettled([runtime.draftVault(state.session!.user.id).then(vault => vault.closeAndRemove()), runtime.client.logout(), Promise.resolve().then(clearExportCache)]);
   }} onDeleted={() => {
-    void Promise.allSettled([runtime.clearOwnerData(state.session!.user.id), Promise.resolve().then(clearExportCache)]).finally(() => runtime.client.logout()).catch(() => undefined);
+    void Promise.allSettled([runtime.clearOwnerData(state.session!.user.id), runtime.client.logout(), Promise.resolve().then(clearExportCache)]);
   }} />;
   return <Workspace key={state.session.user.id} runtime={runtime} session={state.session} />;
 }

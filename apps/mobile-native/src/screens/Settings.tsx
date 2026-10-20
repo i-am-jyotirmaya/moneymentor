@@ -30,7 +30,8 @@ export function SettingsScreen() {
     Alert.alert('Permanently delete your account?', 'This deletes your private data and anonymizes eligible shared records. This cannot be undone.', [
       { text: 'Keep account', style: 'cancel' }, { text: 'Delete my account', style: 'destructive', onPress: () => { void mutation.execute('Delete user account', () => api.deleteAccount(password), async () => {
         setPassword('');
-        try { await Promise.allSettled([entry.clearForLogout(true), Promise.resolve().then(clearExportCache)]); } finally { await entry.client.logout().catch(() => undefined); }
+        const cleanup = entry.clearForLogout(true);
+        await Promise.allSettled([cleanup, entry.client.logout(), Promise.resolve().then(clearExportCache)]);
       }); } },
     ]);
   };
