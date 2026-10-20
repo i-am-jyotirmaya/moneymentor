@@ -1,7 +1,7 @@
 import { ApiError } from '../../../../packages/finance-core/src/client.ts';
 import type { SecureJsonStore } from './secure-json';
 
-export type PendingWrite = { version: 1; ownerId: string; label: string; startedAt: string };
+export type PendingWrite = { version: 1; ownerId: string; label: string; startedAt: string; householdId?: string };
 export type WriteGuardState = { ready: boolean; busy: boolean; pending: PendingWrite | null; error: string | null };
 
 /** Durable boundary for endpoints without a transaction reference/idempotency API. */
@@ -24,15 +24,16 @@ export class WriteGuard {
       if (value !== null) {
         const pending = value as Partial<PendingWrite>;
         if (pending.version !== 1 || pending.ownerId !== this.ownerId || typeof pending.label !== 'string'
-          || pending.label.length > 160 || typeof pending.startedAt !== 'string') throw Error('Unrecognized operation record.');
+          || pending.label.length > 160 || typeof pending.startedAt !== 'string'
+          || (pending.householdId !== undefined && (typeof pending.householdId !== 'string' || !pending.householdId))) throw Error('Unrecognized operation record.');
       }
       this.publish({ ready: true, pending: value as PendingWrite | null, error: null });
     } catch { this.publish({ ready: false, error: 'The saved operation could not be checked securely. Retry before making another change.' }); }
   }
-  async run<T>(label: string, work: () => Promise<T>): Promise<T> {
+  async run<T>(label: string, work: () => Promise<T>, householdId?: string): Promise<T> {
     if (!this.state.ready || this.active || this.state.pending) throw new ApiError('Review the pending change before starting another.');
     this.active = true; this.publish({ busy: true, error: null });
-    const pending: PendingWrite = { version: 1, ownerId: this.ownerId, label: label.slice(0, 160), startedAt: new Date().toISOString() };
+    const pending: PendingWrite = { version: 1, ownerId: this.ownerId, label: label.slice(0, 160), startedAt: new Date().toISOString(), ...(householdId ? { householdId } : {}) };
     try {
       // Failure here must prevent the network call entirely.
       try { await this.vault.put(pending); }

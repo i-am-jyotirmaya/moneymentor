@@ -30,6 +30,13 @@ test('secure storage failure prevents a financial network write', async () => {
   assert.equal(sends, 0);
 });
 
+test('an uncertain write retains the household needed for reconciliation after restart', async () => {
+  const { vault } = fixture(); const guard = new WriteGuard(vault, 'alice'); await guard.restore();
+  await assert.rejects(guard.run('Add shared goal', async () => { throw new ApiError('Response lost', 0, 'unknown'); }, 'family'));
+  const reopened = new WriteGuard(vault, 'alice'); await reopened.restore();
+  assert.equal(reopened.getSnapshot().pending.householdId, 'family');
+});
+
 test('a definite validation rejection releases the operation without replaying it', async () => {
   const { vault } = fixture(); const guard = new WriteGuard(vault, 'alice'); await guard.restore();
   let sends = 0;

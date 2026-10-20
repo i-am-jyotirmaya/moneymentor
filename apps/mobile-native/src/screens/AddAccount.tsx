@@ -24,7 +24,7 @@ export function AddAccountScreen({ navigation }: ScreenProps<'AddAccount'>) {
     if (!name.trim()) { setError('Give this account a name.'); return; }
     setError(null);
     try {
-      const account = await operations.guard.run('Add financial account', () => api.saveAccount({ householdId: scope, name: name.trim(), accountType: type, institution: null, last4: null, aliases: [], shared: false, isActive: true }));
+      const account = await operations.guard.run('Add financial account', () => api.saveAccount({ householdId: scope, name: name.trim(), accountType: type, institution: null, last4: null, aliases: [], shared: false, isActive: true }), scope);
       await query.invalidateQueries({ queryKey: ['entry'] });
       entry.updateManual({ accountId: account.id }); navigation.goBack();
     } catch (caught) {

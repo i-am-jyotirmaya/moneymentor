@@ -35,7 +35,7 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
       const intent = buildTransactionIntent(manual, entry.resources, 'native:validate-edit');
       const patch: TransactionPatch = { amount: intent.amount, transactionDate: intent.date, categoryId: intent.categoryId, accountId: intent.accountId,
         merchantName: manual.merchant.trim(), description: manual.description.trim(), paymentChannel: manual.paymentChannel, visibility: manual.visibility };
-      const updated = await operations.guard.run('Update transaction', () => entry.client.updateTransaction(transaction.id, patch));
+      const updated = await operations.guard.run('Update transaction', () => entry.client.updateTransaction(transaction.id, patch), entry.resources.householdId);
       entry.setSaved(updated); entry.beginEdit(updated); setSaved(true);
       void query.invalidateQueries();
     } catch (caught) {

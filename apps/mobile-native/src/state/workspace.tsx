@@ -26,7 +26,7 @@ export function useWorkspaceMutation({ allowReadOnly = false }: { allowReadOnly?
     if (blocked) return undefined;
     setError(null);
     try {
-      const result = await operations.guard.run(label, work);
+      const result = await operations.guard.run(label, work, entry.resources.householdId);
       await onSuccess?.(result);
       await query.invalidateQueries();
       return result;
