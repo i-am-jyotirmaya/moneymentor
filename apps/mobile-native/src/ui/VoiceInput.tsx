@@ -9,11 +9,11 @@ export function VoiceInput({ text, disabled, onTranscript, onBusyChange }: {
   const [phase, setPhase] = useState<'idle' | 'requesting' | 'listening' | 'stopping'>('idle');
   const [preview, setPreview] = useState(''); const [error, setError] = useState<string | null>(null); const [denied, setDenied] = useState(false);
   const alive = useRef(true); const active = useRef(false); const prefix = useRef('');
-  const generation = useRef(0); const permissionPending = useRef(false); const started = useRef(false);
+  const generation = useRef<object>({}); const permissionPending = useRef(false); const started = useRef(false);
   const draining = useRef(false); const [settling, setSettling] = useState(false);
   const finish = () => { active.current = false; if (alive.current) { setPhase('idle'); onBusyChange(false); } };
   const cancel = () => {
-    active.current = false; generation.current++;
+    active.current = false; generation.current = {};
     // Do not start another native session before the old stream ends. Its late
     // result events carry no session identifier and must never enter a new draft.
     draining.current = started.current; setSettling(started.current || permissionPending.current);
@@ -27,13 +27,13 @@ export function VoiceInput({ text, disabled, onTranscript, onBusyChange }: {
       // transition should cancel that request; an existing recording stops on
       // either interruption.
       if (next === 'background' || (next === 'inactive' && started.current)) {
-        active.current = false; generation.current++; draining.current = started.current;
+        active.current = false; generation.current = {}; draining.current = started.current;
         setSettling(started.current || permissionPending.current); setPreview('');
         if (started.current) ExpoSpeechRecognitionModule.abort();
         setPhase('idle'); onBusyChange(false);
       }
     });
-    return () => { alive.current = false; active.current = false; generation.current++; subscription.remove(); if (started.current) ExpoSpeechRecognitionModule.abort(); };
+    return () => { alive.current = false; active.current = false; generation.current = {}; subscription.remove(); if (started.current) ExpoSpeechRecognitionModule.abort(); };
   }, [onBusyChange]);
   useSpeechRecognitionEvent('start', () => { if (active.current) setPhase('listening'); else ExpoSpeechRecognitionModule.abort(); });
   useSpeechRecognitionEvent('end', () => {
@@ -59,7 +59,7 @@ export function VoiceInput({ text, disabled, onTranscript, onBusyChange }: {
   });
   const recognize = async (onDevice: boolean) => {
     if (disabled || active.current || draining.current || permissionPending.current || !alive.current) return;
-    const request = ++generation.current; permissionPending.current = true;
+    const request = {}; generation.current = request; permissionPending.current = true;
     active.current = true; prefix.current = text.trim(); setError(null); setPreview(''); setPhase('requesting'); onBusyChange(true);
     try {
       const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
