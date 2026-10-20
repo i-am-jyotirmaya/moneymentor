@@ -41,14 +41,14 @@ export function CategoryFormScreen({ navigation, route }: ScreenProps<'CategoryF
   const descendant = (id: string) => { const seen = new Set<string>(); let current = entry.resources.categories.find(item => item.id === id); while (current) { if (current.id === original?.id || seen.has(current.id)) return true; seen.add(current.id); current = entry.resources.categories.find(item => item.id === current?.parentCategoryId); } return false; };
   return <Page title={original ? 'Manage category' : 'Add category'} error={mutation.error}><OperationNotice refresh={mutation.refresh} />
     {route.params?.id && !original ? <ErrorNotice message="This category is no longer available." /> : saved ? <Card><Text accessibilityLiveRegion="polite" style={styles.heading}>Category change saved</Text><Button title="Done" onPress={() => navigation.goBack()} /></Card> : <>
-      {original?.isSystemCategory ? <Text style={styles.caption}>System categories can be hidden from new entries. Spndrr enforces which other properties may be changed.</Text> : null}
+      {original?.isSystemCategory ? <Text style={styles.caption}>System categories are read only. Create a custom category to organize new entries.</Text> : null}
       <Field label="Category name" value={name} onChangeText={setName} maxLength={100} editable={!mutation.blocked && !original?.isSystemCategory} />
       <ChoiceField label="Category type" value={type} options={choices(['Expense', 'Income'])} disabled={mutation.blocked || !!original} onChange={value => { setType(value as Category['type']); setClassification(value === 'Income' ? 'Income' : 'Discretionary'); setParent('none'); }} />
       <ChoiceField label="Classification" value={classification} options={choices(['Essential', 'Discretionary', 'Income', 'Savings', 'Debt'])} disabled={mutation.blocked || !!original?.isSystemCategory} onChange={value => setClassification(value as Category['classification'])} />
-      <ChoiceField label="Parent category" value={parent} options={[{ id: 'none', label: 'No parent' }, ...categoryOptions(entry.resources.categories, type).filter(item => !descendant(item.id)).map(item => ({ id: item.id, label: item.label }))]} onChange={setParent} disabled={mutation.blocked || !!original?.isSystemCategory} />
+      <ChoiceField label="Parent category" value={parent} options={[...(!original?.parentCategoryId ? [{ id: 'none', label: 'No parent' }] : []), ...categoryOptions(entry.resources.categories, type).filter(item => !item.category.parentCategoryId && !descendant(item.id)).map(item => ({ id: item.id, label: item.label }))]} onChange={setParent} disabled={mutation.blocked || !!original?.isSystemCategory} />
       <Field label="Icon (optional)" value={icon} onChangeText={setIcon} maxLength={32} editable={!mutation.blocked && !original?.isSystemCategory} />
-      {original ? <Toggle label="Hide from new transactions" value={hidden} onChange={setHidden} disabled={mutation.blocked} /> : null}
-      <Button title="Save category" disabled={mutation.blocked} loading={mutation.busy} onPress={save} />
+      {original ? <Toggle label="Hide from new transactions" value={hidden} onChange={setHidden} disabled={mutation.blocked || original.isSystemCategory} /> : null}
+      {!original?.isSystemCategory ? <Button title="Save category" disabled={mutation.blocked} loading={mutation.busy} onPress={save} /> : null}
       {original && !original.isSystemCategory ? <Button title="Delete category" secondary disabled={mutation.blocked} onPress={remove} /> : null}
     </>}
   </Page>;

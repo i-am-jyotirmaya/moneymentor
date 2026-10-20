@@ -1,4 +1,5 @@
-import type { AuthSession, Category, FinancialAccount, Transport, Transaction, TransactionIntent } from '@spndrr/finance-core';
+import type { AuthSession, Category, FinancialAccount, FinancialEventIntent, Transport, Transaction, TransactionIntent } from '@spndrr/finance-core';
+import { fixtureWorkspace } from './fixture-workspace.ts';
 
 /** Deterministic QA transport. Only the separately identified e2e binary can select it. */
 export function fixtureTransport({ pause = async () => {} }: { pause?: (milliseconds: number) => Promise<void> } = {}) {
@@ -22,13 +23,15 @@ export function fixtureTransport({ pause = async () => {} }: { pause?: (millisec
     user: { id: userId, displayName: 'Jyoti', email: 'qa@example.test', roles: [] } });
   // Match an HTTP JSON boundary: UI caches must not share mutable server objects.
   const ok = (data: unknown, status = 200) => ({ status, data: JSON.parse(JSON.stringify(data)) as unknown });
-  function save(intent: TransactionIntent): Transaction {
+  const workspace = fixtureWorkspace({ householdId, userId, accounts, categories, transactions, nextId: () => `fixture-workspace-${++sequence}` });
+  function save(intent: FinancialEventIntent): Transaction {
     const key = `${intent.accountId}|${intent.externalReference}`;
     const previous = references.get(key);
     if (previous) return previous;
     const transaction: Transaction = { ...intent, id: `fixture-${++sequence}`, amount: intent.amount, currencyCode: 'INR',
-      type: intent.eventKind === 'Income' ? 'Income' : 'Expense', kind: intent.eventKind, householdId, userProfileId: userId,
-      categoryName: categories.find(c => c.id === intent.categoryId)?.name ?? 'Groceries', accountName: accounts.find(a => a.id === intent.accountId)?.name ?? null,
+      type: ['Transfer', 'CreditCardPayment', 'CashWithdrawal'].includes(intent.eventKind) ? 'Transfer' : intent.eventKind === 'Investment' ? 'Investment' : intent.eventKind === 'Income' ? 'Income' : 'Expense', kind: intent.eventKind, householdId: intent.householdId, userProfileId: userId,
+      categoryName: categories.find(c => c.id === intent.categoryId)?.name ?? null, accountName: accounts.find(a => a.id === intent.accountId)?.name ?? null,
+      counterpartyAccountName: accounts.find(a => a.id === intent.counterpartyAccountId)?.name ?? null,
       merchantName: intent.merchant, transactionDate: intent.date, sourceText: intent.sourceText,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), visibility: intent.visibility };
     transactions.unshift(transaction); references.set(key, transaction); return transaction;
@@ -42,7 +45,10 @@ export function fixtureTransport({ pause = async () => {} }: { pause?: (millisec
     }
     if (request.path === '/api/auth/refresh') return authenticated ? ok(session()) : ok({}, 401);
     if (request.path === '/api/auth/logout') { authenticated = false; return ok(null, 204); }
+    if (request.path === '/api/public/privacy') return ok({ version: 'fixture-policy', effectiveDate: '2026-07-03', policyUrl: 'https://example.test/privacy', supportEmail: 'support@example.test' });
+    if (request.path === '/api/public/registration') return ok({ mode: 'Open' });
     if (!authenticated) return ok({}, 401);
+    const workspaceResponse = workspace(request); if (workspaceResponse) return ok(workspaceResponse.data, workspaceResponse.status);
     if (request.path === '/api/settings/me') return ok({ userProfileId: userId, displayName: 'Jyoti', email: 'qa@example.test', currencyCode: 'INR', timeZone: 'Asia/Kolkata', plan: 'Free', requireMerchantForExpenses: false, defaultTransactionVisibility: 'Private' });
     if (request.path === '/api/households') return ok({ plan: 'Free', canUseHouseholds: false, defaultHouseholdId: householdId, households: [{ id: householdId, name: 'Personal', kind: 'Personal', currencyCode: 'INR', timeZone: 'Asia/Kolkata', role: 'Owner', status: 'Active', canWrite: true, memberCount: 1, createdAt: '2026-01-01T00:00:00Z' }] });
     if (request.path.split('?')[0] === '/api/categories') return ok({ householdId, canWrite: true, categories });
@@ -52,7 +58,8 @@ export function fixtureTransport({ pause = async () => {} }: { pause?: (millisec
     }
     if (request.path.startsWith('/api/transactions?')) {
       const month = request.path.split('month=')[1]?.split('&')[0] ?? new Date().toISOString().slice(0, 7);
-      const items = transactions.filter(transaction => transaction.transactionDate.startsWith(month));
+      const requestedScope = decodeURIComponent(/[?&]householdId=([^&]+)/.exec(request.path)?.[1] ?? householdId);
+      const items = transactions.filter(transaction => transaction.transactionDate.startsWith(month) && !transaction.deletedAt && transaction.householdId === requestedScope);
       const page = Math.max(1, Number(/[?&]page=(\d+)/.exec(request.path)?.[1] ?? 1));
       return ok({ items: items.slice((page - 1) * 30, page * 30), totalCount: items.length, totalPages: Math.ceil(items.length / 30), page, pageSize: 30, month });
     }

@@ -45,7 +45,7 @@ export function AccountFormScreen({ navigation, route }: ScreenProps<'AccountFor
       <Field label="Institution (optional)" value={institution} onChangeText={setInstitution} maxLength={128} editable={!mutation.blocked} />
       <Field label="Last four digits (optional)" value={last4} onChangeText={setLast4} keyboardType="number-pad" maxLength={4} editable={!mutation.blocked} />
       <Field label="Aliases, separated by commas" value={aliases} onChangeText={setAliases} maxLength={1024} editable={!mutation.blocked} placeholder="salary account, daily card" />
-      <Toggle label="Shared household account" value={shared} onChange={setShared} disabled={mutation.blocked} detail="Use this for an account shared with household members." />
+      <Toggle label="Shared household account" value={shared} onChange={setShared} disabled={mutation.blocked || !!original} detail={original ? 'Sharing is fixed when the account is created.' : 'Use this for an account shared with household members.'} />
       <Toggle label="Account is active" value={active} onChange={setActive} disabled={mutation.blocked} detail="Inactive accounts stay in history and cannot be used for new entries." />
       <Button title="Save account" disabled={mutation.blocked} loading={mutation.busy} onPress={save} />
     </>}

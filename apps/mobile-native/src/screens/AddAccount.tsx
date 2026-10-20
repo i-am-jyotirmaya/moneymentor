@@ -6,11 +6,13 @@ import { useHeaderHeight } from '@react-navigation/elements';
 import type { FinancialAccount } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
 import { OperationNotice, useOperations } from '../state/operations';
+import { useWorkspace } from '../state/workspace';
 import { Button, ErrorNotice, Field, styles } from '../ui/primitives';
 import type { ScreenProps } from '../navigation';
 
 export function AddAccountScreen({ navigation }: ScreenProps<'AddAccount'>) {
   const entry = useEntry();
+  const { api, scope } = useWorkspace();
   const query = useQueryClient();
   const headerHeight = useHeaderHeight();
   const operations = useOperations();
@@ -22,7 +24,7 @@ export function AddAccountScreen({ navigation }: ScreenProps<'AddAccount'>) {
     if (!name.trim()) { setError('Give this account a name.'); return; }
     setError(null);
     try {
-      const account = await operations.guard.run('Add financial account', () => entry.client.createAccount(name, type));
+      const account = await operations.guard.run('Add financial account', () => api.saveAccount({ householdId: scope, name: name.trim(), accountType: type, institution: null, last4: null, aliases: [], shared: false, isActive: true }));
       await query.invalidateQueries({ queryKey: ['entry'] });
       entry.updateManual({ accountId: account.id }); navigation.goBack();
     } catch (caught) {

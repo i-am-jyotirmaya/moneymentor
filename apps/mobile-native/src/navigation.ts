@@ -11,4 +11,4 @@ export type Routes = {
   Insights: undefined; Households: undefined; Settings: undefined;
 };
 export type ScreenProps<T extends keyof Routes> = NativeStackScreenProps<Routes, T>;
-export type FeatureNavigationProps = { navigation: NativeStackNavigationProp<Routes> };
+export type FeatureNavigationProps = { navigation: Pick<NativeStackNavigationProp<Routes>, 'navigate'> };

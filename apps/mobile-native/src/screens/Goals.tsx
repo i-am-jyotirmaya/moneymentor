@@ -70,7 +70,8 @@ export function GoalScreen({ navigation, route }: ScreenProps<'Goal'>) {
   const record = records.records[id]; const runId = record?.householdId === scope ? record.runId : undefined;
   const run = useQuery({ queryKey: ['planning-run', scope, id, runId], queryFn: () => api.planningRun(id, runId!), enabled: !!runId,
     refetchInterval: state => ['Pending', 'Processing'].includes(state.state.data?.status ?? '') ? 2500 : false, refetchIntervalInBackground: false });
-  useEffect(() => { if (run.data && !['Pending', 'Processing'].includes(run.data.status)) void query.invalidateQueries({ queryKey: ['goal', scope, id] }); }, [run.data?.status, run.data?.id, scope, id, query]);
+  const runStatus = run.data?.status;
+  useEffect(() => { if (runStatus && !['Pending', 'Processing'].includes(runStatus)) void query.invalidateQueries({ queryKey: ['goal', scope, id] }); }, [runStatus, scope, id, query]);
   const [amount, setAmount] = useState(''); const [contributionDate, setContributionDate] = useState(today); const [message, setMessage] = useState<string | null>(null);
   const [pace, setPace] = useState<GoalPlanPace | 'all'>('all'); const [date, setDate] = useState(''); const [monthly, setMonthly] = useState(''); const [context, setContext] = useState('');
   const working = !!runId && (run.isPending || run.isError || ['Pending', 'Processing'].includes(run.data?.status ?? ''));
@@ -118,7 +119,7 @@ export function GoalScreen({ navigation, route }: ScreenProps<'Goal'>) {
       <CalendarField label="Plan target date" today={today} value={date} onChange={setDate} allowFuture optional disabled={planBlocked} />
       <MoneyField label="Plan monthly contribution (optional)" currency={currency} value={monthly} onChange={setMonthly} disabled={planBlocked} />
       <Button title="Generate plan" disabled={planBlocked} loading={mutation.busy} onPress={generate} />
-      <Field label="Customization context (optional)" value={context} onChangeText={setContext} multiline maxLength={2000} editable={!planBlocked} />
+      <Field label="Customization context (optional)" value={context} onChangeText={setContext} multiline maxLength={1000} editable={!planBlocked} />
       {detail.data.plan?.versions.map(version => <Card key={version.id}>
         <Text style={styles.heading}>Version {version.versionNumber} · {version.source}</Text><Text style={styles.caption}>{detail.data.plan?.activeVersionId === version.id ? 'Following this version' : 'Available plan version'}</Text>
         {version.options.map(option => <View key={option.id} style={{ gap: 12 }}><Text style={styles.heading}>{option.title}{option.isRecommended ? ' · Suggested' : ''}</Text>
