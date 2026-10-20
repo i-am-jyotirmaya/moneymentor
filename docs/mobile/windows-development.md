@@ -46,7 +46,7 @@ For automation, put `EXPO_TOKEN` in GitHub/EAS secrets. Never commit that token,
 | `development` | Native dev client + Metro | Android APK; iOS registered-device development/ad-hoc provisioning |
 | `development-simulator` | iOS simulator dev client | Simulator `.app`; no iPhone installation |
 | `preview` | Standalone internal review | Android APK; iOS ad-hoc registered devices |
-| `e2e` | Standalone fixture-driven native acceptance | Android QA APK and unsigned iOS simulator build; separate app ID |
+| `e2e` | Standalone fixture-driven native acceptance | Android QA APK and iOS simulator app; separate app ID, no developer-account/device provisioning |
 | `production` | Future store candidate after all gates pass | Android AAB and signed iOS archive; existing `com.spndrr.app` identifier |
 
 The default native development/preview ID is `com.spndrr.app.rn`, allowing installation beside Capacitor. The QA ID adds `.e2e`. Each segment is a valid Java identifier; avoid reserved words such as `native`. Do not replace the existing production app before parity, account controls, and device acceptance are complete.
@@ -74,6 +74,8 @@ npx eas-cli@latest workflow:run .eas/workflows/native-acceptance.yml
 The mobile-specific GitHub workflow also compiles an iOS simulator release on a hosted macOS runner and runs Maestro. Xcode applies a simulator-only ad-hoc identity and embeds the Keychain entitlements; no Apple signing account is required. The generated entitlement changes are restricted to the QA simulator application. This route needs no personal Mac or Expo account for the fixture suite. It cannot produce a signed installable iPhone/TestFlight build; that still follows the EAS/Apple workflow above.
 
 This fixture suite checks native UI behavior. It does not test the real HTTPS backend, production signing, native refresh-cookie behavior, receipt/image permissions, or physical-device performance. Treat those as separate acceptance items. EAS Workflows usage, supported workers, account eligibility, and plan quotas must be checked for the actual account.
+
+The GitHub workflow has a separate real-HTTPS scenario after transaction acceptance: it runs the unchanged API and an isolated PostgreSQL cluster on the hosted Mac, trusts a one-day local certificate only in the disposable simulator, and cold-launches the QA app against `https://localhost:7443`. This tests the native cookie adapter and encrypted session restoration rather than the fixture transport. It is configured and awaiting its first complete result. The trusted certificate/private key are neither production credentials nor part of the app artifact; no production trust policy changes. The supported Windows/EAS physical-device route above remains necessary for real hardware/network validation.
 
 Interactive EAS Simulator is currently advertised as preview/access-controlled. It is optional and is not a release dependency. With an authenticated Expo account, check actual eligibility before attempting a session:
 
@@ -106,8 +108,8 @@ As checked on 2026-10-19, Expo's pricing page lists a Free allowance of up to 15
 | Metro export | JavaScript bundles resolve | Both platforms passed on hosted CI |
 | Android Gradle compilation | Native Android binary compiles | Passed; full native transaction scenario passed in run 39246337227 |
 | EAS iOS compilation | iOS binary compiles on cloud macOS | Configured; account/signing not linked |
-| GitHub unsigned iOS simulator compilation | Simulator Release binary compiles on hosted macOS | Passed; app artifact uploaded |
-| GitHub iOS simulator execution | Maestro scenarios exercise the native app | Login/input exercised; full scenario pending keyboard-control rerun |
+| GitHub iOS simulator compilation | Simulator Release binary compiles with simulator-only ad-hoc entitlements | Passed; app artifact uploaded, no Apple account needed |
+| GitHub iOS simulator execution | Maestro scenarios exercise the native app | Full transaction flow passed in run 39366006614; separate stress/native-HTTPS gates still pending |
 | Cloud Maestro execution | Tested scenarios ran in a simulator | Configured; not run |
 | Physical Android/iPhone tests | Actual device/API/keyboard/cookie behavior | Not run |
 | TestFlight upload | Apple accepted a processed build for testing | Not run |

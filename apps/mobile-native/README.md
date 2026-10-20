@@ -24,6 +24,8 @@ The native lockfile was resolved by GitHub CI and committed separately from the 
 
 `npm run android` generates and compiles a development client with Android Studio/JDK installed. Subsequent JavaScript changes use `npm start`. Expo Go cannot validate the native cookie module. Native HTTP is restricted to HTTPS. No backend API keys, signing secrets, or credentials belong in `EXPO_PUBLIC_*` variables.
 
+The existing backend must also advertise an HTTPS `Product:PublicWebUrl` for its public privacy-policy link. The native consent gate loads that current policy/version from the API and does not enable acceptance if the metadata is unavailable or unverifiable. A backend development profile that advertises `http://localhost:3000` needs a separate environment-configuration follow-up; this migration does not alter backend or web configuration.
+
 This app intentionally uses its own npm dependency boundary. Existing root `mobile:*` commands continue to target Capacitor. The shared package is a local file dependency included from the repository root. Do not run the native app's dependency installation against the web package.
 
 For Windows/iPhone cloud builds, EAS project linking, signing, TestFlight, cloud simulator testing, and costs, follow [windows-development.md](../../docs/mobile/windows-development.md). For profiling and exact validation evidence, see [performance.md](../../docs/mobile/performance.md).
