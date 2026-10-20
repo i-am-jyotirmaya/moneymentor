@@ -10,7 +10,9 @@
   "expo": {
     "doctor": {
       "reactNativeDirectoryCheck": {
-        "exclude": ["@spndrr/finance-core"]
+        "exclude": [
+          "@spndrr/finance-core"
+        ]
       }
     }
   },
@@ -52,7 +54,11 @@
     "react-native-safe-area-context": "5.7.0",
     "react-native-screens": "4.26.0",
     "expo-constants": "57.0.22",
-    "@react-native-community/datetimepicker": "9.1.0"
+    "@react-native-community/datetimepicker": "9.1.0",
+    "@react-navigation/bottom-tabs": "7.21.0",
+    "expo-file-system": "57.0.7",
+    "expo-sharing": "57.0.23",
+    "expo-speech-recognition": "57.0.0"
   },
   "devDependencies": {
     "@react-native/jest-preset": "0.86.3",
