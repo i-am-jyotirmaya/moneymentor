@@ -40,6 +40,17 @@ export function isTransaction(value: unknown): value is Transaction {
     && Number.isFinite(t.amount) && t.amount > 0 && typeof t.transactionDate === "string"
     && typeof t.currencyCode === "string" && ["Expense", "Income", "Transfer", "Investment"].includes(t.type);
 }
+const isAccount = (a: FinancialAccount | null) => !!a && typeof a.id === 'string' && !!a.id
+  && typeof a.householdId === 'string' && typeof a.name === 'string' && typeof a.isActive === 'boolean'
+  && typeof a.currencyCode === 'string' && /^[A-Z]{3}$/.test(a.currencyCode)
+  && ['BankAccount', 'CreditCard', 'Cash', 'Wallet'].includes(a.accountType);
+function validSettings(value: UserSettings | null): value is UserSettings {
+  if (!value || typeof value.userProfileId !== 'string' || typeof value.displayName !== 'string'
+    || typeof value.email !== 'string' || typeof value.currencyCode !== 'string' || !/^[A-Z]{3}$/.test(value.currencyCode)
+    || typeof value.timeZone !== 'string' || !['Free', 'Premium'].includes(value.plan)
+    || typeof value.requireMerchantForExpenses !== 'boolean' || !['Private', 'Household'].includes(value.defaultTransactionVisibility)) return false;
+  try { new Intl.DateTimeFormat('en', { timeZone: value.timeZone }); return true; } catch { return false; }
+}
 
 export class FinanceClient {
   private transport: Transport;
@@ -165,11 +176,37 @@ export class FinanceClient {
     }
     return result as T;
   }
-  categories(householdId?: string) { return this.request<CategoryCatalog>(`/api/categories${householdId ? `?householdId=${encodeURIComponent(householdId)}` : ''}`); }
-  accounts(householdId?: string) { return this.request<FinancialAccount[]>(`/api/financial-accounts${householdId ? `?householdId=${encodeURIComponent(householdId)}` : ''}`); }
-  settings() { return this.request<UserSettings>("/api/settings/me"); }
-  transactions(month: string, page = 1, householdId?: string) {
-    return this.request<TransactionPage>(`/api/transactions?month=${encodeURIComponent(month)}&page=${page}&pageSize=30${householdId ? `&householdId=${encodeURIComponent(householdId)}` : ''}`);
+  async categories(householdId?: string): Promise<CategoryCatalog> {
+    const value = await this.request<CategoryCatalog>(`/api/categories${householdId ? `?householdId=${encodeURIComponent(householdId)}` : ''}`);
+    if (!value || typeof value.householdId !== 'string' || (householdId && value.householdId !== householdId)
+      || typeof value.canWrite !== 'boolean' || !Array.isArray(value.categories) || !value.categories.every(c => c && typeof c.id === 'string'
+        && typeof c.name === 'string' && ['Expense', 'Income'].includes(c.type) && typeof c.isHidden === 'boolean'
+        && (c.parentCategoryId === null || typeof c.parentCategoryId === 'string') && Number.isFinite(c.sortOrder))) {
+      throw new ApiError('Your category data could not be verified. Refresh before entering a transaction.');
+    }
+    return value;
+  }
+  async accounts(householdId?: string): Promise<FinancialAccount[]> {
+    const value = await this.request<FinancialAccount[]>(`/api/financial-accounts${householdId ? `?householdId=${encodeURIComponent(householdId)}` : ''}`);
+    if (!Array.isArray(value) || !value.every(a => isAccount(a) && (!householdId || a.householdId === householdId))) {
+      throw new ApiError('Your account data could not be verified. Refresh before entering a transaction.');
+    }
+    return value;
+  }
+  async settings(): Promise<UserSettings> {
+    const value = await this.request<UserSettings>('/api/settings/me');
+    if (!validSettings(value)) throw new ApiError('Your currency and time-zone settings could not be verified. Refresh before entering a transaction.');
+    return value;
+  }
+  async transactions(month: string, page = 1, householdId?: string): Promise<TransactionPage> {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !Number.isSafeInteger(page) || page < 1) throw new ApiError('Choose a valid transaction month and page.');
+    const value = await this.request<TransactionPage>(`/api/transactions?month=${encodeURIComponent(month)}&page=${page}&pageSize=30${householdId ? `&householdId=${encodeURIComponent(householdId)}` : ''}`);
+    if (!value || value.month !== month || value.page !== page || !Number.isSafeInteger(value.pageSize) || value.pageSize < 1
+      || !Number.isSafeInteger(value.totalCount) || value.totalCount < 0 || !Number.isSafeInteger(value.totalPages) || value.totalPages < 0
+      || !Array.isArray(value.items) || value.items.length > value.pageSize || !value.items.every(t => isTransaction(t) && (!householdId || t.householdId === householdId))) {
+      throw new ApiError('Your transaction history could not be verified. Refresh to load the saved records.');
+    }
+    return value;
   }
   async createTransaction(intent: Readonly<TransactionIntent>): Promise<Transaction> {
     const value = await this.request<unknown>("/api/transactions", "POST", intent);
