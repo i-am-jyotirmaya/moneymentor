@@ -34,3 +34,13 @@ test('invalid history query parameters are rejected before making a network requ
   for (const [month, page] of [['2026-13', 1], ['2026-10', 0], ['2026-10', 1.5]]) await assert.rejects(client.transactions(month, page), ApiError);
   assert.equal(calls.length, 1, 'Only the explicit login request');
 });
+test('public policy reads reject missing versions and non-HTTPS policy links before consent', async () => {
+  const policy = { version: 'current', effectiveDate: '2026-10-20', policyUrl: 'https://example.test/privacy', supportEmail: 'support@example.test' };
+  for (const data of [null, { ...policy, version: '' }, { ...policy, policyUrl: 'http://example.test/privacy' }, { ...policy, policyUrl: 'javascript:alert(1)' }]) {
+    const { client } = await clientFor(data); await assert.rejects(client.privacyPolicy(), ApiError);
+  }
+  const { client } = await clientFor(policy); assert.deepEqual(await client.privacyPolicy(), policy);
+});
+test('an unknown registration mode cannot silently enable open signup', async () => {
+  const { client } = await clientFor({ mode: 'Unexpected' }); await assert.rejects(client.registration(), ApiError);
+});
