@@ -78,10 +78,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/mobile-native/package-lock.json
       - name: Install isolated native dependencies
-        run: |
-          # One-time dependency migration: retain the generated lock artifact for review.
-          npm install --package-lock-only --ignore-scripts
-          npm ci
+        run: npm ci
       - name: Record runtime dependency advisories
         run: npm audit --omit=dev --audit-level=critical --json > dependency-audit.json
       - name: Preserve the resolved lockfile and audit for review
@@ -171,9 +168,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/mobile-native/package-lock.json
       - name: Install isolated native dependencies
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          npm ci
+        run: npm ci
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
