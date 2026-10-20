@@ -62,6 +62,7 @@ export function HomeScreen({ navigation }: ScreenProps<'Home'>) {
         <Card dark><Text style={[styles.heading, { color: color.surface }]}>What happened today?</Text>
           <Text style={[styles.body, { color: '#dbe7d5' }]}>Tell Spndrr about a transaction, or enter the details yourself.</Text>
           <Button title={entry.draft.pendingManual || entry.draft.assistantUncertain ? 'Review pending transaction' : entry.draft.text || entry.draft.manual.amount ? 'Continue your draft' : 'Add a transaction'}
+            testID="open-composer"
             onPress={() => { entry.setSaved(null); navigation.navigate('Composer'); }} disabled={!entry.resources.canWrite || (entry.saved !== null && entry.persistenceError !== null)} secondary />
         </Card>
         {entry.saved ? <Text accessibilityLiveRegion="polite" style={styles.caption}>Last saved: {formatMoney(entry.saved.amount, entry.saved.currencyCode)} · {entry.saved.accountName ?? entry.saved.kind}</Text> : null}

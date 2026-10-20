@@ -22,9 +22,14 @@ native_activity="$(adb shell cmd package resolve-activity --brief "$native_packa
 adb shell am start -W -S -n "$native_activity" > "$native_evidence/activity-start.txt"
 adb shell dumpsys gfxinfo "$native_package" reset > /dev/null
 
+native_scenario=transaction
 collect_evidence() {
-  adb shell dumpsys gfxinfo "$native_package" framestats > "$native_evidence/frames.txt"
-  adb shell dumpsys meminfo "$native_package" > "$native_evidence/memory.txt"
+  adb shell dumpsys gfxinfo "$native_package" framestats > "$native_evidence/$native_scenario-frames.txt"
+  adb shell dumpsys meminfo "$native_package" > "$native_evidence/$native_scenario-memory.txt"
 }
 trap collect_evidence EXIT
 "$HOME/.maestro/bin/maestro" test .maestro/transaction.yml
+collect_evidence
+native_scenario=performance
+adb shell dumpsys gfxinfo "$native_package" reset > /dev/null
+"$HOME/.maestro/bin/maestro" test .maestro/performance.yml

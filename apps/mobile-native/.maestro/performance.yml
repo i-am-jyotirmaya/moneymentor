@@ -1,0 +1,81 @@
+appId: com.spndrr.app.rn.e2e
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Sign in'
+    timeout: 30000
+- tapOn:
+    id: email-input
+- inputText: qa@example.test
+- scrollUntilVisible:
+    element:
+      id: password-input
+    direction: DOWN
+- tapOn:
+    id: password-input
+- inputText: fixture-only
+- scrollUntilVisible:
+    element: 'Sign in'
+    direction: DOWN
+- tapOn: 'Sign in'
+- extendedWaitUntil:
+    visible:
+      id: open-composer
+    timeout: 30000
+- tapOn:
+    id: open-composer
+- tapOn:
+    id: assistant-input
+- inputText: 'simulate history'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- tapOn: 'Send & track'
+- extendedWaitUntil:
+    visible: 'Benchmark history ready.'
+    timeout: 30000
+- tapOn:
+    id: composer-close
+- scrollUntilVisible:
+    element: 'Benchmark item 1'
+    direction: DOWN
+- repeat:
+    times: 16
+    commands:
+      - swipe:
+          direction: UP
+- takeScreenshot: native-large-history
+- scrollUntilVisible:
+    element:
+      id: open-composer
+    direction: UP
+    timeout: 60000
+- repeat:
+    times: 6
+    commands:
+      - tapOn:
+          id: open-composer
+      - tapOn: 'Enter details'
+      - tapOn:
+          id: amount-input
+      - eraseText
+      - inputText: '12.34'
+      - tapOn:
+          id: keyboard-dismiss
+          optional: true
+      - tapOn: '^Category: .*'
+      - tapOn:
+          id: category-search
+      - inputText: 'Groceries'
+      - tapOn:
+          id: keyboard-dismiss
+          optional: true
+      - tapOn: 'Food / Groceries,.*'
+      - tapOn:
+          id: composer-close
+- assertVisible: 'Continue your draft'
+- takeScreenshot: native-restored-draft
+- tapOn: 'Sign out'
+- tapOn: 'Sign out and clear draft'
+- assertVisible: 'Sign in'

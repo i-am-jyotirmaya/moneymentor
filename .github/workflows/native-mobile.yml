@@ -217,6 +217,7 @@ jobs:
           xcrun simctl install "$native_device" "$native_app"
           xcrun simctl launch "$native_device" com.spndrr.app.rn.e2e
           $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/transaction.yml
+          $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/performance.yml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
