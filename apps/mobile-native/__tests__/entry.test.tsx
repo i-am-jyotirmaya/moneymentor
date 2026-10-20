@@ -12,7 +12,7 @@ import { ManualForm } from '../src/ui/ManualForm';
 jest.mock('react-native-safe-area-context', () => jest.requireActual('react-native-safe-area-context/jest/mock').default);
 jest.mock('@react-native-community/datetimepicker', () => ({ __esModule: true, default: () => null, DateTimePickerAndroid: { open: jest.fn() } }));
 const navigation = { navigate: jest.fn(), goBack: jest.fn(), popToTop: jest.fn() };
-async function setup(mode: 'manual' | 'text' = 'manual', description = '') {
+async function setup(mode: 'manual' | 'text' = 'manual', description = '', income = false) {
   const fixture = fixtureTransport(); const client = new FinanceClient(fixture.transport, fixture.clear);
   await client.login('qa@example.test', 'fixture-only');
   const [catalog, accounts, settings] = await Promise.all([client.categories(), client.accounts(), client.settings()]);
@@ -20,7 +20,7 @@ async function setup(mode: 'manual' | 'text' = 'manual', description = '') {
   const values = new Map<string, string>();
   const vault = new SecureJsonStore({ get: async key => values.get(key) ?? null, set: async (key, value) => { values.set(key, value); }, remove: async key => { values.delete(key); } }, 'test');
   const draft: ComposerDraft = { version: 1, ownerId: 'alice', text: '', assistantUncertain: false, pendingManual: null,
-    manual: { ...emptyDraft(settings, resources.today), amount: mode === 'manual' ? '40.29' : '', accountId: accounts[1]!.id, categoryId: 'groceries', description } };
+    manual: { ...emptyDraft(settings, resources.today), eventKind: income ? 'Income' : 'Purchase', amount: mode === 'manual' ? '40.29' : '', accountId: accounts[1]!.id, categoryId: income ? 'salary' : 'groceries', description } };
   await vault.put(draft);
   const query = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   const wrap = (element: ReactNode) => <QueryClientProvider client={query}><EntryProvider ownerId="alice" resources={resources} client={client} vault={vault}>{element}</EntryProvider></QueryClientProvider>;
@@ -50,6 +50,15 @@ test('manual entry persists a real receipt only after API acknowledgement', asyn
   fireEvent.press(screen.getByText('Save transaction'));
   await waitFor(() => expect(screen.getByText('Transaction saved')).toBeTruthy());
   expect((await client.transactions('2026-10')).items).toHaveLength(1);
+});
+test('manual income preserves its own event kind and income category', async () => {
+  const { wrap, client } = await setup('manual', 'Salary receipt', true);
+  const screen = render(wrap(<ComposerScreen navigation={navigation as never} route={{ key: 'composer', name: 'Composer' }} />));
+  await waitFor(() => expect(screen.getByText('Save transaction')).toBeTruthy());
+  fireEvent.press(screen.getByText('Save transaction'));
+  await waitFor(() => expect(screen.getByText('Transaction saved')).toBeTruthy());
+  const records = (await client.transactions('2026-10')).items;
+  expect(records).toHaveLength(1); expect(records[0]?.kind).toBe('Income'); expect(records[0]?.categoryId).toBe('salary');
 });
 test('unknown manual outcome locks details and retries the same operation without duplication', async () => {
   const { wrap, client } = await setup('manual', 'simulate lost response');

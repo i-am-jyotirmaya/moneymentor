@@ -70,6 +70,33 @@ appId: com.spndrr.app.rn.e2e
 - tapOn: 'Done'
 - tapOn: 'Done'
 - tapOn: 'Add a transaction'
+- tapOn: 'Enter details'
+- tapOn: 'Income'
+- tapOn:
+    id: amount-input
+- inputText: '1234.56'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- tapOn: 'Category: Choose category or subcategory'
+- tapOn:
+    id: category-search
+- inputText: 'Salary'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- tapOn: 'Salary,.*'
+- tapOn: 'Account: Choose payment account'
+- tapOn: 'Kotak, Bank account'
+- scrollUntilVisible:
+    element: 'Save transaction'
+    direction: DOWN
+- tapOn: 'Save transaction'
+- assertVisible: 'Transaction saved'
+- assertVisible: 'Salary'
+- takeScreenshot: native-income-receipt
+- tapOn: 'Done'
+- tapOn: 'Add a transaction'
 - tapOn:
     id: assistant-input
 - inputText: 'coffee'
