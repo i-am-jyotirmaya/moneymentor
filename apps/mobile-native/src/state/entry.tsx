@@ -39,13 +39,14 @@ export function EntryProvider({ children, ownerId, resources, client, vault, his
   const resetting = useRef(false);
   const [conversation, setConversation] = useState<AssistantExchange[]>([]); const conversationRef = useRef<AssistantExchange[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null); const historyReady = useRef(!historyVault);
+  const historyRestore = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
     if (!historyVault) return;
     let alive = true;
-    void historyVault.get().then(value => {
+    historyRestore.current = historyVault.get().then(value => {
       const restored = value === null ? [] : decodeAssistantHistory(value, ownerId, resources.householdId);
       if (!restored) throw Error('Unrecognized assistant history.');
-      if (alive) { conversationRef.current = restored; setConversation(restored); historyReady.current = true; }
+      if (alive && !closed.current) { conversationRef.current = restored; setConversation(restored); historyReady.current = true; }
     }).catch(() => { if (alive) setHistoryError('Your on-device conversation preview could not be restored. Saved transactions are unaffected.'); });
     return () => { alive = false; };
   }, [historyVault, ownerId, resources.householdId]);
@@ -85,6 +86,7 @@ export function EntryProvider({ children, ownerId, resources, client, vault, his
     client, resources, draft, busy, persistenceError, saved, reply, edit, update, persist, setReply, setSaved,
     conversation, historyError,
     recordExchange: async (text, reply, transactionId) => {
+      await historyRestore.current;
       if (closed.current || !historyReady.current) return;
       const date = new Date().toISOString();
       const exchanges = appendAssistantHistory(conversationRef.current, { id: `${date}:${conversationRef.current.length}`, text, reply, date, transactionId });

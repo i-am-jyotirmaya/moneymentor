@@ -115,7 +115,7 @@ As checked on 2026-10-19, Expo's pricing page lists a Free allowance of up to 15
 | TestFlight upload | Apple accepted a processed build for testing | Not run |
 | Store publication | Approved public distribution | Deliberately not performed |
 
-GitHub builds separate QA APKs for the x86_64 emulator and ARM64 phones. Download `spndrr-native-qa-arm64-v8a-apk` after its build succeeds to profile a physical Android phone from Windows without an Expo account. The ARM build is configured but not yet validated. This fixture-only QA app has its own identifier and does not replace Capacitor or connect to production data. Use EAS development/preview builds for the real configured HTTPS API. Native validation results and remaining device gates are recorded in [performance.md](performance.md).
+GitHub builds separate QA APKs for the x86_64 emulator and ARM64 phones. Download `spndrr-native-qa-arm64-v8a-apk` from a successful run to profile a physical Android phone from Windows without an Expo account. ARM64 Release QA compilation passed in run 39370002645 and again for the financial-screen checkpoint in run 39374452317; physical-phone installation/profiling remains unverified. This fixture-only QA app has its own identifier and does not replace Capacitor or connect to production data. Use EAS development/preview builds for the real configured HTTPS API. Native validation results and remaining release checks are recorded in [performance.md](performance.md).
 
 With Android platform-tools on Windows, extract that QA artifact and enable USB debugging on your own test phone:
 
