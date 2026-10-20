@@ -65,11 +65,15 @@ Backend reference deduplication is not a generic idempotency API. It is scoped t
 | Transaction editing | Web transaction panel | Edit the saved transaction through PATCH; first slice |
 | Recent history | Web transaction list/pagination | Native virtualized verification list; first slice |
 | Privacy consent | Web consent gate | Native consent gate using current policy/API; first slice |
-| Dashboard/insights/reports | Re-exported web screens | Milestone 3; retain Capacitor meanwhile |
-| Budgets/commitments/goals | Web planning forms and asynchronous plans | Milestone 3; no new budget endpoint invented |
-| Transfers/card payments/refunds | Account-aware backend semantics | Milestone 3 after slice validation; never model as generic income/expense |
-| Account/category management | Web settings | Basic account creation needed for first entry; broader management milestone 3 |
-| Household/privacy/settings/export | Web screens/native share adapter | Milestone 3/4 |
+| Bottom navigation/dashboard | Re-exported web screens | Native Today/Overview/Plan/Insights/More tabs, scoped server totals, budget detail and accessible category charts implemented |
+| History/search/filter/trash | Web transaction list | Native paginated virtualized list, loaded-page search, account/category/event filters, detail, soft delete and restore implemented |
+| Insights/reports | Web Judgement Engine panels | Native active insights, private explanations, dismiss, personal/household weekly/monthly reports and history implemented |
+| Budgets/commitments/goals | Web planning forms and asynchronous plans | Server budget presentation, goal CRUD/status/contribution, recurring commitment management and async plan generation/customization/review/activation implemented; no budget CRUD endpoint exists |
+| Transfers/card payments/refunds | Account-aware backend semantics | Native transfer/card settlement/withdrawal/refund/reversal/reward/fee/interest/investment forms preserve exact accounts and financial event kinds |
+| Account/category management | Web settings | Native account names/types/aliases/institution/last four/status, custom categories/hierarchy/classification/hide/delete implemented. Sharing stays fixed after account creation; system categories remain read only |
+| Households/scope/roles/invitations | Web household screens | Scoped resources/cache keys/drafts, read-only role affordances, create/settings/invite/delivery status/accept/decline implemented; server authorizes every operation |
+| Settings/privacy/export/deletion | Web forms/native share adapter | Native preferences, current-policy links, JSON export through native share, temporary-copy removal and confirmed account deletion implemented; export/deletion remain available before updated-policy acceptance |
+| Assistant conversations | In-session web assistant | Native write-on-message composer plus bounded encrypted per-owner/per-household conversation previews. No server history endpoint exists; local previews are clearly labeled and can be cleared |
 | Signup/access/invitations | Shared web request-only flow and links | Native signup/request-only access, privacy and invitation deep links implemented; actual email delivery/links still need device acceptance |
 | Voice | Capacitor native system recognizer | Reviewed system dictation implemented; permission/cancellation component coverage added, native service acceptance pending |
 | Multiple screenshots/OCR | Separate unmerged input pipeline work | Milestone 4 once actual API contract is available |
@@ -82,6 +86,16 @@ Transaction entry has passed hosted Android and iOS functional acceptance. Andro
 Milestone 1: audit, decision, shared boundaries, native bootstrap and build configuration.
 Milestone 2: transaction entry, native design/motion foundations, automated tests, device acceptance.
 Milestones 3–5 are in progress: financial screens; supported native inputs; performance and distribution sign-off. Each feature's incomplete status must stay visible in the PR. Image processing still requires an actual backend contract. Do not claim the entire migration or release acceptance until the corresponding checks pass.
+
+## Remaining acceptance and contract gaps
+
+The existing API-supported screen inventory is implemented. Hosted strict native TypeScript/lint, 49 component/adapter tests, Android/iOS Metro exports and the real HTTPS API contract suite passed for the financial-screen checkpoint (run 39375158212). Subsequent conversation/privacy refinements and the broader native `workspace.yml` flow are still under validation. Do not equate screen implementation or compilation with passing runtime acceptance for every feature.
+
+- The current backend has no receipt/image/multiple-attachment endpoint, server conversation-history API, budget CRUD endpoint or household member-list/role-edit/removal API. Native UI does not invent these contracts. Budget values are presented from server summaries; households show the roles/memberships/invitations the API exposes.
+- Existing goal target dates/monthly targets, category parent links and commitment goal/category links can be changed where the API permits, but null PATCH fields do not clear them. Forms preserve that behavior. System categories cannot be changed. Account sharing cannot be changed after creation.
+- Plan run IDs are encrypted and restored for polling after process restart. Non-idempotent writes record an owner/household marker before sending. Unknown outcomes block further writes; users can view another household to reconcile the correct data. Assistant previews are bounded local copies, not server conversation synchronization.
+- Physical-device motion, large-text/screen-reader/high-refresh acceptance, real microphone service behavior, iOS device signing/TestFlight and production API/EAS identity remain release checks. Software-emulator frame budgets have not passed.
+- Keep Capacitor available until feature and release acceptance. No production deployment, OTA publication, web/backend change or pre-existing workflow modification is part of this PR.
 
 ## Sources
 

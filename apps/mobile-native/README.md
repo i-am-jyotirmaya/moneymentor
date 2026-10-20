@@ -1,8 +1,8 @@
 # Spndrr native mobile
 
-React Native / Expo SDK 57 transaction-entry implementation. This is a separate native app, with no WebView or Next.js presentation dependency. The existing `apps/mobile` Capacitor app and web app remain available during migration.
+React Native / Expo SDK 57 financial workspace. This is a separate native app, with no WebView or Next.js presentation dependency. The existing `apps/mobile` Capacitor app and web app remain available during release acceptance.
 
-Implemented: native sign-in/signup/access-request/privacy gates, assistant text entry and clarification, reviewed system dictation, manual expense/income entry, hierarchical category/account/payment selection, account creation, confirmed receipts, saved-record editing, recent-history verification, secure draft restoration, and guarded retries. Remaining features and release gates are listed in [native-migration.md](../../docs/mobile/native-migration.md).
+Implemented: native auth/privacy, five bottom tabs, dashboard/budget/category summaries, paginated history/search/filters/trash/detail, structured entry/edit and special financial events, full supported account/category forms, goals/contributions/asynchronous plans, commitments, insights/reports, household scope/roles/invitations, preferences, native JSON export and account deletion. The assistant supports reviewed dictation, clarification and encrypted on-device conversation previews. Runtime evidence and remaining API/release gaps are listed in [native-migration.md](../../docs/mobile/native-migration.md).
 
 ## Quick start
 
@@ -40,7 +40,7 @@ $env:EXPO_PUBLIC_E2E="1"
 npm run android
 ```
 
-The QA fixture supports `simulate lost response` in a manual note (commits once, loses the first response), `simulate validation` (400 without a save), and assistant message `simulate failure` (unknown outcome). Its in-memory server state resets when the process restarts; it cannot establish real backend or native-cookie persistence correctness. The Maestro flow covers manual entry, exact credit-card selection, category selection, edit, assistant clarification, and failure reconciliation.
+The QA fixture supports `simulate lost response` in a manual note (commits once, loses the first response), `simulate validation` (400 without a save), and assistant message `simulate failure` (unknown outcome). Its in-memory server state resets when the process restarts; it cannot establish real backend or native-cookie persistence correctness. Transaction acceptance covers entry, exact credit-card/category choice, editing, clarification and failure reconciliation. Workspace acceptance traverses tabs, goals/contributions/plans, accounts/categories, insights/settings and read-only household switching. The QA plan is deterministic and never calls an external model.
 
 `simulate history` seeds 10,000 QA records with cooperative scheduling. `simulate slow response` in a manual note acknowledges its committed record after ten seconds. The performance flow scrolls the paginated history and repeats six composer/keyboard/category-selection cycles; native frame/memory evidence is retained separately from functional assertions.
 
@@ -50,11 +50,15 @@ The iOS CI workflow additionally prepares an isolated local .NET/PostgreSQL back
 
 Access tokens are held in memory. An adapter persists only the existing auth cookies in SecureStore and restores them into the platform networking jar for auth requests. The app has one API jar and no embedded web sessions. Android's cookie API loses attribute metadata, so restoration applies the existing HTTPS-only `/api/auth` policy; the API remains authoritative for expiry/revocation. This needs actual Android/iOS acceptance testing.
 
-Drafts are encrypted and scoped by API origin plus user ID. Two storage banks commit a manifest only after all chunks are written. Edits are saved after 300 ms of idle typing and on backgrounding; transaction-operation markers are durably written before sending. A force kill within the debounce window can lose the last few keystrokes. Saved-record edits remain in memory and prompt before discarding; durable restoration of an unfinished edit is outstanding.
+Drafts are encrypted and scoped by API origin, owner and household (the personal workspace retains its compatible original key). Two storage banks commit a manifest only after all chunks are written. Draft changes are saved after 300 ms of idle typing and on backgrounding; transaction-operation markers are durably written before sending. A force kill within the debounce window can lose the last few keystrokes. Saved-record edits remain in memory and prompt before discarding. New financial forms also guard navigation while saving and confirm before discarding changes.
 
 Manual creation requires an active account because the backend's existing reference deduplication is account-bound. An uncertain submission retains its original immutable payload. Assistant messages can save immediately and have no idempotency contract: no automatic resend, background queue, or offline success claims. A receipt is shown only after a validated server response.
 
-Endpoints without a deduplication contract use a separate encrypted write marker before crossing the network boundary. An unknown account-create outcome blocks another non-idempotent change until the user refreshes and explicitly reviews saved data. Signout removes the unsent transaction draft but retains an unresolved safety marker under its original owner/API scope. A different user never restores that marker. No financial change is sent by the marker itself.
+Endpoints without a deduplication contract use a separate encrypted write marker before crossing the network boundary. An unknown create/edit/contribution outcome blocks another change until the user refreshes and explicitly reviews saved data in the original household. Household viewing can change for reconciliation; writes stay blocked. Signout removes the active unsent transaction draft and conversation preview but retains an unresolved safety marker under its original owner/API scope. A different user never restores that marker. No financial change is sent by the marker itself.
+
+Asynchronous planning stores returned run IDs securely, resumes polling after restart and stops background polling. Plan amounts/projections come from the server; the app presents assumptions, trade-offs and risks. Shared private-aggregate consent is an explicit per-goal action and can be revoked.
+
+Conversation previews are encrypted and limited to 12 exchanges and a bounded storage size; long messages can be saved as labeled previews. The backend has no history-list endpoint, so this screen does not claim cross-device synchronization. JSON exports are written only on explicit action to the app's cache and opened in the native share sheet. Users can remove that temporary copy; startup, next export and normal signout also remove it. Copies saved to a chosen destination are managed there.
 
 ## Dictation
 
@@ -62,9 +66,9 @@ The composer uses the platform speech service, preferring on-device recognition 
 
 ## Directory guide
 
-- `src/screens`: native transaction, receipt, picker, auth, and verification screens.
+- `src/screens`: native tab, financial, planning, household, assistant and privacy screens.
 - `src/ui`: native fields, currency entry, date selector, feedback, and motion primitives.
-- `src/state/entry.tsx`: owner-scoped composer state and encrypted draft lifecycle.
+- `src/state`: scoped composer/conversation lifecycle, financial write boundary, workspace state and restored planning progress.
 - `src/services`: transport/session persistence, secure storage, and restricted QA fixture.
 - `__tests__`: native component tests; `tests`: dependency-free service/fault tests.
 - `.maestro`: native runtime acceptance; `.eas/workflows`: optional cloud builds and simulator tests.

@@ -7,7 +7,7 @@ Implementation baseline: 2026-10-20, branch `feat/native-mobile-migration`, star
 | Check | Evidence/result |
 | --- | --- |
 | Universal finance/session/read-contract tests | 34 passing Node tests |
-| Native storage/cookie-policy/QA/diagnostic service tests | 20 passing Node tests |
+| Native storage/cookie-policy/QA/diagnostic/workspace/history service tests | 28 passing Node tests; 62 total with universal tests |
 | Shared package strict TypeScript | Passed with TypeScript 5.9.3 |
 | Native service strict TypeScript | Passed for storage, fixture transport, and shared sources |
 | Native TS/TSX syntax transpilation | Passed; does not resolve native dependency types |
@@ -15,7 +15,7 @@ Implementation baseline: 2026-10-20, branch `feat/native-mobile-migration`, star
 | Hosted domain/service job | Passed on initial GitHub run 39203850380 |
 | Hosted native dependency installation | Succeeded on initial GitHub run; development-tool version corrections and maintained cookie adapter applied afterward |
 | Full native dependency installation | Hosted install succeeded and the resolved lockfile is committed; local registry access remains unavailable |
-| Native component/adapter tests | 40/40 passed in GitHub run 39369471150, including income, permission/cancel/background dictation, exact account choice, optional dates, progress accessibility, net-refund chart detail, native-cookie adapter boundaries, QA routing isolation and current-policy consent/retry |
+| Native component/adapter tests | 49/49 passed in GitHub run 39375158212, including financial forms, exact card-settlement accounts, durable cross-screen write blocking, contribution/plan restoration, read-only roles, system-category/account-sharing restrictions, trash/restore, native export, voice, adapter and policy behavior. Later conversation/privacy refinements are pending a fresh hosted check |
 | Expo dependency compatibility | Passed in GitHub run 39204313055 after SDK tooling corrections |
 | Full native TypeScript | Passed, including shared/service checks, in GitHub run 39204973766 |
 | Native lint | Passed with zero warnings in GitHub run 39235443009 |
@@ -29,6 +29,8 @@ Implementation baseline: 2026-10-20, branch `feat/native-mobile-migration`, star
 | Full transaction emulator diagnostics | Run 39246337227, same profile/software rendering: cold Activity TotalTime 871 ms; 761 frames, p95 85 ms, 66.89% janky frames; PSS 112,810 KB, RSS 248,232 KB. Functional flow passed; the frame budget did not. Emulator logged invalid ColorBuffer/texture errors, and CI now selects the supported software renderer rather than deprecated swiftshader_indirect. No physical-device FPS inference |
 | Supported-renderer transaction diagnostics | Run 39366006614, API 35 x86_64 Pixel 6, 1080×2400/420 dpi, `-gpu software`, Release QA: cold Activity TotalTime 1,066 ms; 707 frames, p95 129 ms, 85.01% janky; PSS 115,318 KB, RSS 251,476 KB. Full transaction scenario passed, frame budget did not. ColorBuffer/texture errors persisted; switching to software did not resolve the bottleneck |
 | Large-history/repeated-interaction diagnostics | Same run: 10,000 fixture records seeded, paginated traversal reached records 54–61 in the retained screenshot, all six composer/keyboard/category-picker cycles and restored-draft assertion completed. Final signout was above the viewport, so overall stress failed; cleanup now explicitly scrolls to it. 1,968 frames, p95 117 ms, 85.11% janky; PSS 145,751 KB, RSS 281,672 KB. This is a bounded scenario sample, not proof of long-session memory stability or physical-device performance |
+| Completed Android baseline/stress and phone build | Run 39370002645: x86_64 transaction and 10,000-record interaction stress job passed; separate ARM64 Release QA APK compilation passed. These precede the broader screen migration |
+| Native financial-screen static/API validation | Run 39375158212: strict native/shared/service TypeScript, zero-warning lint, 49 component/adapter tests, both Metro exports, dependency compatibility/Doctor, universal boundaries and unchanged real HTTPS backend acceptance all passed. Broader device `workspace.yml` acceptance is running separately |
 
 Node service tests use an in-memory mock of encrypted storage and a deterministic contract fixture. They test chunk commits, interrupted writes, user isolation, retry behavior and state transitions; they do not prove Keychain/Keystore encryption, native cookie handling, network integration, or smooth animations. No FPS, startup, or memory target has been achieved by evidence yet.
 
