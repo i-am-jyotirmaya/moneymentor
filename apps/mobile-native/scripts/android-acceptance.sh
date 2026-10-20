@@ -26,6 +26,7 @@ native_scenario=transaction
 collect_evidence() {
   adb shell dumpsys gfxinfo "$native_package" framestats > "$native_evidence/$native_scenario-frames.txt"
   adb shell dumpsys meminfo "$native_package" > "$native_evidence/$native_scenario-memory.txt"
+  node scripts/summarize-frame-stats.mjs "$native_evidence" > "$native_evidence/summary.json"
 }
 trap collect_evidence EXIT
 "$HOME/.maestro/bin/maestro" test .maestro/transaction.yml
