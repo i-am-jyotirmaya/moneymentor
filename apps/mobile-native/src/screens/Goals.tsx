@@ -46,6 +46,7 @@ function GoalEditor({ navigation, goal }: ScreenProps<'GoalForm'> & { goal?: Goa
   const save = () => {
     const targetCents = parseMoney(target); const monthlyCents = monthly ? parseMoney(monthly) : null;
     if (!name.trim() || targetCents === null || (monthly && monthlyCents === null)) { mutation.setError('Enter a name and positive amounts with up to two decimal places.'); return; }
+    if (goal?.monthlyTarget !== null && goal?.monthlyTarget !== undefined && monthlyCents === null) { mutation.setError('Keep a positive monthly target for this existing goal.'); return; }
     const input: CreateGoal = { householdId: scope, name: name.trim(), goalType: type, targetAmount: targetCents / 100, ...(date ? { targetDate: date } : {}), ...(monthlyCents !== null ? { monthlyTarget: monthlyCents / 100 } : {}), priority, isShared: shared };
     void mutation.execute(goal ? 'Update goal' : 'Create goal', () => goal
       ? api.updateGoal(goal.id, { name: input.name, goalType: type, targetAmount: input.targetAmount, targetDate: date || null, monthlyTarget: monthlyCents === null ? null : monthlyCents / 100, priority, status })
@@ -57,7 +58,7 @@ function GoalEditor({ navigation, goal }: ScreenProps<'GoalForm'> & { goal?: Goa
       <ChoiceField label="Goal type" value={type} options={choices(['Saving', 'DebtPayoff', 'Purchase', 'Investment', 'EmergencyFund'])} onChange={value => setType(value as FinancialGoalType)} disabled={mutation.blocked} />
       <MoneyField label="Target amount" testID="goal-target-input" currency={currency} value={target} onChange={setTarget} disabled={mutation.blocked} />
       <MoneyField label="Monthly target (optional)" currency={currency} value={monthly} onChange={setMonthly} disabled={mutation.blocked} />
-      <CalendarField label="Target date" value={date} onChange={setDate} today={today} allowFuture optional disabled={mutation.blocked} />
+      <CalendarField label="Target date" value={date} onChange={setDate} today={today} allowFuture optional={!goal?.targetDate} disabled={mutation.blocked} />
       <ChoiceField label="Priority" value={priority} options={choices(['Low', 'Medium', 'High'])} onChange={value => setPriority(value as FinancialGoalPriority)} disabled={mutation.blocked} />
       {goal ? <ChoiceField label="Status" value={status} options={choices(['Active', 'Completed', 'Paused', 'Cancelled'])} onChange={value => setStatus(value as FinancialGoalStatus)} disabled={mutation.blocked} /> : <Toggle label="Shared household goal" value={shared} onChange={setShared} disabled={mutation.blocked} />}
       <Button title="Save goal" disabled={mutation.blocked} loading={mutation.busy} onPress={save} />

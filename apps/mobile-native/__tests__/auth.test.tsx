@@ -3,6 +3,7 @@ import type { FinanceClient } from '@spndrr/finance-core';
 import { ApiError } from '@spndrr/finance-core';
 import { LoginScreen, PrivacyScreen } from '../src/screens/Auth';
 jest.mock('react-native-safe-area-context', () => jest.requireActual('react-native-safe-area-context/jest/mock').default);
+jest.mock('../src/services/share-export', () => ({ sharePrivacyExport: async (load: () => Promise<unknown>) => { await load(); }, clearExportCache: jest.fn() }));
 
 test('hardware keyboard submit signs in using the entered credentials', async () => {
   const login = jest.fn(async () => undefined);
@@ -66,4 +67,13 @@ test('a failed privacy-policy read cannot enable acceptance and can be retried',
   fireEvent.press(screen.getByText('Try again'));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Accept privacy policy' }).props.accessibilityState.disabled).toBe(false));
   expect(acceptPrivacy).not.toHaveBeenCalled();
+});
+test('privacy export remains available without accepting an unavailable policy', async () => {
+  const acceptPrivacy = jest.fn(); const request = jest.fn(async () => ({ version: 1, profile: 'fixture' }));
+  const client = { privacyPolicy: async () => { throw Error('offline'); }, acceptPrivacy, request } as unknown as FinanceClient;
+  const screen = render(<PrivacyScreen client={client} onLogout={jest.fn()} />);
+  await waitFor(() => expect(screen.getByText('The current privacy policy could not be loaded. Retry before accepting.')).toBeTruthy());
+  fireEvent.press(screen.getByText('Privacy data options')); fireEvent.press(screen.getByText('Export my data without accepting'));
+  await waitFor(() => expect(request).toHaveBeenCalledWith('/api/privacy/export'));
+  expect(acceptPrivacy).not.toHaveBeenCalled(); expect(screen.getByRole('button', { name: 'Accept privacy policy' }).props.accessibilityState.disabled).toBe(true);
 });

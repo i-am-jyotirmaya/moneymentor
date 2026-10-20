@@ -34,7 +34,7 @@ export function CategoryFormScreen({ navigation, route }: ScreenProps<'CategoryF
   const save = () => {
     if (!name.trim()) { mutation.setError('Give this category a name.'); return; }
     void mutation.execute(original ? 'Update category' : 'Add category', () => original
-      ? api.updateCategory(original.id, { name: name.trim(), parentCategoryId: parent === 'none' ? null : parent, classification, isHidden: hidden, icon: icon.trim() || null })
+      ? api.updateCategory(original.id, { name: name.trim(), parentCategoryId: parent === 'none' ? null : parent, classification, isHidden: hidden, icon: icon.trim() })
       : api.createCategory({ householdId: scope, name: name.trim(), type, classification, ...(parent !== 'none' ? { parentCategoryId: parent } : {}), ...(icon.trim() ? { icon: icon.trim() } : {}) }), () => setSaved(true));
   };
   const remove = () => { if (!original || original.isSystemCategory) return; Alert.alert('Delete custom category?', 'Spndrr checks whether this category can be removed. Existing transaction rules remain enforced.', [
