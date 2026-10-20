@@ -40,5 +40,7 @@ dotnet run --project "$native_root/apps/api/MoneyMentor.Api" -c Release --no-bui
 native_server_pid=$!
 curl --silent --show-error --fail --retry 30 --retry-all-errors --retry-delay 1 --cacert "$NODE_EXTRA_CA_CERTS" "$NATIVE_TEST_API_URL/health/ready" > /dev/null
 node "$native_root/apps/mobile-native/scripts/prepare-native-api.mjs"
+xcrun simctl terminate "$NATIVE_TEST_DEVICE" com.spndrr.app.rn.e2e 2>/dev/null || true
+xcrun simctl openurl "$NATIVE_TEST_DEVICE" 'spndrr-native://qa?api=https%3A%2F%2Flocalhost%3A7443'
 "$HOME/.maestro/bin/maestro" --device "$NATIVE_TEST_DEVICE" test .maestro/native-backend.yml
 NATIVE_API_ACTION=verify node "$native_root/apps/mobile-native/scripts/prepare-native-api.mjs"

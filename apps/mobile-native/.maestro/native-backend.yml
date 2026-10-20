@@ -1,7 +1,5 @@
 appId: com.spndrr.app.rn.e2e
 ---
-- stopApp
-- openLink: 'spndrr-native://qa?api=https%3A%2F%2Flocalhost%3A7443'
 - extendedWaitUntil:
     visible: 'Sign in'
     timeout: 30000
