@@ -6,12 +6,14 @@ import { useHeaderHeight } from '@react-navigation/elements';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError, buildTransactionIntent, ValidationError, type Transaction, type TransactionPatch } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
+import { OperationNotice, useOperations } from '../state/operations';
 import { Button, ErrorNotice, styles } from '../ui/primitives';
 import { ManualForm } from '../ui/ManualForm';
 import type { ScreenProps } from '../navigation';
 
 export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
   const entry = useEntry();
+  const operations = useOperations();
   const query = useQueryClient();
   const headerHeight = useHeaderHeight();
   const [error, setError] = useState<string | null>(null);
@@ -27,14 +29,15 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
   if (!entry.edit) return <SafeAreaView style={styles.screen}><ErrorNotice message="Open a transaction from recent history to edit it." /></SafeAreaView>;
   const { transaction, manual } = entry.edit;
   const submit = () => { void entry.runExclusive(async () => {
+    if (operations.blocked || !entry.resources.canWrite) return;
     setError(null); setErrors({});
     try {
       const intent = buildTransactionIntent(manual, entry.resources, 'native:validate-edit');
       const patch: TransactionPatch = { amount: intent.amount, transactionDate: intent.date, categoryId: intent.categoryId, accountId: intent.accountId,
         merchantName: manual.merchant.trim(), description: manual.description.trim(), paymentChannel: manual.paymentChannel, visibility: manual.visibility };
-      const updated = await entry.client.updateTransaction(transaction.id, patch);
+      const updated = await operations.guard.run('Update transaction', () => entry.client.updateTransaction(transaction.id, patch));
       entry.setSaved(updated); entry.beginEdit(updated); setSaved(true);
-      void query.invalidateQueries({ queryKey: ['history'] });
+      void query.invalidateQueries();
     } catch (caught) {
       if (caught instanceof ValidationError) setErrors(caught.fields);
       if (caught instanceof ApiError && caught.outcome === 'unknown') setUnknown(true);
@@ -54,11 +57,12 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
   }); };
   return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+      <OperationNotice refresh={() => query.refetchQueries({ type: 'active' }, { throwOnError: true })} />
       {saved ? <><Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.heading}>Changes saved</Text><Button title="Done" onPress={() => navigation.goBack()} /></> : <>
         <Text style={styles.caption}>Editing the existing saved record.</Text>
-        <ManualForm draft={manual} resources={entry.resources} disabled={entry.busy || unknown} errors={errors} editing
+        <ManualForm draft={manual} resources={entry.resources} disabled={entry.busy || unknown || operations.blocked || !entry.resources.canWrite} errors={errors} editing
           onChange={change => entry.updateManual(change, 'edit')} onSelect={kind => navigation.navigate('Picker', { kind, target: 'edit' })} />
-        <Button title={unknown ? 'Reload saved transaction' : 'Save changes'} onPress={unknown ? reload : submit} loading={entry.busy} />
+        <Button title={unknown ? 'Reload saved transaction' : 'Save changes'} onPress={unknown ? reload : submit} loading={entry.busy} disabled={!unknown && (operations.blocked || !entry.resources.canWrite)} />
       </>}
       {error ? <ErrorNotice message={error} /> : null}
     </ScrollView></KeyboardAvoidingView></SafeAreaView>;

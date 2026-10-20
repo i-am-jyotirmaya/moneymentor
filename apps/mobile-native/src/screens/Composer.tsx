@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { ApiError, buildTransactionIntent, formatMoney, ValidationError, type ComposerDraft, type Transaction } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
+import { OperationNotice, useOperations } from '../state/operations';
 import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
 import { color } from '../ui/theme';
 import { ManualForm } from '../ui/ManualForm';
@@ -16,13 +17,14 @@ import type { ScreenProps } from '../navigation';
 
 export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
   const entry = useEntry();
+  const operations = useOperations();
   const query = useQueryClient();
   const headerHeight = useHeaderHeight();
   const [mode, setMode] = useState<'assistant' | 'manual'>(entry.draft.pendingManual || entry.draft.manual.amount ? 'manual' : 'assistant');
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [voiceBusy, setVoiceBusy] = useState(false);
-  const refresh = () => { void query.invalidateQueries({ queryKey: ['history'] }); };
+  const refresh = () => { void query.invalidateQueries(); };
   const confirmed = async (transaction: Transaction) => {
     // The receipt is authoritative even if subsequent local cleanup fails.
     await entry.complete(transaction); refresh();
@@ -30,6 +32,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
     Keyboard.dismiss();
   };
   const submitManual = () => { void entry.runExclusive(async () => {
+    if (operations.blocked) return;
     setError(null); setFields({});
     let next: ComposerDraft;
     try {
@@ -56,7 +59,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
     }
   }); };
   const submitAssistant = () => { void entry.runExclusive(async () => {
-    if (!entry.draft.text.trim() || entry.draft.assistantUncertain || voiceBusy) return;
+    if (!entry.draft.text.trim() || entry.draft.assistantUncertain || voiceBusy || operations.blocked) return;
     setError(null);
     const before = entry.draft;
     const pending = { ...before, assistantUncertain: true };
@@ -96,17 +99,18 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
       <Button title="Done" onPress={() => navigation.popToTop()} />
     </ScrollView></SafeAreaView>;
   }
-  const locked = entry.busy || !!entry.draft.pendingManual;
+  const locked = entry.busy || operations.blocked || !!entry.draft.pendingManual;
   return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}>
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={styles.content}>
       <Text style={styles.caption}>Your draft stays here when you close this screen.</Text>
+      <OperationNotice refresh={() => query.refetchQueries({ type: 'active' }, { throwOnError: true })} />
       <View style={styles.row}><Button title="Use assistant" onPress={() => setMode('assistant')} disabled={entry.busy || !!entry.draft.pendingManual} selected={mode === 'assistant'} secondary={mode !== 'assistant'} />
         <Button title="Enter details" onPress={() => setMode('manual')} disabled={entry.busy || entry.draft.assistantUncertain} selected={mode === 'manual'} secondary={mode !== 'manual'} /></View>
       {mode === 'assistant' ? <>
         <Text accessibilityRole="header" style={styles.heading}>What did you spend on?</Text>
         <Field label="Transaction message" placeholder="Bought groceries for ₹240 using Kotak upi" multiline maxLength={4000} value={entry.draft.text}
-          editable={!entry.busy && !entry.draft.assistantUncertain && !voiceBusy} onChangeText={text => entry.update({ text, ...(text ? {} : { inputMode: 'Text' }) })} testID="assistant-input" />
-        <VoiceInput text={entry.draft.text} disabled={entry.busy || entry.draft.assistantUncertain} onBusyChange={setVoiceBusy} onTranscript={text => entry.update({ text, inputMode: 'Voice' })} />
+          editable={!entry.busy && !operations.blocked && !entry.draft.assistantUncertain && !voiceBusy} onChangeText={text => entry.update({ text, ...(text ? {} : { inputMode: 'Text' }) })} testID="assistant-input" />
+        <VoiceInput text={entry.draft.text} disabled={entry.busy || operations.blocked || entry.draft.assistantUncertain} onBusyChange={setVoiceBusy} onTranscript={text => entry.update({ text, inputMode: 'Voice' })} />
         <Text style={styles.caption}>Sending can save a transaction immediately. The assistant asks for missing details.</Text>
         {entry.reply ? <Card><Text accessibilityLiveRegion="polite" style={styles.body}>{entry.reply}</Text></Card> : null}
         {entry.draft.assistantUncertain ? <Card>
@@ -115,7 +119,7 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
           <Button title="I checked — allow another message" secondary disabled={entry.busy} onPress={() => {
             entry.update({ assistantUncertain: false }); void entry.persist().catch(() => undefined);
           }} />
-        </Card> : <Button title="Send & track" onPress={submitAssistant} loading={entry.busy} disabled={!entry.draft.text.trim() || voiceBusy} testID="send-assistant" />}
+        </Card> : <Button title="Send & track" onPress={submitAssistant} loading={entry.busy} disabled={!entry.draft.text.trim() || voiceBusy || operations.blocked || !entry.resources.canWrite} testID="send-assistant" />}
       </> : <>
         <Text accessibilityRole="header" style={styles.heading}>Make it a little clearer.</Text>
         <ManualForm draft={entry.draft.manual} resources={entry.resources} disabled={locked} errors={fields}
@@ -124,9 +128,9 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
         {entry.draft.pendingManual ? <Card>
           <Text style={styles.body}>If a retry is rejected, the earlier attempt may still have been saved. Check history before clearing this draft.</Text>
           <Button title="Check recent transactions" secondary onPress={() => navigation.popToTop()} />
-          <Button title="I checked — clear pending draft" secondary disabled={entry.busy} onPress={() => { void entry.runExclusive(async () => { await entry.discardDraft(); setError(null); }); }} />
+          <Button title="I checked — clear pending draft" secondary disabled={entry.busy} onPress={() => { void entry.runExclusive(async () => { try { await entry.discardDraft(); setError(null); } catch { setError('The pending draft could not be cleared securely.'); } }); }} />
         </Card> : null}
-        <Button title={entry.draft.pendingManual ? 'Retry this transaction' : 'Save transaction'} onPress={submitManual} loading={entry.busy} disabled={entry.draft.assistantUncertain || !entry.resources.canWrite} testID="save-transaction" />
+        <Button title={entry.draft.pendingManual ? 'Retry this transaction' : 'Save transaction'} onPress={submitManual} loading={entry.busy} disabled={entry.draft.assistantUncertain || !entry.resources.canWrite || operations.blocked} testID="save-transaction" />
       </>}
       {error ? <ErrorNotice message={error} /> : null}
       {entry.persistenceError ? <ErrorNotice message={entry.persistenceError} onRetry={() => { void entry.persist().catch(() => undefined); }} /> : null}

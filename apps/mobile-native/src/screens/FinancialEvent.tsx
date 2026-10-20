@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Text } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import { useQuery } from '@tanstack/react-query';
-import { buildFinancialEventIntent, categoryOptions, ValidationError, type EventKind, type FinancialEventDraft, type PaymentChannel, type Visibility } from '@spndrr/finance-core';
+import { buildFinancialEventIntent, categoryOptions, ValidationError, type EventKind, type FinancialEventDraft, type PaymentChannel, type Transaction, type Visibility } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
 import { useWorkspace, useWorkspaceMutation } from '../state/workspace';
 import { OperationNotice } from '../state/operations';
@@ -11,30 +11,34 @@ import { CalendarField, ChoiceField, MoneyField, Page, Toggle } from '../ui/form
 import { choices } from '../ui/workspace';
 import type { ScreenProps } from '../navigation';
 
-export function FinancialEventScreen({ navigation, route }: ScreenProps<'FinancialEvent'>) {
-  const entry = useEntry(); const { api, scope, currency, today } = useWorkspace(); const mutation = useWorkspaceMutation();
-  const originalId = route.params?.originalId;
-  const original = useQuery({ queryKey: ['transaction', scope, originalId], queryFn: () => api.transaction(originalId!), enabled: !!originalId });
+export function FinancialEventScreen(props: ScreenProps<'FinancialEvent'>) {
+  const { api, scope } = useWorkspace(); const originalId = props.route.params?.originalId;
+  const data = useQuery({ queryKey: ['transaction', scope, originalId], queryFn: () => api.transaction(originalId!), enabled: !!originalId });
+  if (originalId && (data.isPending || data.isError || data.data.householdId !== scope)) return <Page>{data.isPending ? <Loading /> : <ErrorNotice message="The original event could not be loaded in this household." onRetry={() => { void data.refetch(); }} />}</Page>;
+  return <FinancialEventEditor {...props} original={data.data} />;
+}
+function FinancialEventEditor({ navigation, route, original }: ScreenProps<'FinancialEvent'> & { original?: Transaction }) {
+  const entry = useEntry(); const { currency, today } = useWorkspace(); const mutation = useWorkspaceMutation();
+  const originalId = original?.id;
   const [reference] = useState(() => `native:${Crypto.randomUUID()}`);
   const [saved, setSaved] = useState(false); const [errors, setErrors] = useState<Record<string, string>>({});
-  const [draft, setDraft] = useState<FinancialEventDraft>({ eventKind: route.params?.kind ?? 'Transfer', amount: '', date: today, accountId: null, counterpartyAccountId: null,
-    categoryId: null, merchant: '', description: '', paymentChannel: 'BankTransfer', visibility: entry.resources.settings.defaultTransactionVisibility, unlinkedRefund: false });
-  useEffect(() => { const item = original.data; if (item && item.householdId === scope) setDraft(previous => ({ ...previous, accountId: item.accountId ?? null, amount: String(item.amount), visibility: item.visibility })); }, [original.data, scope]);
+  const [draft, setDraft] = useState<FinancialEventDraft>({ eventKind: route.params?.kind ?? 'Transfer', amount: original ? String(original.amount) : '', date: today, accountId: original?.accountId ?? null, counterpartyAccountId: null,
+    categoryId: null, merchant: '', description: '', paymentChannel: 'BankTransfer', visibility: original?.visibility ?? entry.resources.settings.defaultTransactionVisibility, unlinkedRefund: false });
   const change = (patch: Partial<FinancialEventDraft>) => setDraft(previous => ({ ...previous, ...patch }));
   const paired = ['Transfer', 'CreditCardPayment', 'CashWithdrawal'].includes(draft.eventKind);
   const submit = () => {
     setErrors({}); mutation.setError(null);
     try {
-      const intent = buildFinancialEventIntent(draft, entry.resources, reference, original.data);
+      const intent = buildFinancialEventIntent(draft, entry.resources, reference, original);
       void mutation.execute('Save financial event', () => entry.client.createFinancialEvent(intent), item => { entry.setSaved(item); setSaved(true); });
     } catch (caught) { if (caught instanceof ValidationError) setErrors(caught.fields); mutation.setError(caught instanceof Error ? caught.message : 'Check the event details.'); }
   };
   const accounts = entry.resources.accounts.filter(item => item.isActive && item.currencyCode === currency).map(item => ({ id: item.id, label: item.name, detail: item.accountType }));
   return <Page title="Transfer or adjustment" error={mutation.error}>
     <OperationNotice refresh={mutation.refresh} />
-    {saved ? <Card><Text accessibilityLiveRegion="polite" style={styles.heading}>Financial event saved</Text><Button title="Done" onPress={() => navigation.goBack()} /></Card> : originalId && original.isPending ? <Loading /> : originalId && (original.isError || original.data?.householdId !== scope) ? <ErrorNotice message="The original event could not be loaded in this household." onRetry={() => { void original.refetch(); }} /> : <>
+    {saved ? <Card><Text accessibilityLiveRegion="polite" style={styles.heading}>Financial event saved</Text><Button title="Done" onPress={() => navigation.goBack()} /></Card> : <>
       <Text style={styles.caption}>Transfers and credit card payments move money between accounts. Spndrr calculates their effect on spending; they are never entered as a second purchase.</Text>
-      {original.data ? <Card><Text style={styles.heading}>Linked original</Text><Text style={styles.body}>{original.data.description ?? original.data.kind} · {original.data.accountName}</Text></Card> : null}
+      {original ? <Card><Text style={styles.heading}>Linked original</Text><Text style={styles.body}>{original.description ?? original.kind} · {original.accountName}</Text></Card> : null}
       <ChoiceField label="Event" value={draft.eventKind} options={choices(originalId ? ['Refund', 'Reversal'] : ['Transfer', 'CreditCardPayment', 'CashWithdrawal', 'Refund', 'Cashback', 'Fee', 'Interest', 'Investment'])}
         onChange={value => change({ eventKind: value as EventKind, counterpartyAccountId: null, categoryId: null, unlinkedRefund: false })} disabled={mutation.blocked} />
       <MoneyField label="Amount" currency={currency} value={draft.amount} onChange={amount => change({ amount })} disabled={mutation.blocked} error={errors.amount} />

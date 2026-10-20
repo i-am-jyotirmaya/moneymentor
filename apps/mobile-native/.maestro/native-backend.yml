@@ -17,9 +17,7 @@ appId: com.spndrr.app.rn.e2e
     element: 'Sign in'
     direction: DOWN
 - tapOn: 'Sign in'
-- tapOn:
-    text: 'Not Now'
-    optional: true
+- runFlow: dismiss-password-prompt.yml
 - extendedWaitUntil:
     visible:
       id: open-composer

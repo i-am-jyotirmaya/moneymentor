@@ -1,5 +1,4 @@
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 export type Routes = {
   Home: undefined; Composer: undefined; Edit: undefined;
   Picker: { kind: 'account' | 'category' | 'payment' | 'visibility'; target?: 'manual' | 'edit' };

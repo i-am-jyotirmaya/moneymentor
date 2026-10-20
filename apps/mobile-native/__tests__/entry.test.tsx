@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ApiError, FinanceClient, emptyDraft, type ComposerDraft, type EntryResources } from '@spndrr/finance-core';
 import { EntryProvider } from '../src/state/entry';
+import { OperationsProvider } from '../src/state/operations';
 import { SecureJsonStore } from '../src/services/secure-json';
 import { fixtureTransport } from '../src/services/fixture-transport';
 import { ComposerScreen } from '../src/screens/Composer';
@@ -23,7 +24,8 @@ async function setup(mode: 'manual' | 'text' = 'manual', description = '', incom
     manual: { ...emptyDraft(settings, resources.today), eventKind: income ? 'Income' : 'Purchase', amount: mode === 'manual' ? '40.29' : '', accountId: accounts[1]!.id, categoryId: income ? 'salary' : 'groceries', description } };
   await vault.put(draft);
   const query = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  const wrap = (element: ReactNode) => <QueryClientProvider client={query}><EntryProvider ownerId="alice" resources={resources} client={client} vault={vault}>{element}</EntryProvider></QueryClientProvider>;
+  const operationVault = new SecureJsonStore({ get: async key => values.get(key) ?? null, set: async (key, value) => { values.set(key, value); }, remove: async key => { values.delete(key); } }, 'operations');
+  const wrap = (element: ReactNode) => <QueryClientProvider client={query}><OperationsProvider ownerId="alice" vault={operationVault}><EntryProvider ownerId="alice" resources={resources} client={client} vault={vault}>{element}</EntryProvider></OperationsProvider></QueryClientProvider>;
   return { client, resources, draft, wrap };
 }
 beforeEach(() => jest.clearAllMocks());
