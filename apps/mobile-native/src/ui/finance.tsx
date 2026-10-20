@@ -18,7 +18,7 @@ export function Progress({ value, label, animate = true }: { value: number; labe
     width.set(animate && !reduced ? withTiming(ratio, { duration: motion.enterMs, reduceMotion: ReduceMotion.System }) : ratio);
   }, [animate, ratio, reduced, width]);
   const animated = useAnimatedStyle(() => ({ width: `${width.get() * 100}%` as `${number}%` }));
-  return <View accessibilityRole="progressbar" accessibilityLabel={label} accessibilityValue={{ min: 0, max: 100, now: Math.round(ratio * 100) }}
+  return <View accessible accessibilityRole="progressbar" accessibilityLabel={label} accessibilityValue={{ min: 0, max: 100, now: Math.round(ratio * 100) }}
     style={{ height: 10, backgroundColor: color.tint, borderRadius: 8, overflow: 'hidden' }}>
     <Animated.View style={[{ height: '100%', backgroundColor: color.ink, borderRadius: 8 }, animated]} />
   </View>;
@@ -48,7 +48,7 @@ export function CategoryChart({ categories, currency, animate = true }: { catego
 }
 
 export function FinancialSkeleton() {
-  return <View accessibilityRole="progressbar" accessibilityLabel="Loading financial summary" style={{ gap: 18 }}>
+  return <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading financial summary" style={{ gap: 18 }}>
     {[132, 92, 220].map((height, index) => <View key={index} style={{ height, borderRadius: 24, backgroundColor: color.tint }} />)}
   </View>;
 }

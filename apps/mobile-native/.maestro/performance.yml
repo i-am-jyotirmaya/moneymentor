@@ -82,6 +82,9 @@ appId: com.spndrr.app.rn.e2e
           id: composer-close
 - assertVisible: 'Continue your draft'
 - takeScreenshot: native-restored-draft
+- scrollUntilVisible:
+    element: 'Sign out'
+    direction: UP
 - tapOn: 'Sign out'
 - tapOn: 'Sign out and clear draft'
 - assertVisible: 'Sign in'

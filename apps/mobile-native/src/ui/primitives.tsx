@@ -22,8 +22,8 @@ export function Button({ title, onPress, disabled, loading, secondary, selected,
 }) {
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
-  return <AnimatedPressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? title} accessibilityState={{ disabled: disabled || loading, busy: loading, selected }}
-    testID={testID} disabled={disabled || loading} onPress={onPress}
+  return <AnimatedPressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? title} accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading, selected }}
+    testID={testID} disabled={!!(disabled || loading)} onPress={onPress}
     onPressIn={() => { scale.set(withSpring(0.975, { ...motion.spring, reduceMotion: ReduceMotion.System })); }}
     onPressOut={() => { scale.set(withSpring(1, { ...motion.spring, reduceMotion: ReduceMotion.System })); }}
     style={[styles.button, secondary && styles.secondary, (disabled || loading) && styles.disabled, animated]}>
@@ -54,14 +54,15 @@ export function ErrorNotice({ message, onRetry }: { message: string; onRetry?: (
     {onRetry ? <Button title="Try again" onPress={onRetry} secondary /> : null}</View>;
 }
 export function Loading({ label = 'Loading your space…' }: { label?: string }) {
-  return <View style={styles.center} accessibilityRole="progressbar" accessibilityLabel={label}><ActivityIndicator color={color.ink} /><Text style={styles.caption}>{label}</Text></View>;
+  return <View accessible style={styles.center} accessibilityRole="progressbar" accessibilityLabel={label}><ActivityIndicator color={color.ink} /><Text style={styles.caption}>{label}</Text></View>;
 }
 export function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
-    void AccessibilityInfo.isReduceMotionEnabled().then(setReduced);
+    let alive = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then(value => { if (alive) setReduced(value); }).catch(() => undefined);
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
-    return () => subscription.remove();
+    return () => { alive = false; subscription.remove(); };
   }, []);
   return reduced;
 }
