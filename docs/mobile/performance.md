@@ -1,13 +1,13 @@
 # Native validation and performance record
 
-Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, starting at main `6e89646f`. This report separates executed checks from proposed acceptance targets.
+Implementation baseline: 2026-10-20, branch `feat/native-mobile-migration`, starting at main `6e89646f`. This report separates executed checks from proposed acceptance targets.
 
 ## Executed checks
 
 | Check | Evidence/result |
 | --- | --- |
-| Universal finance/session tests | 18 passing Node tests |
-| Native storage/cookie-policy/QA service fault tests | 8 passing Node tests |
+| Universal finance/session/read-contract tests | 32 passing Node tests |
+| Native storage/cookie-policy/QA service fault tests | 17 passing Node tests |
 | Shared package strict TypeScript | Passed with TypeScript 5.9.3 |
 | Native service strict TypeScript | Passed for storage, fixture transport, and shared sources |
 | Native TS/TSX syntax transpilation | Passed; does not resolve native dependency types |
@@ -15,7 +15,7 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Hosted domain/service job | Passed on initial GitHub run 39203850380 |
 | Hosted native dependency installation | Succeeded on initial GitHub run; development-tool version corrections and maintained cookie adapter applied afterward |
 | Full native dependency installation | Hosted install succeeded and the resolved lockfile is committed; local registry access remains unavailable |
-| Native component tests | 11/11 passed in GitHub run 39246337227, including request-only signup and uncertain access-request recovery; dictation coverage added afterward |
+| Native component tests | 26/26 passed in GitHub run 39368248861, including income, permission/cancel/background dictation, exact account choice, optional dates, progress accessibility and net-refund chart detail. Native adapter/routing tests added afterward |
 | Expo dependency compatibility | Passed in GitHub run 39204313055 after SDK tooling corrections |
 | Full native TypeScript | Passed, including shared/service checks, in GitHub run 39204973766 |
 | Native lint | Passed with zero warnings in GitHub run 39235443009 |
@@ -24,15 +24,21 @@ Implementation baseline: 2026-10-19, branch `feat/native-mobile-migration`, star
 | Exported JS advisory-module review | No braces/node-forge/sprintf-js/uuid module paths in 1,355 Android and 1,351 iOS source-map entries in run 39237312769; does not audit native binaries or build-host exposure |
 | Android compilation/runtime | Release QA APK and full native transaction acceptance passed in run 39246337227: login, category and exact card choice, manual save/edit, assistant clarification, unknown-write reconciliation and logout. Screenshots retained and composer/receipt inspected |
 | iOS compilation | Release simulator build passed in run 39239041550; simulator app artifact uploaded |
-| iOS runtime | Login passed in run 39239041550, then draft restoration exposed missing Keychain entitlements. Post-build signing in run 39242838641 failed launch verification. Run 39245986909 successfully compiles with Xcode embedding simulator entitlements; runtime acceptance is in progress. Device signing is unchanged |
+| iOS runtime | Full transaction flow passed in run 39366006614: login, manual save/edit, category/exact card selection, assistant clarification, unknown-write reconciliation and logout. The separate stress flow stopped at a second-login Save Password prompt, now handled before identifier assertions. Overall job failed because of that stress scenario; device signing is unchanged |
 | Initial Android emulator diagnostics | Run 39242838641: API 35 x86_64, Pixel 6 profile, 1080×2400/420 dpi, software GPU, Release QA. Activity cold TotalTime 765 ms; failed-login sample 120 frames, p95 125 ms, 80% janky frames; PSS 89,540 KB, RSS 218,952 KB. These are incomplete-flow diagnostics, not a passing transaction benchmark or physical-device performance |
 | Full transaction emulator diagnostics | Run 39246337227, same profile/software rendering: cold Activity TotalTime 871 ms; 761 frames, p95 85 ms, 66.89% janky frames; PSS 112,810 KB, RSS 248,232 KB. Functional flow passed; the frame budget did not. Emulator logged invalid ColorBuffer/texture errors, and CI now selects the supported software renderer rather than deprecated swiftshader_indirect. No physical-device FPS inference |
+| Supported-renderer transaction diagnostics | Run 39366006614, API 35 x86_64 Pixel 6, 1080×2400/420 dpi, `-gpu software`, Release QA: cold Activity TotalTime 1,066 ms; 707 frames, p95 129 ms, 85.01% janky; PSS 115,318 KB, RSS 251,476 KB. Full transaction scenario passed, frame budget did not. ColorBuffer/texture errors persisted; switching to software did not resolve the bottleneck |
+| Large-history/repeated-interaction diagnostics | Same run: 10,000 fixture records seeded, paginated traversal reached records 54–61 in the retained screenshot, all six composer/keyboard/category-picker cycles and restored-draft assertion completed. Final signout was above the viewport, so overall stress failed; cleanup now explicitly scrolls to it. 1,968 frames, p95 117 ms, 85.11% janky; PSS 145,751 KB, RSS 281,672 KB. This is a bounded scenario sample, not proof of long-session memory stability or physical-device performance |
 
 Node service tests use an in-memory mock of encrypted storage and a deterministic contract fixture. They test chunk commits, interrupted writes, user isolation, retry behavior and state transitions; they do not prove Keychain/Keystore encryption, native cookie handling, network integration, or smooth animations. No FPS, startup, or memory target has been achieved by evidence yet.
 
 The separate real-API job in run 39244003534 passed against the unchanged .NET application and a fresh PostgreSQL database over validated local HTTPS. It exercised secure cookie attributes/rotation, session restoration, card/account identity, transaction replay/edit, dashboard totals, trash/restore, category management, goals/contributions, commitments and settings. Its Node HTTP/cookie adapter does not replace native cookie acceptance. Android run 39242838641 exposed an IME layout/focus problem after keyboard permission provisioning; native forms now explicitly use Android keyboard height avoidance and the acceptance flow scrolls controls into view before tapping.
 
-Real-API run 39245986909 additionally passed card settlement and linked-refund checks: a card payment leaves consumption unchanged, and a refund reduces it. The new native profiling scenario seeds 10,000 fixture records, scrolls paginated history, and repeats six composer/keyboard/category-sheet cycles. Results are pending. The fixture holds its simulated server data inside the app process, so its memory use is not comparable to a remote production backend. The local domain/service suite currently passes 43 tests.
+Real-API run 39245986909 additionally passed card settlement and linked-refund checks: a card payment leaves consumption unchanged, and a refund reduces it. Real HTTPS contract acceptance passed again in run 39368248861. A further iOS scenario now boots a real local .NET/PostgreSQL API, trusts a one-day local certificate only in its disposable simulator, and tests native cookie login/save/edit/process restart/logout. It is configured but not yet a passing native-network result. Production ignores the QA loopback route and has no certificate-validation exception. The fixture holds its simulated server data inside the app process, so its memory use is not comparable to a remote production backend. The local domain/service suite currently passes 49 tests.
+
+The two new emulator samples contain both package-wide and per-window counters; the table uses the first, package-wide summary. GPU percentile counters report a constant 4,950 ms alongside renderer errors and are not treated as reliable GPU timing. No frame target has been met. Collect representative physical-device traces before attributing the software-rendered host result to a specific production UI component.
+
+CI runs the JS/type/component/export gate before native compilation. Exact-source QA binary caches include native/shared sources, dependencies, assets, build configuration and workflow inputs, with iOS additionally keyed by compiler version/architecture. Test-flow-only changes can reuse a compiled QA artifact; every run still executes native runtime scenarios. Cached iOS apps are reverified for their simulator identity/signature before installation. A cache hit is reuse of a previous compilation, not a newly executed compiler check.
 
 ## Dependency advisory record
 
