@@ -24,6 +24,9 @@ appId: com.spndrr.app.rn.e2e
       id: open-composer
     timeout: 30000
 - tapOn:
+    text: 'Not Now'
+    optional: true
+- tapOn:
     id: open-composer
 - tapOn:
     id: assistant-input
@@ -31,6 +34,9 @@ appId: com.spndrr.app.rn.e2e
 - tapOn:
     id: keyboard-dismiss
     optional: true
+- scrollUntilVisible:
+    element: 'Send & track'
+    direction: DOWN
 - tapOn: 'Send & track'
 - extendedWaitUntil:
     visible: 'Benchmark history ready.'

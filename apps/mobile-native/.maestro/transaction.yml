@@ -22,6 +22,9 @@ appId: com.spndrr.app.rn.e2e
 - extendedWaitUntil:
     visible: 'Add a transaction'
     timeout: 30000
+- tapOn:
+    text: 'Not Now'
+    optional: true
 - takeScreenshot: native-home
 - tapOn: 'Add a transaction'
 - tapOn: 'Enter details'
@@ -73,6 +76,9 @@ appId: com.spndrr.app.rn.e2e
 - tapOn:
     id: keyboard-dismiss
     optional: true
+- scrollUntilVisible:
+    element: 'Send & track'
+    direction: DOWN
 - tapOn: 'Send & track'
 - assertVisible: 'How much did you spend?'
 - tapOn:
@@ -81,6 +87,9 @@ appId: com.spndrr.app.rn.e2e
 - tapOn:
     id: keyboard-dismiss
     optional: true
+- scrollUntilVisible:
+    element: 'Send & track'
+    direction: DOWN
 - tapOn: 'Send & track'
 - assertVisible: 'Transaction saved'
 - tapOn: 'Done'
@@ -91,6 +100,9 @@ appId: com.spndrr.app.rn.e2e
 - tapOn:
     id: keyboard-dismiss
     optional: true
+- scrollUntilVisible:
+    element: 'Send & track'
+    direction: DOWN
 - tapOn: 'Send & track'
 - assertVisible: 'Check recent transactions'
 - assertNotVisible: 'Send & track'
