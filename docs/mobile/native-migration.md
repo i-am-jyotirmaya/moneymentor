@@ -8,6 +8,8 @@ Use React Native with Expo development builds and a native presentation layer. F
 
 The baseline was verified on 2026-10-19 against the [Expo SDK 57 release branch](https://github.com/expo/expo/blob/sdk-57/packages/expo/bundledNativeModules.json): Expo 57.0.30, React Native 0.86.3, React 19.2.3, Reanimated 4.5.1, Worklets 0.10.1, Gesture Handler ~2.32.0, Screens ~4.26.0, Safe Area ~5.7.0. Use this SDK's recommendations rather than installing the latest independent native packages. Run `npx expo install --check` and Expo Doctor after dependency changes.
 
+The 2026-10-24 hosted compatibility check required patch updates to Expo 57.0.31 and expo-sharing 57.0.24; those are now pinned in the native manifest/lockfile.
+
 React Navigation native-stack, accessible native controls, Expo SecureStore, and an injected universal API transport form the first slice. Do not add Skia until profiling demonstrates a need. Development builds include custom native modules; Expo Go is not the acceptance environment.
 
 The first hosted dependency check confirmed the SDK's development-tool recommendations: native TypeScript 6.0.3 and React types 19.2.4. The universal package retains its existing-compatible TypeScript 5.9.3 development checker. The native cookie adapter uses the maintained New Architecture TurboModule `@preeternal/react-native-cookie-manager` 7.0.0, following the deprecated upstream package's migration guidance. Its Foundation store is used for iOS networking; no WebKit screen is introduced.

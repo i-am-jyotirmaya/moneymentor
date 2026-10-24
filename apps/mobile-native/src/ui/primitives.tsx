@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode, type Ref } from 'react';
+import { useEffect, useState, type ReactNode, type Ref } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Keyboard, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { useTheme, motion, type Palette } from './theme';
+import { useTheme, palettes, motion, type Palette } from './theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function KeyboardDismissButton() {
@@ -100,7 +100,10 @@ const createStyles = (color: Palette) => StyleSheet.create({
   notice: { padding: 16, borderRadius: 18, backgroundColor: color.dangerTint, gap: 12 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 16, backgroundColor: color.background },
 });
+// Share the two sheets across rows and controls instead of allocating every
+// style for each virtualized cell or button mount. Context still recolors them.
+const styleSheets = { light: createStyles(palettes.light), dark: createStyles(palettes.dark) };
 export function useStyles() {
-  const { color } = useTheme();
-  return useMemo(() => createStyles(color), [color]);
+  const { mode } = useTheme();
+  return styleSheets[mode];
 }
