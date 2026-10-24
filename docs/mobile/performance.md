@@ -1,5 +1,7 @@
 # Native validation and performance record
 
+The 2026-10-24 assistant-only/theme revision supersedes the old manual-entry UI in historical acceptance evidence below. Its updated `transaction.yml`, `native-backend.yml`, `performance.yml` and new `appearance.yml` need a fresh native runtime run. Earlier screenshots/frame data do not validate the revised appearance or physical-device smoothness.
+
 Implementation baseline: 2026-10-20, branch `feat/native-mobile-migration`, starting at main `6e89646f`. This report separates executed checks from proposed acceptance targets.
 
 ## Executed checks
@@ -68,7 +70,7 @@ These budgets must be revised after measurements on a named midrange Android pho
 
 1. Cold/warm launch, login, force close, reopen, expired access token, refresh rotation, revoked session, and signout. Test real cookies on both platforms; the QA fixture does not exercise them.
 2. Open the composer 30 times, edit an amount, repeatedly open/dismiss the keyboard, choose child categories and similarly named accounts, and dismiss with iOS back gestures/Android back. Preserve draft content without hidden controls.
-3. Submit manual expense and income; simulate 400, 401, 403, 429, timeout, 5xx, process interruption, malformed success, and lost response after commit. Replaying a frozen reference must leave one record. Verify on the actual backend.
+3. Submit expense and income through the assistant, then edit a saved record and verify exact category/account IDs. Simulate 400, 401, 403, 429, timeout, 5xx, process interruption, malformed success and lost response after commit. Unknown assistant outcomes require explicit history review and must never be automatically replayed. Restore an older pending manual draft and verify creation remains blocked until review.
 4. Send natural-language expense/income, clarification, and special financial-event text. Verify assistant messages are never treated as a parse preview or automatically resent after unknown outcomes. Inspect account, event kind, category, amount, date, and visibility in persisted records.
 5. Edit the saved amount/account/category/date and confirm history updates. Test a lost PATCH response and reload before correction. Verify native back/discard behavior.
 6. Load many pages, search loaded data, rapidly navigate, background/foreground, and switch accounts. Confirm no previous user's cached financial data or draft appears after signout/signin.

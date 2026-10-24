@@ -17,6 +17,7 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
   const entry = useEntry();
   const operations = useOperations();
   const query = useQueryClient();
+  const blocked = operations.blocked || !!entry.draft.pendingManual || entry.draft.assistantUncertain || !entry.resources.canWrite;
   const headerHeight = useHeaderHeight();
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -31,7 +32,7 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
   if (!entry.edit) return <SafeAreaView style={styles.screen}><ErrorNotice message="Open a transaction from recent history to edit it." /></SafeAreaView>;
   const { transaction, manual } = entry.edit;
   const submit = () => { void entry.runExclusive(async () => {
-    if (operations.blocked || !entry.resources.canWrite) return;
+    if (blocked) return;
     setError(null); setErrors({});
     try {
       const intent = buildTransactionIntent(manual, entry.resources, 'native:validate-edit');
@@ -62,9 +63,10 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
       <OperationNotice refresh={() => query.refetchQueries({ type: 'active' }, { throwOnError: true })} />
       {saved ? <><Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.heading}>Changes saved</Text><Button title="Done" onPress={() => navigation.goBack()} /></> : <>
         <Text style={styles.caption}>Editing the existing saved record.</Text>
-        <TransactionEditForm draft={manual} resources={entry.resources} disabled={entry.busy || unknown || operations.blocked || !entry.resources.canWrite} errors={errors}
+        {entry.draft.pendingManual || entry.draft.assistantUncertain ? <Button title="Review pending transaction" secondary onPress={() => navigation.navigate('Composer')} /> : null}
+        <TransactionEditForm draft={manual} resources={entry.resources} disabled={entry.busy || unknown || blocked} errors={errors}
           onChange={change => entry.updateManual(change, 'edit')} onSelect={kind => navigation.navigate('Picker', { kind, target: 'edit' })} />
-        <Button title={unknown ? 'Reload saved transaction' : 'Save changes'} onPress={unknown ? reload : submit} loading={entry.busy} disabled={!unknown && (operations.blocked || !entry.resources.canWrite)} />
+        <Button title={unknown ? 'Reload saved transaction' : 'Save changes'} onPress={unknown ? reload : submit} loading={entry.busy} disabled={!unknown && blocked} />
       </>}
       {error ? <ErrorNotice message={error} /> : null}
     </ScrollView></KeyboardAvoidingView></SafeAreaView>;

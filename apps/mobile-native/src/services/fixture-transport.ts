@@ -95,8 +95,11 @@ export function fixtureTransport({ pause = async () => {} }: { pause?: (millisec
       if (text === 'simulate failure') throw Error('Simulated network loss');
       const amount = /\d+(?:\.\d{1,2})?/.exec(text)?.[0];
       if (!amount) { pendingText = text; return ok({ status: 'NeedsClarification', intent: 'CreateExpense', assistantMessage: 'How much did you spend?', transaction: null, errors: [] }); }
-      const transaction = save({ eventKind: 'Purchase', amount: Number(amount), date: String(body?.transactionDate), categoryId: 'groceries', accountId: accounts[0]!.id,
-        householdId, merchant: null, description: pendingText ?? text, sourceText: text, paymentChannel: 'Unknown', inputMode: 'Text', confidence: 1,
+      const sourceText = pendingText ?? text;
+      const income = /salary|received|income/i.test(sourceText);
+      const account = /kotak upi/i.test(sourceText) ? accounts[1]! : accounts[0]!;
+      const transaction = save({ eventKind: income ? 'Income' : 'Purchase', amount: Number(amount), date: String(body?.transactionDate), categoryId: income ? 'salary' : 'groceries', accountId: account.id,
+        householdId, merchant: null, description: sourceText, sourceText: text, paymentChannel: /upi/i.test(sourceText) ? 'UPI' : 'Unknown', inputMode: 'Text', confidence: 1,
         visibility: 'Private', externalReference: `fixture-${++sequence}` }); pendingText = null;
       transaction.inputMode = body?.inputMode === 'Voice' ? 'Voice' : 'Text';
       return ok({ status: 'Responded', intent: 'CreateExpense', assistantMessage: 'Tracked your transaction.', transaction, errors: [] });

@@ -19,6 +19,7 @@ export function PickerScreen({ route, navigation }: ScreenProps<'Picker'>) {
   const [error, setError] = useState<string | null>(null);
   const { kind, target } = route.params;
   const draft = entry.edit?.manual ?? entry.draft.manual;
+  const blocked = entry.busy || !entry.edit || !entry.resources.canWrite || !!entry.draft.pendingManual || entry.draft.assistantUncertain;
   const term = search.trim().toLocaleLowerCase();
   const options = kind === 'category'
     ? categoryOptions(entry.resources.categories, draft.eventKind === 'Income' ? 'Income' : 'Expense', search).map(c => ({ id: c.id, label: c.label, detail: c.category.classification }))
@@ -33,6 +34,7 @@ export function PickerScreen({ route, navigation }: ScreenProps<'Picker'>) {
     catch { setError('Your accounts could not be refreshed. Check your connection and try again.'); }
   }); };
   const choose = (id: string) => {
+    if (blocked) return;
     const change: Partial<ManualDraft> = kind === 'category' ? { categoryId: id } : kind === 'account' ? { accountId: id } : kind === 'payment' ? { paymentChannel: id as PaymentChannel } : { visibility: id as Visibility };
     entry.updateManual(change, target); Keyboard.dismiss();
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
@@ -46,8 +48,8 @@ export function PickerScreen({ route, navigation }: ScreenProps<'Picker'>) {
         {kind === 'account' ? <Button title="Refresh accounts" secondary loading={entry.busy} onPress={refresh} /> : null}
         {error ? <ErrorNotice message={error} /> : null}</View>}
       ListEmptyComponent={<Text style={styles.caption}>No matching options. Try a different search.</Text>}
-      renderItem={({ item }) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected === item.id, disabled: entry.busy }} accessibilityLabel={`${item.label}${item.detail ? `, ${item.detail}` : ''}`}
-        disabled={entry.busy} onPress={() => choose(item.id)} style={{ minHeight: 68, padding: 18, borderRadius: 18, backgroundColor: selected === item.id ? color.tint : color.surface, boxShadow: `0 2px 12px ${color.shadow}`, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+      renderItem={({ item }) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected === item.id, disabled: blocked }} accessibilityLabel={`${item.label}${item.detail ? `, ${item.detail}` : ''}`}
+        disabled={blocked} onPress={() => choose(item.id)} style={{ minHeight: 68, padding: 18, borderRadius: 18, backgroundColor: selected === item.id ? color.tint : color.surface, boxShadow: `0 2px 12px ${color.shadow}`, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <View style={{ flex: 1, gap: 4 }}><Text style={styles.body}>{item.label}</Text>{item.detail ? <Text style={styles.caption}>{item.detail}</Text> : null}</View>
         {selected === item.id ? <Text accessible={false} style={styles.body}>✓</Text> : null}
       </Pressable>} />

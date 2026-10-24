@@ -38,7 +38,7 @@ export function ThemeProvider({ children, appearanceStorage = storage, initialPr
     let alive = true; const before = revision.current;
     void appearanceStorage.get().then(value => {
       if (alive && revision.current === before && (value === 'system' || value === 'light' || value === 'dark')) setValue(value);
-    }).catch(() => { if (alive) setError('Your saved appearance could not be loaded. Choose it again to save it.'); });
+    }).catch(() => { if (alive && revision.current === before) setError('Your saved appearance could not be loaded. Choose it again to save it.'); });
     return () => { alive = false; };
   }, [appearanceStorage]);
   useEffect(() => { NativeAppearance.setColorScheme(preference === 'system' ? 'unspecified' : preference); }, [preference]);

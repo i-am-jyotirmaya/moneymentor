@@ -60,22 +60,13 @@ appId: com.spndrr.app.rn.e2e
     commands:
       - tapOn:
           id: open-composer
-      - tapOn: 'Enter details'
       - tapOn:
-          id: amount-input
+          id: assistant-input
       - eraseText
-      - inputText: '12.34'
+      - inputText: 'groceries for 12.34'
       - tapOn:
           id: keyboard-dismiss
           optional: true
-      - tapOn: '^Category: .*'
-      - tapOn:
-          id: category-search
-      - inputText: 'Groceries'
-      - tapOn:
-          id: keyboard-dismiss
-          optional: true
-      - tapOn: 'Food / Groceries,.*'
       - tapOn:
           id: composer-close
 - assertVisible: 'Continue your draft'

@@ -1,6 +1,6 @@
 # Spndrr native mobile migration
 
-Status: all existing API-supported screen groups implemented; broader native and release acceptance pending. This branch owns `apps/mobile-native`, the new universal `packages/finance-core`, and mobile documentation/workflows. `apps/web`, backend code, existing API contracts, and existing workflows are out of scope. The Capacitor app remains supported until native runtime acceptance passes.
+Status: supported native screen groups implemented with assistant-only transaction creation; broader native and release acceptance pending. The 2026-10-24 design revision aligns the native palette and navigation labels with the web product and adds persistent light/dark/system appearance. See [native-design.md](native-design.md). This branch owns `apps/mobile-native`, the new universal `packages/finance-core`, and mobile documentation/workflows. `apps/web`, backend code, existing API contracts, and existing workflows are out of scope. The Capacitor app remains supported until native runtime acceptance passes.
 
 ## Decision and dependency baseline
 
@@ -45,13 +45,13 @@ The native app is intentionally absent from the root pnpm workspace globs. Expo'
 ## First vertical slice and safety
 
 1. Restore the native session, sign in, and load the category/account/settings resources.
-2. Open the native transaction composer. Keep text input and structured entry distinct because the assistant writes immediately.
-3. Manual entry validates decimal precision, date, category hierarchy, currency, and an active exact account ID. A stable external reference plus a frozen payload permits retrying the same manual operation without another financial write. Server data remains authoritative.
+2. Open the native assistant composer. Text and reviewed dictation are the only transaction-creation UI. Explain that sending can immediately save a transaction.
+3. Structured fields are available only when editing an existing saved transaction. Validate decimal precision, date, category hierarchy, currency and exact account ID before PATCH. No manual expense/income or special-event creation form is registered in navigation.
 4. Assistant messages support clarification. Network failures or malformed success can leave the outcome unknown: do not automatically retry. Ask the user to check history before explicitly starting another message.
 5. Preserve encrypted user-scoped drafts across navigation and interruption. Do not mark a transaction saved before a valid server record arrives. Do not queue background financial writes.
 6. Access tokens stay in memory. Persist refresh cookies and drafts only through native secure storage; clear user data on signout. Share no cache or draft between accounts. Do not log finance text or authentication material.
 
-Backend reference deduplication is not a generic idempotency API. It is scoped to an account and compares only specific financial fields. A pending manual request must retain its original payload; corrections use a new operation only after its outcome is known. Assistant writes have no equivalent idempotency contract.
+Older builds may leave an uncertain manual save in encrypted storage. Preserve that marker and block assistant writes until the user reviews saved history and explicitly clears it; do not replay it or silently drop it during upgrade. Shared API/reference helpers remain for existing contracts and validation, but are not manual-creation UI. Assistant writes have no idempotency contract and are never resent automatically.
 
 ## Feature-parity matrix
 
@@ -59,17 +59,17 @@ Backend reference deduplication is not a generic idempotency API. It is scoped t
 | --- | --- | --- |
 | Login/refresh/logout | Web forms, Capacitor HTTP cookie jar | Native forms, cookie adapter + encrypted persistence; first slice |
 | Natural-language tracking | Shared web assistant, write-on-message API | Native text composer with clarification and unknown-outcome guard; first slice |
-| Manual expense/income | Existing API and transaction editor | Native structured form, account/category IDs, retry reference; first slice |
+| Transaction creation | Assistant-first web product | Assistant text or reviewed dictation only. Manual creation removed; saved-record editing remains |
 | Category/subcategory selection | DOM searchable dropdown | Native searchable hierarchical picker; first slice |
 | Account selection | DOM dropdown and account panel | Native picker retaining account type and ID; first slice |
 | Transaction editing | Web transaction panel | Edit the saved transaction through PATCH; first slice |
 | Recent history | Web transaction list/pagination | Native virtualized verification list; first slice |
 | Privacy consent | Web consent gate | Native consent gate using current policy/API; first slice |
-| Bottom navigation/dashboard | Re-exported web screens | Native Today/Overview/Plan/Insights/More tabs, scoped server totals, budget detail and accessible category charts implemented |
+| Bottom navigation/dashboard | Re-exported web screens | Native Assistant/Dashboard/Planning/Judgments/More tabs, scoped server totals, budget detail and accessible category charts implemented |
 | History/search/filter/trash | Web transaction list | Native paginated virtualized list, loaded-page search, account/category/event filters, detail, soft delete and restore implemented |
 | Insights/reports | Web Judgement Engine panels | Native active insights, private explanations, dismiss, personal/household weekly/monthly reports and history implemented |
 | Budgets/commitments/goals | Web planning forms and asynchronous plans | Server budget presentation, goal CRUD/status/contribution, recurring commitment management and async plan generation/customization/review/activation implemented; no budget CRUD endpoint exists |
-| Transfers/card payments/refunds | Account-aware backend semantics | Native transfer/card settlement/withdrawal/refund/reversal/reward/fee/interest/investment forms preserve exact accounts and financial event kinds |
+| Transfers/card payments/refunds | Account-aware backend semantics | Manual special-event creation forms removed. Existing events retain their account IDs and financial semantics in history, detail, totals and trash. New transactions use the existing assistant contract |
 | Account/category management | Web settings | Native account names/types/aliases/institution/last four/status, custom categories/hierarchy/classification/hide/delete implemented. Sharing stays fixed after account creation; system categories remain read only |
 | Households/scope/roles/invitations | Web household screens | Scoped resources/cache keys/drafts, read-only role affordances, create/settings/invite/delivery status/accept/decline implemented; server authorizes every operation |
 | Settings/privacy/export/deletion | Web forms/native share adapter | Native preferences, current-policy links, JSON export through native share, temporary-copy removal and confirmed account deletion implemented; export/deletion remain available before updated-policy acceptance |
@@ -81,13 +81,15 @@ Backend reference deduplication is not a generic idempotency API. It is scoped t
 
 ## Validation gate and rollout
 
-Transaction entry has passed hosted Android and iOS functional acceptance. Android large-history acceptance and both x86_64/ARM64 QA builds also pass. Software-emulator frame measurements missed the proposed budget; representative physical-device profiling remains a release acceptance item, separate from the now-implemented screen inventory. Preserve the working Capacitor application until feature and release acceptance. See [performance.md](performance.md) and [windows-development.md](windows-development.md) for evidence and build instructions.
+Earlier builds passed hosted Android/iOS transaction acceptance and Android large-history acceptance, with x86_64/ARM64 QA builds. Those runs predate the 2026-10-24 design/assistant-only revision; updated transaction and appearance Maestro scenarios require a fresh native run. Software-emulator frame measurements missed the proposed budget; representative physical-device profiling remains a release acceptance item, separate from the now-implemented screen inventory. Preserve the working Capacitor application until feature and release acceptance. See [performance.md](performance.md) and [windows-development.md](windows-development.md) for evidence and build instructions.
 
 Milestone 1: audit, decision, shared boundaries, native bootstrap and build configuration.
 Milestone 2: transaction entry, native design/motion foundations, automated tests, device acceptance.
 Milestone 3 financial-screen code is implemented, with broader runtime acceptance in progress. Milestones 4–5 still require actual image-processing contracts, native service/device acceptance, performance and distribution sign-off. Each feature's incomplete status must stay visible in the PR. Do not claim the entire migration or release acceptance until the corresponding checks pass.
 
 ## Remaining acceptance and contract gaps
+
+The 2026-10-24 revision passes local strict native/core/service TypeScript, zero-warning lint, component/service/domain tests and Android/iOS Metro exports. Updated native scenarios include theme screenshots, draft retention and restart persistence, but have not been executed locally; this environment has no Android/iOS runtime. Physical-device appearance and smoothness are not established by bundle exports or component tests.
 
 The existing API-supported screen inventory is implemented. Hosted strict native TypeScript/lint, 50 component/adapter tests, 64 Node tests, Android/iOS Metro exports and the expanded real HTTPS API contract suite passed in run 39403340870. Both platforms completed goal creation, contributions, plan generation and account creation in run 39375609810 before a below-viewport account assertion stopped the flow. That test now scrolls; the remaining workspace steps and native-cookie scenario await a fresh passing run. A subsequent all-owner deletion-cleanup regression test is also pending. Do not equate screen implementation or compilation with passing runtime acceptance for every feature.
 

@@ -5,6 +5,9 @@ import { AppearanceSwitch } from '../src/ui/AppearanceSwitch';
 import { Field, useStyles } from '../src/ui/primitives';
 import { ThemeProvider, useTheme, type AppearanceStorage } from '../src/ui/theme';
 
+// Exercise the real appearance subscription; the native Jest preset fixes this hook to light.
+jest.unmock('react-native/Libraries/Utilities/useColorScheme');
+
 function EditingProbe() {
   const { mode } = useTheme(); const styles = useStyles(); const [text, setText] = useState('Unsent groceries');
   return <View testID="page" style={styles.screen}><Text>{mode}</Text><Field label="Unsent message" value={text} onChangeText={setText} /><AppearanceSwitch /></View>;
@@ -52,4 +55,19 @@ test('failed persistence keeps appearance usable and gives actionable feedback',
   const screen = render(<ThemeProvider appearanceStorage={{ get: async () => null, set: async () => { throw Error('Full'); } }}><EditingProbe /></ThemeProvider>);
   await act(async () => {}); fireEvent.press(screen.getByRole('radio', { name: 'Dark mode' }));
   await waitFor(() => expect(screen.getByText(/Appearance changed for now/)).toBeTruthy()); expect(screen.getByText('dark')).toBeTruthy();
+});
+
+test('system mode follows appearance events and an explicit selection stays fixed', async () => {
+  let scheme: 'light' | 'dark' = 'light';
+  const listeners = new Set<(value: { colorScheme: 'light' | 'dark' | 'unspecified' }) => void>();
+  jest.spyOn(Appearance, 'getColorScheme').mockImplementation(() => scheme);
+  jest.spyOn(Appearance, 'setColorScheme').mockImplementation(() => undefined);
+  jest.spyOn(Appearance, 'addChangeListener').mockImplementation(listener => { listeners.add(listener); return { remove: () => { listeners.delete(listener); } }; });
+  const screen = render(<ThemeProvider appearanceStorage={memoryStorage('system')}><EditingProbe /></ThemeProvider>);
+  await act(async () => {}); expect(screen.getByText('light')).toBeTruthy();
+  act(() => { scheme = 'dark'; listeners.forEach(listener => listener({ colorScheme: scheme })); });
+  expect(screen.getByText('dark')).toBeTruthy();
+  fireEvent.press(screen.getByRole('radio', { name: 'Light mode' }));
+  act(() => { scheme = 'light'; listeners.forEach(listener => listener({ colorScheme: scheme })); scheme = 'dark'; listeners.forEach(listener => listener({ colorScheme: scheme })); });
+  expect(screen.getByText('light')).toBeTruthy();
 });

@@ -35,7 +35,7 @@ function shiftMonth(month: string, delta: number) {
 }
 export function HomeScreen({ navigation }: FeatureNavigationProps) {
   const styles = useStyles();
-  const { color, mode, setPreference } = useTheme();
+  const { color, mode, setPreference, error: themeError } = useTheme();
 
   const entry = useEntry();
   const operations = useOperations(); const query = useQueryClient();
@@ -91,6 +91,7 @@ A lot more possibility.</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Recent assistant conversations" onPress={() => navigation.navigate('AssistantHistory')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 16, backgroundColor: color.tint }}><Icon name="assistant" size={18} /><Text style={styles.caption}>Conversations</Text></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Open goals and plans" onPress={() => navigation.navigate('Goals')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 16, backgroundColor: color.surface }}><Icon name="goal" size={18} /><Text style={styles.caption}>Goals & plans</Text></Pressable>
         </View>
+        {themeError ? <ErrorNotice message={themeError} /> : null}
         <OperationNotice refresh={() => Promise.all([query.invalidateQueries({ queryKey: ['entry'] }, { throwOnError: true }), history.refetch({ throwOnError: true })])} />
         {entry.saved ? <Text accessibilityLiveRegion="polite" style={styles.caption}>Last saved: {formatMoney(entry.saved.amount, entry.saved.currencyCode)} · {entry.saved.accountName ?? entry.saved.kind}</Text> : null}
         {entry.saved && entry.persistenceError ? <ErrorNotice message="The transaction is saved. Its local draft still needs clearing." onRetry={() => { void entry.complete(entry.saved!); }} /> : null}

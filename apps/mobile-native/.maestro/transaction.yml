@@ -30,15 +30,23 @@ appId: com.spndrr.app.rn.e2e
 - takeScreenshot: native-home
 - tapOn:
     id: open-composer
-- tapOn: 'Enter details'
+- assertNotVisible: 'Enter details'
 - tapOn:
-    id: amount-input
-- inputText: '40.29'
+    id: assistant-input
+- inputText: 'groceries for 40.29 using Kotak upi'
 - tapOn:
     id: keyboard-dismiss
     optional: true
 - takeScreenshot: native-composer
-- tapOn: 'Category: Choose category or subcategory'
+- scrollUntilVisible:
+    element: 'Send & track'
+    direction: DOWN
+- tapOn: 'Send & track'
+- assertVisible: 'Transaction saved'
+- assertVisible: 'Kotak upi.*'
+- takeScreenshot: native-receipt
+- tapOn: 'Edit saved transaction'
+- tapOn: 'Category: Food / Groceries'
 - tapOn:
     id: category-search
 - inputText: 'Groceries'
@@ -46,17 +54,9 @@ appId: com.spndrr.app.rn.e2e
     id: keyboard-dismiss
     optional: true
 - tapOn: 'Food / Groceries,.*'
-- tapOn: 'Account: Choose payment account'
+- tapOn: 'Account: Kotak upi · Credit card'
 - takeScreenshot: native-accounts
 - tapOn: 'Kotak upi, Credit card'
-- scrollUntilVisible:
-    element: 'Save transaction'
-    direction: DOWN
-- tapOn: 'Save transaction'
-- assertVisible: 'Transaction saved'
-- assertVisible: 'Kotak upi.*'
-- takeScreenshot: native-receipt
-- tapOn: 'Edit saved transaction'
 - tapOn:
     id: amount-input
 - eraseText
@@ -73,30 +73,18 @@ appId: com.spndrr.app.rn.e2e
 - tapOn: 'Done'
 - tapOn: 'Done'
 - tapOn: 'Add a transaction'
-- tapOn: 'Enter details'
-- tapOn: 'Income'
 - tapOn:
-    id: amount-input
-- inputText: '1234.56'
+    id: assistant-input
+- inputText: 'salary received 1234.56 in Kotak'
 - tapOn:
     id: keyboard-dismiss
     optional: true
-- tapOn: 'Category: Choose category or subcategory'
-- tapOn:
-    id: category-search
-- inputText: 'Salary'
-- tapOn:
-    id: keyboard-dismiss
-    optional: true
-- tapOn: 'Salary,.*'
-- tapOn: 'Account: Choose payment account'
-- tapOn: 'Kotak, Bank account'
 - scrollUntilVisible:
-    element: 'Save transaction'
+    element: 'Send & track'
     direction: DOWN
-- tapOn: 'Save transaction'
+- tapOn: 'Send & track'
 - assertVisible: 'Transaction saved'
-- assertVisible: 'Salary'
+- assertVisible: '.*[Ss]alary.*'
 - takeScreenshot: native-income-receipt
 - tapOn: 'Done'
 - tapOn: 'Add a transaction'

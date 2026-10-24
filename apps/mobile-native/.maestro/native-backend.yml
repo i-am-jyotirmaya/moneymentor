@@ -28,37 +28,17 @@ appId: com.spndrr.app.rn.e2e
     timeout: 30000
 - tapOn:
     id: open-composer
-- tapOn: 'Enter details'
+- assertNotVisible: 'Enter details'
 - tapOn:
-    id: amount-input
-- inputText: '40.29'
-- tapOn:
-    id: keyboard-dismiss
-    optional: true
-- tapOn: 'Category: Choose category or subcategory'
-- tapOn:
-    id: category-search
-- inputText: 'Groceries'
-- tapOn:
-    id: keyboard-dismiss
-    optional: true
-- tapOn: 'Food & Groceries / Groceries,.*'
-- tapOn: 'Account: Choose payment account'
-- tapOn: 'Kotak upi, Credit card'
-- scrollUntilVisible:
-    element:
-      id: note-input
-    direction: DOWN
-- tapOn:
-    id: note-input
-- inputText: Native cookie acceptance
+    id: assistant-input
+- inputText: 'spent 40.29 on groceries at Native cookie acceptance using Kotak upi'
 - tapOn:
     id: keyboard-dismiss
     optional: true
 - scrollUntilVisible:
-    element: 'Save transaction'
+    element: 'Send & track'
     direction: DOWN
-- tapOn: 'Save transaction'
+- tapOn: 'Send & track'
 - extendedWaitUntil:
     visible: 'Transaction saved'
     timeout: 30000
@@ -85,7 +65,7 @@ appId: com.spndrr.app.rn.e2e
       id: open-composer
     timeout: 30000
 - scrollUntilVisible:
-    element: 'Native cookie acceptance,.*'
+    element: '.*Native cookie acceptance.*'
     direction: DOWN
 - takeScreenshot: native-api-restored-session
 - scrollUntilVisible:

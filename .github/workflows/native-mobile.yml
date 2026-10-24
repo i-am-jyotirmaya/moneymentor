@@ -276,6 +276,12 @@ jobs:
           xcrun simctl install "$native_device" "$native_app"
           xcrun simctl launch "$native_device" com.spndrr.app.rn.e2e
           $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/transaction.yml
+      - name: Verify light and dark appearance, draft retention and restart persistence
+        timeout-minutes: 10
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+        working-directory: apps/mobile-native
+        run: $HOME/.maestro/bin/maestro --device "$NATIVE_TEST_DEVICE" test .maestro/appearance.yml
       - name: Run native iOS financial workspace acceptance
         timeout-minutes: 15
         env:

@@ -30,7 +30,7 @@ export function Button({ title, onPress, disabled, loading, secondary, selected,
     onPressIn={() => { scale.set(withSpring(0.975, { ...motion.spring, reduceMotion: ReduceMotion.System })); }}
     onPressOut={() => { scale.set(withSpring(1, { ...motion.spring, reduceMotion: ReduceMotion.System })); }}
     style={[styles.button, secondary && styles.secondary, selected && styles.selected, (disabled || loading) && styles.disabled, animated]}>
-    {loading ? <ActivityIndicator color={secondary ? color.ink : color.onAccent} /> : null}
+    {loading ? <ActivityIndicator color={secondary && !selected ? color.ink : color.onAccent} /> : null}
     <Text style={[styles.buttonText, secondary && styles.secondaryText, selected && styles.selectedText]}>{title}</Text>
   </AnimatedPressable>;
 }
@@ -91,7 +91,7 @@ const createStyles = (color: Palette) => StyleSheet.create({
   field: { gap: 2 },
   input: { minHeight: 54, borderRadius: 18, borderWidth: 1, borderColor: color.border, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: color.surface, color: color.ink, fontSize: 16 },
   selection: { minHeight: 54, borderRadius: 18, backgroundColor: color.surface, padding: 16, flexDirection: 'row', justifyContent: 'space-between', gap: 12, boxShadow: `0 2px 12px ${color.shadow}` },
-  button: { minHeight: 50, borderRadius: 18, backgroundColor: color.accent, experimental_backgroundImage: `linear-gradient(115deg, ${color.accent}, ${color.accentEnd})`, paddingHorizontal: 18, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 10 },
+  button: { minHeight: 50, minWidth: 50, borderRadius: 18, backgroundColor: color.accent, experimental_backgroundImage: `linear-gradient(115deg, ${color.accent}, ${color.accentEnd})`, paddingHorizontal: 18, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 10 },
   buttonText: { fontSize: 15, lineHeight: 22, fontWeight: '600', color: color.onAccent, textAlign: 'center', flexShrink: 1 },
   secondary: { backgroundColor: color.tint, experimental_backgroundImage: undefined }, secondaryText: { color: color.ink },
   selected: { backgroundColor: color.accent }, selectedText: { color: color.onAccent }, disabled: { opacity: 0.5 },

@@ -2,7 +2,7 @@
 
 React Native / Expo SDK 57 financial workspace. This is a separate native app, with no WebView or Next.js presentation dependency. The existing `apps/mobile` Capacitor app and web app remain available during release acceptance.
 
-Implemented: native auth/privacy, five bottom tabs, dashboard/budget/category summaries, paginated history/search/filters/trash/detail, structured entry/edit and special financial events, full supported account/category forms, goals/contributions/asynchronous plans, commitments, insights/reports, household scope/roles/invitations, preferences, native JSON export and account deletion. The assistant supports reviewed dictation, clarification and encrypted on-device conversation previews. Runtime evidence and remaining API/release gaps are listed in [native-migration.md](../../docs/mobile/native-migration.md).
+Implemented: native auth/privacy, five bottom tabs, dashboard/budget/category summaries, paginated history/search/filters/trash/detail, assistant-only transaction capture and structured saved-record editing, full supported account/category forms, goals/contributions/asynchronous plans, commitments, insights/reports, household scope/roles/invitations, preferences and persistent light/dark/system appearance, native JSON export and account deletion. The assistant supports reviewed dictation, clarification and encrypted on-device conversation previews. Runtime evidence and remaining API/release gaps are listed in [native-migration.md](../../docs/mobile/native-migration.md).
 
 ## Quick start
 
@@ -50,9 +50,9 @@ The iOS CI workflow additionally prepares an isolated local .NET/PostgreSQL back
 
 Access tokens are held in memory. An adapter persists only the existing auth cookies in SecureStore and restores them into the platform networking jar for auth requests. The app has one API jar and no embedded web sessions. Android's cookie API loses attribute metadata, so restoration applies the existing HTTPS-only `/api/auth` policy; the API remains authoritative for expiry/revocation. This needs actual Android/iOS acceptance testing.
 
-Drafts are encrypted and scoped by API origin, owner and household (the personal workspace retains its compatible original key). Two storage banks commit a manifest only after all chunks are written. Draft changes are saved after 300 ms of idle typing and on backgrounding; transaction-operation markers are durably written before sending. A force kill within the debounce window can lose the last few keystrokes. Saved-record edits remain in memory and prompt before discarding. New financial forms also guard navigation while saving and confirm before discarding changes.
+Drafts are encrypted and scoped by API origin, owner and household (the personal workspace retains its compatible original key). Two storage banks commit a manifest only after all chunks are written. Draft changes are saved after 300 ms of idle typing and on backgrounding; transaction-operation markers are durably written before sending. A force kill within the debounce window can lose the last few keystrokes. Saved-record edits remain in memory and prompt before discarding. Planning and account forms also guard navigation while saving and confirm before discarding changes.
 
-Manual creation requires an active account because the backend's existing reference deduplication is account-bound. An uncertain submission retains its original immutable payload. Assistant messages can save immediately and have no idempotency contract: no automatic resend, background queue, or offline success claims. A receipt is shown only after a validated server response.
+Transaction creation uses assistant text or reviewed dictation only. Structured fields are for editing an existing saved record. Older uncertain manual submissions remain blocked until saved history is reviewed and the draft is explicitly cleared; they cannot be resubmitted from the new UI. Assistant messages can save immediately and have no idempotency contract: no automatic resend, background queue, or offline success claims. A receipt is shown only after a validated server response.
 
 Endpoints without a deduplication contract use a separate encrypted write marker before crossing the network boundary. An unknown create/edit/contribution outcome blocks another change until the user refreshes and explicitly reviews saved data in the original household. Household viewing can change for reconciliation; writes stay blocked. Signout removes the active unsent transaction draft and conversation preview but retains an unresolved safety marker under its original owner/API scope. A different user never restores that marker. No financial change is sent by the marker itself.
 
@@ -72,3 +72,9 @@ The composer uses the platform speech service, preferring on-device recognition 
 - `src/services`: transport/session persistence, secure storage, and restricted QA fixture.
 - `__tests__`: native component tests; `tests`: dependency-free service/fault tests.
 - `.maestro`: native runtime acceptance; `.eas/workflows`: optional cloud builds and simulator tests.
+
+## Appearance and native rebuild
+
+Use the sun/moon button on the Assistant home screen for a quick switch. More and Settings → Appearance offer Light, Dark and System (the default). The device preference survives signout/restart; it is independent of household and financial data. Changing appearance updates mounted screens without resetting drafts, navigation or queries. Native alerts and date pickers follow the chosen appearance.
+
+This revision adds SDK-compatible `react-native-svg` for consistent line icons and `expo-system-ui` for Android appearance configuration. After pulling it, run `npm ci` and `npm run android` (or rebuild the iOS development client). An older installed development client needs a native rebuild. See [native-design.md](../../docs/mobile/native-design.md) for design and acceptance details.
