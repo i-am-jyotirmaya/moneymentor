@@ -1,0 +1,111 @@
+# Spndrr native mobile migration
+
+Status: supported native screen groups implemented with assistant-only transaction creation; broader native and release acceptance pending. The 2026-10-24 design revision aligns the native palette and navigation labels with the web product and adds persistent light/dark/system appearance. See [native-design.md](native-design.md). This branch owns `apps/mobile-native`, the new universal `packages/finance-core`, and mobile documentation/workflows. `apps/web`, backend code, existing API contracts, and existing workflows are out of scope. The Capacitor app remains supported until native runtime acceptance passes.
+
+## Decision and dependency baseline
+
+Use React Native with Expo development builds and a native presentation layer. Flutter offers native rendering and strong animation tooling, but requires rewriting the existing TypeScript domain/API logic in Dart. Both support Android, iOS, Windows development, and hosted macOS compilation; neither permits running Apple's local iOS simulator on Windows. React Native best fits this TypeScript repository. Reanimated runs motion on the UI thread; native stacks provide platform back gestures. Frame rate remains a measurement, not a framework guarantee.
+
+The baseline was verified on 2026-10-19 against the [Expo SDK 57 release branch](https://github.com/expo/expo/blob/sdk-57/packages/expo/bundledNativeModules.json): Expo 57.0.30, React Native 0.86.3, React 19.2.3, Reanimated 4.5.1, Worklets 0.10.1, Gesture Handler ~2.32.0, Screens ~4.26.0, Safe Area ~5.7.0. Use this SDK's recommendations rather than installing the latest independent native packages. Run `npx expo install --check` and Expo Doctor after dependency changes.
+
+The 2026-10-24 hosted compatibility check required patch updates to Expo 57.0.31 and expo-sharing 57.0.24; those are now pinned in the native manifest/lockfile.
+
+React Navigation native-stack, accessible native controls, Expo SecureStore, and an injected universal API transport form the first slice. Do not add Skia until profiling demonstrates a need. Development builds include custom native modules; Expo Go is not the acceptance environment.
+
+The first hosted dependency check confirmed the SDK's development-tool recommendations: native TypeScript 6.0.3 and React types 19.2.4. The universal package retains its existing-compatible TypeScript 5.9.3 development checker. The native cookie adapter uses the maintained New Architecture TurboModule `@preeternal/react-native-cookie-manager` 7.0.0, following the deprecated upstream package's migration guidance. Its Foundation store is used for iOS networking; no WebKit screen is introduced.
+
+| Decision factor | React Native + Expo | Flutter |
+| --- | --- | --- |
+| Motion and native behavior | Native screens/gestures plus UI-thread Reanimated; must profile actual devices | Flutter rendering/animation pipeline; must also profile actual devices |
+| Android/iOS and Windows development | Android locally; iOS builds on hosted macOS/EAS and tests on cloud simulator/iPhone | Android locally; iOS still needs hosted macOS compilation and an iOS runtime |
+| Existing TypeScript investment | Reuses universal DTOs, validation, and API orchestration | Requires Dart counterparts or an additional cross-language boundary |
+| Maintenance and ecosystem | Fits current React/TypeScript skills; SDK coordinates native dependency versions | Mature mobile ecosystem, but another language/toolchain for this team |
+| Profiling/debugging | React Native DevTools plus native profilers for release acceptance | Flutter DevTools plus native platform profiling |
+| Build/maintenance cost | Existing language reuse; cloud quotas/signing still apply | New Dart implementation effort; cloud quotas/signing still apply |
+
+## Repository audit at main 6e89646f
+
+- `apps/mobile` is Next.js static export wrapped in Capacitor 8. Its routes re-export `apps/web` pages and its stylesheet imports the web presentation layer. This is unsuitable as the native UI foundation.
+- Routes cover assistant, dashboard, transactions, planning, reports, household, settings, login, signup, request-access, and privacy.
+- Capacitor plugins cover HTTP/cookies, keyboard, application links/back, filesystem/share, and community native speech recognition. Browser APIs, DOM components, Next routing, and Tailwind stay in the existing apps.
+- `apps/web/lib/api.ts` currently mixes transport, auth, DTOs, and feature methods. There are no existing `packages/*` packages to reuse. Add an independent compatible package; do not extract or rewrite web code during concurrent development.
+- Login returns an in-memory access token. Refresh rotation uses HttpOnly `mm_refresh` and `mm_session` cookies scoped to `/api/auth`; there is no refresh-token JSON field. Native refresh must preserve that contract.
+- `POST /api/transactions` accepts `TransactionIntent`, including exact account/category IDs, event kind, date, and `externalReference`. Deduplication requires an account/observation account. `PATCH /api/transactions/{id}` edits existing records.
+- `POST /api/assistant/messages` can immediately SAVE a transaction. It is not a parse/preview endpoint. A UI must explicitly say it sends and tracks, and must not subsequently create the same transaction manually.
+- Categories include parent IDs, type, classification, and hidden flags. Accounts distinguish `BankAccount`, `CreditCard`, `Cash`, and `Wallet`; names such as Kotak and Kotak upi must never be collapsed by the client.
+- Main currently exposes text/voice assistant messages; its message contract has no multipart/image field or upload endpoint. Image/OCR work exists separately and is not invented here.
+- Existing mobile tests are static/browser tests; mobile CI is manual. They cannot prove native permission, cookie, keyboard, or frame-time behavior.
+
+## Boundaries and installation
+
+`packages/finance-core` owns platform-neutral DTOs, decimal input validation, category paths, immutable submission state, session coordination, and the API client. It has no runtime dependencies and imports no React, DOM, Node, or native modules. Native code owns transport, native cookies, encrypted persistence, UI, navigation, and haptics. Existing web exports remain unchanged.
+
+`apps/mobile-native` is an isolated npm project with a local `file:../../packages/finance-core` dependency. Keeping its React/native dependencies and lock separate avoids changing the existing pnpm React resolution used by the web and Capacitor app. Run native commands from that directory, not via existing `mobile:*` commands. The shared package remains discoverable by the existing `packages/*` workspace pattern. Cloud build archives must include the repository root so the local dependency is available.
+
+The native app is intentionally absent from the root pnpm workspace globs. Expo's package-manager resolver only adopts a parent workspace when the app matches that workspace's package globs; otherwise it uses the app's own lockfile. This boundary must remain explicit when adding future workspace paths. The only root changes are `.gitignore` exceptions for the universal package and a lock importer referencing the already-resolved TypeScript version; no existing dependency resolution changes.
+
+## First vertical slice and safety
+
+1. Restore the native session, sign in, and load the category/account/settings resources.
+2. Open the native assistant composer. Text and reviewed dictation are the only transaction-creation UI. Explain that sending can immediately save a transaction.
+3. Structured fields are available only when editing an existing saved transaction. Validate decimal precision, date, category hierarchy, currency and exact account ID before PATCH. No manual expense/income or special-event creation form is registered in navigation.
+4. Assistant messages support clarification. Network failures or malformed success can leave the outcome unknown: do not automatically retry. Ask the user to check history before explicitly starting another message.
+5. Preserve encrypted user-scoped drafts across navigation and interruption. Do not mark a transaction saved before a valid server record arrives. Do not queue background financial writes.
+6. Access tokens stay in memory. Persist refresh cookies and drafts only through native secure storage; clear user data on signout. Share no cache or draft between accounts. Do not log finance text or authentication material.
+
+Older builds may leave an uncertain manual save in encrypted storage. Preserve that marker and block assistant writes until the user reviews saved history and explicitly clears it; do not replay it or silently drop it during upgrade. Shared API/reference helpers remain for existing contracts and validation, but are not manual-creation UI. Assistant writes have no idempotency contract and are never resent automatically.
+
+## Feature-parity matrix
+
+| Feature | Existing Capacitor implementation | Native replacement / milestone |
+| --- | --- | --- |
+| Login/refresh/logout | Web forms, Capacitor HTTP cookie jar | Native forms, cookie adapter + encrypted persistence; first slice |
+| Natural-language tracking | Shared web assistant, write-on-message API | Native text composer with clarification and unknown-outcome guard; first slice |
+| Transaction creation | Assistant-first web product | Assistant text or reviewed dictation only. Manual creation removed; saved-record editing remains |
+| Category/subcategory selection | DOM searchable dropdown | Native searchable hierarchical picker; first slice |
+| Account selection | DOM dropdown and account panel | Native picker retaining account type and ID; first slice |
+| Transaction editing | Web transaction panel | Edit the saved transaction through PATCH; first slice |
+| Recent history | Web transaction list/pagination | Native virtualized verification list; first slice |
+| Privacy consent | Web consent gate | Native consent gate using current policy/API; first slice |
+| Bottom navigation/dashboard | Re-exported web screens | Native Assistant/Dashboard/Planning/Judgments/More tabs, scoped server totals, budget detail and accessible category charts implemented |
+| History/search/filter/trash | Web transaction list | Native paginated virtualized list, loaded-page search, account/category/event filters, detail, soft delete and restore implemented |
+| Insights/reports | Web Judgement Engine panels | Native active insights, private explanations, dismiss, personal/household weekly/monthly reports and history implemented |
+| Budgets/commitments/goals | Web planning forms and asynchronous plans | Server budget presentation, goal CRUD/status/contribution, recurring commitment management and async plan generation/customization/review/activation implemented; no budget CRUD endpoint exists |
+| Transfers/card payments/refunds | Account-aware backend semantics | Manual special-event creation forms removed. Existing events retain their account IDs and financial semantics in history, detail, totals and trash. New transactions use the existing assistant contract |
+| Account/category management | Web settings | Native account names/types/aliases/institution/last four/status, custom categories/hierarchy/classification/hide/delete implemented. Sharing stays fixed after account creation; system categories remain read only |
+| Households/scope/roles/invitations | Web household screens | Scoped resources/cache keys/drafts, read-only role affordances, create/settings/invite/delivery status/accept/decline implemented; server authorizes every operation |
+| Settings/privacy/export/deletion | Web forms/native share adapter | Native preferences, current-policy links, JSON export through native share, temporary-copy removal and confirmed account deletion implemented; export/deletion remain available before updated-policy acceptance |
+| Assistant conversations | In-session web assistant | Native write-on-message composer plus bounded encrypted per-owner/per-household conversation previews. No server history endpoint exists; local previews are clearly labeled and can be cleared |
+| Signup/access/invitations | Shared web request-only flow and links | Native signup/request-only access, privacy and invitation deep links implemented; actual email delivery/links still need device acceptance |
+| Voice | Capacitor native system recognizer | Reviewed system dictation implemented; permission/cancellation component coverage added, native service acceptance pending |
+| Multiple screenshots/OCR | Separate unmerged input pipeline work | Milestone 4 once actual API contract is available |
+| Offline | Bundled UI, online API only | Encrypted unsent drafts; no background write queue |
+
+## Validation gate and rollout
+
+Earlier builds passed hosted Android/iOS transaction acceptance and Android large-history acceptance, with x86_64/ARM64 QA builds. Those runs predate the 2026-10-24 design/assistant-only revision; updated transaction and appearance Maestro scenarios require a fresh native run. Software-emulator frame measurements missed the proposed budget; representative physical-device profiling remains a release acceptance item, separate from the now-implemented screen inventory. Preserve the working Capacitor application until feature and release acceptance. See [performance.md](performance.md) and [windows-development.md](windows-development.md) for evidence and build instructions.
+
+Milestone 1: audit, decision, shared boundaries, native bootstrap and build configuration.
+Milestone 2: transaction entry, native design/motion foundations, automated tests, device acceptance.
+Milestone 3 financial-screen code is implemented, with broader runtime acceptance in progress. Milestones 4–5 still require actual image-processing contracts, native service/device acceptance, performance and distribution sign-off. Each feature's incomplete status must stay visible in the PR. Do not claim the entire migration or release acceptance until the corresponding checks pass.
+
+## Remaining acceptance and contract gaps
+
+The 2026-10-24 revision passes local strict native/core/service TypeScript, zero-warning lint, component/service/domain tests and Android/iOS Metro exports. Updated native scenarios include theme screenshots, draft retention and restart persistence, but have not been executed locally; this environment has no Android/iOS runtime. Physical-device appearance and smoothness are not established by bundle exports or component tests.
+
+The existing API-supported screen inventory is implemented. Hosted strict native TypeScript/lint, 50 component/adapter tests, 64 Node tests, Android/iOS Metro exports and the expanded real HTTPS API contract suite passed in run 39403340870. Both platforms completed goal creation, contributions, plan generation and account creation in run 39375609810 before a below-viewport account assertion stopped the flow. That test now scrolls; the remaining workspace steps and native-cookie scenario await a fresh passing run. A subsequent all-owner deletion-cleanup regression test is also pending. Do not equate screen implementation or compilation with passing runtime acceptance for every feature.
+
+- The current backend has no receipt/image/multiple-attachment endpoint, server conversation-history API, budget CRUD endpoint or household member-list/role-edit/removal API. Native UI does not invent these contracts. Budget values are presented from server summaries; households show the roles/memberships/invitations the API exposes.
+- Existing goal target dates/monthly targets, category parent links and commitment goal/category links can be changed where the API permits, but null PATCH fields do not clear them. Forms preserve that behavior. System categories cannot be changed. Account sharing cannot be changed after creation.
+- Plan run IDs are encrypted and restored for polling after process restart. Non-idempotent writes record an owner/household marker before sending. Unknown outcomes block further writes; users can view another household to reconcile the correct data. Assistant previews are bounded local copies, not server conversation synchronization.
+- Account deletion closes the active device session immediately and removes encrypted drafts, previews, planning IDs and pending-operation markers across all recorded household scopes for that owner. Other owners' device data is retained. Temporary export copies are removed on cleanup/cold start; copies explicitly shared to another application cannot be recalled.
+- Physical-device motion, large-text/screen-reader/high-refresh acceptance, real microphone service behavior, iOS device signing/TestFlight and production API/EAS identity remain release checks. Software-emulator frame budgets have not passed.
+- Keep Capacitor available until feature and release acceptance. No production deployment, OTA publication, web/backend change or pre-existing workflow modification is part of this PR.
+
+## Sources
+
+- [Expo SDK reference](https://docs.expo.dev/versions/latest/)
+- [Expo SDK 57 exact package versions](https://github.com/expo/expo/blob/sdk-57/packages/expo/bundledNativeModules.json)
+- [EAS monorepo builds](https://docs.expo.dev/build-reference/build-with-monorepos/)
+- [EAS iOS simulator builds](https://docs.expo.dev/build-reference/simulators/)
+- [EAS Maestro cloud tests](https://docs.expo.dev/eas/workflows/examples/e2e-tests/)

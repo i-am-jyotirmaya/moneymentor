@@ -1,0 +1,81 @@
+{
+  "name": "spndrr-native",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "@spndrr/finance-core"
+        ]
+      }
+    }
+  },
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "jest --runInBand",
+    "test:core": "node --test ../../packages/finance-core/tests/*.test.mjs",
+    "test:services": "node --test tests/*.test.mjs",
+    "typecheck:services": "tsc -p tsconfig.services.json",
+    "typecheck:core": "tsc -p ../../packages/finance-core/tsconfig.json",
+    "check:dependencies": "expo install --check",
+    "doctor": "expo-doctor",
+    "export:android": "expo export --platform android --output-dir dist/android --source-maps",
+    "export:ios": "expo export --platform ios --output-dir dist/ios --source-maps",
+    "check:bundles": "node scripts/check-bundle-tools.mjs",
+    "check:boundaries": "node scripts/check-boundaries.mjs"
+  },
+  "dependencies": {
+    "@spndrr/finance-core": "file:../../packages/finance-core",
+    "@preeternal/react-native-cookie-manager": "7.0.0",
+    "@react-navigation/native": "7.5.1",
+    "@react-navigation/native-stack": "7.8.6",
+    "@tanstack/react-query": "5.90.20",
+    "expo": "57.0.31",
+    "expo-crypto": "57.0.4",
+    "expo-dev-client": "57.0.20",
+    "expo-haptics": "57.0.3",
+    "expo-secure-store": "57.0.4",
+    "expo-status-bar": "57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-gesture-handler": "2.32.0",
+    "react-native-reanimated": "4.5.1",
+    "react-native-worklets": "0.10.1",
+    "react-native-safe-area-context": "5.7.0",
+    "react-native-screens": "4.26.0",
+    "expo-constants": "57.0.22",
+    "@react-native-community/datetimepicker": "9.1.0",
+    "@react-navigation/bottom-tabs": "7.21.0",
+    "expo-file-system": "57.0.7",
+    "expo-sharing": "57.0.24",
+    "expo-speech-recognition": "57.0.0",
+    "@react-navigation/elements": "2.9.45",
+    "react-native-svg": "15.15.4",
+    "expo-system-ui": "57.0.4"
+  },
+  "devDependencies": {
+    "@react-native/jest-preset": "0.86.3",
+    "@testing-library/react-native": "13.3.3",
+    "@types/jest": "29.5.14",
+    "@types/react": "19.2.4",
+    "babel-preset-expo": "57.0.16",
+    "eslint": "9.39.4",
+    "eslint-config-expo": "57.0.2",
+    "expo-doctor": "1.20.4",
+    "jest": "29.7.0",
+    "jest-expo": "57.0.6",
+    "react-test-renderer": "19.2.3",
+    "typescript": "6.0.3",
+    "@types/node": "26.6.5"
+  }
+}

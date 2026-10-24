@@ -48,6 +48,7 @@ node_modules/
 !.yarn/versions
 
 package-lock.json
+!/apps/mobile-native/package-lock.json
 yarn.lock
 
 # Keep pnpm lockfile committed
@@ -106,6 +107,8 @@ _ReSharper*/
 *.snupkg
 .nuget/packages/
 packages/
+!/packages/
+!/packages/finance-core/
 
 # =========================
 # Database / local storage

@@ -1,0 +1,130 @@
+appId: com.spndrr.app.rn.e2e
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Sign in'
+    timeout: 30000
+- tapOn:
+    id: email-input
+- inputText: qa@example.test
+- scrollUntilVisible:
+    element:
+      id: password-input
+    direction: DOWN
+- tapOn:
+    id: password-input
+- inputText: fixture-only
+- scrollUntilVisible:
+    element: 'Sign in'
+    direction: DOWN
+- tapOn: 'Sign in'
+- extendedWaitUntil:
+    visible: 'Add a transaction'
+    timeout: 30000
+- runFlow: dismiss-password-prompt.yml
+- extendedWaitUntil:
+    visible:
+      id: open-composer
+    timeout: 30000
+- takeScreenshot: native-home
+- tapOn:
+    id: open-composer
+- assertNotVisible: 'Enter details'
+- tapOn:
+    id: assistant-input
+- inputText: 'groceries for 40.29 using Kotak upi'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- takeScreenshot: native-composer
+- scrollUntilVisible:
+    element: 'Send & track'
+    direction: DOWN
+- tapOn: 'Send & track'
+- assertVisible: 'Transaction saved'
+- assertVisible: 'Kotak upi.*'
+- takeScreenshot: native-receipt
+- tapOn: 'Edit saved transaction'
+- tapOn: 'Category: Food / Groceries'
+- tapOn:
+    id: category-search
+- inputText: 'Groceries'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- tapOn: 'Food / Groceries,.*'
+- tapOn: 'Account: Kotak upi · Credit card'
+- takeScreenshot: native-accounts
+- tapOn: 'Kotak upi, Credit card'
+- tapOn:
+    id: amount-input
+- eraseText
+- inputText: '45.50'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Save changes'
+    direction: DOWN
+- tapOn: 'Save changes'
+- assertVisible: 'Changes saved'
+- takeScreenshot: native-edited
+- tapOn: 'Done'
+- tapOn: 'Done'
+- tapOn: 'Add a transaction'
+- tapOn:
+    id: assistant-input
+- inputText: 'salary received 1234.56 in Kotak'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Send & track'
+    direction: DOWN
+- tapOn: 'Send & track'
+- assertVisible: 'Transaction saved'
+- assertVisible: '.*[Ss]alary.*'
+- takeScreenshot: native-income-receipt
+- tapOn: 'Done'
+- tapOn: 'Add a transaction'
+- tapOn:
+    id: assistant-input
+- inputText: 'coffee'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Send & track'
+    direction: DOWN
+- tapOn: 'Send & track'
+- assertVisible: 'How much did you spend?'
+- tapOn:
+    id: assistant-input
+- inputText: '30'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Send & track'
+    direction: DOWN
+- tapOn: 'Send & track'
+- assertVisible: 'Transaction saved'
+- tapOn: 'Done'
+- tapOn: 'Add a transaction'
+- tapOn:
+    id: assistant-input
+- inputText: 'simulate failure'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Send & track'
+    direction: DOWN
+- tapOn: 'Send & track'
+- assertVisible: 'Check recent transactions'
+- assertNotVisible: 'Send & track'
+- tapOn: 'Check recent transactions'
+- tapOn: 'Sign out'
+- tapOn: 'Sign out and clear draft'
+- assertVisible: 'Sign in'

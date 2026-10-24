@@ -1,0 +1,322 @@
+name: native-mobile
+on:
+  pull_request:
+    paths: ['apps/mobile-native/**', 'packages/finance-core/**', 'docs/mobile/**', '.github/workflows/native-mobile.yml']
+  push:
+    branches: [main]
+    paths: ['apps/mobile-native/**', 'packages/finance-core/**', '.github/workflows/native-mobile.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  domain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test packages/finance-core/tests/*.test.mjs apps/mobile-native/tests/*.test.mjs
+      - run: node apps/mobile-native/scripts/check-boundaries.mjs
+  api-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg17
+        env:
+          POSTGRES_DB: native_acceptance
+          POSTGRES_USER: native_acceptance
+          POSTGRES_PASSWORD: native-acceptance-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ASPNETCORE_ENVIRONMENT: Testing
+      ConnectionStrings__MoneyMentorDb: Host=localhost;Port=5432;Database=native_acceptance;Username=native_acceptance;Password=native-acceptance-only
+      Registration__Mode: Open
+      Jwt__SigningKey: native-acceptance-only-local-signing-key-32-bytes
+      AuthCookie__Secure: 'true'
+      Product__SupportEmail: support@example.test
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Exercise the native shared client against the unchanged HTTPS API
+        run: bash apps/mobile-native/scripts/run-real-api.sh
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: native-real-api-diagnostics
+          path: apps/mobile-native/runtime-evidence/api/server.log
+  native-js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/mobile-native
+    env:
+      APP_VARIANT: e2e
+      EXPO_PUBLIC_E2E: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/mobile-native/package-lock.json
+      - name: Install isolated native dependencies
+        run: npm ci
+      - name: Record runtime dependency advisories
+        run: npm audit --omit=dev --audit-level=critical --json > dependency-audit.json
+      - name: Preserve the resolved lockfile and audit for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-dependency-lock
+          path: |
+            apps/mobile-native/package-lock.json
+            apps/mobile-native/dependency-audit.json
+      - run: npm run check:dependencies
+      - run: npm run doctor
+      - run: npm run typecheck && npm run typecheck:core && npm run typecheck:services
+      - run: npm run lint
+      - run: npm test -- --ci
+      - run: npm run export:android && npm run export:ios
+      - run: npm run check:bundles
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-bundle-dependency-review
+          path: apps/mobile-native/bundle-dependency-review.json
+          if-no-files-found: ignore
+  native-android:
+    needs: [domain, native-js]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x86_64
+            runtime: true
+          - architecture: arm64-v8a
+            runtime: false
+    concurrency:
+      group: native-android-${{ matrix.architecture }}-${{ github.head_ref || github.ref }}
+      cancel-in-progress: false
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: apps/mobile-native
+    env:
+      APP_VARIANT: e2e
+      EXPO_PUBLIC_E2E: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/mobile-native/package-lock.json
+      - name: Install isolated native dependencies
+        run: npm ci
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - uses: actions/cache/restore@v4
+        id: apk-cache
+        with:
+          path: apps/mobile-native/android/app/build/outputs/apk/release/app-release.apk
+          key: native-qa-apk-${{ matrix.architecture }}-v1-${{ runner.os }}-${{ hashFiles('apps/mobile-native/src/**', 'apps/mobile-native/index.ts', 'apps/mobile-native/package*.json', 'apps/mobile-native/tsconfig*.json', 'apps/mobile-native/app.config.ts', 'apps/mobile-native/babel.config.cjs', 'apps/mobile-native/metro.config.cjs', 'apps/mobile-native/assets/**', 'apps/mobile-native/plugins/**', 'packages/finance-core/src/**', 'packages/finance-core/package.json', '.github/workflows/native-mobile.yml') }}
+      - name: Generate the QA Android project
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        run: npx expo prebuild --platform android --no-install
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+      - name: Compile QA release APK
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        run: ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=${{ matrix.architecture }} >../gradle-build.log 2>&1 || { tail -n 120 ../gradle-build.log; exit 1; }
+        working-directory: apps/mobile-native/android
+      - uses: actions/cache/save@v4
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        with:
+          path: apps/mobile-native/android/app/build/outputs/apk/release/app-release.apk
+          key: ${{ steps.apk-cache.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spndrr-native-qa-${{ matrix.architecture }}-apk
+          path: apps/mobile-native/android/app/build/outputs/apk/release/*.apk
+      - name: Install Maestro
+        if: matrix.runtime
+        env:
+          MAESTRO_VERSION: '2.11.0'
+        run: curl -Ls https://get.maestro.mobile.dev | bash
+      - name: Enable emulator acceleration
+        if: matrix.runtime
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        if: matrix.runtime
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -gpu software -no-snapshot -noaudio -no-boot-anim
+          working-directory: apps/mobile-native
+          script: bash scripts/android-acceptance.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-android-${{ matrix.architecture }}-evidence
+          path: |
+            ~/.maestro/tests/**
+            apps/mobile-native/gradle-build.log
+            apps/mobile-native/runtime-evidence/**
+          if-no-files-found: ignore
+  native-ios:
+    needs: [domain, native-js]
+    runs-on: macos-latest
+    concurrency:
+      group: native-ios-${{ github.head_ref || github.ref }}
+      # Keep the current native validation running while JS-only corrections queue.
+      cancel-in-progress: false
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: apps/mobile-native
+    env:
+      APP_VARIANT: e2e
+      EXPO_PUBLIC_E2E: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/mobile-native/package-lock.json
+      - name: Install isolated native dependencies
+        run: npm ci
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Boot iOS simulator while the native build compiles
+        run: |
+          native_device="$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for values in d["devices"].values() for x in values if x["name"].startswith("iPhone") and x["state"]=="Shutdown"))')"
+          echo "NATIVE_TEST_DEVICE=$native_device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$native_device"
+          open -a Simulator --args -CurrentDeviceUDID "$native_device"
+      - name: Identify iOS compiler toolchain
+        id: toolchain
+        run: echo "xcode=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v4
+        id: simulator-cache
+        with:
+          path: apps/mobile-native/build/Build/Products/Release-iphonesimulator/*.app
+          key: native-qa-ios-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('apps/mobile-native/src/**', 'apps/mobile-native/index.ts', 'apps/mobile-native/package*.json', 'apps/mobile-native/tsconfig*.json', 'apps/mobile-native/app.config.ts', 'apps/mobile-native/babel.config.cjs', 'apps/mobile-native/metro.config.cjs', 'apps/mobile-native/assets/**', 'apps/mobile-native/plugins/**', 'apps/mobile-native/scripts/sign-simulator.sh', 'packages/finance-core/src/**', 'packages/finance-core/package.json', '.github/workflows/native-mobile.yml') }}
+      - name: Generate the unsigned simulator project
+        if: steps.simulator-cache.outputs.cache-hit != 'true'
+        run: |
+          xcodebuild -version
+          npx expo prebuild --platform ios --no-install
+          pod install --project-directory=ios
+          bash scripts/sign-simulator.sh prepare
+      - name: Compile iOS simulator release
+        if: steps.simulator-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          native_workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
+          native_scheme="$(basename "$native_workspace" .xcworkspace)"
+          xcodebuild -workspace "$native_workspace" -scheme "$native_scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= ONLY_ACTIVE_ARCH=YES ARCHS="$(uname -m)" build >build/xcodebuild.log 2>&1 || { tail -n 120 build/xcodebuild.log; exit 1; }
+      - name: Verify and package the exact-source simulator app
+        run: |
+          native_app="$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)"
+          bash scripts/sign-simulator.sh "$native_app"
+          ditto -c -k --sequesterRsrc --keepParent "$native_app" spndrr-native-ios-simulator.zip
+      - uses: actions/cache/save@v4
+        if: steps.simulator-cache.outputs.cache-hit != 'true'
+        with:
+          path: apps/mobile-native/build/Build/Products/Release-iphonesimulator/*.app
+          key: ${{ steps.simulator-cache.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spndrr-native-ios-simulator
+          path: apps/mobile-native/spndrr-native-ios-simulator.zip
+      - name: Install Maestro
+        env:
+          MAESTRO_VERSION: '2.11.0'
+        run: curl -Ls https://get.maestro.mobile.dev | bash
+      - name: Run native iOS transaction acceptance
+        id: transaction
+        timeout-minutes: 20
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+        run: |
+          native_device="$NATIVE_TEST_DEVICE"
+          xcrun simctl bootstatus "$native_device" -b
+          native_app="$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)"
+          xcrun simctl install "$native_device" "$native_app"
+          xcrun simctl launch "$native_device" com.spndrr.app.rn.e2e
+          $HOME/.maestro/bin/maestro --device "$native_device" test .maestro/transaction.yml
+      - name: Verify light and dark appearance, draft retention and restart persistence
+        timeout-minutes: 10
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+        working-directory: apps/mobile-native
+        run: $HOME/.maestro/bin/maestro --device "$NATIVE_TEST_DEVICE" test .maestro/appearance.yml
+      - name: Run native iOS financial workspace acceptance
+        timeout-minutes: 15
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+        run: $HOME/.maestro/bin/maestro --device "$NATIVE_TEST_DEVICE" test .maestro/workspace.yml
+      - name: Run native iOS history and interaction stress scenario
+        timeout-minutes: 15
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+        run: $HOME/.maestro/bin/maestro --device "$NATIVE_TEST_DEVICE" test .maestro/performance.yml
+      - uses: actions/setup-dotnet@v6
+        if: ${{ !cancelled() && steps.transaction.outcome == 'success' }}
+        with:
+          dotnet-version: 10.0.x
+      - name: Prepare isolated PostgreSQL for native HTTPS acceptance
+        if: ${{ !cancelled() && steps.transaction.outcome == 'success' }}
+        run: |
+          brew install postgresql@17
+          native_pg_work="$(mktemp -d "$RUNNER_TEMP/spndrr-pgvector.XXXXXX")"
+          git clone --depth 1 --branch v0.8.6 https://github.com/pgvector/pgvector.git "$native_pg_work"
+          make -C "$native_pg_work" PG_CONFIG="$(brew --prefix postgresql@17)/bin/pg_config" -j2
+          make -C "$native_pg_work" PG_CONFIG="$(brew --prefix postgresql@17)/bin/pg_config" install
+      - name: Exercise native iOS cookies and restart restoration against real HTTPS
+        if: ${{ !cancelled() && steps.transaction.outcome == 'success' }}
+        timeout-minutes: 15
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+        run: bash scripts/ios-api-acceptance.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ios-runtime-evidence
+          path: |
+            ~/.maestro/tests/**
+            apps/mobile-native/build/xcodebuild.log
+            apps/mobile-native/build/simulator-*.plist
+            apps/mobile-native/runtime-evidence/native-api/*.log
+          if-no-files-found: ignore

@@ -1,0 +1,79 @@
+appId: com.spndrr.app.rn.e2e
+---
+- tapOn:
+    text: 'Open'
+    optional: true
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: 'Sign in'
+    timeout: 30000
+- tapOn:
+    id: email-input
+- inputText: qa@example.test
+- scrollUntilVisible:
+    element:
+      id: password-input
+    direction: DOWN
+- tapOn:
+    id: password-input
+- inputText: Native-fixture-only-123!
+- scrollUntilVisible:
+    element: 'Sign in'
+    direction: DOWN
+- tapOn: 'Sign in'
+- runFlow: dismiss-password-prompt.yml
+- extendedWaitUntil:
+    visible:
+      id: open-composer
+    timeout: 30000
+- tapOn:
+    id: open-composer
+- assertNotVisible: 'Enter details'
+- tapOn:
+    id: assistant-input
+- inputText: 'spent 40.29 on groceries at Native cookie acceptance using Kotak upi'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Send & track'
+    direction: DOWN
+- tapOn: 'Send & track'
+- extendedWaitUntil:
+    visible: 'Transaction saved'
+    timeout: 30000
+- tapOn: 'Edit saved transaction'
+- tapOn:
+    id: amount-input
+- eraseText
+- inputText: '45.50'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Save changes'
+    direction: DOWN
+- tapOn: 'Save changes'
+- assertVisible: 'Changes saved'
+- tapOn: 'Done'
+- tapOn: 'Done'
+- stopApp
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      id: open-composer
+    timeout: 30000
+- scrollUntilVisible:
+    element: '.*Native cookie acceptance.*'
+    direction: DOWN
+- takeScreenshot: native-api-restored-session
+- scrollUntilVisible:
+    element: 'Sign out'
+    direction: UP
+- tapOn: 'Sign out'
+- assertVisible: 'Sign in'
+- stopApp
+- launchApp:
+    stopApp: true
+- assertVisible: 'Sign in'

@@ -1,0 +1,5 @@
+{
+  "extends": "../../packages/finance-core/tsconfig.json",
+  "compilerOptions": { "paths": { "@spndrr/finance-core": ["../../packages/finance-core/src/index.ts"] } },
+  "include": ["src/services/secure-json.ts", "src/services/write-guard.ts", "src/services/auth-cookie-policy.ts", "src/services/fixture-transport.ts", "src/services/qa-api-routing.ts", "../../packages/finance-core/src/**/*.ts"]
+}

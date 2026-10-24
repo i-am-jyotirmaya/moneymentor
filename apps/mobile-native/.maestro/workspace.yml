@@ -1,0 +1,161 @@
+appId: com.spndrr.app.rn.e2e
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Sign in'
+    timeout: 30000
+- tapOn:
+    id: email-input
+- inputText: qa@example.test
+- scrollUntilVisible:
+    element:
+      id: password-input
+    direction: DOWN
+- tapOn:
+    id: password-input
+- inputText: fixture-only
+- scrollUntilVisible:
+    element: 'Sign in'
+    direction: DOWN
+- tapOn: 'Sign in'
+- runFlow: dismiss-password-prompt.yml
+- extendedWaitUntil:
+    visible: 'Overview tab'
+    timeout: 30000
+- tapOn: 'Overview tab'
+- assertVisible: 'A clearer picture'
+- takeScreenshot: native-overview
+- tapOn: 'Plan tab'
+- tapOn: 'Create a goal'
+- tapOn:
+    id: goal-name-input
+- inputText: 'Laptop'
+- tapOn:
+    id: goal-target-input
+- inputText: '5000'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Save goal'
+    direction: DOWN
+- tapOn: 'Save goal'
+- extendedWaitUntil:
+    visible: 'Goal saved'
+    timeout: 30000
+- tapOn: 'Done'
+- scrollUntilVisible:
+    element: 'Open Laptop'
+    direction: DOWN
+- tapOn: 'Open Laptop'
+- scrollUntilVisible:
+    element:
+      id: goal-contribution-input
+    direction: DOWN
+- tapOn:
+    id: goal-contribution-input
+- inputText: '100.25'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Record contribution'
+    direction: DOWN
+- tapOn: 'Record contribution'
+- assertVisible: 'Contribution recorded.'
+- scrollUntilVisible:
+    element: 'Generate plan'
+    direction: DOWN
+- tapOn: 'Generate plan'
+- scrollUntilVisible:
+    element: 'Version 1.*Generated'
+    direction: DOWN
+    timeout: 30000
+- takeScreenshot: native-goal-plan
+- runFlow: go-back.yml
+- tapOn: 'More tab'
+- scrollUntilVisible:
+    element: 'Financial accounts'
+    direction: DOWN
+- tapOn: 'Financial accounts'
+- tapOn: 'Add financial account'
+- tapOn:
+    id: account-name-input
+- inputText: 'Daily wallet'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Save account'
+    direction: DOWN
+- tapOn: 'Save account'
+- assertVisible: 'Account saved'
+- tapOn: 'Done'
+- scrollUntilVisible:
+    element: 'Manage Daily wallet'
+    direction: DOWN
+- assertVisible: 'Manage Daily wallet'
+- runFlow: go-back.yml
+- scrollUntilVisible:
+    element: 'Categories'
+    direction: DOWN
+- tapOn: 'Categories'
+- tapOn: 'Add category'
+- tapOn:
+    id: category-name-input
+- inputText: 'Native trips'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- scrollUntilVisible:
+    element: 'Save category'
+    direction: DOWN
+- tapOn: 'Save category'
+- assertVisible: 'Category change saved'
+- tapOn: 'Done'
+- scrollUntilVisible:
+    element: 'Manage Native trips'
+    direction: DOWN
+- assertVisible: 'Manage Native trips'
+- runFlow: go-back.yml
+- tapOn: 'Insights tab'
+- assertVisible: 'A useful nudge'
+- scrollUntilVisible:
+    element: 'A clearer picture starts here'
+    direction: DOWN
+- takeScreenshot: native-insights
+- tapOn: 'More tab'
+- scrollUntilVisible:
+    element: 'Settings and privacy'
+    direction: DOWN
+- tapOn: 'Settings and privacy'
+- assertVisible: 'Make it yours'
+- assertVisible: 'Default currency'
+- takeScreenshot: native-settings
+- runFlow: go-back.yml
+- scrollUntilVisible:
+    element: 'Households and invitations'
+    direction: UP
+- tapOn: 'Households and invitations'
+- scrollUntilVisible:
+    element: 'Switch to Family view'
+    direction: DOWN
+- tapOn: 'Switch to Family view'
+- extendedWaitUntil:
+    visible: 'Today tab'
+    timeout: 30000
+- tapOn: 'More tab'
+- scrollUntilVisible:
+    element: 'Households and invitations'
+    direction: DOWN
+- tapOn: 'Households and invitations'
+- tapOn: 'Switch to Personal'
+- extendedWaitUntil:
+    visible: 'Today tab'
+    timeout: 30000
+- scrollUntilVisible:
+    element: 'Sign out'
+    direction: UP
+- tapOn: 'Sign out'
+- assertVisible: 'Sign in'

@@ -1,0 +1,84 @@
+appId: com.spndrr.app.rn.e2e
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Sign in'
+    timeout: 30000
+- tapOn:
+    id: email-input
+- inputText: qa@example.test
+- scrollUntilVisible:
+    element:
+      id: password-input
+    direction: DOWN
+- tapOn:
+    id: password-input
+- inputText: fixture-only
+- scrollUntilVisible:
+    element: 'Sign in'
+    direction: DOWN
+- tapOn: 'Sign in'
+- runFlow: dismiss-password-prompt.yml
+- extendedWaitUntil:
+    visible:
+      id: open-composer
+    timeout: 30000
+- runFlow:
+    when:
+      visible: 'Switch to light mode'
+    commands:
+      - tapOn: 'Switch to light mode'
+- assertVisible: 'Switch to dark mode'
+- takeScreenshot: appearance-home-light
+- tapOn:
+    id: open-composer
+- assertNotVisible: 'Enter details'
+- tapOn:
+    id: assistant-input
+- inputText: 'groceries for 240'
+- tapOn:
+    id: keyboard-dismiss
+    optional: true
+- takeScreenshot: appearance-assistant-light
+- tapOn:
+    id: composer-close
+- tapOn: 'Switch to dark mode'
+- assertVisible: 'Switch to light mode'
+- assertVisible: 'Continue your draft'
+- takeScreenshot: appearance-home-dark
+- tapOn:
+    id: open-composer
+- assertVisible: 'groceries for 240'
+- takeScreenshot: appearance-assistant-dark
+- tapOn:
+    id: composer-close
+- tapOn: 'Overview tab'
+- extendedWaitUntil:
+    visible: 'A clearer picture'
+    timeout: 30000
+- takeScreenshot: appearance-dashboard-dark
+- tapOn: 'More tab'
+- scrollUntilVisible:
+    element: 'Settings and privacy'
+    direction: DOWN
+- tapOn: 'Settings and privacy'
+- assertVisible: 'Appearance'
+- assertVisible: 'Dark mode'
+- takeScreenshot: appearance-settings-dark
+- stopApp
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Switch to light mode'
+    timeout: 30000
+- tapOn: 'Switch to light mode'
+- assertVisible: 'Switch to dark mode'
+- tapOn:
+    id: open-composer
+- assertVisible: 'groceries for 240'
+- tapOn:
+    id: composer-close
+- tapOn: 'Sign out'
+- tapOn: 'Sign out and clear draft'
+- assertVisible: 'Sign in'

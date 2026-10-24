@@ -1,0 +1,12 @@
+appId: com.spndrr.app.rn.e2e
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: 'Back'
