@@ -1,9 +1,9 @@
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 export type Routes = {
   Home: undefined; Composer: undefined; Edit: undefined;
-  Picker: { kind: 'account' | 'category' | 'payment' | 'visibility'; target?: 'manual' | 'edit' };
+  Picker: { kind: 'account' | 'category' | 'payment' | 'visibility'; target: 'edit' };
   AddAccount: undefined;
-  Transactions: undefined; Transaction: { id: string }; FinancialEvent: { originalId?: string; kind?: 'Refund' | 'Reversal' } | undefined;
+  Transactions: undefined; Transaction: { id: string };
   Accounts: undefined; AccountForm: { id?: string } | undefined; Categories: undefined; CategoryForm: { id?: string } | undefined;
   Goals: undefined; Goal: { id: string }; GoalForm: { id?: string } | undefined;
   Commitments: undefined; CommitmentForm: { id?: string } | undefined;

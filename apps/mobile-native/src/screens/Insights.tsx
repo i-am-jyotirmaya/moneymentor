@@ -4,11 +4,13 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { formatMoney, type JudgementReport, type JudgementReportCadence, type JudgementReportObservation, type JudgementReportScope } from '@spndrr/finance-core';
 import { useWorkspace, useWorkspaceMutation } from '../state/workspace';
 import { OperationNotice } from '../state/operations';
-import { Button, Card, ErrorNotice, Field, Loading, styles } from '../ui/primitives';
+import { Button, Card, ErrorNotice, Field, Loading, useStyles } from '../ui/primitives';
 import { ChoiceField, Page } from '../ui/forms';
 import { choices, EmptyState, MonthControl, ScopeLabel } from '../ui/workspace';
 
 export function InsightsScreen() {
+  const styles = useStyles();
+
   const { api, scope, currency, today } = useWorkspace(); const mutation = useWorkspaceMutation();
   const [cadence, setCadence] = useState<JudgementReportCadence>('Monthly'); const [reportScope, setReportScope] = useState<JudgementReportScope>('Personal');
   const [month, setMonth] = useState(today.slice(0, 7)); const [historyMode, setHistoryMode] = useState(false); const [weeklyPeriod, setWeeklyPeriod] = useState('');

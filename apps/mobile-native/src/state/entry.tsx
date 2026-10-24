@@ -3,7 +3,7 @@ import { AppState, View } from 'react-native';
 import { decodeComposerDraft, emptyDraft, type ComposerDraft, type EntryResources, type FinanceClient, type ManualDraft, type Transaction } from '@spndrr/finance-core';
 import type { SecureJsonStore } from '../services/secure-json';
 import { appendAssistantHistory, decodeAssistantHistory, type AssistantExchange } from '../services/assistant-history';
-import { ErrorNotice, Loading, styles } from '../ui/primitives';
+import { ErrorNotice, Loading, useStyles } from '../ui/primitives';
 
 export type EntryContextValue = {
   client: FinanceClient; resources: EntryResources; draft: ComposerDraft; busy: boolean;
@@ -23,6 +23,8 @@ export function useEntry() { const context = useContext(EntryContext); if (!cont
 export function EntryProvider({ children, ownerId, resources, client, vault, historyVault, onDeleteDeviceData }: {
   children: ReactNode; ownerId: string; resources: EntryResources; client: FinanceClient; vault: SecureJsonStore; historyVault?: SecureJsonStore; onDeleteDeviceData?: () => Promise<void>;
 }) {
+  const styles = useStyles();
+
   const initial = useMemo<ComposerDraft>(() => ({ version: 1, ownerId, manual: emptyDraft(resources.settings, resources.today), text: '', pendingManual: null, assistantUncertain: false }), [ownerId, resources.settings, resources.today]);
   const [draft, setDraft] = useState(initial);
   const current = useRef(draft);

@@ -4,13 +4,15 @@ import type { FinancialAccount, SaveFinancialAccount } from '@spndrr/finance-cor
 import { useEntry } from '../state/entry';
 import { useWorkspace, useWorkspaceMutation } from '../state/workspace';
 import { OperationNotice } from '../state/operations';
-import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
+import { Button, Card, ErrorNotice, Field, useStyles } from '../ui/primitives';
 import { ChoiceField, Page, Toggle } from '../ui/forms';
 import { choices, EmptyState, ScopeLabel } from '../ui/workspace';
 import { useFormExit } from '../ui/useFormExit';
 import type { FeatureNavigationProps, ScreenProps } from '../navigation';
 
 export function AccountsScreen({ navigation }: FeatureNavigationProps) {
+  const styles = useStyles();
+
   const entry = useEntry(); const mutation = useWorkspaceMutation();
   return <Page title="Accounts you use" onRefresh={() => { void mutation.refresh(); }} error={mutation.error}>
     <ScopeLabel /><OperationNotice refresh={mutation.refresh} />
@@ -26,6 +28,8 @@ export function AccountsScreen({ navigation }: FeatureNavigationProps) {
 }
 
 export function AccountFormScreen({ navigation, route }: ScreenProps<'AccountForm'>) {
+  const styles = useStyles();
+
   const entry = useEntry(); const { api, scope } = useWorkspace(); const mutation = useWorkspaceMutation();
   const original = entry.resources.accounts.find(item => item.id === route.params?.id);
   const [name, setName] = useState(original?.name ?? ''); const [type, setType] = useState<FinancialAccount['accountType']>(original?.accountType ?? 'BankAccount');

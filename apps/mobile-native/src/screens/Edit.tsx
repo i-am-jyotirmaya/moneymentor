@@ -7,11 +7,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ApiError, buildTransactionIntent, ValidationError, type Transaction, type TransactionPatch } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
 import { OperationNotice, useOperations } from '../state/operations';
-import { Button, ErrorNotice, styles } from '../ui/primitives';
-import { ManualForm } from '../ui/ManualForm';
+import { Button, ErrorNotice, useStyles } from '../ui/primitives';
+import { TransactionEditForm } from '../ui/TransactionEditForm';
 import type { ScreenProps } from '../navigation';
 
 export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
+  const styles = useStyles();
+
   const entry = useEntry();
   const operations = useOperations();
   const query = useQueryClient();
@@ -60,7 +62,7 @@ export function EditScreen({ navigation }: ScreenProps<'Edit'>) {
       <OperationNotice refresh={() => query.refetchQueries({ type: 'active' }, { throwOnError: true })} />
       {saved ? <><Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.heading}>Changes saved</Text><Button title="Done" onPress={() => navigation.goBack()} /></> : <>
         <Text style={styles.caption}>Editing the existing saved record.</Text>
-        <ManualForm draft={manual} resources={entry.resources} disabled={entry.busy || unknown || operations.blocked || !entry.resources.canWrite} errors={errors} editing
+        <TransactionEditForm draft={manual} resources={entry.resources} disabled={entry.busy || unknown || operations.blocked || !entry.resources.canWrite} errors={errors}
           onChange={change => entry.updateManual(change, 'edit')} onSelect={kind => navigation.navigate('Picker', { kind, target: 'edit' })} />
         <Button title={unknown ? 'Reload saved transaction' : 'Save changes'} onPress={unknown ? reload : submit} loading={entry.busy} disabled={!unknown && (operations.blocked || !entry.resources.canWrite)} />
       </>}

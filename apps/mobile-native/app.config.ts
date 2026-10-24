@@ -8,7 +8,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   return {
     ...config, name: variant === "production" ? "Spndrr" : fixture ? "Spndrr QA" : "Spndrr Native",
     slug: "spndrr-native", version: "0.1.0", orientation: "default", scheme: "spndrr-native",
-    userInterfaceStyle: "light", icon: "./assets/icon.png",
+    userInterfaceStyle: "automatic", icon: "./assets/icon.png",
     owner: process.env.EXPO_OWNER || undefined,
     ios: { bundleIdentifier: identifier, supportsTablet: true, config: { usesNonExemptEncryption: false } },
     android: { package: identifier, softwareKeyboardLayoutMode: "resize", adaptiveIcon: { foregroundImage: "./assets/adaptive-icon.png", backgroundColor: "#102b26" } },

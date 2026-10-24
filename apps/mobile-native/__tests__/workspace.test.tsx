@@ -2,14 +2,14 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { Alert } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ApiError, FinanceClient, workspaceApi, type EntryResources } from '@spndrr/finance-core';
+import { FinanceClient, workspaceApi, type EntryResources } from '@spndrr/finance-core';
 import { fixtureTransport } from '../src/services/fixture-transport';
 import { SecureJsonStore } from '../src/services/secure-json';
 import { EntryProvider } from '../src/state/entry';
 import { OperationsProvider } from '../src/state/operations';
 import { PlanningRunsProvider } from '../src/state/planning-runs';
 import { WorkspaceProvider } from '../src/state/workspace';
-import { FinancialEventScreen } from '../src/screens/FinancialEvent';
+import { MoreScreen } from '../src/screens/NativeTabs';
 import { AccountFormScreen } from '../src/screens/Accounts';
 import { CategoryFormScreen } from '../src/screens/Categories';
 import { GoalFormScreen, GoalScreen } from '../src/screens/Goals';
@@ -32,33 +32,23 @@ async function setup(readOnly = false) {
   const wrap = (node: ReactNode) => <QueryClientProvider client={query}><OperationsProvider ownerId={ownerId} vault={operations}><PlanningRunsProvider ownerId={ownerId} vault={planning}><EntryProvider ownerId={ownerId} resources={resources} client={client} vault={draft}><WorkspaceProvider household={dashboard.households[0]!} settings={settings} onSwitch={jest.fn()}>{node}</WorkspaceProvider></EntryProvider></PlanningRunsProvider></OperationsProvider></QueryClientProvider>;
   return { client, api, resources, wrap, planning, operations };
 }
-type TestScreen = ReturnType<typeof render>;
-async function cardPayment(screen: TestScreen) {
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Save financial event' }).props.accessibilityState.disabled).toBe(false));
-  fireEvent.press(screen.getByRole('button', { name: 'Event: Transfer' })); fireEvent.press(screen.getByRole('radio', { name: 'Credit Card Payment' }));
-  fireEvent.changeText(screen.getByLabelText('Amount (INR)'), '123.45');
-  fireEvent.press(screen.getByRole('button', { name: /From account:/ })); fireEvent.press(screen.getByRole('radio', { name: 'Kotak, BankAccount' }));
-  fireEvent.press(screen.getByRole('button', { name: /To account:/ })); fireEvent.press(screen.getByRole('radio', { name: 'Kotak upi, CreditCard' }));
-  fireEvent.press(screen.getByRole('button', { name: 'Save financial event' }));
-}
 beforeEach(() => jest.clearAllMocks());
 afterEach(() => jest.restoreAllMocks());
-test('native card payment preserves the two exact account identities and transfer semantics', async () => {
-  const { client, resources, wrap } = await setup();
-  const screen = render(wrap(<FinancialEventScreen navigation={navigation as never} route={{ key: 'event', name: 'FinancialEvent', params: undefined }} />));
-  await cardPayment(screen); await waitFor(() => expect(screen.getByText('Financial event saved')).toBeTruthy());
-  const items = (await client.transactions('2026-10')).items;
-  expect(items).toHaveLength(1); expect(items[0]).toMatchObject({ kind: 'CreditCardPayment', type: 'Transfer', amount: 123.45, accountId: resources.accounts[0]!.id, counterpartyAccountId: resources.accounts[1]!.id });
+test('workspace has assistant and history routes without manual financial event entry', async () => {
+  const { wrap, client } = await setup(); const write = jest.spyOn(client, 'createFinancialEvent');
+  const screen = render(wrap(<MoreScreen navigation={navigation as never} />));
+  await waitFor(() => expect(screen.getByText('Transactions and trash')).toBeTruthy());
+  expect(screen.queryByText('Transfers and adjustments')).toBeNull();
+  fireEvent.press(screen.getByText('Transactions and trash'));
+  expect(navigation.navigate).toHaveBeenCalledWith('Transactions'); expect(write).not.toHaveBeenCalled();
 });
-test('an unknown financial-event write blocks a different financial form after remount', async () => {
-  const { client, operations, wrap } = await setup(); const send = jest.spyOn(client, 'createFinancialEvent').mockRejectedValue(new ApiError('Response lost after commit', 0, 'unknown'));
-  const first = render(wrap(<FinancialEventScreen navigation={navigation as never} route={{ key: 'event', name: 'FinancialEvent', params: undefined }} />));
-  await cardPayment(first); await waitFor(() => expect(first.getByText('Response lost after commit')).toBeTruthy()); first.unmount();
-  expect(await operations.get()).toMatchObject({ label: 'Save financial event' });
-  const second = render(wrap(<AccountFormScreen navigation={navigation as never} route={{ key: 'account', name: 'AccountForm', params: undefined }} />));
-  await waitFor(() => expect(second.getByText('Review your earlier change')).toBeTruthy());
-  fireEvent.changeText(second.getByLabelText('Account name'), 'Another bank');
-  expect(second.getByRole('button', { name: 'Save account' }).props.accessibilityState.disabled).toBe(true); expect(send).toHaveBeenCalledTimes(1);
+test('a legacy unknown financial-event write still blocks a different financial form', async () => {
+  const { client, operations, wrap } = await setup();
+  await operations.put({ version: 1, ownerId: client.getSnapshot().session!.user.id, label: 'Save financial event', startedAt: new Date().toISOString() });
+  const screen = render(wrap(<AccountFormScreen navigation={navigation as never} route={{ key: 'account', name: 'AccountForm', params: undefined }} />));
+  await waitFor(() => expect(screen.getByText('Review your earlier change')).toBeTruthy());
+  fireEvent.changeText(screen.getByLabelText('Account name'), 'Another bank');
+  expect(screen.getByRole('button', { name: 'Save account' }).props.accessibilityState.disabled).toBe(true);
 });
 test('goals record exact contributions and restore the last asynchronous planning run', async () => {
   const { api, resources, wrap, planning } = await setup();

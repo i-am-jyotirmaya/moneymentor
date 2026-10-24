@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, useSyncExternalStore, t
 import { Alert, Text } from 'react-native';
 import { WriteGuard } from '../services/write-guard';
 import type { SecureJsonStore } from '../services/secure-json';
-import { Button, Card, ErrorNotice, styles } from '../ui/primitives';
+import { Button, Card, ErrorNotice, useStyles } from '../ui/primitives';
 import { useEntry } from './entry';
 
 const OperationsContext = createContext<WriteGuard | null>(null);
@@ -17,6 +17,8 @@ export function useOperations() {
   return { guard, ...state, blocked: !state.ready || state.busy || state.pending !== null };
 }
 export function OperationNotice({ refresh }: { refresh: () => Promise<unknown> }) {
+  const styles = useStyles();
+
   const entry = useEntry();
   const operations = useOperations(); const [error, setError] = useState<string | null>(null); const [reviewedFor, setReviewedFor] = useState<string | null>(null);
   if (!operations.ready) return operations.error ? <ErrorNotice message={operations.error} onRetry={() => { void operations.guard.restore(); }} /> : null;

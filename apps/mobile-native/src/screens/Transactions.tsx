@@ -6,13 +6,15 @@ import { formatMoney } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
 import { useWorkspace, useWorkspaceMutation } from '../state/workspace';
 import { OperationNotice } from '../state/operations';
-import { Button, Card, ErrorNotice, Field, Loading, styles } from '../ui/primitives';
+import { Button, Card, ErrorNotice, Field, Loading, useStyles } from '../ui/primitives';
 import { ChoiceField, Page } from '../ui/forms';
 import { choices, EmptyState, MonthControl, ScopeLabel } from '../ui/workspace';
 import { TransactionRow } from './Home';
 import type { FeatureNavigationProps, ScreenProps } from '../navigation';
 
 export function TransactionsScreen({ navigation }: FeatureNavigationProps) {
+  const styles = useStyles();
+
   const entry = useEntry(); const { api, scope, today } = useWorkspace();
   const [month, setMonth] = useState(today.slice(0, 7)); const [search, setSearch] = useState('');
   const [trash, setTrash] = useState(false); const [account, setAccount] = useState('all'); const [kind, setKind] = useState('all'); const [category, setCategory] = useState('all');
@@ -39,7 +41,6 @@ export function TransactionsScreen({ navigation }: FeatureNavigationProps) {
       <ChoiceField label="Category filter" value={category} options={[{ id: 'all', label: 'All categories' }, ...entry.resources.categories.map(item => ({ id: item.id, label: item.name }))]} onChange={setCategory} />
       <ChoiceField label="Event filter" value={kind} options={[{ id: 'all', label: 'All events' }, ...choices(['Purchase', 'Income', 'Refund', 'Transfer', 'CreditCardPayment', 'Reversal', 'Cashback', 'Fee', 'Interest', 'CashWithdrawal', 'Investment'])]} onChange={setKind} />
       {!trash ? <Text style={styles.caption}>{history.data?.pages[0]?.totalCount ?? 0} records this month. Search and filters apply to loaded pages; load more to include older records.</Text> : null}
-      <Button title="Add transfer or adjustment" secondary disabled={!entry.resources.canWrite} onPress={() => navigation.navigate('FinancialEvent')} />
       {current.isError ? <ErrorNotice message="Transactions could not be loaded." onRetry={() => { void current.refetch(); }} /> : null}
     </View>}
     ListEmptyComponent={current.isPending ? <Loading /> : current.isError ? null : <EmptyState title="No matching transactions" detail="Try another period or clear a filter." />}
@@ -49,6 +50,8 @@ export function TransactionsScreen({ navigation }: FeatureNavigationProps) {
 }
 
 export function TransactionScreen({ navigation, route }: ScreenProps<'Transaction'>) {
+  const styles = useStyles();
+
   const entry = useEntry(); const { api, scope } = useWorkspace(); const mutation = useWorkspaceMutation();
   const detail = useQuery({ queryKey: ['transaction', scope, route.params.id], queryFn: async () => {
     const item = await api.transaction(route.params.id); if (item.householdId !== scope) throw Error('This record belongs to another household.'); return item;
@@ -73,8 +76,6 @@ export function TransactionScreen({ navigation, route }: ScreenProps<'Transactio
       {item.relatedTransactionId ? <Button title="View original event" secondary onPress={() => navigation.push('Transaction', { id: item.relatedTransactionId! })} /> : null}
       {item.deletedAt ? <Button title="Restore transaction" disabled={mutation.blocked} loading={mutation.busy} onPress={() => { void mutation.execute('Restore transaction', () => api.restoreTransaction(item.id)); }} /> : <>
         {(!item.kind || ['Purchase', 'Income'].includes(item.kind)) && ['Expense', 'Income'].includes(item.type) ? <Button title="Edit transaction" disabled={mutation.blocked} onPress={() => { entry.beginEdit(item); navigation.navigate('Edit'); }} /> : null}
-        {['Purchase', 'Fee', 'Interest'].includes(item.kind ?? (item.type === 'Expense' ? 'Purchase' : '')) ? <Button title="Add linked refund" secondary disabled={mutation.blocked} onPress={() => navigation.navigate('FinancialEvent', { originalId: item.id, kind: 'Refund' })} /> : null}
-        {item.kind !== 'Reversal' ? <Button title="Reverse this event" secondary disabled={mutation.blocked} onPress={() => navigation.navigate('FinancialEvent', { originalId: item.id, kind: 'Reversal' })} /> : null}
         <Button title="Move to trash" secondary disabled={mutation.blocked} onPress={remove} />
       </>}
     </> : null}

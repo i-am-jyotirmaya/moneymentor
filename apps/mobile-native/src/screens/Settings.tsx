@@ -6,11 +6,14 @@ import { useEntry } from '../state/entry';
 import { useWorkspace, useWorkspaceMutation } from '../state/workspace';
 import { OperationNotice } from '../state/operations';
 import { clearExportCache, sharePrivacyExport } from '../services/share-export';
-import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
+import { Button, Card, ErrorNotice, Field, useStyles } from '../ui/primitives';
 import { ChoiceField, Page, Toggle } from '../ui/forms';
+import { AppearanceSwitch } from '../ui/AppearanceSwitch';
 import { choices } from '../ui/workspace';
 
 export function SettingsScreen() {
+  const styles = useStyles();
+
   const entry = useEntry(); const { api, settings } = useWorkspace(); const mutation = useWorkspaceMutation({ allowReadOnly: true });
   const [currency, setCurrency] = useState(settings.currencyCode); const [zone, setZone] = useState(settings.timeZone);
   const [visibility, setVisibility] = useState<Visibility>(entry.resources.settings.defaultTransactionVisibility); const [requireMerchant, setRequireMerchant] = useState(entry.resources.settings.requireMerchantForExpenses);
@@ -36,6 +39,7 @@ export function SettingsScreen() {
     ]);
   };
   return <Page title="Make it yours" error={mutation.error} onRefresh={() => { void mutation.refresh(); }}>
+    <Card><Text style={styles.heading}>Appearance</Text><Text style={styles.caption}>Choose your look, or follow your device.</Text><AppearanceSwitch /></Card>
     <OperationNotice refresh={mutation.refresh} />
     <Card><Text style={styles.heading}>{entry.resources.settings.displayName}</Text><Text style={styles.caption}>{entry.resources.settings.email} · {entry.resources.settings.plan}</Text>
       <Text style={styles.caption}>Your plan is controlled by Spndrr. Household currency and time zone are managed in Households.</Text>

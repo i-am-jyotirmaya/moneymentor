@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Linking, Platform, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, type FinanceClient } from '@spndrr/finance-core';
-import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
+import { Button, Card, ErrorNotice, Field, useStyles } from '../ui/primitives';
 import { clearExportCache, sharePrivacyExport } from '../services/share-export';
 
 export function LoginScreen({ client, unavailable, onRestore }: { client: FinanceClient; unavailable: boolean; onRestore: () => void }) {
+  const styles = useStyles();
+
   const [mode, setMode] = useState<'login' | 'signup' | 'access'>('login');
   const [invitation, setInvitation] = useState('');
   const [email, setEmail] = useState('');
@@ -52,6 +54,8 @@ export function LoginScreen({ client, unavailable, onRestore }: { client: Financ
 function RegistrationScreen({ client, mode, invitation, onBack, onRequestAccess }: {
   client: FinanceClient; mode: 'signup' | 'access'; invitation: string; onBack: () => void; onRequestAccess: () => void;
 }) {
+  const styles = useStyles();
+
   const [name, setName] = useState(''); const [email, setEmail] = useState('');
   const [password, setPassword] = useState(''); const [reason, setReason] = useState('');
   const [token, setToken] = useState(invitation); const [accepted, setAccepted] = useState(false);
@@ -108,6 +112,8 @@ function RegistrationScreen({ client, mode, invitation, onBack, onRequestAccess 
 }
 
 export function PrivacyScreen({ client, onLogout, onDeleted = onLogout }: { client: FinanceClient; onLogout: () => void; onDeleted?: () => void }) {
+  const styles = useStyles();
+
   const [busy, setBusy] = useState(false);
   const [dataBusy, setDataBusy] = useState(false); const [deletionUncertain, setDeletionUncertain] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,6 +145,8 @@ export function PrivacyScreen({ client, onLogout, onDeleted = onLogout }: { clie
 }
 
 function PrivacyDataOptions({ client, onDeleted, consentBusy, onBusyChange, onDeletionUncertain }: { client: FinanceClient; onDeleted: () => void; consentBusy: boolean; onBusyChange: (busy: boolean) => void; onDeletionUncertain: () => void }) {
+  const styles = useStyles();
+
   const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false); const active = useRef(false);
   const [password, setPassword] = useState(''); const [confirmation, setConfirmation] = useState(''); const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState<string | null>(null);

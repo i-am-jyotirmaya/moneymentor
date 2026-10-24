@@ -4,13 +4,15 @@ import { categoryOptions, type Category } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
 import { useWorkspace, useWorkspaceMutation } from '../state/workspace';
 import { OperationNotice } from '../state/operations';
-import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
+import { Button, Card, ErrorNotice, Field, useStyles } from '../ui/primitives';
 import { ChoiceField, Page, Toggle } from '../ui/forms';
 import { choices, ScopeLabel } from '../ui/workspace';
 import { useFormExit } from '../ui/useFormExit';
 import type { FeatureNavigationProps, ScreenProps } from '../navigation';
 
 export function CategoriesScreen({ navigation }: FeatureNavigationProps) {
+  const styles = useStyles();
+
   const entry = useEntry(); const mutation = useWorkspaceMutation(); const [search, setSearch] = useState('');
   return <Page title="Your categories" error={mutation.error} onRefresh={() => { void mutation.refresh(); }}><ScopeLabel />
     <OperationNotice refresh={mutation.refresh} /><Button title="Add category" disabled={mutation.blocked} onPress={() => navigation.navigate('CategoryForm')} />
@@ -24,6 +26,8 @@ export function CategoriesScreen({ navigation }: FeatureNavigationProps) {
 }
 
 export function CategoryFormScreen({ navigation, route }: ScreenProps<'CategoryForm'>) {
+  const styles = useStyles();
+
   const entry = useEntry(); const { api, scope } = useWorkspace(); const mutation = useWorkspaceMutation();
   const original = entry.resources.categories.find(item => item.id === route.params?.id);
   const [name, setName] = useState(original?.name ?? ''); const [type, setType] = useState<Category['type']>(original?.type ?? 'Expense');

@@ -5,13 +5,15 @@ import { categoryOptions, formatMoney, parseMoney, type Commitment, type Commitm
 import { useEntry } from '../state/entry';
 import { useWorkspace, useWorkspaceMutation } from '../state/workspace';
 import { OperationNotice } from '../state/operations';
-import { Button, Card, ErrorNotice, Field, Loading, styles } from '../ui/primitives';
+import { Button, Card, ErrorNotice, Field, Loading, useStyles } from '../ui/primitives';
 import { CalendarField, ChoiceField, MoneyField, Page, Toggle } from '../ui/forms';
 import { choices, EmptyState, ScopeLabel } from '../ui/workspace';
 import { useFormExit } from '../ui/useFormExit';
 import type { FeatureNavigationProps, ScreenProps } from '../navigation';
 
 export function CommitmentsScreen({ navigation }: FeatureNavigationProps) {
+  const styles = useStyles();
+
   const { api, scope, currency } = useWorkspace(); const mutation = useWorkspaceMutation();
   const data = useQuery({ queryKey: ['commitments', scope], queryFn: () => api.commitments(scope) });
   return <Page title="Your recurring commitments" error={mutation.error} onRefresh={() => { void data.refetch(); }} refreshing={data.isRefetching}>
@@ -33,6 +35,8 @@ export function CommitmentFormScreen(props: ScreenProps<'CommitmentForm'>) {
   return <CommitmentEditor {...props} original={original} />;
 }
 function CommitmentEditor({ navigation, original }: ScreenProps<'CommitmentForm'> & { original?: Commitment }) {
+  const styles = useStyles();
+
   const entry = useEntry(); const { api, scope, currency, today } = useWorkspace(); const mutation = useWorkspaceMutation();
   const goals = useQuery({ queryKey: ['goals', scope], queryFn: () => api.goals(scope) });
   const [name, setName] = useState(original?.name ?? ''); const [amount, setAmount] = useState(original ? String(original.amount) : '');

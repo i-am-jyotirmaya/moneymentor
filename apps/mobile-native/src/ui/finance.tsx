@@ -2,15 +2,19 @@ import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { formatMoney, type CategorySpendSummary } from '@spndrr/finance-core';
-import { Card, styles, useReducedMotion } from './primitives';
-import { color, motion } from './theme';
+import { Card, useStyles, useReducedMotion } from './primitives';
+import { useTheme, motion } from './theme';
 
 export function MetricTile({ label, amount, currency, detail }: { label: string; amount: number; currency: string; detail?: string }) {
+  const styles = useStyles();
+
   return <Card><Text style={styles.caption}>{label}</Text><Text style={[styles.heading, { fontVariant: ['tabular-nums'] }]}>{formatMoney(amount, currency)}</Text>
     {detail ? <Text style={styles.caption}>{detail}</Text> : null}
   </Card>;
 }
 export function Progress({ value, label, animate = true }: { value: number; label: string; animate?: boolean }) {
+  const { color } = useTheme();
+
   const reduced = useReducedMotion();
   const ratio = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
   const width = useSharedValue(0);
@@ -20,12 +24,15 @@ export function Progress({ value, label, animate = true }: { value: number; labe
   const animated = useAnimatedStyle(() => ({ width: `${width.get() * 100}%` as `${number}%` }));
   return <View accessible accessibilityRole="progressbar" accessibilityLabel={label} accessibilityValue={{ min: 0, max: 100, now: Math.round(ratio * 100) }}
     style={{ height: 10, backgroundColor: color.tint, borderRadius: 8, overflow: 'hidden' }}>
-    <Animated.View style={[{ height: '100%', backgroundColor: color.ink, borderRadius: 8 }, animated]} />
+    <Animated.View style={[{ height: '100%', backgroundColor: color.accent, borderRadius: 8 }, animated]} />
   </View>;
 }
 
 /** Server amounts stay authoritative; ratios below are only visual encodings. */
 export function CategoryChart({ categories, currency, animate = true }: { categories: CategorySpendSummary[]; currency: string; animate?: boolean }) {
+  const styles = useStyles();
+  const { color } = useTheme();
+
   const [selected, setSelected] = useState<string | null>(null);
   const largest = Math.max(1, ...categories.map(category => Math.abs(category.amount)));
   return <Card><Text accessibilityRole="header" style={styles.heading}>Where it went</Text>
@@ -48,6 +55,8 @@ export function CategoryChart({ categories, currency, animate = true }: { catego
 }
 
 export function FinancialSkeleton() {
+  const { color } = useTheme();
+
   return <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading financial summary" style={{ gap: 18 }}>
     {[132, 92, 220].map((height, index) => <View key={index} style={{ height, borderRadius: 24, backgroundColor: color.tint }} />)}
   </View>;

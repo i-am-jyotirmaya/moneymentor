@@ -3,13 +3,16 @@ import { FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, R
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { Button, ErrorNotice, Field, KeyboardDismissButton, Selection, styles, useReducedMotion } from './primitives';
-import { color } from './theme';
+import { Button, ErrorNotice, Field, KeyboardDismissButton, Selection, useStyles, useReducedMotion } from './primitives';
+import { useTheme } from './theme';
 
 export function Page({ title, subtitle, children, error, onRefresh, refreshing = false, keyboardOffset }: {
   title?: string; subtitle?: string; children: ReactNode; error?: string | null;
   onRefresh?: () => void; refreshing?: boolean; keyboardOffset?: number;
 }) {
+  const styles = useStyles();
+  const { color } = useTheme();
+
   const headerHeight = useHeaderHeight();
   return <SafeAreaView style={styles.screen} edges={['bottom']}>
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? keyboardOffset ?? headerHeight : 0}>
@@ -28,6 +31,9 @@ export type Choice = { id: string; label: string; detail?: string };
 export function ChoiceField({ label, value, options, onChange, disabled, error, placeholder = 'Choose…' }: {
   label: string; value: string | null; options: Choice[]; onChange: (value: string) => void; disabled?: boolean; error?: string; placeholder?: string;
 }) {
+  const styles = useStyles();
+  const { color } = useTheme();
+
   const [open, setOpen] = useState(false); const [search, setSearch] = useState('');
   const reduced = useReducedMotion();
   const selected = options.find(option => option.id === value);
@@ -45,7 +51,7 @@ export function ChoiceField({ label, value, options, onChange, disabled, error, 
           ListEmptyComponent={<Text style={styles.caption}>No matching options.</Text>}
           renderItem={({ item }) => <Pressable accessibilityRole="radio" accessibilityLabel={item.detail ? `${item.label}, ${item.detail}` : item.label}
             accessibilityState={{ checked: value === item.id }} onPress={() => { onChange(item.id); close(); }}
-            style={{ minHeight: 64, borderRadius: 18, borderWidth: 1, borderColor: color.border, padding: 18, backgroundColor: value === item.id ? color.tint : color.surface, gap: 6 }}>
+            style={{ minHeight: 64, borderRadius: 18, boxShadow: `0 2px 12px ${color.shadow}`, padding: 18, backgroundColor: value === item.id ? color.tint : color.surface, gap: 6 }}>
             <Text style={styles.body}>{item.label}{value === item.id ? '  ✓' : ''}</Text>{item.detail ? <Text style={styles.caption}>{item.detail}</Text> : null}
           </Pressable>} />
       </SafeAreaView>
@@ -54,6 +60,9 @@ export function ChoiceField({ label, value, options, onChange, disabled, error, 
 }
 
 export function Toggle({ label, value, onChange, disabled, detail }: { label: string; value: boolean; onChange: (value: boolean) => void; disabled?: boolean; detail?: string }) {
+  const styles = useStyles();
+  const { color } = useTheme();
+
   return <View style={[styles.row, { justifyContent: 'space-between', flexWrap: 'nowrap', minHeight: 52 }]}>
     <View style={{ flex: 1 }}><Text style={styles.body}>{label}</Text>{detail ? <Text style={styles.caption}>{detail}</Text> : null}</View>
     <Switch accessibilityLabel={label} value={value} onValueChange={onChange} disabled={disabled} trackColor={{ true: color.ink }} />
@@ -66,6 +75,7 @@ function localDate(value: string) {
 export function CalendarField({ label, value, onChange, today, allowFuture = false, optional = false, disabled = false }: {
   label: string; value: string; onChange: (value: string) => void; today: string; allowFuture?: boolean; optional?: boolean; disabled?: boolean;
 }) {
+  const { mode } = useTheme();
   const [open, setOpen] = useState(false);
   const pick = (date?: Date) => { if (date) onChange(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`); };
   const start = () => { Keyboard.dismiss();
@@ -73,7 +83,7 @@ export function CalendarField({ label, value, onChange, today, allowFuture = fal
     else setOpen(previous => !previous);
   };
   return <View style={{ gap: 8 }}><Selection label={label} value={value || 'Not set'} onPress={start} disabled={disabled} />
-    {open && !disabled ? <DateTimePicker accessibilityLabel={label} value={localDate(value || today)} mode="date" display="inline" maximumDate={allowFuture ? undefined : localDate(today)} onChange={(_, date) => pick(date)} /> : null}
+    {open && !disabled ? <DateTimePicker themeVariant={mode} accessibilityLabel={label} value={localDate(value || today)} mode="date" display="inline" maximumDate={allowFuture ? undefined : localDate(today)} onChange={(_, date) => pick(date)} /> : null}
     {optional && value ? <Button title={`Clear ${label.toLocaleLowerCase()}`} secondary disabled={disabled} onPress={() => { onChange(''); setOpen(false); }} /> : null}
   </View>;
 }

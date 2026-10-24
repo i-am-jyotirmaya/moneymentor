@@ -3,7 +3,7 @@ import { AppState, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider, focusManager, useQuery, useQueryClient } from '@tanstack/react-query';
 import { dateInTimeZone, workspaceApi, type AuthSession, type EntryResources, type HouseholdSummary } from '@spndrr/finance-core';
@@ -13,13 +13,12 @@ import { EntryProvider } from './state/entry';
 import { OperationsProvider } from './state/operations';
 import { PlanningRunsProvider } from './state/planning-runs';
 import { WorkspaceProvider } from './state/workspace';
-import { Button, ErrorNotice, KeyboardDismissButton, Loading, styles, useReducedMotion } from './ui/primitives';
-import { color } from './ui/theme';
+import { Button, ErrorNotice, KeyboardDismissButton, Loading, useStyles, useReducedMotion } from './ui/primitives';
+import { ThemeProvider, useTheme } from './ui/theme';
 import { LoginScreen, PrivacyScreen } from './screens/Auth';
 import { ComposerScreen } from './screens/Composer';
 import { NativeTabs } from './screens/NativeTabs';
 import { TransactionScreen, TransactionsScreen } from './screens/Transactions';
-import { FinancialEventScreen } from './screens/FinancialEvent';
 import { AccountFormScreen, AccountsScreen } from './screens/Accounts';
 import { CategoriesScreen, CategoryFormScreen } from './screens/Categories';
 import { GoalFormScreen, GoalScreen, GoalsScreen } from './screens/Goals';
@@ -35,9 +34,14 @@ import { AddAccountScreen } from './screens/AddAccount';
 import type { Routes } from './navigation';
 
 const Stack = createNativeStackNavigator<Routes>();
-const navigationTheme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, primary: color.ink, background: color.background, card: color.background, text: color.ink, border: color.border } };
+
 
 function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSession }) {
+  const styles = useStyles();
+  const { color, mode } = useTheme();
+  const baseTheme = mode === 'dark' ? DarkTheme : DefaultTheme;
+  const navigationTheme = { ...baseTheme, colors: { ...baseTheme.colors, primary: color.accent, background: color.background, card: color.background, text: color.ink, border: color.border } };
+
   const reduced = useReducedMotion();
   const [clock, setClock] = useState(() => Date.now());
   const [selectedScope, setSelectedScope] = useState<string | undefined>();
@@ -82,14 +86,13 @@ function Workspace({ runtime, session }: { runtime: Runtime; session: AuthSessio
       <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: color.background }, headerStyle: { backgroundColor: color.background }, headerTintColor: color.ink,
         headerShadowVisible: false, headerBackTitle: 'Back', headerRight: () => <KeyboardDismissButton />, animation: reduced ? 'none' : 'default', gestureEnabled: true }}>
         <Stack.Screen name="Home" component={NativeTabs} options={{ headerShown: false }} />
-        <Stack.Screen name="Composer" component={ComposerScreen} options={({ navigation }) => ({ title: 'Add transaction', presentation: 'modal', animation: reduced ? 'none' : 'slide_from_bottom',
+        <Stack.Screen name="Composer" component={ComposerScreen} options={({ navigation }) => ({ title: 'Assistant', presentation: 'modal', animation: reduced ? 'none' : 'slide_from_bottom',
           headerLeft: () => <Button title="Close" accessibilityLabel="Close transaction composer" testID="composer-close" secondary onPress={() => navigation.goBack()} /> })} />
         <Stack.Screen name="Picker" component={PickerScreen} options={{ title: 'Choose', presentation: 'formSheet', sheetAllowedDetents: [1], sheetGrabberVisible: true }} />
         <Stack.Screen name="Edit" component={EditScreen} options={{ title: 'Edit transaction' }} />
         <Stack.Screen name="AddAccount" component={AddAccountScreen} options={{ title: 'Add account' }} />
         <Stack.Screen name="Transactions" component={TransactionsScreen} options={{ title: 'Transactions' }} />
         <Stack.Screen name="Transaction" component={TransactionScreen} options={{ title: 'Transaction' }} />
-        <Stack.Screen name="FinancialEvent" component={FinancialEventScreen} options={{ title: 'Financial event', presentation: 'modal' }} />
         <Stack.Screen name="Accounts" component={AccountsScreen} options={{ title: 'Accounts' }} />
         <Stack.Screen name="AccountForm" component={AccountFormScreen} options={{ title: 'Account' }} />
         <Stack.Screen name="Categories" component={CategoriesScreen} options={{ title: 'Categories' }} />
@@ -134,17 +137,24 @@ function SessionGate({ runtime }: { runtime: Runtime }) {
   return <Workspace key={state.session.user.id} runtime={runtime} session={state.session} />;
 }
 
-export default function App() {
+function AppContent() {
+  const { mode } = useTheme();
+  const styles = useStyles();
+
   const [query] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1, gcTime: 300000 }, mutations: { retry: false } } }));
   const [runtime, setRuntime] = useState<Runtime | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     void createRuntime().then(setRuntime).catch(caught => setError(caught instanceof Error ? caught.message : 'Secure native setup failed.'));
   }, []);
-  return <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider><StatusBar style="dark" />
+  return <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider><StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
     <QueryClientProvider client={query}>
       {error ? <View style={styles.center}><Text style={styles.heading}>Spndrr needs setup</Text><ErrorNotice message={error} /></View>
         : runtime ? <SessionGate runtime={runtime} /> : <Loading label="Opening Spndrr…" />}
     </QueryClientProvider>
   </SafeAreaProvider></GestureHandlerRootView>;
+}
+
+export default function App() {
+  return <ThemeProvider><AppContent /></ThemeProvider>;
 }

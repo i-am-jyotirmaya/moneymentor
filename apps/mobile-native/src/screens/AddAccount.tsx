@@ -7,10 +7,12 @@ import type { FinancialAccount } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
 import { OperationNotice, useOperations } from '../state/operations';
 import { useWorkspace } from '../state/workspace';
-import { Button, ErrorNotice, Field, styles } from '../ui/primitives';
+import { Button, ErrorNotice, Field, useStyles } from '../ui/primitives';
 import type { ScreenProps } from '../navigation';
 
 export function AddAccountScreen({ navigation }: ScreenProps<'AddAccount'>) {
+  const styles = useStyles();
+
   const entry = useEntry();
   const { api, scope } = useWorkspace();
   const query = useQueryClient();

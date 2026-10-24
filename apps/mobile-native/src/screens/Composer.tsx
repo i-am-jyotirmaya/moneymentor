@@ -2,27 +2,28 @@ import { useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
-import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { ApiError, buildTransactionIntent, formatMoney, ValidationError, type ComposerDraft, type Transaction } from '@spndrr/finance-core';
+import { ApiError, formatMoney, type Transaction } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
 import { OperationNotice, useOperations } from '../state/operations';
-import { Button, Card, ErrorNotice, Field, styles } from '../ui/primitives';
-import { color } from '../ui/theme';
-import { ManualForm } from '../ui/ManualForm';
+import { Button, Card, ErrorNotice, Field, useStyles } from '../ui/primitives';
+import { useTheme } from '../ui/theme';
+import { ChatExchange } from '../ui/ChatExchange';
+import { Icon } from '../ui/Icon';
 import { VoiceInput } from '../ui/VoiceInput';
 import type { ScreenProps } from '../navigation';
 
 export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
+  const styles = useStyles();
+  const { color } = useTheme();
+
   const entry = useEntry();
   const operations = useOperations();
   const query = useQueryClient();
   const headerHeight = useHeaderHeight();
-  const [mode, setMode] = useState<'assistant' | 'manual'>(entry.draft.pendingManual || entry.draft.manual.amount ? 'manual' : 'assistant');
   const [error, setError] = useState<string | null>(null);
-  const [fields, setFields] = useState<Record<string, string>>({});
   const [voiceBusy, setVoiceBusy] = useState(false);
   const refresh = () => { void query.invalidateQueries(); };
   const confirmed = async (transaction: Transaction) => {
@@ -31,35 +32,8 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     Keyboard.dismiss();
   };
-  const submitManual = () => { void entry.runExclusive(async () => {
-    if (operations.blocked) return;
-    setError(null); setFields({});
-    let next: ComposerDraft;
-    try {
-      const pending = entry.draft.pendingManual ?? { payload: buildTransactionIntent(entry.draft.manual, entry.resources, `native:${Crypto.randomUUID()}`), phase: 'sending' as const };
-      next = { ...entry.draft, pendingManual: pending };
-      entry.update(next);
-      // Persist the reference BEFORE crossing the network write boundary.
-      await entry.persist(next);
-      let transaction: Transaction;
-      try { transaction = await entry.client.createTransaction(pending.payload); }
-      catch (caught) {
-        // A rejected retry does not resolve the FIRST attempt's unknown outcome.
-        if (entry.draft.pendingManual || !(caught instanceof ApiError) || caught.outcome === 'unknown') {
-          const uncertain = { ...next, pendingManual: { ...pending, phase: 'uncertain' as const } };
-          entry.update(uncertain); await entry.persist(uncertain).catch(() => undefined);
-          setError('The save outcome is not confirmed. Retry uses the same reference and details.');
-        } else { entry.update({ pendingManual: null }); setError(caught instanceof Error ? caught.message : 'Could not save this transaction.'); }
-        return;
-      }
-      await confirmed(transaction);
-    } catch (caught) {
-      if (caught instanceof ValidationError) setFields(caught.fields);
-      setError(caught instanceof Error ? caught.message : 'Could not prepare the transaction securely.');
-    }
-  }); };
   const submitAssistant = () => { void entry.runExclusive(async () => {
-    if (!entry.draft.text.trim() || entry.draft.assistantUncertain || voiceBusy || operations.blocked) return;
+    if (!entry.resources.canWrite || entry.draft.pendingManual || !entry.draft.text.trim() || entry.draft.assistantUncertain || voiceBusy || operations.blocked) return;
     setError(null);
     const before = entry.draft;
     const pending = { ...before, assistantUncertain: true };
@@ -101,42 +75,41 @@ export function ComposerScreen({ navigation }: ScreenProps<'Composer'>) {
       {entry.historyError ? <Text style={styles.caption}>{entry.historyError}</Text> : null}
     </ScrollView></SafeAreaView>;
   }
-  const locked = entry.busy || operations.blocked || !!entry.draft.pendingManual;
+  const legacyPending = !!entry.draft.pendingManual;
+  const disabled = entry.busy || operations.blocked || legacyPending || entry.draft.assistantUncertain || voiceBusy || !entry.resources.canWrite;
   return <SafeAreaView style={styles.screen} edges={['bottom']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}>
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={styles.content}>
-      <Text style={styles.caption}>Your draft stays here when you close this screen.</Text>
+      <View style={styles.row}><Icon name="assistant" /><Text accessibilityRole="header" style={styles.heading}>Your money, in a conversation.</Text></View>
+      <Text style={styles.caption}>Track spending, record income, or ask about your money. Just type or speak naturally.</Text>
       <OperationNotice refresh={() => query.refetchQueries({ type: 'active' }, { throwOnError: true })} />
-      <View style={styles.row}><Button title="Use assistant" onPress={() => setMode('assistant')} disabled={entry.busy || !!entry.draft.pendingManual} selected={mode === 'assistant'} secondary={mode !== 'assistant'} />
-        <Button title="Enter details" onPress={() => setMode('manual')} disabled={entry.busy || entry.draft.assistantUncertain} selected={mode === 'manual'} secondary={mode !== 'manual'} /></View>
-      {mode === 'assistant' ? <>
-        <Text accessibilityRole="header" style={styles.heading}>What did you spend on?</Text>
-        <Field label="Transaction message" placeholder="Bought groceries for ₹240 using Kotak upi" multiline maxLength={4000} value={entry.draft.text}
-          editable={!entry.busy && !operations.blocked && !entry.draft.assistantUncertain && !voiceBusy} onChangeText={text => entry.update({ text, ...(text ? {} : { inputMode: 'Text' }) })} testID="assistant-input" />
-        <VoiceInput text={entry.draft.text} disabled={entry.busy || operations.blocked || entry.draft.assistantUncertain} onBusyChange={setVoiceBusy} onTranscript={text => entry.update({ text, inputMode: 'Voice' })} />
-        <Text style={styles.caption}>Sending can save a transaction immediately. The assistant asks for missing details.</Text>
-        {entry.reply ? <Card><Text accessibilityLiveRegion="polite" style={styles.body}>{entry.reply}</Text></Card> : null}
-        {entry.draft.assistantUncertain ? <Card>
+      {legacyPending ? <Card>
+        <Text accessibilityRole="alert" style={styles.body}>An earlier manual save may already have completed. Review recent transactions before clearing it. Manual transaction creation is no longer available.</Text>
+        <Button title="Check recent transactions" secondary onPress={() => navigation.popToTop()} />
+        <Button title="I checked — clear pending draft" secondary disabled={entry.busy} onPress={() => { void entry.runExclusive(async () => { try { await entry.discardDraft(); setError(null); } catch { setError('The pending draft could not be cleared securely.'); } }); }} />
+      </Card> : null}
+      {entry.conversation.slice(-6).map(exchange => <ChatExchange key={exchange.id} text={exchange.text} reply={exchange.reply} />)}
+      {entry.reply && entry.conversation.at(-1)?.reply !== entry.reply ? <Card><Text accessibilityLiveRegion="polite" style={styles.body}>{entry.reply}</Text></Card> : null}
+      {!entry.conversation.length && !entry.reply ? <Card>
+        <Text style={styles.heading}>What’s on your mind?</Text>
+        <Text style={styles.body}>“Groceries for 240 using Kotak upi”</Text>
+        <Text style={styles.caption}>Or try “Where did I spend most this month?”</Text>
+      </Card> : null}
+      <Card>
+        <Field label="Transaction message" placeholder="Tell Spndrr what happened…" multiline maxLength={4000} value={entry.draft.text}
+          editable={!disabled} onChangeText={text => entry.update({ text, ...(text ? {} : { inputMode: 'Text' }) })} testID="assistant-input" />
+        <VoiceInput text={entry.draft.text} disabled={entry.busy || operations.blocked || legacyPending || entry.draft.assistantUncertain || !entry.resources.canWrite} onBusyChange={setVoiceBusy} onTranscript={text => entry.update({ text, inputMode: 'Voice' })} />
+        <Text style={styles.caption}>Sending can save a transaction immediately. Spndrr asks for any missing details.</Text>
+        {entry.draft.assistantUncertain ? <>
           <Text accessibilityRole="alert" style={styles.body}>This message may already have been saved. Check recent transactions before sending it again.</Text>
           <Button title="Check recent transactions" secondary onPress={() => navigation.popToTop()} />
           <Button title="I checked — allow another message" secondary disabled={entry.busy} onPress={() => {
             entry.update({ assistantUncertain: false }); void entry.persist().catch(() => undefined);
           }} />
-        </Card> : <Button title="Send & track" onPress={submitAssistant} loading={entry.busy} disabled={!entry.draft.text.trim() || voiceBusy || operations.blocked || !entry.resources.canWrite} testID="send-assistant" />}
-      </> : <>
-        <Text accessibilityRole="header" style={styles.heading}>Make it a little clearer.</Text>
-        <ManualForm draft={entry.draft.manual} resources={entry.resources} disabled={locked} errors={fields}
-          onChange={change => entry.updateManual(change)} onSelect={kind => navigation.navigate('Picker', { kind })} />
-        {entry.draft.pendingManual ? <Text accessibilityRole="alert" style={styles.caption}>These details are locked until the outcome is confirmed. Retrying reuses the same transaction reference.</Text> : null}
-        {entry.draft.pendingManual ? <Card>
-          <Text style={styles.body}>If a retry is rejected, the earlier attempt may still have been saved. Check history before clearing this draft.</Text>
-          <Button title="Check recent transactions" secondary onPress={() => navigation.popToTop()} />
-          <Button title="I checked — clear pending draft" secondary disabled={entry.busy} onPress={() => { void entry.runExclusive(async () => { try { await entry.discardDraft(); setError(null); } catch { setError('The pending draft could not be cleared securely.'); } }); }} />
-        </Card> : null}
-        <Button title={entry.draft.pendingManual ? 'Retry this transaction' : 'Save transaction'} onPress={submitManual} loading={entry.busy} disabled={entry.draft.assistantUncertain || !entry.resources.canWrite || operations.blocked} testID="save-transaction" />
-      </>}
+        </> : <Button title="Send & track" onPress={submitAssistant} loading={entry.busy} disabled={disabled || !entry.draft.text.trim()} testID="send-assistant" />}
+      </Card>
       {error ? <ErrorNotice message={error} /> : null}
       {entry.persistenceError ? <ErrorNotice message={entry.persistenceError} onRetry={() => { void entry.persist().catch(() => undefined); }} /> : null}
-      <Button title="Hide keyboard" secondary onPress={Keyboard.dismiss} />
+      <Text style={styles.caption}>Your unsent message stays on this device when you close the assistant.</Text>
     </ScrollView>
   </KeyboardAvoidingView></SafeAreaView>;
 }

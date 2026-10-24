@@ -5,11 +5,13 @@ import type { HouseholdRole, HouseholdSummary } from '@spndrr/finance-core';
 import { useEntry } from '../state/entry';
 import { useWorkspace, useWorkspaceMutation } from '../state/workspace';
 import { OperationNotice, useOperations } from '../state/operations';
-import { Button, Card, ErrorNotice, Field, Loading, styles } from '../ui/primitives';
+import { Button, Card, ErrorNotice, Field, Loading, useStyles } from '../ui/primitives';
 import { ChoiceField, Page } from '../ui/forms';
 import { choices, EmptyState } from '../ui/workspace';
 
 export function HouseholdsScreen() {
+  const styles = useStyles();
+
   const entry = useEntry(); const { api, scope, switchHousehold } = useWorkspace(); const mutation = useWorkspaceMutation({ allowReadOnly: true });
   const operations = useOperations();
   const switchBlocked = !operations.ready || operations.busy || entry.busy || !!entry.draft.pendingManual || entry.draft.assistantUncertain;
@@ -66,6 +68,8 @@ export function HouseholdsScreen() {
 }
 
 function HouseholdSettings({ household }: { household: HouseholdSummary }) {
+  const styles = useStyles();
+
   const { api } = useWorkspace(); const mutation = useWorkspaceMutation();
   const [currency, setCurrency] = useState(household.currencyCode); const [zone, setZone] = useState(household.timeZone);
   return <Card><Text style={styles.heading}>Household settings</Text>

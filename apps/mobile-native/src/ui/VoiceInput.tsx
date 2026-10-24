@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Linking, Text, View } from 'react-native';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-import { Button, ErrorNotice, styles } from './primitives';
+import { Button, ErrorNotice, useStyles } from './primitives';
 
 export function VoiceInput({ text, disabled, onTranscript, onBusyChange }: {
   text: string; disabled: boolean; onTranscript: (value: string) => void; onBusyChange: (busy: boolean) => void;
 }) {
+  const styles = useStyles();
+
   const [phase, setPhase] = useState<'idle' | 'requesting' | 'listening' | 'stopping'>('idle');
   const [preview, setPreview] = useState(''); const [error, setError] = useState<string | null>(null); const [denied, setDenied] = useState(false);
   const alive = useRef(true); const active = useRef(false); const prefix = useRef('');

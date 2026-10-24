@@ -6,7 +6,7 @@ import { formatMoney, parseMoney, type CreateGoal, type FinancialGoalPriority, t
 import { useWorkspace, useWorkspaceMutation } from '../state/workspace';
 import { usePlanningRecords } from '../state/planning-runs';
 import { OperationNotice } from '../state/operations';
-import { Button, Card, ErrorNotice, Field, Loading, styles } from '../ui/primitives';
+import { Button, Card, ErrorNotice, Field, Loading, useStyles } from '../ui/primitives';
 import { CalendarField, ChoiceField, MoneyField, Page, Toggle } from '../ui/forms';
 import { Progress } from '../ui/finance';
 import { choices, EmptyState, ScopeLabel } from '../ui/workspace';
@@ -14,6 +14,8 @@ import { useFormExit } from '../ui/useFormExit';
 import type { FeatureNavigationProps, ScreenProps } from '../navigation';
 
 export function GoalsScreen({ navigation }: FeatureNavigationProps) {
+  const styles = useStyles();
+
   const { api, scope, currency } = useWorkspace(); const mutation = useWorkspaceMutation();
   const goals = useQuery({ queryKey: ['goals', scope], queryFn: () => api.goals(scope) });
   return <Page title="Make room for what matters" onRefresh={() => { void goals.refetch(); }} refreshing={goals.isRefetching}>
@@ -37,6 +39,8 @@ export function GoalFormScreen(props: ScreenProps<'GoalForm'>) {
   return <GoalEditor {...props} goal={data.data?.goal} />;
 }
 function GoalEditor({ navigation, goal }: ScreenProps<'GoalForm'> & { goal?: Goal }) {
+  const styles = useStyles();
+
   const { api, scope, currency, today } = useWorkspace(); const mutation = useWorkspaceMutation();
   const [name, setName] = useState(goal?.name ?? ''); const [type, setType] = useState<FinancialGoalType>(goal?.goalType ?? 'Saving');
   const [target, setTarget] = useState(goal ? String(goal.targetAmount) : ''); const [monthly, setMonthly] = useState(goal?.monthlyTarget === null || !goal ? '' : String(goal.monthlyTarget));
@@ -67,6 +71,8 @@ function GoalEditor({ navigation, goal }: ScreenProps<'GoalForm'> & { goal?: Goa
 }
 
 export function GoalScreen({ navigation, route }: ScreenProps<'Goal'>) {
+  const styles = useStyles();
+
   const { api, scope, currency, today } = useWorkspace(); const mutation = useWorkspaceMutation(); const query = useQueryClient(); const records = usePlanningRecords();
   const id = route.params.id;
   const detail = useQuery({ queryKey: ['goal', scope, id], queryFn: () => api.goal(id) });
