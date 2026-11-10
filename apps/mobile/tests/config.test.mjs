@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { mobileLinkTarget } from "../lib/deep-links.mjs";
 import { validateApiUrl } from "../lib/config.mjs";
 
@@ -29,4 +29,11 @@ test("every current web screen has a corresponding mobile route", () => {
   const pages = directory => readdirSync(new URL(directory, import.meta.url), { recursive: true })
     .filter(name => name === "page.tsx" || name.endsWith("/page.tsx")).sort();
   assert.deepEqual(pages("../app/"), pages("../../web/app/"));
+});
+
+test("system font-size changes do not recreate the activity and reload the app at /", () => {
+  const manifest = readFileSync(new URL("../android/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
+  const activity = manifest.match(/<activity\b[^>]*android:name="\.MainActivity"[^>]*>/s)?.[0] ?? "";
+  const configChanges = activity.match(/android:configChanges="([^"]*)"/)?.[1].split("|") ?? [];
+  assert.ok(configChanges.includes("fontScale"), `MainActivity configChanges: ${configChanges.join("|")}`);
 });

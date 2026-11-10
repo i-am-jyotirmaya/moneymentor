@@ -7,7 +7,7 @@ import { Download, Save, Settings } from "lucide-react";
 import { FormEvent } from "react";
 import { Field, PreferenceToggle } from "./common-ui";
 import { Dropdown } from "./dropdown";
-import { ProgressLink as Link } from "./navigation-progress";
+import { PrivacyPolicyLink } from "./privacy-policy-link";
 import { SettingsForm } from "./workspace-types";
 
 export function SettingsSection({
@@ -146,13 +146,9 @@ export function SettingsSection({
                 "support@spndrr.example"}
             </a>
           </p>
-          <Link
-            className="mt-2 inline-flex text-sm font-bold text-[var(--accent)] underline"
-            href="/privacy"
-            target="_blank"
-          >
+          <PrivacyPolicyLink className="mt-2 inline-flex text-sm font-bold text-[var(--accent)] underline">
             Read the beta privacy policy
-          </Link>
+          </PrivacyPolicyLink>
         </article>
 
         <form
