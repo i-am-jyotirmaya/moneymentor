@@ -69,3 +69,9 @@ class NativeSpeechRecognition implements SpeechRecognitionLike {
 export function getSpeechRecognition() {
   return Capacitor.isNativePlatform() ? NativeSpeechRecognition : getBrowserSpeechRecognition();
 }
+
+// The WebView is a single document: opening /privacy in a new window would replace the
+// current screen, so shared links show the policy in an in-app sheet instead.
+export function opensDocumentsInApp() {
+  return Capacitor.isNativePlatform();
+}
