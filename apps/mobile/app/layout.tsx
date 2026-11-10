@@ -1,3 +1,4 @@
+import { inter } from "../../web/app/_fonts/inter";
 import { NavigationProgress } from "../../web/app/_components/navigation-progress";
 import type { Metadata, Viewport } from "next";
 import { MobileRuntime } from "../components/mobile-runtime";
@@ -21,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full">
         <MobileRuntime />
         <NavigationProgress>{children}</NavigationProgress>

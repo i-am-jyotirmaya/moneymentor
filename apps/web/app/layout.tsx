@@ -1,3 +1,4 @@
+import { inter } from "./_fonts/inter";
 import { NavigationProgress } from "./_components/navigation-progress";
 import type { Metadata } from "next";
 import "./globals.css";
@@ -13,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full">
         <NavigationProgress>{children}</NavigationProgress>
       </body>
