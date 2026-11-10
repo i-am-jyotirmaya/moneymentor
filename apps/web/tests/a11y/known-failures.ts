@@ -2,6 +2,7 @@
 // finding in the design audit (spndrr AUDIT.md, ForgeDesigner's baseline at 6e89646) that explains it.
 // They run as test.fail(): when the redesign fixes one, Playwright reports it as
 // "expected to fail, but passed". Delete the entry then.
+// hostDependent entries are skipped until their results are consistent across hosts.
 import { test } from "@playwright/test";
 
 export type Check =
@@ -21,7 +22,9 @@ export const knownFailures: Record<Check, Record<string, string>> = {
   axe: {},
 
   contrast: {
-    ...entries(["home", "assistant", "dashboard", "transactions", "household", "login", "signup", "request-access", "privacy"], phones,
+    ...entries(["home", "assistant", "dashboard", "household", "login", "signup", "request-access", "privacy"], phones,
+      "AUDIT A1: accent #0e8878 fails AA for normal text (active nav 3.83:1, white on accent 4.36:1, links 4.36:1); household also A4 (muted on accent-soft 4.4:1)"),
+    ...entries(["transactions"], ["360", "412"],
       "AUDIT A1: accent #0e8878 fails AA for normal text (active nav 3.83:1, white on accent 4.36:1, links 4.36:1); household also A4 (muted on accent-soft 4.4:1)"),
     "planning@412": "AUDIT A1: accent-filled button text (white on #0e8878, 4.36:1). Planning passes this check at 320/360 (as in the audit at 360); axe flags it at 412",
     ...entries(allRoutes, ["1440"],
@@ -60,7 +63,18 @@ export const knownFailures: Record<Check, Record<string, string>> = {
     "AUDIT S7: in a Viewer household the Assistant textarea, send and mic stay enabled (audit saw it at 360; this suite confirms 1440)"),
 };
 
+export const hostDependent: Partial<Record<Check, Record<string, string>>> = {
+  contrast: {
+    "transactions@320": "AUDIT A1: the 12px/600 Transactions label fits its 80px active bottom-nav cell in Noto Sans or Liberation Sans (about 74px, so axe reports accent-on-accent-soft contrast), but overflows in DejaVu Sans (about 86px, the ubuntu-latest default, where CI saw the check pass); the same finding remains covered at transactions@360 and @412, and the self-hosted Inter font from the tokens PR should make this deterministic so this entry can then be revisited",
+  },
+};
+
 export function expectKnownFailure(check: Check, key: string) {
+  const reason = hostDependent[check]?.[key];
+  if (reason) {
+    test.skip(true, reason);
+    return;
+  }
   const finding = knownFailures[check][key];
   test.fail(Boolean(finding), finding);
 }
