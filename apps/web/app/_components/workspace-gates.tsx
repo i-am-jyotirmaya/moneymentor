@@ -3,6 +3,7 @@
 import { BrandMarkIcon } from "./icons";
 import { WorkspaceSkeleton } from "./loading-ui";
 import { ProgressLink as Link } from "./navigation-progress";
+import { PrivacyPolicyLink } from "./privacy-policy-link";
 import { RegistrationLink } from "./registration-link";
 
 export function WorkspaceError({
@@ -90,13 +91,9 @@ export function PrivacyConsentGate({
           processing. You can still export or delete your account through the
           API without accepting.
         </p>
-        <Link
-          className="mt-5 inline-flex font-bold text-[var(--accent)] underline"
-          href="/privacy"
-          target="_blank"
-        >
+        <PrivacyPolicyLink className="mt-5 inline-flex font-bold text-[var(--accent)] underline">
           Read the plain-language policy
-        </Link>
+        </PrivacyPolicyLink>
         <div className="mt-8 flex flex-wrap gap-3">
           <button
             className="rounded-lg bg-[var(--ink)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"

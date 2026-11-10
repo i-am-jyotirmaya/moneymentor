@@ -23,6 +23,8 @@ export type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type PlatformServices = {
   getSpeechRecognition: () => SpeechRecognitionConstructor | undefined;
   saveExport: (blob: Blob, fileName: string) => Promise<void>;
+  // Native shells can't open a second document without leaving the current screen.
+  opensDocumentsInApp: () => boolean;
 };
 let platformServices: PlatformServices | undefined;
 
@@ -52,4 +54,9 @@ export async function saveExport(blob: Blob, fileName: string) {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+// Browsers open documents such as the privacy policy in a new tab, so forms stay intact.
+export function opensDocumentsInApp() {
+  return platformServices?.opensDocumentsInApp() ?? false;
 }
