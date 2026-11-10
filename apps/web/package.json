@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",
+    "test:visual": "PLAYWRIGHT_VISUAL=1 playwright test --project=visual",
     "test:auth": "node --test tests/unit/auth-session.test.mjs"
   },
   "dependencies": {

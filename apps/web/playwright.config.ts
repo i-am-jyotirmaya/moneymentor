@@ -4,6 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
 const port = Number(process.env.PLAYWRIGHT_WEB_PORT ?? 3000);
 const baseURL = `http://127.0.0.1:${port}`;
 const coverageSuite = /a11y\/.*\.spec\.ts$/;
+const visualSuite = /visual\/.*\.spec\.ts$/;
 
 export default defineConfig({
   testDir: "./tests",
@@ -20,7 +21,7 @@ export default defineConfig({
   projects: [
     {
       name: "desktop-chromium",
-      testIgnore: coverageSuite,
+      testIgnore: [coverageSuite, visualSuite],
       use: {
         ...devices["Desktop Chrome"],
         viewport: { height: 900, width: 1440 },
@@ -28,7 +29,7 @@ export default defineConfig({
     },
     {
       name: "mobile-chromium",
-      testIgnore: coverageSuite,
+      testIgnore: [coverageSuite, visualSuite],
       use: { ...devices["Pixel 5"] },
     },
     // Sets its own viewport per test (320, 360, 412 and 1440), so it runs once, not per device project.
@@ -37,6 +38,11 @@ export default defineConfig({
       testMatch: coverageSuite,
       use: { ...devices["Desktop Chrome"] },
     },
+    // Screenshot baselines change with every redesign PR, so they stay out of the default run:
+    // PLAYWRIGHT_VISUAL=1 playwright test --project=visual (see the test:visual script).
+    ...(process.env.PLAYWRIGHT_VISUAL
+      ? [{ name: "visual", testMatch: visualSuite, use: { ...devices["Desktop Chrome"] } }]
+      : []),
   ],
   webServer: {
     command: `pnpm exec next dev --hostname 127.0.0.1 --port ${port}`,
