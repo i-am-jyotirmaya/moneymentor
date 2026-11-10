@@ -29,3 +29,20 @@ export const viewerHouseholds = {
 export async function mockViewerHousehold(page: Page) {
   await page.route("**/api/households", route => json(route, viewerHouseholds));
 }
+
+/** Judgments with nothing active, so /reports renders its designed empty state instead of a 404 banner. */
+export async function mockNoActiveJudgements(page: Page) {
+  await page.route("**/api/judgements/active**", route => json(route, []));
+}
+
+/** Every workspace data endpoint fails with a server error; auth keeps working so the workspace still opens. */
+export async function mockWorkspaceServerError(page: Page) {
+  await page.route("**/api/**", async route => {
+    const { pathname } = new URL(route.request().url());
+    if (pathname.startsWith("/api/auth/")) {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ title: "Server error" }) });
+  });
+}
