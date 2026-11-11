@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../api/client";
 import { registrationIsOpen } from "../auth/registration";
 import { useSession } from "../auth/session";
+import { authFieldLocks, validateAuthForm } from "../auth/validation";
 import { invitationToken } from "../lib/deep-links";
 import { PrivacyPolicySheet } from "./PrivacyPolicySheet";
 import { colors, styles } from "./theme";
@@ -66,13 +67,11 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const signup = mode === "signup", request = mode === "request";
+  const locks = authFieldLocks(invitation);
   async function submit() {
     if (busy) return;
-    // RN has no HTML required/type=email constraint validation. Only mirror those
-    // browser submit blockers here; password length remains server validation.
-    if ((mode !== "login" && !displayName) || !email || (!request && !password)) { setError("Please fill out all required fields."); return; }
-    if (!/^[^\s@]+@[^\s@]+$/.test(email.trim())) { setError("Please enter a valid email address."); return; }
-    if (signup && !accepted) { setError("Please accept the beta privacy policy."); return; }
+    const validationError = validateAuthForm({ mode, displayName, email, password, accepted });
+    if (validationError) { setError(validationError); return; }
     setError(""); setBusy(true);
     try {
       if (request) {
@@ -98,8 +97,8 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
           <Text accessibilityRole="header" style={styles.title}>{request ? "Request MVP access" : signup ? "Create your account" : "Sign in"}</Text>
           <Text style={styles.text}>{request ? "Spndrr is currently available by approval. Tell us a little about yourself to request access." : signup ? "Start with the assistant input, then build the rest around real data." : "Continue to your Spndrr workspace."}</Text>
           {sent ? <Text accessibilityLiveRegion="polite" style={[styles.text, { backgroundColor: colors.accentSoft, padding: 16 }]}>Your request has been received. We’ll email you if access is approved.</Text> : <>
-            {mode !== "login" && <Field label="Display name" placeholder="Aarav Shah" maxLength={128} value={displayName} onChangeText={setDisplayName} autoComplete="name" textContentType="name" editable={!invitation} />}
-            <Field label="Email" placeholder="name@example.com" maxLength={256} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress" editable={!invitation} />
+            {mode !== "login" && <Field label="Display name" placeholder="Aarav Shah" maxLength={128} value={displayName} onChangeText={setDisplayName} autoComplete="name" textContentType="name" editable={!locks.displayName} />}
+            <Field label="Email" placeholder="name@example.com" maxLength={256} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress" editable={!locks.email} />
             {!request && <Field label="Password" placeholder="At least 8 characters" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete={signup ? "new-password" : "current-password"} textContentType={signup ? "newPassword" : "password"} />}
             {request && <>
               <Field label="Why would you like access? (optional)" value={reason} onChangeText={setReason} maxLength={1000} multiline style={[styles.input, { minHeight: 96, textAlignVertical: "top" }]} />
