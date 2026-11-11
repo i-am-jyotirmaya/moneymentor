@@ -1,10 +1,10 @@
 import { StyleSheet } from "react-native";
 
-// Values shared with apps/web/app/globals.css.
+// Values shared with apps/web/app/tokens.css (light semantic roles).
 export const colors = {
-  background: "#f4f7f6", ink: "#102b26", muted: "#61736e", muted2: "#98a8a4",
-  surface: "#f7faf9", border: "#dce6e2", accent: "#0e8878", accentSoft: "#e3f4ef",
-  danger: "#9b1c1c", dangerBg: "#fff1f0", dangerBorder: "#f3c2bd",
+  background: "#F3F5F9", ink: "#0E1220", muted: "#4A5168", muted2: "#5F6680",
+  surface: "#ECEFF5", border: "#CBD0DC", accent: "#2944D4", accentSoft: "#DCE2FF",
+  danger: "#BA1A1A", dangerBg: "#FFDAD6", dangerBorder: "#BA1A1A",
 };
 export const styles = StyleSheet.create({
   page: { flexGrow: 1, padding: 20, justifyContent: "center", backgroundColor: colors.background },

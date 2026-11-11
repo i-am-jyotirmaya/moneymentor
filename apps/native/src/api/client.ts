@@ -1,6 +1,6 @@
 // Lifted from PR #36 (packages/finance-core/src/client.ts).
 import type { AssistantResponse, AuthSession, CategoryCatalog, FinancialAccount, FinancialEventIntent, Transaction, TransactionIntent, TransactionPage, TransactionPatch, UserSettings } from "./models.ts";
-import type { RegistrationPolicy, SignupInput, SignupInvitation } from "./workspace-models.ts";
+import type { HouseholdDashboard, MonthlyDashboardResponse, RegistrationPolicy, SignupInput, SignupInvitation } from "./workspace-models.ts";
 
 export type HttpRequest = { path: string; method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; body?: unknown; headers?: Record<string, string> };
 export type HttpResponse = { status: number; data: unknown };
@@ -196,6 +196,16 @@ export class FinanceClient {
       throw new SessionChangedError();
     }
     return result as T;
+  }
+  monthlyDashboard(input: { month?: string; householdId?: string } = {}): Promise<MonthlyDashboardResponse> {
+    const params = new URLSearchParams();
+    if (input.month) params.set("month", input.month);
+    if (input.householdId) params.set("householdId", input.householdId);
+    const query = params.toString();
+    return this.request(`/api/dashboard/monthly${query ? `?${query}` : ""}`);
+  }
+  households(): Promise<HouseholdDashboard> {
+    return this.request("/api/households");
   }
   async categories(householdId?: string): Promise<CategoryCatalog> {
     const value = await this.request<CategoryCatalog>(`/api/categories${householdId ? `?householdId=${encodeURIComponent(householdId)}` : ''}`);

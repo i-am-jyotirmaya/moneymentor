@@ -149,3 +149,39 @@ test("auth parity sends the web request bodies", async () => {
     ["/api/auth/users", "POST", signup],
   ]);
 });
+
+test.each([
+  [{}, '/api/dashboard/monthly'],
+  [{ month: '2026-11' }, '/api/dashboard/monthly?month=2026-11'],
+  [{ householdId: 'family & home' }, '/api/dashboard/monthly?householdId=family+%26+home'],
+  [{ month: '2026-11', householdId: 'family/1' }, '/api/dashboard/monthly?month=2026-11&householdId=family%2F1'],
+])('monthly dashboard matches web request shape: %j', async (input, path) => {
+  const data = { month: '2026-11', categories: [] };
+  fetchMock.mockResolvedValueOnce(response(200, session)).mockResolvedValueOnce(response(200, data));
+  const client = createFinanceClient('https://api.example.test');
+  await client.login('person@example.test', 'placeholder');
+  expect(await client.monthlyDashboard(input)).toEqual(data);
+  const [url, init] = fetchMock.mock.calls[1];
+  expect(url).toBe(`https://api.example.test${path}`);
+  expect(init.method).toBe('GET');
+  expect(init.body).toBeUndefined();
+  expect(init.headers.get('Authorization')).toBe(`Bearer ${session.accessToken}`);
+});
+
+test('households matches web GET and retries after a 401 using shared refresh', async () => {
+  const households = { defaultHouseholdId: 'personal', households: [] };
+  fetchMock.mockResolvedValueOnce(response(200, session))
+    .mockResolvedValueOnce(response(401, {}))
+    .mockResolvedValueOnce(response(200, { ...session, accessToken: 'renewed-token' }))
+    .mockResolvedValueOnce(response(200, households));
+  const client = createFinanceClient('https://api.example.test');
+  await client.login('person@example.test', 'placeholder');
+  expect(await client.households()).toEqual(households);
+  for (const index of [1, 3]) {
+    const [url, init] = fetchMock.mock.calls[index];
+    expect(url).toBe('https://api.example.test/api/households');
+    expect(init.method).toBe('GET');
+    expect(init.body).toBeUndefined();
+  }
+  expect(fetchMock.mock.calls[3][1].headers.get('Authorization')).toBe('Bearer renewed-token');
+});
