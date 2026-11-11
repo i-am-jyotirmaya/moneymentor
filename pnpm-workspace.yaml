@@ -1,7 +1,9 @@
 packages:
   - "apps/web"
   - "apps/mobile"
+  - "apps/native"
   - "packages/*"
 allowBuilds:
+  '@parcel/watcher': false
   sharp: true
   unrs-resolver: true
