@@ -239,6 +239,23 @@ export class FinanceClient {
     }
     return value;
   }
+  async listDeletedTransactions(householdId?: string): Promise<{ items: Transaction[] }> {
+    const value = await this.request<{ items: Transaction[] }>(`/api/transactions/trash${householdId ? `?householdId=${encodeURIComponent(householdId)}` : ''}`);
+    if (!value || !Array.isArray(value.items) || !value.items.every(t => isTransaction(t) && (!householdId || t.householdId === householdId))) {
+      throw new ApiError('Your deleted transactions could not be verified. Refresh to load the saved records.');
+    }
+    return value;
+  }
+  async deleteTransaction(id: string): Promise<Transaction> {
+    const value = await this.request<unknown>(`/api/transactions/${encodeURIComponent(id)}`, 'DELETE');
+    if (!isTransaction(value) || value.id !== id) throw new ApiError('The delete response could not be verified. Check Recently deleted.', 0, 'unknown');
+    return value;
+  }
+  async restoreTransaction(id: string): Promise<Transaction> {
+    const value = await this.request<unknown>(`/api/transactions/${encodeURIComponent(id)}/restore`, 'POST');
+    if (!isTransaction(value) || value.id !== id) throw new ApiError('The restore response could not be verified. Check the saved transaction.', 0, 'unknown');
+    return value;
+  }
   async createTransaction(intent: Readonly<TransactionIntent>): Promise<Transaction> {
     const value = await this.request<unknown>("/api/transactions", "POST", intent);
     if (!isTransaction(value) || value.amount !== intent.amount || value.kind !== intent.eventKind

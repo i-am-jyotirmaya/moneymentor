@@ -34,7 +34,7 @@ export type Transaction = {
   merchantName: string | null; description: string | null; senderName?: string | null; reason?: string | null;
   sourceText: string; transactionDate: string; inputMode: "Text" | "Voice" | "System";
   confidence: number; visibility: Visibility; createdAt: string; updatedAt: string;
-  deletedAt?: string | null; financialImpact?: { spending: number; income: number; investment: number; rewards: number };
+  updatedByDisplayName?: string | null; purgeAfter?: string | null; deletedAt?: string | null; financialImpact?: { spending: number; income: number; investment: number; rewards: number };
 };
 export type TransactionPage = { items: Transaction[]; page: number; pageSize: number; totalCount: number; totalPages: number; month: string };
 export type TransactionIntent = {
@@ -53,6 +53,6 @@ export type AssistantResponse = {
   intent: string; assistantMessage: string | null; transaction: Transaction | null; errors: string[];
 };
 export type TransactionPatch = Partial<{
-  amount: number; categoryId: string; accountId: string; description: string; merchantName: string;
+  amount: number; kind: EventKind; categoryId: string; accountId: string; counterpartyAccountId: string; clearAccount: boolean; clearCounterpartyAccount: boolean; senderName: string; reason: string; description: string; merchantName: string;
   transactionDate: string; paymentChannel: PaymentChannel; visibility: Visibility;
 }>;
