@@ -9,7 +9,8 @@
     "prebuild": "expo prebuild --platform android",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "e2e:android": "bash scripts/e2e-android.sh"
   },
   "dependencies": {
     "expo-router": "~58.0.30",

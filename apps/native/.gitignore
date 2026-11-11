@@ -8,3 +8,4 @@ node_modules/
 coverage/
 # Generated and managed by the Expo CLI
 expo-env.d.ts
+e2e-artifacts/

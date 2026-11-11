@@ -94,3 +94,28 @@ parsing. No dependencies were added. Manual device verification still needed:
   Back and the close button, verifying retained values and unchanged consent.
 - At Android fontScale 1.3, scroll the entire policy and check the app bar/close
   target; test keyboard scrolling and invitation entry on both platforms.
+
+## Native E2E smoke (Maestro, local only)
+
+Prerequisites: install Maestro CLI with the [free OSS installer](https://docs.maestro.dev/getting-started/installing-maestro)
+(`curl -fsSL "https://get.maestro.mobile.dev" | bash`), have Android SDK `adb`
+available, run `emulator-5554`, and install the debug dev build
+(`com.spndrr.app.dev`) first. The runner does not build or start an emulator.
+
+From the repository root:
+
+```sh
+pnpm --filter native e2e:android
+```
+
+The runner reuses Metro on port 8081 or starts it non-interactively and stops only
+its own Metro on exit. The flow clears app state and checks the signed-out home
+and Login button; no API or sign-in is needed. This is separate from Jest and has
+no CI integration.
+When starting its own Metro with no `EXPO_PUBLIC_API_BASE_URL` environment variable and no `apps/native/.env`, the runner exports the non-secret defaults from `.env.example` (including `EXPO_PUBLIC_API_BASE_URL=https://10.0.2.2:7085`) without creating or modifying `.env`.
+
+Artifacts stay in `apps/native/e2e-artifacts/<UTC timestamp>/`, including the home
+screenshot, Maestro console/debug output, Metro logs when started, and a device
+screenshot plus logcat on Maestro failure. Set `ANDROID_SERIAL` to override the
+device or `FLOW_DIR` to override `.maestro`; extra command arguments pass through
+to `maestro test`.
