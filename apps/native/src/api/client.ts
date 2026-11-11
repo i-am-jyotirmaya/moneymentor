@@ -277,10 +277,12 @@ export class FinanceClient {
       || value.transactionDate.slice(0, 10) !== intent.date) throw new ApiError('The financial event response could not be verified. Check the saved event before another change.', 0, 'unknown');
     return value;
   }
-  async sendAssistant(text: string, currencyCode: string, transactionDate: string, options: { inputMode?: 'Text' | 'Voice'; householdId?: string } = {}): Promise<AssistantResponse> {
-    if (!text.trim() || text.length > 4000) throw new ApiError("Enter a message of up to 4000 characters.");
-    const value = await this.request<AssistantResponse>("/api/assistant/messages", "POST", { text: text.trim(), inputMode: options.inputMode ?? "Text", currencyCode, transactionDate, locale: "en-IN", ...(options.householdId ? { householdId: options.householdId } : {}) });
+  async sendAssistant(input: { text: string; inputMode: 'Text' | 'Voice'; householdId?: string; transactionDate?: string; currencyCode?: string; locale?: string }): Promise<AssistantResponse> {
+    if (!input.text.trim() || input.text.length > 4000) throw new ApiError("Enter a message of up to 4000 characters.");
+    const value = await this.request<AssistantResponse>("/api/assistant/messages", "POST", input);
     if (!value || !["Responded", "NeedsClarification", "Unsupported", "Failed"].includes(value.status)
+      || (value.assistantMessage !== null && typeof value.assistantMessage !== 'string')
+      || !Array.isArray(value.errors) || !value.errors.every(error => typeof error === 'string')
       || (value.transaction !== null && !isTransaction(value.transaction))) {
       throw new ApiError("The assistant response could not be verified. Check recent transactions before sending again.", 0, "unknown");
     }

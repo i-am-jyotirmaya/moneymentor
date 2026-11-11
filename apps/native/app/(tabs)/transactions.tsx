@@ -32,7 +32,7 @@ function TransactionScreen() {
   const lock = useRef(false);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  const key = `${month}:${page}`;
+  const key = `${month}:${page}:${workspace.dataRevision}`;
   useEffect(() => {
     let current = true;
     if (!scope) return;
