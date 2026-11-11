@@ -1,3 +1,4 @@
+import { inter } from "../../web/app/_fonts/inter";
 import { NavigationProgress } from "../../web/app/_components/navigation-progress";
 import type { Metadata, Viewport } from "next";
 import { MobileRuntime } from "../components/mobile-runtime";
@@ -12,7 +13,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f4f7f6",
+  themeColor: "#F3F5F9",
 };
 
 export default function RootLayout({
@@ -21,7 +22,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full antialiased">
+    // Light is forced until the dark-mode PR (SPEC 6.4 / section 11 step 5),
+    // which replaces the static attribute with the head script.
+    <html lang="en" className={`${inter.variable} h-full antialiased`} data-theme="light">
       <body className="min-h-full">
         <MobileRuntime />
         <NavigationProgress>{children}</NavigationProgress>
