@@ -18,13 +18,13 @@ export default function Index() {
   }, [client]);
   if (!ready) return <ActivityIndicator accessibilityLabel="Loading session" />;
   if (status === "authenticated") return <Redirect href="/(tabs)/assistant" />;
-  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+  return <SafeAreaView testID="home-screen" style={{ flex: 1, backgroundColor: colors.background }}>
     <ScrollView contentContainerStyle={styles.page}>
       <View style={styles.card}>
         <View style={{ alignItems: "center" }}><BrandTile /></View>
         <Text accessibilityRole="header" style={[styles.title, { textAlign: "center" }]}>Spndrr</Text>
         <Text style={[styles.text, { fontSize: 16, textAlign: "center" }]}>Sign in to use the assistant input workspace.</Text>
-        <Button title="Login" onPress={() => router.push("/(auth)/login")} />
+        <Button testID="home-login-button" title="Login" onPress={() => router.push("/(auth)/login")} />
         <RegistrationLink outlined />
       </View>
     </ScrollView>

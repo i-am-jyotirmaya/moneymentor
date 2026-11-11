@@ -16,8 +16,8 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
 export function ErrorBox({ message }: { message: string }) {
   return message ? <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.error}>{message}</Text> : null;
 }
-export function Button({ title, onPress, disabled = false }: { title: string; onPress: () => void; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.button, disabled && { opacity: 0.65 }]}><Text style={styles.buttonText}>{title}</Text></Pressable>;
+export function Button({ title, onPress, disabled = false, testID }: { title: string; onPress: () => void; disabled?: boolean; testID?: string }) {
+  return <Pressable testID={testID} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.button, disabled && { opacity: 0.65 }]}><Text style={styles.buttonText}>{title}</Text></Pressable>;
 }
 export function BrandTile() {
   return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: 48, height: 48, borderRadius: 8, backgroundColor: colors.ink }} />;
