@@ -6,10 +6,11 @@ export type HttpRequest = { path: string; method: "GET" | "POST" | "PATCH" | "PU
 export type HttpResponse = { status: number; data: unknown };
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
 export class ApiError extends Error {
+  errors: string[];
   status: number;
   outcome: "rejected" | "unknown";
-  constructor(message: string, status = 0, outcome: "rejected" | "unknown" = "rejected") {
-    super(message); this.name = "ApiError"; this.status = status; this.outcome = outcome;
+  constructor(message: string, status = 0, outcome: "rejected" | "unknown" = "rejected", errors: string[] = [message]) {
+    super(message); this.errors = errors; this.name = "ApiError"; this.status = status; this.outcome = outcome;
   }
 }
 export class SessionChangedError extends Error {
@@ -17,17 +18,24 @@ export class SessionChangedError extends Error {
 }
 export type SessionState = { status: "signedOut" | "loading" | "authenticated" | "unavailable"; session: AuthSession | null };
 
+// Preserve every server error for web AuthForm parity; retain the lifted constructor API.
 function errorText(data: unknown): string {
   if (!data || typeof data !== "object") return "The request could not be completed.";
   const body = data as { errors?: unknown; detail?: unknown; title?: unknown; error?: unknown };
   const errors = body.errors;
-  if (Array.isArray(errors) && typeof errors[0] === "string") return errors[0];
+  if (Array.isArray(errors) && typeof errors[0] === "string") return errors.filter((e): e is string => typeof e === "string").join(" ");
   if (errors && typeof errors === "object") {
-    const first = Object.values(errors).flat().find(e => typeof e === "string");
-    if (typeof first === "string") return first;
+    const all = Object.values(errors).flat().filter((e): e is string => typeof e === "string");
+    if (all.length) return all.join(" ");
   }
   const text = [body.detail, body.title, body.error].find(v => typeof v === "string");
   return typeof text === "string" ? text : "The request could not be completed.";
+}
+function serverErrors(data: unknown): string[] {
+  const errors = (data as { errors?: unknown } | null)?.errors;
+  const all = (Array.isArray(errors) ? errors : errors && typeof errors === "object" ? Object.values(errors).flat() : [])
+    .filter((e): e is string => typeof e === "string");
+  return all.length ? all : [errorText(data)];
 }
 function isSession(value: unknown): value is AuthSession {
   const s = value as AuthSession | null;
@@ -77,10 +85,10 @@ export class FinanceClient {
   private async raw(request: HttpRequest): Promise<unknown> {
     let response: HttpResponse;
     try { response = await this.transport(request); }
-    catch { throw new ApiError("The connection was interrupted. Check your connection and try again.", 0, request.method === "GET" ? "rejected" : "unknown"); }
+    catch { throw new ApiError("Could not connect to Spndrr. Please try again in a moment.", 0, request.method === "GET" ? "rejected" : "unknown"); }
     if (response.status < 200 || response.status >= 300) {
       throw new ApiError(errorText(response.data), response.status,
-        request.method !== "GET" && (response.status >= 500 || response.status === 408) ? "unknown" : "rejected");
+        request.method !== "GET" && (response.status >= 500 || response.status === 408) ? "unknown" : "rejected", serverErrors(response.data));
     }
     return response.data;
   }

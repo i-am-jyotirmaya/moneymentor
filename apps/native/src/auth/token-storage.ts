@@ -5,8 +5,8 @@ const REFRESH_TOKEN_KEY = "spndrr.refreshToken";
 
 export const getAccessToken = () => SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
 export const setAccessToken = (token: string) => SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token);
-// The API uses an HttpOnly refresh cookie. Native refresh wiring is M1;
-// these helpers provide the M0 storage API only.
+// Refresh uses the platform HttpOnly cookie store via credentials: include.
+// These legacy M0 helpers remain available, but JS never reads/writes the API refresh token.
 export const getRefreshToken = () => SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
 export const setRefreshToken = (token: string) => SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
 export async function clearTokens(): Promise<void> {

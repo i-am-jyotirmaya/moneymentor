@@ -1,18 +1,32 @@
-import { Redirect } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
-import { getAccessToken } from "../src/auth/token-storage";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { BrandTile, Button, RegistrationLink } from "../src/ui/AuthForm";
+import { colors, styles } from "../src/ui/theme";
+import { useSession } from "../src/auth/session";
 
 export default function Index() {
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
-  const [error, setError] = useState(false);
+  const { client, status } = useSession();
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     let active = true;
-    getAccessToken().then(token => { if (active) setSignedIn(Boolean(token)); })
-      .catch(() => { if (active) setError(true); });
+    // Refresh uses the native HttpOnly cookie store, never a JS refresh token.
+    void client.restore().catch(() => undefined).finally(() => { if (active) setReady(true); });
     return () => { active = false; };
-  }, []);
-  if (error) return <View><Text>Unable to read your secure session. Please restart Spndrr.</Text></View>;
-  if (signedIn === null) return <ActivityIndicator accessibilityLabel="Loading session" />;
-  return <Redirect href={signedIn ? "/(tabs)/assistant" : "/(auth)/login"} />;
+  }, [client]);
+  if (!ready) return <ActivityIndicator accessibilityLabel="Loading session" />;
+  if (status === "authenticated") return <Redirect href="/(tabs)/assistant" />;
+  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+    <ScrollView contentContainerStyle={styles.page}>
+      <View style={styles.card}>
+        <View style={{ alignItems: "center" }}><BrandTile /></View>
+        <Text accessibilityRole="header" style={[styles.title, { textAlign: "center" }]}>Spndrr</Text>
+        <Text style={[styles.text, { fontSize: 16, textAlign: "center" }]}>Sign in to use the assistant input workspace.</Text>
+        <Button title="Login" onPress={() => router.push("/(auth)/login")} />
+        <RegistrationLink outlined />
+      </View>
+    </ScrollView>
+  </SafeAreaView>;
 }
