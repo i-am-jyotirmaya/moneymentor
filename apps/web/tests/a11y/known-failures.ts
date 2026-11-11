@@ -2,7 +2,6 @@
 // finding in the design audit (spndrr AUDIT.md, ForgeDesigner's baseline at 6e89646) that explains it.
 // They run as test.fail(): when the redesign fixes one, Playwright reports it as
 // "expected to fail, but passed". Delete the entry then.
-// hostDependent entries are skipped until their results are consistent across hosts.
 import { test } from "@playwright/test";
 
 export type Check =
@@ -18,18 +17,9 @@ function entries(routes: string[], widths: string[], finding: string): Record<st
 }
 
 export const knownFailures: Record<Check, Record<string, string>> = {
-  // All other WCAG 2.1 A/AA axe rules pass on every route and width today.
+  // WCAG 2.1 A/AA axe checks, including contrast, pass at every tested width.
   axe: {},
-
-  contrast: {
-    ...entries(["home", "assistant", "dashboard", "household", "login", "signup", "request-access", "privacy"], phones,
-      "AUDIT A1: accent #0e8878 fails AA for normal text (active nav 3.83:1, white on accent 4.36:1, links 4.36:1); household also A4 (muted on accent-soft 4.4:1)"),
-    ...entries(["transactions"], ["360", "412"],
-      "AUDIT A1: accent #0e8878 fails AA for normal text (active nav 3.83:1, white on accent 4.36:1, links 4.36:1); household also A4 (muted on accent-soft 4.4:1)"),
-    "planning@412": "AUDIT A1: accent-filled button text (white on #0e8878, 4.36:1). Planning passes this check at 320/360 (as in the audit at 360); axe flags it at 412",
-    ...entries(allRoutes, ["1440"],
-      "AUDIT A1/A4, plus desktop-sidebar small text (text-white/50, uppercase stat labels) that axe flags at 1440. NEW: the audit ran axe at 360 only"),
-  },
+  contrast: {},
 
   targets: entries(allRoutes, phones,
     "AUDIT A2: touch targets under 48dp (menu/close 40x40, month arrows and row actions 36x36, voice 44x44, household selector 44px tall, 13px checkboxes, inline links)"),
@@ -41,11 +31,7 @@ export const knownFailures: Record<Check, Record<string, string>> = {
       "NEW (not in AUDIT.md, related to A5/N7): desktop workspace has no visible <h1>; the mobile header <h1> is lg:hidden and section titles are <h2>"),
   },
 
-  placeholder: {
-    ...entries(["home", "assistant", "household", "settings", "login", "signup", "request-access"], ["360", "1440"],
-      "AUDIT A3: placeholder --muted-2 #98a8a4 is 2.36-2.48:1 on its field"),
-    ...entries(["planning"], ["360", "1440"], "AUDIT A3 + C3: the bespoke goal-form input's placeholder is #879592 on white, 3.11:1"),
-  },
+  placeholder: {},
 
   "error-state": {
     ...entries(["transactions"], ["360", "1440"], "AUDIT S1: the 'Server error' banner shows together with 'No transactions found' / 'Trash is empty'"),
@@ -63,18 +49,7 @@ export const knownFailures: Record<Check, Record<string, string>> = {
     "AUDIT S7: in a Viewer household the Assistant textarea, send and mic stay enabled (audit saw it at 360; this suite confirms 1440)"),
 };
 
-export const hostDependent: Partial<Record<Check, Record<string, string>>> = {
-  contrast: {
-    "transactions@320": "AUDIT A1: the 12px/600 Transactions label fits its 80px active bottom-nav cell in Noto Sans or Liberation Sans (about 74px, so axe reports accent-on-accent-soft contrast), but overflows in DejaVu Sans (about 86px, the ubuntu-latest default, where CI saw the check pass); the same finding remains covered at transactions@360 and @412, and the self-hosted Inter font from the tokens PR should make this deterministic so this entry can then be revisited",
-  },
-};
-
 export function expectKnownFailure(check: Check, key: string) {
-  const reason = hostDependent[check]?.[key];
-  if (reason) {
-    test.skip(true, reason);
-    return;
-  }
   const finding = knownFailures[check][key];
   test.fail(Boolean(finding), finding);
 }
