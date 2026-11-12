@@ -1,6 +1,6 @@
 // Lifted from PR #36 (packages/finance-core/src/client.ts).
 import type { AssistantResponse, AuthSession, CategoryCatalog, FinancialAccount, FinancialEventIntent, Transaction, TransactionIntent, TransactionPage, TransactionPatch, UserSettings } from "./models.ts";
-import type { JudgementReportCadence, JudgementReportObservation, JudgementReportScope, HouseholdInvitation, HouseholdRole, HouseholdSummary, SettingsPatch, SaveFinancialAccount, UpdateHouseholdSettingsRequest, HouseholdDashboard, MonthlyDashboardResponse, RegistrationPolicy, SignupInput, SignupInvitation } from "./workspace-models.ts";
+import type { Goal, GoalDetail, GoalPlanningRun, GoalPlanVersion, GoalParticipantConsent, CreateGoal, PlanningInput, Commitment, JudgementReportCadence, JudgementReportObservation, JudgementReportScope, HouseholdInvitation, HouseholdRole, HouseholdSummary, SettingsPatch, SaveFinancialAccount, UpdateHouseholdSettingsRequest, HouseholdDashboard, MonthlyDashboardResponse, RegistrationPolicy, SignupInput, SignupInvitation } from "./workspace-models.ts";
 
 export type HttpRequest = { path: string; method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; body?: unknown; headers?: Record<string, string> };
 export type HttpResponse = { status: number; data: unknown };
@@ -352,6 +352,17 @@ export class FinanceClient {
     if (!isAccount(value)) throw new ApiError('The account response could not be verified. Check the account list before saving again.', 0, 'unknown');
     return value;
   }
+  listGoals(householdId: string): Promise<Goal[]> { return this.request(`/api/goals?householdId=${encodeURIComponent(householdId)}`); }
+  listCommitments(householdId: string): Promise<Commitment[]> { return this.request(`/api/commitments?householdId=${encodeURIComponent(householdId)}`); }
+  createGoal(input: CreateGoal): Promise<Goal> { return this.request('/api/goals', 'POST', input); }
+  getGoal(id: string): Promise<GoalDetail> { return this.request(`/api/goals/${encodeURIComponent(id)}`); }
+  createGoalPlanningRun(id: string, input: PlanningInput, key: string): Promise<GoalPlanningRun> { return this.request(`/api/goals/${encodeURIComponent(id)}/planning-runs`, 'POST', input, { 'Idempotency-Key': key }); }
+  getGoalPlanningRun(id: string, runId: string): Promise<GoalPlanningRun> { return this.request(`/api/goals/${encodeURIComponent(id)}/planning-runs/${encodeURIComponent(runId)}`); }
+  activateGoalPlan(id: string, versionId: string, key: string): Promise<GoalPlanVersion> { return this.request(`/api/goals/${encodeURIComponent(id)}/plans/${encodeURIComponent(versionId)}/activate`, 'POST', undefined, { 'Idempotency-Key': key }); }
+  customizeGoalPlan(id: string, versionId: string, input: PlanningInput & { context?: string }): Promise<GoalPlanVersion> { return this.request(`/api/goals/${encodeURIComponent(id)}/plans/${encodeURIComponent(versionId)}/customizations`, 'POST', input); }
+  reviewGoalPlan(id: string, versionId: string, key: string): Promise<GoalPlanningRun> { return this.request(`/api/goals/${encodeURIComponent(id)}/plans/${encodeURIComponent(versionId)}/review-runs`, 'POST', { locale: 'en-IN' }, { 'Idempotency-Key': key }); }
+  putGoalParticipantConsent(id: string): Promise<GoalParticipantConsent> { return this.request(`/api/goals/${encodeURIComponent(id)}/participant-consent`, 'PUT'); }
+  deleteGoalParticipantConsent(id: string): Promise<void> { return this.request(`/api/goals/${encodeURIComponent(id)}/participant-consent`, 'DELETE'); }
   acceptPrivacy(policyVersion: string) {
     return this.request("/api/privacy/consents", "POST", { policyVersion, accepted: true });
   }
