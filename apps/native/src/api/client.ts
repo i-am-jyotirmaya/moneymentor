@@ -1,6 +1,6 @@
 // Lifted from PR #36 (packages/finance-core/src/client.ts).
 import type { AssistantResponse, AuthSession, CategoryCatalog, FinancialAccount, FinancialEventIntent, Transaction, TransactionIntent, TransactionPage, TransactionPatch, UserSettings } from "./models.ts";
-import type { HouseholdDashboard, MonthlyDashboardResponse, RegistrationPolicy, SignupInput, SignupInvitation } from "./workspace-models.ts";
+import type { HouseholdInvitation, HouseholdRole, HouseholdSummary, SettingsPatch, SaveFinancialAccount, UpdateHouseholdSettingsRequest, HouseholdDashboard, MonthlyDashboardResponse, RegistrationPolicy, SignupInput, SignupInvitation } from "./workspace-models.ts";
 
 export type HttpRequest = { path: string; method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; body?: unknown; headers?: Record<string, string> };
 export type HttpResponse = { status: number; data: unknown };
@@ -299,6 +299,47 @@ export class FinanceClient {
       throw new ApiError('The account response could not be verified. Check the account list before creating another.', 0, 'unknown');
     }
     return account;
+  }
+  createHousehold(name: string): Promise<HouseholdSummary> {
+    return this.request('/api/households', 'POST', { name });
+  }
+  householdInvitations(): Promise<HouseholdInvitation[]> {
+    return this.request('/api/households/invitations');
+  }
+  sentHouseholdInvitations(id: string): Promise<HouseholdInvitation[]> {
+    return this.request(`/api/households/${encodeURIComponent(id)}/invitations`);
+  }
+  createHouseholdInvitation(id: string, input: { email: string; role: HouseholdRole }): Promise<HouseholdInvitation> {
+    return this.request(`/api/households/${encodeURIComponent(id)}/invitations`, 'POST', input);
+  }
+  respondToHouseholdInvitation(id: string, response: 'accept' | 'decline'): Promise<HouseholdInvitation> {
+    return this.request(`/api/households/invitations/${encodeURIComponent(id)}/${response}`, 'POST');
+  }
+  updateHouseholdSettings(id: string, input: UpdateHouseholdSettingsRequest): Promise<HouseholdSummary> {
+    return this.request(`/api/households/${encodeURIComponent(id)}/settings`, 'PATCH', input);
+  }
+  async updateSettings(input: SettingsPatch): Promise<UserSettings> {
+    // Only editable preferences belong on the wire; plan is server-controlled.
+    const { currencyCode, timeZone, requireMerchantForExpenses, defaultTransactionVisibility } = input;
+    const value = await this.request<UserSettings>('/api/settings/me', 'PATCH', { currencyCode, timeZone, requireMerchantForExpenses, defaultTransactionVisibility });
+    if (!validSettings(value)) throw new ApiError('The settings response could not be verified. Refresh your settings.', 0, 'unknown');
+    return value;
+  }
+  async exportPrivacy(): Promise<Record<string, unknown>> {
+    const value = await this.request<unknown>('/api/privacy/export');
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiError('Could not verify your privacy export. Try again.');
+    return value as Record<string, unknown>;
+  }
+  async deleteAccount(input: { password: string; confirmation: string }): Promise<void> {
+    await this.request('/api/privacy/account', 'DELETE', input);
+    ++this.epoch;
+    this.publish({ status: 'signedOut', session: null });
+    await this.clearLocalSession();
+  }
+  async saveFinancialAccount(input: SaveFinancialAccount, id?: string): Promise<FinancialAccount> {
+    const value = await this.request<FinancialAccount>(`/api/financial-accounts${id ? `/${encodeURIComponent(id)}` : ''}`, id ? 'PUT' : 'POST', input);
+    if (!isAccount(value)) throw new ApiError('The account response could not be verified. Check the account list before saving again.', 0, 'unknown');
+    return value;
   }
   acceptPrivacy(policyVersion: string) {
     return this.request("/api/privacy/consents", "POST", { policyVersion, accepted: true });
