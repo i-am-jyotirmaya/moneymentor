@@ -4,7 +4,7 @@ const config: CapacitorConfig = {
   appId: "com.spndrr.app",
   appName: "Spndrr",
   webDir: "out",
-  backgroundColor: "#f4f7f6",
+  backgroundColor: "#F3F5F9",
   server: { androidScheme: "https" },
   plugins: {
     // Keep the existing HttpOnly refresh-cookie contract using native networking.

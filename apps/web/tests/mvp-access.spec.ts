@@ -1,9 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-
-async function registration(page: Page, mode = "RequestOnly") {
-  await page.route("**/api/auth/registration", route => route.fulfill({ json: { mode } }));
-  await page.route("**/api/auth/refresh", route => route.fulfill({ status: 401, json: { errors: ["Signed out"] } }));
-}
+import { expect, test } from "@playwright/test";
+import { mockRegistration as registration } from "./support/scenarios";
 
 test("public entry points offer MVP requests and direct signup redirects", async ({ page }) => {
   await registration(page);

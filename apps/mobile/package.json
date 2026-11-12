@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
     "test:e2e": "playwright test",
+    "test:visual": "PLAYWRIGHT_VISUAL=1 playwright test --project=visual",
     "sync": "pnpm build && cap sync",
     "android": "pnpm sync && cap open android",
     "ios": "pnpm sync && cap open ios"

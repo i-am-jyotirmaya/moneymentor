@@ -9,6 +9,7 @@ import {
   ProgressLink as Link,
   useProgressRouter as useRouter,
 } from "./navigation-progress";
+import { PrivacyPolicyLink } from "./privacy-policy-link";
 import { RegistrationLink } from "./registration-link";
 
 type AuthMode = "login" | "signup" | "request";
@@ -199,13 +200,9 @@ export function AuthForm({
               />
               <span>
                 I accept the{" "}
-                <Link
-                  className="font-bold text-[var(--accent)] underline"
-                  href="/privacy"
-                  target="_blank"
-                >
+                <PrivacyPolicyLink className="font-bold text-[var(--accent)] underline">
                   beta privacy policy
-                </Link>{" "}
+                </PrivacyPolicyLink>{" "}
                 (version 2026-07-26-ai-planning.1).
               </span>
             </label>
