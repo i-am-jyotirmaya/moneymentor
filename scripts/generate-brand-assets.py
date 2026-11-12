@@ -10,7 +10,7 @@ from PIL import Image, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "assets/branding/source"
-BACKGROUND = "#f4f7f6"
+BACKGROUND = "#F3F5F9"
 RESAMPLE = Image.Resampling.LANCZOS
 
 
@@ -40,7 +40,7 @@ def save(image, path, **options):
 mark = artwork("mark")
 for app in ("web", "mobile"):
     public = ROOT / f"apps/{app}/public"
-    for name, width in (("logo", 640), ("stacked", 512), ("wordmark", 640)):
+    for name, width in (("logo", 640), ("logo-dark", 640), ("stacked", 512), ("wordmark", 640)):
         image = artwork(name)
         image = image.resize((width, round(width * image.height / image.width)), RESAMPLE)
         save(image, public / f"brand/spndrr-{name}.png", optimize=True)
@@ -75,8 +75,8 @@ save(square(mark, 1024, background=BACKGROUND), mobile / "ios/App/App/Assets.xca
 save(square(artwork("stacked"), 2732, coverage=0.22, background=BACKGROUND), mobile / "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png", optimize=True)
 
 res = mobile / "android/app/src/main/res"
-# Adaptive icon layers are 108dp; 56% coverage fits the 66dp safe region.
+# Adaptive icon layers are 108dp; 52% coverage keeps the farthest point inside the 33dp safe radius.
 for density, scale in (("mdpi", 1), ("hdpi", 1.5), ("xhdpi", 2), ("xxhdpi", 3), ("xxxhdpi", 4)):
-    save(square(mark, round(108 * scale), coverage=0.56), res / f"drawable-{density}/spndrr_mark.png", optimize=True)
+    save(square(mark, round(108 * scale), coverage=0.52), res / f"drawable-{density}/spndrr_mark.png", optimize=True)
     for name in ("ic_launcher", "ic_launcher_round"):
         save(square(mark, round(48 * scale), coverage=0.7, background=BACKGROUND), res / f"mipmap-{density}/{name}.png", optimize=True)
