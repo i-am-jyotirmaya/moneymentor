@@ -39,8 +39,8 @@ export function DesktopSidebar({
     : "";
   return (
     <aside className="hidden w-[272px] shrink-0 border-r border-white/10 bg-[var(--sidebar)] px-5 py-6 text-white lg:flex lg:min-h-0 lg:flex-col">
-      <Link className="flex w-fit items-center rounded-lg bg-white px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" href="/">
-        <BrandLogo />
+      <Link className="flex w-fit items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" href="/">
+        <BrandLogo variant="dark" />
       </Link>
 
       <nav className="mt-9 space-y-1" aria-label="Desktop navigation">
