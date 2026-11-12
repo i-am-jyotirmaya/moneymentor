@@ -1,6 +1,6 @@
 // Lifted from PR #36 (packages/finance-core/src/client.ts).
 import type { AssistantResponse, AuthSession, CategoryCatalog, FinancialAccount, FinancialEventIntent, Transaction, TransactionIntent, TransactionPage, TransactionPatch, UserSettings } from "./models.ts";
-import type { HouseholdInvitation, HouseholdRole, HouseholdSummary, SettingsPatch, SaveFinancialAccount, UpdateHouseholdSettingsRequest, HouseholdDashboard, MonthlyDashboardResponse, RegistrationPolicy, SignupInput, SignupInvitation } from "./workspace-models.ts";
+import type { JudgementReportCadence, JudgementReportObservation, JudgementReportScope, HouseholdInvitation, HouseholdRole, HouseholdSummary, SettingsPatch, SaveFinancialAccount, UpdateHouseholdSettingsRequest, HouseholdDashboard, MonthlyDashboardResponse, RegistrationPolicy, SignupInput, SignupInvitation } from "./workspace-models.ts";
 
 export type HttpRequest = { path: string; method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; body?: unknown; headers?: Record<string, string> };
 export type HttpResponse = { status: number; data: unknown };
@@ -203,6 +203,17 @@ export class FinanceClient {
     if (input.householdId) params.set("householdId", input.householdId);
     const query = params.toString();
     return this.request(`/api/dashboard/monthly${query ? `?${query}` : ""}`);
+  }
+  listActiveJudgements(input: { householdId: string; scope: JudgementReportScope; cadence?: JudgementReportCadence }): Promise<JudgementReportObservation[]> {
+    const params = new URLSearchParams({ householdId: input.householdId, scope: input.scope });
+    if (input.cadence) params.set('cadence', input.cadence);
+    return this.request(`/api/judgements/active?${params}`);
+  }
+  dismissJudgement(id: string): Promise<void> {
+    return this.request(`/api/judgements/${encodeURIComponent(id)}/dismiss`, 'POST');
+  }
+  explainJudgement(id: string, text: string): Promise<{ feedbackId: string }> {
+    return this.request(`/api/judgements/${encodeURIComponent(id)}/explanations`, 'POST', { text, shareWithHousehold: false });
   }
   households(): Promise<HouseholdDashboard> {
     return this.request("/api/households");
