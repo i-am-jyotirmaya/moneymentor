@@ -4,4 +4,6 @@
     <color name="sp_bg">#F3F5F9</color>
     <!-- Matches the sp-primary token (tokens.css), SPEC 7.1 -->
     <color name="sp_mark">#2944D4</color>
+    <!-- Ink slice in the Direction B splash mark -->
+    <color name="sp_mark_slice">#0E1220</color>
 </resources>

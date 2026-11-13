@@ -1,34 +1,21 @@
+import Image from "next/image";
+
 type IconProps = {
   className?: string;
 };
 
 export function BrandMarkIcon({ className }: IconProps) {
   return (
-    <svg
+    <Image
+      alt=""
       aria-hidden="true"
       className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M4.5 14.2c3.7-7.4 11.3-7.4 15 0"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M7.4 15.5c2.4-4.3 6.8-4.3 9.2 0"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M10 17h4"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.8"
-      />
-    </svg>
+      height={256}
+      loading="eager"
+      src="/brand/spndrr-mark.webp"
+      unoptimized
+      width={256}
+    />
   );
 }
 
