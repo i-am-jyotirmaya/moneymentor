@@ -74,7 +74,7 @@ export default function Settings() {
       <Panel title="Delete account"><Text style={styles.text}>This deletes private data and anonymizes eligible shared household records. Enter your password and type DELETE.</Text><Field label="Current password" testID="deletion-password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoComplete="current-password" /><Field label="Confirmation" testID="deletion-confirmation" placeholder="DELETE" value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" /><Button write testID="delete-account" title="Delete my account" disabled={privacyWorking || !canDeleteAccount(password, confirmation)} onPress={() => void privacy('delete')} /></Panel>
       <FinancialAccounts key={householdId ?? 'personal'} householdId={householdId} canWrite={households?.households.find(h => h.id === householdId)?.canWrite ?? false} />
     </>}
-    <Panel title="Account"><Text style={styles.text}>{session?.user.displayName}</Text><Text style={styles.text}>{session?.user.email}</Text><Button title="Sign out" disabled={busy} onPress={() => {
+    <Panel title="Account"><Text style={styles.text}>{session?.user.displayName}</Text><Text style={styles.text}>{session?.user.email}</Text><Button testID="settings-sign-out" title="Sign out" disabled={busy} onPress={() => {
       setBusy(true);
       void client.logout().catch(() => undefined).finally(() => { router.replace('/(auth)/login'); setBusy(false); });
     }} /></Panel>
