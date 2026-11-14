@@ -91,7 +91,7 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
       setError(caught instanceof ApiError ? caught.errors.join(" ") : "Could not connect to Spndrr. Please try again in a moment.");
     } finally { setBusy(false); }
   }
-  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+  return <SafeAreaView testID={mode === "login" ? "login-screen" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
         <View style={styles.card}>
@@ -103,8 +103,8 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
           <Text style={styles.text}>{request ? "Spndrr is currently available by approval. Tell us a little about yourself to request access." : signup ? "Start with the assistant input, then build the rest around real data." : "Continue to your Spndrr workspace."}</Text>
           {sent ? <Text accessibilityLiveRegion="polite" style={[styles.text, { backgroundColor: colors.accentSoft, padding: 16 }]}>Your request has been received. We’ll email you if access is approved.</Text> : <>
             {mode !== "login" && <Field label="Display name" placeholder="Aarav Shah" maxLength={128} value={displayName} onChangeText={setDisplayName} autoComplete="name" textContentType="name" editable={!locks.displayName} />}
-            <Field label="Email" placeholder="name@example.com" maxLength={256} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress" editable={!locks.email} />
-            {!request && <Field label="Password" placeholder="At least 8 characters" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete={signup ? "new-password" : "current-password"} textContentType={signup ? "newPassword" : "password"} />}
+            <Field testID={mode === "login" ? "login-email" : undefined} label="Email" placeholder="name@example.com" maxLength={256} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress" editable={!locks.email} />
+            {!request && <Field testID={mode === "login" ? "login-password" : undefined} label="Password" placeholder="At least 8 characters" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete={signup ? "new-password" : "current-password"} textContentType={signup ? "newPassword" : "password"} />}
             {request && <>
               <Field label="Why would you like access? (optional)" value={reason} onChangeText={setReason} maxLength={1000} multiline style={[styles.input, { minHeight: 96, textAlignVertical: "top" }]} />
               <Text style={styles.text}>We’ll use these details to review your request and contact you about access. <Text accessibilityRole="link" style={styles.link} onPress={() => setPolicy(true)}>Privacy policy</Text></Text>
@@ -114,7 +114,7 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
               <Text style={[styles.text, { flex: 1 }]}>I accept the <Text accessibilityRole="link" onPress={() => setPolicy(true)} style={styles.link}>beta privacy policy</Text> (version 2026-07-26-ai-planning.1).</Text>
             </View>}
             <ErrorBox message={error} />
-            <Button disabled={busy} title={busy ? "Working..." : request ? "Request MVP access" : signup ? "Create account" : "Sign in"} onPress={() => { void submit(); }} />
+            <Button testID={mode === "login" ? "login-submit" : undefined} disabled={busy} title={busy ? "Working..." : request ? "Request MVP access" : signup ? "Create account" : "Sign in"} onPress={() => { void submit(); }} />
           </>}
           {mode === "login" ? <RegistrationLink /> : <Link style={styles.link} href="/(auth)/login">I already have an account</Link>}
         </View>

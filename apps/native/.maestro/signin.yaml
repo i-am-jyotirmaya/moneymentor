@@ -1,0 +1,101 @@
+appId: com.spndrr.app.dev
+---
+- stopApp
+# Avoid launchApp so openLink cold-starts the dev client instead of the launcher ignoring it.
+- clearState
+- openLink: "exp+spndrr://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+# The first bundle may finish before the onboarding/menu becomes available.
+- extendedWaitUntil:
+    visible:
+      text: "Continue|Close|Sign in to use the assistant input workspace\\."
+    timeout: 120000
+- tapOn:
+    text: "Continue"
+    optional: true
+- tapOn:
+    text: "Close"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 120000
+- tapOn:
+    id: "home-login-button"
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
+    timeout: 120000
+- tapOn:
+    id: "login-email"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- tapOn:
+    id: "login-password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- hideKeyboard
+- tapOn:
+    id: "login-submit"
+- extendedWaitUntil:
+    visible:
+      id: "assistant-screen"
+    timeout: 120000
+- takeScreenshot: signed-in-assistant
+- tapOn:
+    id: "nav-transactions"
+- extendedWaitUntil:
+    visible:
+      id: "transactions-screen"
+    timeout: 120000
+- tapOn:
+    id: "nav-dashboard"
+- extendedWaitUntil:
+    visible:
+      id: "dashboard-screen"
+    timeout: 120000
+- takeScreenshot: signed-in-dashboard
+- tapOn:
+    id: "nav-more"
+- tapOn:
+    id: "menu-reports"
+- extendedWaitUntil:
+    visible:
+      id: "reports-screen"
+    timeout: 120000
+- tapOn:
+    id: "nav-more"
+- tapOn:
+    id: "menu-planning"
+- extendedWaitUntil:
+    visible:
+      id: "planning-screen"
+    timeout: 120000
+- tapOn:
+    id: "nav-more"
+- tapOn:
+    id: "menu-household"
+- extendedWaitUntil:
+    visible:
+      id: "household-screen"
+    timeout: 120000
+- tapOn:
+    id: "nav-more"
+- tapOn:
+    id: "menu-settings"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 120000
+- takeScreenshot: signed-in-settings
+- scrollUntilVisible:
+    element:
+      id: "settings-sign-out"
+    direction: DOWN
+    timeout: 120000
+- tapOn:
+    id: "settings-sign-out"
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
+    timeout: 120000
+- assertVisible:
+    id: "login-email"
+- takeScreenshot: signed-out-login
