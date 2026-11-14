@@ -1,5 +1,7 @@
+import { WorkspaceBannerVisible } from '../workspace/banner';
+import { useOffline } from '../workspace/connection';
 import { Link, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../api/client";
@@ -15,10 +17,13 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
   return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput accessibilityLabel={label} placeholderTextColor={colors.muted2} style={styles.input} {...props} /></View>;
 }
 export function ErrorBox({ message }: { message: string }) {
-  return message ? <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.error}>{message}</Text> : null;
+  const bannerVisible = useContext(WorkspaceBannerVisible);
+  return message && !bannerVisible ? <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.error}>{message}</Text> : null;
 }
-export function Button({ title, onPress, disabled = false, testID }: { title: string; onPress: () => void; disabled?: boolean; testID?: string }) {
-  return <Pressable testID={testID} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.button, disabled && { opacity: 0.65 }]}><Text style={styles.buttonText}>{title}</Text></Pressable>;
+export function Button({ title, onPress, disabled = false, testID, write = false }: { title: string; onPress: () => void; disabled?: boolean; testID?: string; write?: boolean }) {
+  const offline = useOffline();
+  disabled = disabled || (write && offline);
+  return <Pressable accessibilityHint={write && offline ? "You're offline. Reconnect before making changes." : undefined} testID={testID} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.button, disabled && { opacity: 0.65 }]}><Text style={styles.buttonText}>{title}</Text></Pressable>;
 }
 export function BrandTile() {
   return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: 48, height: 48, borderRadius: 8, backgroundColor: colors.ink }} />;

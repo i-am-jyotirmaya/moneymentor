@@ -1,15 +1,16 @@
+import { SectionPanel } from '../../src/workspace/sections';
 import { ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { formatDate, formatMoney, formatMonthKey, formatTone, getCurrentMonthKey, getMonthOptions, shiftMonthKey } from '../../src/lib/format';
 import { colors, styles } from '../../src/ui/theme';
 import { useWorkspace } from '../../src/workspace/context';
 import { categoryPercent, transactionPresentation } from '../../src/workspace/dashboard-data';
-import { Action, Choice, Loading, Panel, ws } from '../../src/workspace/ui';
+import { Action, Choice, Panel, ws } from '../../src/workspace/ui';
 
 export default function Dashboard() {
-  const { dashboard: data, month, setMonth, loading } = useWorkspace();
+  const { dashboard: data, month, setMonth, loading, section } = useWorkspace();
   const router = useRouter();
-  if (!data) return <View testID="dashboard-screen" style={ws.fill}>{loading ? <Loading /> : null}</View>;
+  if (!data) return <SectionPanel section={section} />;
   const money = (value: number) => formatMoney(value, data.currencyCode);
   return <ScrollView testID="dashboard-screen" accessibilityState={{ busy: loading }} contentContainerStyle={ws.content}>
     <View><Text style={styles.text}>{data.monthLabel}</Text><Text style={[styles.title, { fontSize: 30 }]}>Dashboard</Text><Text style={styles.text}>Your income, spending, and progress at a glance.</Text></View>

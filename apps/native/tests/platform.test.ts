@@ -32,3 +32,8 @@ test('light activity modification preserves startup and is idempotent', () => {
   expect(forceLightActivity(result)).toBe(result);
   expect(() => forceLightActivity('unexpected template')).toThrow('onCreate not found');
 });
+
+test('light system chrome retains the Slice background colour', () => {
+  expect(config.backgroundColor).toBe('#F3F5F9');
+  expect(config.androidStatusBar).toMatchObject({ backgroundColor: '#F3F5F9', barStyle: 'dark-content' });
+});

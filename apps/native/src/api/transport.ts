@@ -19,7 +19,12 @@ export function createTransport(baseUrl = getApiBaseUrl()): Transport {
       method, headers, credentials: "include",
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
-    const text = await response.text();
+    let text: string;
+    try { text = await response.text(); }
+    catch (error) {
+      if (response.status >= 400) return { status: response.status, data: null };
+      throw error;
+    }
     let data: unknown = null;
     if (text) {
       try { data = JSON.parse(text); }

@@ -9,6 +9,8 @@ const config: ExpoConfig = {
   version: "0.1.0",
   icon: "./assets/icon.png",
   userInterfaceStyle: "light",
+  androidStatusBar: { backgroundColor: "#F3F5F9", barStyle: "dark-content" },
+  backgroundColor: "#F3F5F9",
   android: {
     package: "com.spndrr.app.dev",
     softwareKeyboardLayoutMode: "resize",

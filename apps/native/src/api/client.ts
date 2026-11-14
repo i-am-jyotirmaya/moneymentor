@@ -63,6 +63,15 @@ function validSettings(value: UserSettings | null): value is UserSettings {
 }
 
 export class FinanceClient {
+  private offline = false;
+  private connectionRevision = 0;
+  private connectionListeners = new Set<() => void>();
+  getOffline = () => this.offline;
+  subscribeConnection = (listener: () => void) => { this.connectionListeners.add(listener); return () => { this.connectionListeners.delete(listener); }; };
+  private connection(offline: boolean) {
+    if (this.offline === offline) return;
+    this.offline = offline; this.connectionListeners.forEach(listener => listener());
+  }
   private transport: Transport;
   private clearLocalSession: () => Promise<void>;
   private state: SessionState = { status: "signedOut", session: null };
@@ -83,9 +92,15 @@ export class FinanceClient {
     return result;
   }
   private async raw(request: HttpRequest): Promise<unknown> {
+    const connectionRevision = this.connectionRevision;
     let response: HttpResponse;
     try { response = await this.transport(request); }
-    catch { throw new ApiError("Could not connect to Spndrr. Please try again in a moment.", 0, request.method === "GET" ? "rejected" : "unknown"); }
+    catch { this.connectionRevision++; this.connection(true); throw new ApiError("Could not connect to Spndrr. Please try again in a moment.", 0, request.method === "GET" ? "rejected" : "unknown"); }
+    if (!response || !response.status) {
+      this.connectionRevision++; this.connection(true);
+      throw new ApiError("You're offline. Please try again.", 0, request.method === 'GET' ? 'rejected' : 'unknown');
+    }
+    if (connectionRevision === this.connectionRevision) this.connection(false);
     if (response.status < 200 || response.status >= 300) {
       throw new ApiError(errorText(response.data), response.status,
         request.method !== "GET" && (response.status >= 500 || response.status === 408) ? "unknown" : "rejected", serverErrors(response.data));
@@ -176,6 +191,7 @@ export class FinanceClient {
   }
   async request<T>(path: string, method: HttpRequest["method"] = "GET", body?: unknown, headers?: Record<string, string>): Promise<T> {
     if (!path.startsWith("/api/") || path.includes("://") || path.includes("..")) throw new ApiError("Invalid API path.");
+    if (this.offline && method !== 'GET') throw new ApiError("You're offline. Reconnect before making changes.", 0);
     const epoch = this.epoch;
     let session = this.state.session;
     if (!session) throw new ApiError("Please sign in again.", 401);

@@ -1,3 +1,4 @@
+import { FinanceClient, type HttpResponse } from "../src/api/client";
 import { createFinanceClient } from "../src/api";
 import { clearTokens, getAccessToken, getRefreshToken, setRefreshToken } from "../src/auth/token-storage";
 
@@ -184,4 +185,38 @@ test('households matches web GET and retries after a 401 using shared refresh', 
     expect(init.body).toBeUndefined();
   }
   expect(fetchMock.mock.calls[3][1].headers.get('Authorization')).toBe('Bearer renewed-token');
+});
+
+test('transport failure blocks writes until a subsequent read reaches the server', async () => {
+  fetchMock.mockResolvedValueOnce(response(200, session)).mockRejectedValueOnce(new TypeError('fetch failed'));
+  const client = createFinanceClient('https://api.example.test');
+  await client.login('person@example.test', 'placeholder');
+  await expect(client.request('/api/example')).rejects.toMatchObject({ status: 0 });
+  expect(client.getOffline()).toBe(true);
+  await expect(client.request('/api/example', 'POST', {})).rejects.toThrow("You're offline");
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  fetchMock.mockResolvedValueOnce(response(503, { detail: 'Try later' }));
+  await expect(client.request('/api/example')).rejects.toMatchObject({ status: 503 });
+  expect(client.getOffline()).toBe(false);
+});
+
+test('a read already in flight cannot clear a newer offline failure', async () => {
+  let fail!: (error: Error) => void;
+  let finish!: (response: HttpResponse) => void;
+  const transport = jest.fn()
+    .mockResolvedValueOnce({ status: 200, data: session })
+    .mockImplementationOnce(() => new Promise<HttpResponse>((_resolve, reject) => { fail = reject; }))
+    .mockImplementationOnce(() => new Promise<HttpResponse>(resolve => { finish = resolve; }))
+    .mockResolvedValueOnce({ status: 200, data: {} });
+  const client = new FinanceClient(transport, async () => undefined);
+  await client.login('person@example.test', 'placeholder');
+  const failed = client.request('/api/first');
+  const late = client.request('/api/second');
+  fail(new TypeError('fetch failed'));
+  await expect(failed).rejects.toMatchObject({ status: 0 });
+  finish({ status: 200, data: {} });
+  await late;
+  expect(client.getOffline()).toBe(true);
+  await client.request('/api/retry');
+  expect(client.getOffline()).toBe(false);
 });

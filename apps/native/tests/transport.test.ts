@@ -37,3 +37,8 @@ test("does not send tokens to an external URL", async () => {
   await expect(createTransport("https://api.example.test")({ path: "https://other.test/api/example", method: "GET" })).rejects.toThrow("Invalid API path");
   expect(fetchMock).not.toHaveBeenCalled();
 });
+
+test('an HTTP error stays an HTTP error when its response body cannot be read', async () => {
+  fetchMock.mockResolvedValue({ status: 503, text: async () => { throw new Error('body interrupted'); } });
+  expect(await createTransport('https://api.example.test')({ path: '/api/example', method: 'GET' })).toEqual({ status: 503, data: null });
+});
