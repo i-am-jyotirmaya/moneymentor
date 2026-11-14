@@ -19,6 +19,7 @@ function AssistantChat() {
   const banner = useSectionBanner('assistant');
   const { cache } = useSections();
   const history = useSectionLoad('assistant', 'assistant-history', async () => (cache.get('assistant-history')?.data as ReturnType<typeof initialAssistantMessages> | undefined) ?? initialAssistantMessages());
+  const setHistory = history.setData;
   const [messages, setMessages] = useState(() => history.data ?? initialAssistantMessages());
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -29,7 +30,7 @@ function AssistantChat() {
   const root = useRef<ComponentRef<typeof View>>(null);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  useEffect(() => { history.setData(messages); }, [messages, history.setData]);
+  useEffect(() => { setHistory(messages); }, [messages, setHistory]);
   async function submit() {
     if (offline || !text.trim() || lock.current) return;
     const selected = workspace.households?.households.find(h => h.id === workspace.householdId);

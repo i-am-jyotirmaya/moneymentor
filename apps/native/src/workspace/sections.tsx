@@ -15,7 +15,7 @@ export function SectionsProvider({ children }: { children: ReactNode }) {
   const { client } = useSession();
   const offline = useSyncExternalStore(client.subscribeConnection, client.getOffline, client.getOffline);
   const [revision, setRevision] = useState(0);
-  const cache = useRef(new Map<string, Entry>()).current;
+  const [cache] = useState(() => new Map<string, Entry>());
   const [notices, setNotices] = useState<Record<string, Notice>>({});
   const retry = useCallback(() => setRevision(n => n + 1), []);
   const publish = useCallback((name: string, notice: Notice | null) => setNotices(current => { const next = { ...current }; if (notice) next[name] = notice; else delete next[name]; return next; }), []);
@@ -38,16 +38,17 @@ export function useSections() {
 }
 export function useSectionLoad<T>(name: string, key: string, load: () => Promise<T>, empty: (data: T) => boolean = () => false, enabled = true) {
   const { cache, publish, offline, revision } = useSections();
-  const loader = useRef(load); loader.current = load;
+  const loader = useRef(load);
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{ key: string; entry: Entry | undefined; failure: Failure | null; pending: boolean }>(() => ({ key, entry: cache.get(key), failure: null, pending: true }));
-  const entry = result.key === key ? result.entry : cache.get(key);
-  const failure = result.key === key ? result.failure : null;
+  const resolved = result.key === key ? result : { key, entry: cache.get(key), failure: null, pending: true };
+  const entry = resolved.entry;
+  const failure = resolved.failure;
   const retry = useCallback(() => setAttempt(n => n + 1), []);
+  useEffect(() => { loader.current = load; });
   useEffect(() => {
     let current = true;
     if (!enabled) return;
-    setResult({ key, entry: cache.get(key), failure: null, pending: true });
     void loader.current().then(data => {
       if (!current) return;
       const entry = { data, loadedAt: Date.now() }; cache.set(key, entry);

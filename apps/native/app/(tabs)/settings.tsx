@@ -1,7 +1,7 @@
 import { useSectionLoad, SectionPanel } from '../../src/workspace/sections';
 import { useOffline } from '../../src/workspace/connection';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Linking, ScrollView, Share, Switch, Text, View } from 'react-native';
 import type { UserSettings } from '../../src/api/models';
 import { useSession } from '../../src/auth/session';
@@ -24,6 +24,11 @@ export default function Settings() {
   const [privacyWorking, setPrivacyWorking] = useState(false);
   const section = useSectionLoad('settings', 'settings', () => client.settings());
   const [form, setForm] = useState<UserSettings | null>(section.data ?? null);
+  const [loaded, setLoaded] = useState(section.data);
+  if (section.data !== loaded) {
+    setLoaded(section.data);
+    if (section.data) setForm(section.data);
+  }
   const [error, setError] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -31,7 +36,6 @@ export default function Settings() {
   const saveLock = useRef(false);
   const privacyLock = useRef(false);
   const supportEmail = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? 'support@spndrr.example';
-  useEffect(() => { if (section.data) setForm(section.data); }, [section.data]);
   async function save() {
     if (offline || !form || saveLock.current) return;
     const invalid = reportingValidation(form.currencyCode, form.timeZone);

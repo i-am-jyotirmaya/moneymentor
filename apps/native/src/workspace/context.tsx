@@ -1,8 +1,6 @@
 import { useSectionLoad, useSections } from './sections';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { useSession } from '../auth/session';
-import type { HouseholdDashboard } from '../api/workspace-models';
-import type { UserSettings } from '../api/models';
 import { getCurrentMonthKey } from '../lib/format';
 
 function useWorkspaceState() {
@@ -10,8 +8,6 @@ function useWorkspaceState() {
   const { client, session } = useSession();
   const userId = session?.user.id;
   const consent = session?.requiresPrivacyConsent;
-  const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [households, setHouseholds] = useState<HouseholdDashboard | null>(null);
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [month, setMonth] = useState(getCurrentMonthKey);
   const [attempt, setAttempt] = useState(0);
@@ -21,9 +17,8 @@ function useWorkspaceState() {
     const dashboard = await client.monthlyDashboard({ month, householdId: scope });
     return { settings, households, dashboard };
   }, () => false, !!userId && !consent);
-  useEffect(() => {
-    if (section.data) { setSettings(section.data.settings); setHouseholds(section.data.households); }
-  }, [section.data]);
+  const settings = section.data?.settings ?? null;
+  const households = section.data?.households ?? null;
   return { settings, dataRevision: attempt, households, householdId: householdId ?? households?.defaultHouseholdId ?? null, setHouseholdId, month, setMonth,
     dashboard: section.data?.dashboard ?? null, loading: section.loading,
     error: section.failure?.message ?? null, section,

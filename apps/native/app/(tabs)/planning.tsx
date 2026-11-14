@@ -41,6 +41,7 @@ function PlanningScope() {
   const loaded = !!section.data;
   const selectedGoal = selected ?? goals[0]?.id ?? null;
   const goalSection = useSectionLoad('planning:detail', JSON.stringify(['goal', householdId, selectedGoal]), () => client.getGoal(selectedGoal!), () => false, !!selectedGoal);
+  const setGoalDetail = goalSection.setData;
   const detail = goalSection.data ?? null;
   const detailLoading = goalSection.loading && !!selectedGoal;
   useEffect(() => {
@@ -51,13 +52,13 @@ function PlanningScope() {
         if (!current) return;
         if (next.status === 'Succeeded') {
           const value = await client.getGoal(next.goalId);
-          if (current) { goalSection.setData(value); setNotice('Your plan is ready.'); }
+          if (current) { setGoalDetail(value); setNotice('Your plan is ready.'); }
         } else if (next.status === 'Failed') setError(next.error ?? 'Plan generation failed. You can retry.');
         if (current) setRun(next);
       }).catch(() => { if (current) { setError('Could not refresh plan generation status.'); setRun(value => value ? { ...value } : value); } });
     }, 2000);
     return () => { current = false; clearTimeout(timer); };
-  }, [client, run, offline, goalSection.setData]);
+  }, [client, run, offline, setGoalDetail]);
   const money = (n: number) => formatMoney(n, dashboard?.currencyCode ?? settings?.currencyCode ?? 'INR');
   async function mutate(work: () => Promise<void>) {
     if (offline || !canWrite || lock.current || !householdId) return;
@@ -90,7 +91,7 @@ function PlanningScope() {
       }
       if (action === 'consent') { if (detail.currentUserConsent?.revokedAt === null) await client.deleteGoalParticipantConsent(selectedGoal); else await client.putGoalParticipantConsent(selectedGoal); }
       const next = await client.getGoal(selectedGoal);
-      if (alive.current) { goalSection.setData(next); setNotice(message); }
+      if (alive.current) { setGoalDetail(next); setNotice(message); }
     });
   }
   if (section.blocked || section.loading) return <SectionPanel section={section} />;
