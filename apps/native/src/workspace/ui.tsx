@@ -12,7 +12,7 @@ export const ws = StyleSheet.create({
   heading: { fontSize: 18, fontWeight: '600', color: colors.ink },
   small: { fontSize: 12, color: colors.muted, fontWeight: '600' },
   item: { padding: 12, borderRadius: 8, backgroundColor: colors.surface, gap: 8, borderWidth: 1, borderColor: colors.border },
-  action: { minHeight: 48, padding: 12, justifyContent: 'center', borderRadius: 8 },
+  action: { flexShrink: 1, minHeight: 48, padding: 12, justifyContent: 'center', borderRadius: 8 },
   selected: { backgroundColor: colors.accentSoft },
   scrim: { flex: 1, backgroundColor: '#00000047', justifyContent: 'flex-end' },
 });
@@ -27,7 +27,7 @@ export function ErrorNotice({ error, retry }: { error: string | null; retry: () 
 }
 export function Choice({ label, value, options, onChange, disabled = false }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
-  return <><Action title={options.find(option => option.value === value)?.label ?? value} label={label} disabled={disabled} onPress={() => setOpen(true)} /><Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><View style={ws.scrim}><SafeAreaView style={{ maxHeight: '85%', backgroundColor: 'white' }}><ScrollView contentContainerStyle={ws.content}><Text style={ws.heading}>{label}</Text>{options.map(option => <Action key={option.value} title={option.label} selected={value === option.value} onPress={() => { onChange(option.value); setOpen(false); }} />)}<Action title="Close" onPress={() => setOpen(false)} /></ScrollView></SafeAreaView></View></Modal></>;
+  return <><Action title={options.find(option => option.value === value)?.label ?? value} label={label} disabled={disabled} onPress={() => setOpen(true)} /><Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><View style={ws.scrim}><SafeAreaView style={{ maxHeight: '85%', backgroundColor: 'white' }}><ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={ws.content}><Text style={ws.heading}>{label}</Text>{options.map(option => <Action key={option.value} title={option.label} selected={value === option.value} onPress={() => { onChange(option.value); setOpen(false); }} />)}<Action title="Close" onPress={() => setOpen(false)} /></ScrollView></SafeAreaView></View></Modal></>;
 }
 export function Panel({ title, children }: { title: string; children: ReactNode }) {
   return <View style={ws.card}><Text style={ws.heading}>{title}</Text>{children}</View>;

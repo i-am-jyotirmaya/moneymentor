@@ -102,7 +102,7 @@ function PlanningScope() {
   }
   const disabled = !canWrite || busy || planningPending(run);
   const judgements = dashboard?.judgements ?? [];
-  return <ScrollView testID="planning-screen" style={ws.fill} contentContainerStyle={ws.content} keyboardShouldPersistTaps="handled" accessibilityState={{ busy: loading || busy }}>
+  return <ScrollView automaticallyAdjustKeyboardInsets testID="planning-screen" style={ws.fill} contentContainerStyle={ws.content} keyboardShouldPersistTaps="handled" accessibilityState={{ busy: loading || busy }}>
     <Panel title="Planning"><Text style={styles.text}>Goals, SIPs, premiums, and rule-based nudges in one place.</Text>
       <View style={ws.row}>{[['Active goals', goals.filter(g => g.status === 'Active').length], ['Commitments', commitments.filter(c => c.isActive).length], ['Judgements', judgements.length]].map(([label, value]) => <View key={label}><Text style={ws.small}>{label}</Text><Text style={ws.heading}>{value}</Text></View>)}</View>
       {!canWrite ? <Text style={styles.text}>This household is read-only for you. Planning data is visible, but changes are disabled.</Text> : !loading && loaded ? <View style={{ gap: 12 }}>

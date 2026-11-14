@@ -42,7 +42,7 @@ function AssistantChat() {
   return <View ref={root} testID="assistant-screen" style={ws.fill} onLayout={() => root.current?.measureInWindow((_x, y) => setKeyboardOffset(y))}>
     <KeyboardAvoidingView style={ws.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={keyboardOffset}>
       <View style={[chat.header, ws.row]}><View style={{ flex: 1 }}><Text style={chat.title}>What did you spend or receive?</Text><Text style={styles.text}>Type or speak naturally.</Text></View><Text style={chat.mode}>Text</Text></View>
-      <ScrollView ref={list} style={{ flex: 1 }} contentContainerStyle={chat.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })} onLayout={() => list.current?.scrollToEnd({ animated: false })}>
+      <ScrollView automaticallyAdjustKeyboardInsets ref={list} style={{ flex: 1 }} contentContainerStyle={chat.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })} onLayout={() => list.current?.scrollToEnd({ animated: false })}>
         {messages.map((message, index) => <View key={index} testID={`assistant-message-${index}`} style={[chat.bubble, message.role === 'user' ? chat.user : chat.assistant]}><Text style={chat.messageText}>{message.text}</Text></View>)}
         {busy ? <View style={[chat.bubble, chat.assistant]} accessibilityLabel="Sending message" accessibilityLiveRegion="polite"><ActivityIndicator color={colors.accent} /></View> : null}
       </ScrollView>

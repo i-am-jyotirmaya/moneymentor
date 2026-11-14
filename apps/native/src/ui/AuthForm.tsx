@@ -87,8 +87,8 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
     } finally { setBusy(false); }
   }
   return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
         <View style={styles.card}>
           <Pressable accessibilityRole="link" accessibilityLabel="Spndrr" onPress={() => router.push("/(auth)/login")} style={StyleSheet.flatten({ flexDirection: "row", alignItems: "center", gap: 12 })}>
               <BrandTile />

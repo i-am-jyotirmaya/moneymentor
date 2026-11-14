@@ -57,7 +57,7 @@ export default function Settings() {
     } catch (e) { setError(e instanceof Error ? e.message : action === 'export' ? 'Could not export your data.' : 'Could not delete your account.'); }
     finally { privacyLock.current = false; setPrivacyWorking(false); }
   }
-  return <><ScrollView testID="settings-screen" keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}>
+  return <><ScrollView automaticallyAdjustKeyboardInsets testID="settings-screen" keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}>
     <ErrorBox message={error} />{error ? <Action title="Reload settings" onPress={() => { setError(''); setAttempt(n => n + 1); }} /> : null}
     {!form ? <Loading label="Loading settings" /> : <>
       <Panel title="Settings"><Text style={styles.text}>Personalize your tracking preferences.</Text>

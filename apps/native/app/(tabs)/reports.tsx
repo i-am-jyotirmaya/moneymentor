@@ -5,7 +5,7 @@ import { useSession } from '../../src/auth/session';
 import { styles } from '../../src/ui/theme';
 import { useWorkspace } from '../../src/workspace/context';
 import { canUseHouseholdReportScope, explanationValidation, reportError, reportScope } from '../../src/workspace/reports-data';
-import { Action, Loading, Panel, ws } from '../../src/workspace/ui';
+import { Action, ErrorNotice, Loading, Panel, ws } from '../../src/workspace/ui';
 
 export default function Reports() {
   const { householdId, households } = useWorkspace();
@@ -23,6 +23,7 @@ function ReportList({ scope, allowHouseholdScope, onScopeChange }: { scope: Judg
   const { client } = useSession();
   const { householdId } = useWorkspace();
   const [judgments, setJudgments] = useState<JudgementReportObservation[]>([]);
+  const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(!!householdId);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -40,7 +41,7 @@ function ReportList({ scope, allowHouseholdScope, onScopeChange }: { scope: Judg
       .catch(caught => { if (current) setError(reportError(caught)); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
-  }, [client, householdId, scope]);
+  }, [client, householdId, scope, attempt]);
   async function save(id: string, action: 'dismiss' | 'explain') {
     if (lock.current) return;
     const text = explanation.trim();
@@ -59,11 +60,11 @@ function ReportList({ scope, allowHouseholdScope, onScopeChange }: { scope: Judg
     } catch (caught) { if (alive.current) setError(reportError(caught)); }
     finally { lock.current = false; if (alive.current) setSavingId(null); }
   }
-  return <ScrollView testID="reports-screen" style={ws.fill} contentContainerStyle={ws.content} accessibilityState={{ busy: loading }} keyboardShouldPersistTaps="handled">
+  return <ScrollView automaticallyAdjustKeyboardInsets testID="reports-screen" style={ws.fill} contentContainerStyle={ws.content} accessibilityState={{ busy: loading }} keyboardShouldPersistTaps="handled">
     <View><Text style={styles.text}>Based on your tracked activity</Text><Text style={styles.title}>Judgments</Text><Text style={styles.text}>Patterns worth a closer look. Ordinary spending may produce no judgment.</Text></View>
     {allowHouseholdScope ? <View style={ws.row} accessibilityLabel="Judgment scope">{(['Personal', 'Household'] as const).map(option => <Action key={option} testID={`reports-scope-${option.toLowerCase()}`} title={option} selected={scope === option} onPress={() => onScopeChange(option)} />)}</View> : null}
     {loading ? <Loading label="Loading judgments" /> : null}
-    {error ? <Text testID="reports-error" accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+    <ErrorNotice error={error} retry={() => { setError(null); setLoading(true); setAttempt(n => n + 1); }} />
     {notice ? <Text testID="reports-notice" accessibilityLiveRegion="polite" style={[styles.text, { color: '#065F46' }]}>{notice}</Text> : null}
     {!loading && !error && judgments.length === 0 ? <Panel title="Nothing needs your attention right now"><Text testID="reports-empty" style={styles.text}>The engine reviews patterns daily and stays quiet when it has nothing useful to add.</Text></Panel> : null}
     {!loading ? judgments.map(item => <View testID={`judgment-${item.id}`} key={item.id} style={ws.card}>

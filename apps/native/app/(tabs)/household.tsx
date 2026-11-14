@@ -48,7 +48,7 @@ export default function Household() {
     finally { lock.current = false; setBusy(false); }
   }
   if (!households) return <Loading />;
-  return <ScrollView testID="household-screen" keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}>
+  return <ScrollView automaticallyAdjustKeyboardInsets testID="household-screen" keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}>
     <Panel title="Household"><Text style={styles.text}>Personal is the default scope. Premium entitlement is managed by Spndrr support.</Text><Text style={styles.link}>{households.plan}</Text>
       {notice ? <Text accessibilityLiveRegion="polite" style={styles.text}>{notice}</Text> : null}
       <ErrorNotice error={error} retry={() => { setError(null); setAttempt(n => n + 1); }} />

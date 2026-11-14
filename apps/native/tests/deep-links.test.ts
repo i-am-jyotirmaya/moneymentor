@@ -1,4 +1,4 @@
-import { invitationToken, mobileLinkTarget } from "../src/lib/deep-links";
+import { incomingLinkTarget, invitationToken, mobileLinkTarget, redirectIncomingPath } from "../src/lib/deep-links";
 
 test.each([
   ["https://mvp.spndrr.com/signup/#token=placeholder", "/signup/#token=placeholder"],
@@ -25,4 +25,27 @@ test("invitation form requires a signup fragment token and decodes it for router
   expect(invitationToken("spndrr://login#token=placeholder")).toBeNull();
   expect(invitationToken("spndrr://signup#token=")).toBeNull();
   expect(invitationToken("spndrr://signup?token=placeholder")).toBeNull();
+});
+
+test.each([
+  ['spndrr://signup?token=placeholder', '/(auth)/signup?token=placeholder'],
+  ['https://mvp.spndrr.com/signup/#token=hello%2Bworld', '/(auth)/signup?token=hello%2Bworld'],
+  ['https://mvp.spndrr.com/signup?token=placeholder', '/(auth)/signup?token=placeholder'],
+  ['https://mvp.spndrr.com/signup?token=query#token=fragment', '/(auth)/signup?token=fragment'],
+  ['spndrr://settings', '/(tabs)/settings'],
+  ['https://other.test/signup#token=placeholder', null],
+  ['spndrr://user:placeholder@signup#token=placeholder', null],
+  ['spndrr://unknown', null],
+  ['spndrr://privacy', null],
+])('incoming OS link %s', (input, output) => {
+  expect(incomingLinkTarget(input)).toBe(output);
+});
+
+test.each([
+  ['exp+spndrr://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081', 'exp+spndrr://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081'],
+  ['https://other.test/signup/#token=placeholder', 'https://other.test/signup/#token=placeholder'],
+  ['https://mvp.spndrr.com/signup/#token=hello%2Bworld', '/(auth)/signup?token=hello%2Bworld'],
+  ['spndrr://signup?token=placeholder', '/(auth)/signup?token=placeholder'],
+])('incoming redirect leaves unknown URLs unchanged: %s', (input, output) => {
+  expect(redirectIncomingPath(input)).toBe(output);
 });
