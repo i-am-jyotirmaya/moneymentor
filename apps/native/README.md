@@ -80,8 +80,7 @@ package remains `com.spndrr.app.dev` and the scheme remains `spndrr`.
 
 Pasting an approved HTTPS or scheme invitation with `#token=...` converts it to
 Expo Router's signup token parameter. Direct `spndrr://signup?token=...` uses that
-parameter too. Full HTTPS app links and direct incoming fragment-token handling
-remain M4 work.
+parameter too. M4 also handles incoming HTTPS app links and raw fragment tokens.
 
 Run the three native checks above. Jest covers transport/secure storage, startup
 refresh, successful and failed refresh, single retry, concurrent 401s, logout,
@@ -119,3 +118,17 @@ screenshot, Maestro console/debug output, Metro logs when started, and a device
 screenshot plus logcat on Maestro failure. Set `ANDROID_SERIAL` to override the
 device or `FLOW_DIR` to override `.maestro`; extra command arguments pass through
 to `maestro test`.
+
+
+## M4 — Platform polish
+
+- Android back closes existing native overlays first, pops navigation history, then returns a non-root workspace tab to Assistant. Cold-linked auth screens return home. Assistant and signed-out home retain default exit behaviour.
+- Router's `+native-intent` hook parses raw cold/warm OS links before fragments are lost. Only known routes and the configured HTTPS origin are rewritten; credentials, unknown paths, and other schemes (including the Expo dev-client launch URL) are left unchanged. Incoming signup links accept fragment or query tokens; pasted invitations still require fragments. Prefer fragment invitations so tokens stay out of server logs.
+- App Links and iOS associated domains use `EXPO_PUBLIC_WEB_APP_URL` (default `https://mvp.spndrr.com`). Changing the origin requires a native rebuild. Production verification still needs the host's `/.well-known/assetlinks.json` with the actual package/signing certificate and Apple `apple-app-site-association` with the actual team/bundle identifiers. These hosted files are not supplied here.
+- Existing alert/retry UI remains; signup verification, report loading and editor account loading now offer retries. Auth and mutation forms retain their submit actions for retry; no connectivity polling dependency was added.
+- System font scaling stays enabled. Text containers use wrapping/minimum heights; actions can shrink within wrapping rows. The local CNG plugin preserves MainActivity config changes and adds `fontScale` to avoid activity recreation when font size changes.
+- Android uses window resize; auth/composer retain keyboard avoidance and scrollable forms use automatic iOS keyboard insets. Editor Save now scrolls with its fields. Existing form ScrollViews retain handled keyboard taps.
+- Slice icon, adaptive foreground and stacked splash assets are copied from the approved references. SDK 58 `expo-splash-screen` configures the launch screen, using the mark for Android 12+ and stacked artwork for iOS, on `#F3F5F9`. Router manages splash hiding when navigation is ready; no explicit hold is added.
+- Light mode is forced in Expo config and Android MainActivity via `AppCompatDelegate.MODE_NIGHT_NO`; existing light tokens remain.
+
+Validation: run `pnpm --filter native lint`, `pnpm --filter native typecheck`, and `pnpm --filter native test` from the repository root. Device follow-up: verify signed app links on both platforms, cold/warm invitations, overlay/back ordering, keyboard visibility in forms/modals, fontScale 1.3, dark-system light appearance, launcher masks and splash screenshots. Rebuild with CNG before device/Maestro checks; generated native trees stay uncommitted.
