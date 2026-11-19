@@ -135,7 +135,7 @@ test('concurrent calls, including a forced call, share the in-flight request', a
   expect(client.monthlyDashboard).toHaveBeenCalledTimes(1);
 });
 
-test('a failed month yields a cached null stub and the other months still resolve', async () => {
+test('a failed month yields a null stub and retries while the other months stay cached', async () => {
   const client = makeClient();
   client.monthlyDashboard.mockImplementation(async ({ month }) => {
     if (month === pastMonth) throw new Error('Monthly dashboard unavailable');
@@ -154,6 +154,17 @@ test('a failed month yields a cached null stub and the other months still resolv
   expect(current).toEqual(monthlyDashboard(currentMonth));
   expect(await fetchMonthly(client, householdId, pastMonth)).toBeNull();
   expect(await fetchMonthly(client, householdId, currentMonth)).toBe(current);
+  expect(client.monthlyDashboard).toHaveBeenCalledTimes(4);
+  expect(client.monthlyDashboard).toHaveBeenLastCalledWith({ month: pastMonth, householdId });
+});
+
+test('a failed refresh retains the last good response and the next fetch retries', async () => {
+  const client = makeClient();
+  const first = await fetchMonthly(client, householdId, pastMonth);
+  client.monthlyDashboard.mockRejectedValueOnce(new Error('Monthly dashboard unavailable'));
+
+  expect(await fetchMonthly(client, householdId, pastMonth, true)).toBe(first);
+  expect(await fetchMonthly(client, householdId, pastMonth)).toEqual(first);
   expect(client.monthlyDashboard).toHaveBeenCalledTimes(3);
 });
 
@@ -193,12 +204,13 @@ test('clearing the cache makes a previously cached month fetch again', async () 
   expect(client.monthlyDashboard).toHaveBeenCalledTimes(2);
 });
 
+// Resolve the renderer bundled with jest-expo so pnpm can find its transitive dependency.
+const rendererPath = require.resolve('test-renderer', { paths: [require.resolve('jest-expo/package.json')] });
+const { createRoot } = jest.requireActual<{
+  createRoot: () => { render: (element: ReactElement) => void; unmount: () => void };
+}>(rendererPath);
+
 test('the hook reuses the dashboard at revision zero and forces only the current month at revision one', async () => {
-  // Resolve the renderer bundled with jest-expo so pnpm can find its transitive dependency.
-  const rendererPath = require.resolve('test-renderer', { paths: [require.resolve('jest-expo/package.json')] });
-  const { createRoot } = jest.requireActual<{
-    createRoot: () => { render: (element: ReactElement) => void; unmount: () => void };
-  }>(rendererPath);
   const root = createRoot();
   const client = makeClient();
   const dashboard = monthlyDashboard(currentMonth);
@@ -229,6 +241,49 @@ test('the hook reuses the dashboard at revision zero and forces only the current
     await act(async () => { root.render(createElement(Trend)); });
 
     expect(client.monthlyDashboard.mock.calls).toEqual([[{ month: currentMonth, householdId }]]);
+  } finally {
+    try {
+      await act(async () => { root.unmount(); });
+    } finally {
+      environment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+    }
+  }
+});
+
+test('the hook retries a failed month on remount and reuses fresh months', async () => {
+  const client = makeClient();
+  client.monthlyDashboard.mockRejectedValueOnce(new Error('Monthly dashboard unavailable'));
+  jest.mocked(useSession).mockReturnValue({ client } as unknown as ReturnType<typeof useSession>);
+  jest.mocked(useWorkspace).mockReturnValue({
+    householdId, month: currentMonth, dataRevision: 0,
+  } as ReturnType<typeof useWorkspace>);
+
+  const onRender = jest.fn();
+  function Trend() {
+    onRender(useMonthlyTrend(2));
+    return null;
+  }
+
+  const environment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const previousActEnvironment = environment.IS_REACT_ACT_ENVIRONMENT;
+  environment.IS_REACT_ACT_ENVIRONMENT = true;
+  let root = createRoot();
+  try {
+    await act(async () => { root.render(createElement(Trend)); });
+    expect(onRender).toHaveBeenLastCalledWith({
+      months: [toTrendPoint(pastMonth, null), toTrendPoint(currentMonth, monthlyDashboard(currentMonth))],
+      isLoading: false,
+    });
+    await act(async () => { root.unmount(); });
+    root = createRoot();
+    client.monthlyDashboard.mockClear();
+
+    await act(async () => { root.render(createElement(Trend)); });
+    expect(client.monthlyDashboard.mock.calls).toEqual([[{ month: pastMonth, householdId }]]);
+    expect(onRender).toHaveBeenLastCalledWith({
+      months: [toTrendPoint(pastMonth, monthlyDashboard(pastMonth)), toTrendPoint(currentMonth, monthlyDashboard(currentMonth))],
+      isLoading: false,
+    });
   } finally {
     try {
       await act(async () => { root.unmount(); });
