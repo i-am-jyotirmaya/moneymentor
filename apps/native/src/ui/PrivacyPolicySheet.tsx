@@ -32,7 +32,8 @@ export function PrivacyPolicySheet({ visible, onClose }: { visible: boolean; onC
       </View>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: Math.max(insets.bottom, 24), gap: 16 }}>
         {content.map(([kind, text], index) => <Text key={text} accessibilityRole={kind === "p" ? undefined : "header"} style={index === 0 ? [styles.label, { color: colors.accent }] : kind === "p" ? styles.text : [styles.title, { fontSize: kind === "Title" ? 30 : 20 }]}>{text}</Text>)}
-        <Text style={styles.text}>Questions or support requests: <Text accessibilityRole="link" style={styles.link} onPress={() => { void Linking.openURL(`mailto:${supportEmail}`); }}>{supportEmail}</Text>.</Text>
+        <Text style={styles.text}>Questions or support requests:</Text>
+        <Pressable accessibilityRole="link" style={styles.linkTarget} onPress={() => { void Linking.openURL(`mailto:${supportEmail}`); }}><Text style={styles.link}>{supportEmail}</Text></Pressable>
       </ScrollView>
     </View>
   </Modal>;

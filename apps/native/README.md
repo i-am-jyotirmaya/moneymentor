@@ -1,8 +1,7 @@
-# Spndrr native — M1
+# Spndrr native — Expo workspace
 
-Expo SDK 58 parity rebuild of `apps/mobile`. M0 established routing, secure token
-storage, placeholder tabs, and the three API files lifted from PR #36. M1 adds
-auth parity; the finance tabs remain placeholders.
+Expo SDK 58 parity rebuild of `apps/mobile`, with auth, the finance workspace,
+Android platform polish, and local development builds for Android and iOS.
 
 Copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_BASE_URL` to a device-reachable
 API origin without `/api`. The Android emulator example is `https://10.0.2.2:7085`;
@@ -32,6 +31,40 @@ cd android
 
 `pnpm --filter native prebuild` also generates Android. Install the debug APK on
 your emulator/device and run the dev-client Metro server with `start`.
+
+## Local build and install
+
+From the repository root, with dependencies installed and the API configured as above:
+
+```sh
+# Android SDK, JDK 21, adb, and an x86_64 AVD
+pnpm --filter native run:android emulator
+# Use an explicit serial when multiple devices are connected
+pnpm --filter native run:android device <adb-serial>
+# macOS only, with Xcode, its command line tools and CocoaPods
+pnpm --filter native run:ios simulator <simulator-UDID>
+DEVELOPMENT_TEAM=<team-id> pnpm --filter native run:ios device <device-id>
+```
+
+The `run:*` commands build, install and launch. Use `build:*` with only the target
+to build without a device, or `install:*` to install and launch the previously
+built artifact. Artifacts live under the ignored `apps/native/dist/local/` tree.
+Start Metro separately with `pnpm --filter native start` for the development client.
+
+- Android uses `assembleDebug --max-workers=2` with `x86_64` for the emulator
+  and `arm64-v8a` for physical devices. On an Apple Silicon host, use
+  `SPNDRR_EMULATOR_ARCH=arm64-v8a` with a matching AVD. Set `ANDROID_HOME` or
+  `ANDROID_SDK_ROOT`; choose `ANDROID_SERIAL` (or the final argument) for a
+  specific attached device. A single available AVD can boot automatically;
+  set `SPNDRR_AVD` to choose one. For USB/Wi-Fi devices, enable debugging and
+  authorize or pair/connect with adb first.
+- iOS uses locally generated native projects and Xcode. Choose a simulator by
+  UDID with `xcrun simctl list devices available`, or a connected device with
+  `xcrun devicectl list devices`. Set `DEVELOPMENT_TEAM` for physical-device
+  signing; optionally set `PROVISIONING_PROFILE_SPECIFIER` and `CODE_SIGN_IDENTITY`.
+  Automatic provisioning updates are opt-in with `SPNDRR_IOS_ALLOW_PROVISIONING_UPDATES=1`.
+  Signing identities and profiles must already be available locally; never put
+  credentials, signing secrets or real test accounts into this repository.
 
 Continuous Native Generation (CNG): `android/` and `ios/` are generated from
 `app.config.ts`, ignored by Git, and must not be committed. No EAS project or
@@ -149,16 +182,34 @@ through to `maestro test`. Selecting `signin.yaml` or a directory containing it
 requires both credential variables and fails before device access if missing.
 Each invocation uses one artifact directory, including when both flows run.
 
+The sign-in flow labels the two credential-input steps so the resolved values
+do not appear in the Maestro CLI step titles. Maestro 2.12.1 can still retain
+evaluated input values in debug metadata. Keep sign-in artifacts private and do
+not upload or attach raw debug directories, logs or screenshots to tickets or
+PRs. Use only a throwaway account and discard its credentials after the pass.
+
 
 ## M4 — Platform polish
 
 - Android back closes existing native overlays first, pops navigation history, then returns a non-root workspace tab to Assistant. Cold-linked auth screens return home. Assistant and signed-out home retain default exit behaviour.
 - Router's `+native-intent` hook parses raw cold/warm OS links before fragments are lost. Only known routes and the configured HTTPS origin are rewritten; credentials, unknown paths, and other schemes (including the Expo dev-client launch URL) are left unchanged. Incoming signup links accept fragment or query tokens; pasted invitations still require fragments. Prefer fragment invitations so tokens stay out of server logs.
-- App Links and iOS associated domains use `EXPO_PUBLIC_WEB_APP_URL` (default `https://mvp.spndrr.com`). Changing the origin requires a native rebuild. Production verification still needs the host's `/.well-known/assetlinks.json` with the actual package/signing certificate and Apple `apple-app-site-association` with the actual team/bundle identifiers. Ops follow-up (out of scope for M4): host these files on the web domain before Android App Links and iOS universal links can verify. These hosted files are not supplied here.
+- App Links and iOS associated domains use `EXPO_PUBLIC_WEB_APP_URL` (default `https://mvp.spndrr.com`). Android filters match only `/signup` or `/signup/`; other web paths remain in the browser. Changing the origin requires a native rebuild. Production verification still needs the host's `/.well-known/assetlinks.json` with the actual package/signing certificate and Apple `apple-app-site-association` with the actual team/bundle identifiers and exact `/signup` and `/signup/` paths. Ops follow-up: host these files on the web domain before Android App Links and iOS universal links can verify. These hosted files are not supplied here.
 - Existing alert/retry UI remains; signup verification, report loading and editor account loading now offer retries. Auth and mutation forms retain their submit actions for retry; no connectivity polling dependency was added.
 - System font scaling stays enabled. Text containers use wrapping/minimum heights; actions can shrink within wrapping rows. The local CNG plugin preserves MainActivity config changes and adds `fontScale` to avoid activity recreation when font size changes.
 - Android uses window resize; auth/composer retain keyboard avoidance and scrollable forms use automatic iOS keyboard insets. Editor Save now scrolls with its fields. Existing form ScrollViews retain handled keyboard taps.
-- Slice icon, adaptive foreground and stacked splash assets are copied from the approved references. SDK 58 `expo-splash-screen` configures the launch screen, using the mark for Android 12+ and stacked artwork for iOS, on `#F3F5F9`. Router manages splash hiding when navigation is ready; no explicit hold is added.
-- Light mode is forced in Expo config and Android MainActivity via `AppCompatDelegate.MODE_NIGHT_NO`; existing light tokens remain.
+- Slice icon uses a safe-inset adaptive foreground and a monochrome mask derived from the approved Slice mark. SDK 58 `expo-splash-screen` configures the launch screen, using the mark for Android 12+ and stacked artwork for iOS, on `#F3F5F9`. Router manages splash hiding when navigation is ready; no explicit hold is added.
+- Light mode is forced through Expo config, `expo-system-ui`, and Android MainActivity via `AppCompatDelegate.MODE_NIGHT_NO`; the brand accent is `#0B7A4E`.
+
+## M5 — Mobile-first workspace
+
+The shell uses a 28dp decorative Slice mark, a left-aligned title, and the household
+switcher. Track, Transactions and Dashboard are direct tabs; More opens a sheet
+with Reports, Planning, Household, Settings and Sign out. The active tab is a filled
+pill. Visited tab screens retain their state and use a fade transition. The tab bar
+hides when the IME is visible, and form fields scroll without hiding behind the keyboard.
+
+Assistant confirms persisted transactions, Planning announces successful goal creation,
+and Dashboard shows the selected month's stored income and spending in an accessible
+cash-flow chart (a daily series remains deferred). Pending reads use skeletons.
 
 Validation: run `pnpm --filter native lint`, `pnpm --filter native typecheck`, and `pnpm --filter native test` from the repository root. Device follow-up: verify signed app links on both platforms, cold/warm invitations, overlay/back ordering, keyboard visibility in forms/modals, fontScale 1.3, dark-system light appearance, launcher masks and splash screenshots. Rebuild with CNG before device/Maestro checks; generated native trees stay uncommitted.

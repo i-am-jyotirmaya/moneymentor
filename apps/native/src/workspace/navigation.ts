@@ -9,6 +9,10 @@ export const sections = [
 ] as const;
 export type Section = typeof sections[number]['section'];
 export const bottomSections = ['assistant', 'transactions', 'dashboard'] as const;
+export const moreSections = sections.filter(item => !isBottomSection(item.section));
+export function isBottomSection(section: string): section is typeof bottomSections[number] {
+  return bottomSections.some(item => item === section);
+}
 export function sectionLabel(section: string) {
   return sections.find(item => item.section === section)?.label ?? 'Dashboard';
 }

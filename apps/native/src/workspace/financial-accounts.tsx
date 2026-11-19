@@ -44,8 +44,8 @@ export function FinancialAccounts({ householdId, canWrite }: { householdId: stri
     <Field label="Institution (optional)" maxLength={128} editable={!disabled} value={form.institution ?? ''} onChangeText={v => setForm({ ...form, institution: v || null })} />
     <Field label="Last four digits (optional)" maxLength={4} keyboardType="number-pad" editable={!disabled} value={form.last4 ?? ''} onChangeText={v => setForm({ ...form, last4: v || null })} />
     <Field label="Aliases (comma separated)" editable={!disabled} value={form.aliases.join(',')} onChangeText={v => setForm({ ...form, aliases: v.split(',') })} />
-    <View style={ws.row}><Text style={styles.text}>Shared account (owner/admin)</Text><Switch accessibilityLabel="Shared account (owner/admin)" disabled={disabled || !!editing} value={form.shared} onValueChange={shared => setForm({ ...form, shared })} /></View>
-    <View style={ws.row}><Text style={styles.text}>Active</Text><Switch accessibilityLabel="Active" disabled={disabled} value={form.isActive} onValueChange={isActive => setForm({ ...form, isActive })} /></View>
+    <View style={ws.row}><Text style={styles.text}>Shared account (owner/admin)</Text><Switch style={{ minWidth: 48, minHeight: 48 }} accessibilityLabel="Shared account (owner/admin)" disabled={disabled || !!editing} value={form.shared} onValueChange={shared => setForm({ ...form, shared })} /></View>
+    <View style={ws.row}><Text style={styles.text}>Active</Text><Switch style={{ minWidth: 48, minHeight: 48 }} accessibilityLabel="Active" disabled={disabled} value={form.isActive} onValueChange={isActive => setForm({ ...form, isActive })} /></View>
     <Button write testID="save-account" title={saving ? 'Saving…' : editing ? 'Save account' : 'Add account'} disabled={disabled} onPress={() => void save()} />
     {editing ? <Action title="Cancel" onPress={() => { setEditing(undefined); setForm(emptyAccount(householdId)); }} /> : null}
     <ErrorNotice error={error} retry={() => { setError(''); section.retry(); }} />

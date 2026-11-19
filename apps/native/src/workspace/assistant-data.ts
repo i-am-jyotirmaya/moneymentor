@@ -1,7 +1,7 @@
 import { ApiError } from '../api/client';
 import type { AssistantResponse } from '../api/models';
 
-export type AssistantMessage = { role: 'user' | 'assistant'; text: string };
+export type AssistantMessage = { role: 'user' | 'assistant'; text: string; addedToTransactions?: true };
 export function initialAssistantMessages(): AssistantMessage[] {
   return [{ role: 'assistant', text: 'Tell me what you spent or received, or ask where your money went this month.' }];
 }
@@ -14,7 +14,8 @@ export function buildAssistantRequest(text: string, currencyCode: string, househ
 }
 export function responseMessage(result: AssistantResponse): AssistantMessage {
   return { role: 'assistant', text: result.assistantMessage ?? (result.status === 'NeedsClarification'
-    ? 'I need a little more detail before saving this.' : result.transaction ? 'Tracked that expense.' : 'I could not handle that message yet.') };
+    ? 'I need a little more detail before saving this.' : result.transaction ? 'Tracked that expense.' : 'I could not handle that message yet.'),
+    ...(result.status === 'Responded' && result.transaction ? { addedToTransactions: true } : {}) };
 }
 export function looksLikeFinanceQuestion(text: string) {
   return /\b(where|what|which|how much|spent most|total|summary|report)\b/i.test(text);

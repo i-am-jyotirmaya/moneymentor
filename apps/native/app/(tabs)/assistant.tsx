@@ -1,8 +1,9 @@
 import { useOffline } from '../../src/workspace/connection';
 import { useSectionLoad, useSections, useSectionBanner } from '../../src/workspace/sections';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSession } from '../../src/auth/session';
+import { PlaceholderInput } from '../../src/ui/AuthForm';
 import { colors, styles } from '../../src/ui/theme';
 import { useWorkspace } from '../../src/workspace/context';
 import { assistantError, buildAssistantRequest, initialAssistantMessages, looksLikeFinanceQuestion, responseMessage, userMessage } from '../../src/workspace/assistant-data';
@@ -50,12 +51,12 @@ function AssistantChat() {
   return <View ref={root} testID="assistant-screen" style={ws.fill} onLayout={() => root.current?.measureInWindow((_x, y) => setKeyboardOffset(y))}>
     <KeyboardAvoidingView style={ws.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={keyboardOffset}>
       <View style={[chat.header, ws.row]}><View style={{ flex: 1 }}><Text style={chat.title}>What did you spend or receive?</Text><Text style={styles.text}>Type naturally.</Text></View></View>
-      <ScrollView automaticallyAdjustKeyboardInsets ref={list} style={{ flex: 1 }} contentContainerStyle={chat.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })} onLayout={() => list.current?.scrollToEnd({ animated: false })}>
-        {messages.map((message, index) => <View key={index} testID={`assistant-message-${index}`} style={[chat.bubble, message.role === 'user' ? chat.user : chat.assistant]}><Text style={chat.messageText}>{message.text}</Text></View>)}
-        {busy ? <View style={[chat.bubble, chat.assistant]} accessibilityLabel="Sending message" accessibilityLiveRegion="polite"><ActivityIndicator color={colors.accent} /></View> : null}
+      <ScrollView ref={list} style={{ flex: 1 }} contentContainerStyle={chat.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })} onLayout={() => list.current?.scrollToEnd({ animated: false })}>
+        {messages.map((message, index) => <View key={index} testID={`assistant-message-${index}`} style={[chat.bubble, message.role === 'user' ? chat.user : chat.assistant]}><Text style={chat.messageText}>{message.text}</Text>{message.addedToTransactions ? <Text style={chat.confirmation} accessibilityLiveRegion="polite">Added to Transactions</Text> : null}</View>)}
+        {busy ? <View style={[chat.bubble, chat.assistant, chat.pending]} accessible accessibilityRole="progressbar" accessibilityLabel="Sending message" accessibilityState={{ busy: true }} accessibilityLiveRegion="polite"><View style={[chat.skeleton, { width: '100%' }]} /><View style={[chat.skeleton, { width: '62%' }]} /></View> : null}
       </ScrollView>
       <View style={chat.composer}>{error && !offline && !banner ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}<View style={chat.inputRow}>
-        <TextInput testID="assistant-input" accessibilityLabel="Message Spndrr" style={chat.input} multiline editable={!offline} placeholder={offline ? "You're offline" : "spent 500 on groceries or got salary 50000"} placeholderTextColor={colors.muted2} value={text} onChangeText={setText} />
+        <PlaceholderInput testID="assistant-input" accessibilityLabel="Message Spndrr" wrapperStyle={chat.inputWrapper} style={chat.input} multiline maxLength={4000} editable={!offline} placeholder={offline ? "You're offline" : "spent 500 on groceries or got salary 50000"} placeholderTextColor={colors.muted2} value={text} onChangeText={setText} />
         <Pressable testID="assistant-send" accessibilityRole="button" accessibilityLabel={busy ? 'Sending message' : 'Send message'} accessibilityState={{ disabled: busy || offline, busy }} disabled={busy || offline} accessibilityHint={offline ? "You're offline" : undefined} onPress={() => void submit()} style={[chat.send, busy && { opacity: 0.65 }]}><Text maxFontSizeMultiplier={1} style={styles.buttonText}>Send</Text></Pressable>
       </View></View>
     </KeyboardAvoidingView>
@@ -69,8 +70,12 @@ const chat = StyleSheet.create({
   user: { alignSelf: 'flex-end', backgroundColor: colors.accentSoft, borderBottomRightRadius: 4 },
   assistant: { alignSelf: 'flex-start', backgroundColor: 'white', borderBottomLeftRadius: 4 },
   messageText: { color: colors.ink, fontSize: 14, fontWeight: '500', lineHeight: 24 },
+  confirmation: { color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 8 },
+  pending: { width: 176, gap: 8 },
+  skeleton: { height: 10, borderRadius: 5, backgroundColor: colors.surface },
   composer: { padding: 12, gap: 8, backgroundColor: 'white', borderTopWidth: 1, borderColor: colors.border },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  input: { flex: 1, minWidth: 0, minHeight: 56, maxHeight: 112, borderRadius: 28, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: colors.ink },
+  inputWrapper: { flex: 1, minWidth: 0 },
+  input: { minHeight: 56, maxHeight: 112, borderRadius: 28, borderWidth: 1, borderColor: colors.border, padding: 12, fontSize: 16, textAlignVertical: 'top', color: colors.ink },
   send: { flexGrow: 0, flexShrink: 0, height: 56, width: 56, borderRadius: 28, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
 });

@@ -43,3 +43,21 @@ test.each(["assistant", "transactions", "dashboard"])(
     expect(navigation.match(/bottomSections\s*=\s*\[([^\]]+)\]/)?.[1]).toContain(`'${section}'`);
   },
 );
+
+test.each(["reports", "planning", "household", "settings"])(
+  "More sheet exposes menu-%s",
+  section => {
+    expect(source("src/workspace/shell.tsx")).toContain('testID={`menu-${item.section}`}');
+    expect(source("src/workspace/navigation.ts")).toContain(`section: '${section}'`);
+    expect(source(".maestro/signin.yaml")).toContain(`id: "menu-${section}"`);
+  },
+);
+
+test("Maestro labels credential input steps instead of displaying their resolved values", () => {
+  const flow = source(".maestro/signin.yaml");
+  for (const credential of ["EMAIL", "PASSWORD"]) {
+    const variable = `\\$\\{MAESTRO_TEST_${credential}\\}`;
+    expect(flow).toMatch(new RegExp(`inputText:\\s*\\n\\s+text: ["']${variable}["']\\n\\s+label: ["'][^"'\\n]+["']`));
+    expect(flow).not.toMatch(new RegExp(`inputText:\\s*["']${variable}["']`));
+  }
+});

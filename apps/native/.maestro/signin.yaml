@@ -27,10 +27,16 @@ appId: com.spndrr.app.dev
     timeout: 120000
 - tapOn:
     id: "login-email"
-- inputText: "${MAESTRO_TEST_EMAIL}"
+- inputText:
+    text: "${MAESTRO_TEST_EMAIL}"
+    label: "Enter throwaway account email"
 - tapOn:
     id: "login-password"
-- inputText: "${MAESTRO_TEST_PASSWORD}"
+# A label prevents the resolved password from appearing in the CLI step title.
+# Keep debug artifacts private: Maestro 2.12.1 can still log evaluated inputs.
+- inputText:
+    text: "${MAESTRO_TEST_PASSWORD}"
+    label: "Enter throwaway account password"
 - hideKeyboard
 - tapOn:
     id: "login-submit"
