@@ -3,7 +3,7 @@ import { SectionsProvider, SectionBanner, SectionPanel, useSectionBanner } from 
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode, type ComponentRef } from 'react';
 import type { SymbolViewProps } from 'expo-symbols';
-import { Keyboard, KeyboardAvoidingView, Platform, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSession } from '../auth/session';
 import { AndroidKeyboardFrame } from '../ui/AndroidKeyboardFrame';
@@ -93,8 +93,6 @@ function Shell() {
   const blocked = section.blocked && !households && active !== 'assistant';
   function pressDock(key: DockRoute) { if (key === 'more') setMenu(true); else navigate(key); }
   return <SafeAreaView edges={keyboardOpen ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']} style={[ws.fill, { backgroundColor: shell.color.bg }]}>
-    {/* TODO(A1): move to ThemeProvider's SystemBars once it owns the system bars. */}
-    <StatusBar barStyle={shell.scheme === 'dark' ? 'light-content' : 'dark-content'} />
     <AndroidKeyboardFrame style={ws.fill}>
     <TopBar title={sectionLabel(active)}
       household={households && households.households.length > 0 ? { name: selected?.name ?? 'Select household', canWrite: !!selected?.canWrite } : null}
