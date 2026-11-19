@@ -5,32 +5,35 @@ import { PressableScale } from './PressableScale';
 import { Text } from './Text';
 import { useTheme } from './ThemeProvider';
 
-export function Chip({ label, selected, icon, onPress, count }: {
-  label: string; selected: boolean; icon?: IconName; onPress: () => void; count?: number;
+export function Chip({ label, selected = false, icon, onPress, testID, count }: {
+  label: string; selected?: boolean; icon?: IconName; onPress: () => void; testID?: string; count?: number;
 }) {
   const { color, radius, space } = useTheme();
-  const title = count === undefined ? label : `${label} (${count})`;
   const glyph = selected ? { ios: 'checkmark', android: 'check' } as const : icon;
+  const tone = selected ? 'onPrimaryContainer' : 'text';
   return (
-    <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={title}
-      accessibilityState={{ selected }} scaleTo={pressScaleSmall} style={{ justifyContent: 'center' }}
-      contentStyle={{ flexGrow: 0, minHeight: 36, alignItems: 'center', flexDirection: 'row', gap: space.s2,
+    <PressableScale testID={testID} onPress={onPress} hitSlop={6} accessibilityRole="button"
+      accessibilityLabel={count === undefined ? label : `${label}, ${count}`} accessibilityState={{ selected }}
+      scaleTo={pressScaleSmall}
+      style={{ minHeight: 36, alignItems: 'center', flexDirection: 'row', gap: space.s2,
         paddingHorizontal: space.s4, borderRadius: radius.pill, borderWidth: selected ? 0 : 1,
-        borderColor: color.outline, backgroundColor: selected ? color.primaryContainer : 'transparent' }}
-      scaleContent={glyph ? <Icon name={glyph} size={16} color={selected ? 'onPrimaryContainer' : 'text'} /> : null}>
-      <Text variant="label" style={{ color: selected ? color.onPrimaryContainer : color.text }}>{title}</Text>
+        borderColor: color.outline, backgroundColor: selected ? color.primaryContainer : color.surface }}>
+      {glyph && <Icon name={glyph} size={16} color={tone} />}
+      <Text variant="label" style={{ color: color[tone] }}>{label}{count === undefined ? '' : ` ${count}`}</Text>
     </PressableScale>
   );
 }
 
-export function FilterChips({ options, value, onChange }: {
-  options: { key: string; label: string; count?: number }[]; value: string; onChange: (key: string) => void;
+export function FilterChips<K extends string>({ options, value, onChange, testID }: {
+  options: { key: K; label: string; count?: number }[]; value: K; onChange: (key: K) => void; testID?: string;
 }) {
   const { space } = useTheme();
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.s3 }}>
+    <ScrollView testID={testID} horizontal showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ gap: space.s3, paddingVertical: 6 }}>
       {options.map(({ key, label, count }) => (
-        <Chip key={key} label={label} count={count} selected={key === value} onPress={() => onChange(key)} />
+        <Chip key={key} testID={`${testID ?? 'filter'}-${key}`} label={label} count={count}
+          selected={key === value} onPress={() => onChange(key)} />
       ))}
     </ScrollView>
   );

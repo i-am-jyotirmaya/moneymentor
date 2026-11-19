@@ -7,8 +7,8 @@ import { PressableScale } from './PressableScale';
 import { Text } from './Text';
 import { useTheme } from './ThemeProvider';
 
-export function Segmented({ options, value, onChange }: {
-  options: { key: string; label: string }[]; value: string; onChange: (key: string) => void;
+export function Segmented<K extends string>({ options, value, onChange, label }: {
+  options: { key: K; label: string }[]; value: K; onChange: (key: K) => void; label: string;
 }) {
   const { color, radius, elevation, space } = useTheme();
   const [width, setWidth] = useState(0);
@@ -23,7 +23,7 @@ export function Segmented({ options, value, onChange }: {
 
   if (!options.length) return null;
   return (
-    <View accessibilityRole="tablist" onLayout={event => setWidth(event.nativeEvent.layout.width)}
+    <View accessibilityRole="tablist" accessibilityLabel={label} onLayout={event => setWidth(event.nativeEvent.layout.width)}
       style={{ borderRadius: radius.pill, backgroundColor: color.surfaceSunken, flexDirection: 'row', padding: inset }}>
       {index >= 0 && itemWidth > 0 && <Animated.View pointerEvents="none" style={[
         StyleSheet.absoluteFill, elevation.level1, { left: inset, top: inset, bottom: inset, width: itemWidth,

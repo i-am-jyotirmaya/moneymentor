@@ -1,13 +1,11 @@
 import { useMemo } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
 import { useTheme, type ThemeValue } from './ThemeProvider';
-
-type NamedStyles = Parameters<typeof StyleSheet.create>[0];
 
 const stylesByFactory = new WeakMap<object, Map<string, object>>();
 
-export function createThemedStyles<T extends NamedStyles>(
-  factory: (t: ThemeValue) => T,
+export function createThemedStyles<T extends Record<string, ViewStyle | TextStyle | ImageStyle>>(
+  factory: (theme: ThemeValue) => T,
   theme: ThemeValue,
 ): T {
   let stylesByTheme = stylesByFactory.get(factory);
@@ -33,8 +31,8 @@ export function createThemedStyles<T extends NamedStyles>(
  * Factories should depend only on tokens and font scale. The legacy `colors` and
  * `styles` exports stay light and are deprecated.
  */
-export function useThemedStyles<T extends NamedStyles>(
-  factory: (t: ThemeValue) => T,
+export function useThemedStyles<T extends Record<string, ViewStyle | TextStyle | ImageStyle>>(
+  factory: (theme: ThemeValue) => T,
 ): T {
   const theme = useTheme();
   const { scheme, fontScale } = theme;

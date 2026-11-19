@@ -1,12 +1,17 @@
 export type CountUpSign = 'auto' | 'always' | 'never';
 
+export function inrWorklet(value: number, sign: 'auto' | 'always' = 'auto') {
+  'worklet';
+  const rounded = Math.round(Math.abs(value));
+  const digits = String(rounded);
+  const last3 = digits.slice(-3);
+  const rest = digits.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',');
+  const body = rest ? `${rest},${last3}` : last3;
+  const prefix = value < 0 && rounded !== 0 ? '−' : value > 0 && sign === 'always' ? '+' : '';
+  return `${prefix}₹${body}`;
+}
+
 export function formatInrWorklet(value: number, sign: CountUpSign = 'auto') {
   'worklet';
-  const prefix = value < 0 && sign !== 'never' ? '−' : value > 0 && sign === 'always' ? '+' : '';
-  const digits = String(Math.round(Math.abs(value)));
-  let grouped = digits.slice(-3);
-  for (let end = digits.length - 3; end > 0; end -= 2) {
-    grouped = digits.slice(Math.max(0, end - 2), end) + ',' + grouped;
-  }
-  return prefix + '₹' + grouped;
+  return sign === 'never' ? inrWorklet(Math.abs(value)) : inrWorklet(value, sign);
 }

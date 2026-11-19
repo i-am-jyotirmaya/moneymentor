@@ -14,8 +14,8 @@ export function pressLayerColor(theme: Theme, layer: PressLayer) {
   return withAlpha(theme.color.primary, theme.scheme === 'dark' ? 0.14 : 0.1);
 }
 
-type Props = Omit<PressableProps, 'android_ripple' | 'style' | 'children'> & {
-  children: ReactNode;
+export type PressableScaleProps = Omit<PressableProps, 'style' | 'children'> & {
+  children?: ReactNode;
   style?: StyleProp<ViewStyle>;
   scaleTo?: 0.97 | 0.92;
   layer?: PressLayer;
@@ -29,7 +29,7 @@ type Props = Omit<PressableProps, 'android_ripple' | 'style' | 'children'> & {
 export function PressableScale({
   children, style, scaleTo = pressScale, layer = 'primary', scaleContent, contentStyle,
   pressedBackground, stateLayerStyle, onPressIn, onPressOut, ...props
-}: Props) {
+}: PressableScaleProps) {
   const theme = useTheme();
   const reduced = useReducedMotion();
   const scale = useSharedValue(1);
@@ -40,9 +40,12 @@ export function PressableScale({
     scale.set(reduced ? 1 : withSpring(pressed ? scaleTo : 1, spring.press));
     opacity.set(withTiming(pressed ? 1 : 0, timing('instant')));
   };
+  const usesContentProps = contentStyle !== undefined || scaleContent !== undefined ||
+    pressedBackground !== undefined || stateLayerStyle !== undefined;
+  const visualStyle = usesContentProps ? contentStyle : style;
   const stateStyle = [
     StyleSheet.absoluteFill,
-    { borderRadius: StyleSheet.flatten(contentStyle)?.borderRadius },
+    { borderRadius: StyleSheet.flatten(visualStyle)?.borderRadius },
     stateLayerStyle,
     overlay,
   ];
@@ -50,11 +53,12 @@ export function PressableScale({
   return (
     <Pressable
       {...props}
-      style={[{ minWidth: 48, minHeight: 48 }, style]}
+      style={(usesContentProps || !style) ? [{ minWidth: 48, minHeight: 48 }, style] : undefined}
       onPressIn={event => { setPressed(true); onPressIn?.(event); }}
       onPressOut={event => { setPressed(false); onPressOut?.(event); }}
     >
-      <Animated.View style={[{ flexGrow: 1, justifyContent: 'center' }, contentStyle, scaleContent === undefined && transform]}>
+      <Animated.View style={[{ flexGrow: 1, justifyContent: 'center' }, visualStyle, scaleContent === undefined && transform,
+        !usesContentProps && style && { overflow: 'hidden' }]}>
         {pressedBackground && <Animated.View pointerEvents="none" style={[stateStyle, { backgroundColor: pressedBackground }]} />}
         {scaleContent !== undefined && <Animated.View style={transform}>{scaleContent}</Animated.View>}
         {children}

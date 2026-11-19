@@ -34,7 +34,7 @@ export function IconGlyph({ name, size, tintColor, accessibilityLabel }: {
 }
 
 export function Icon({ name, size = 24, color = 'text', filled = false, accessibilityLabel }: {
-  name: IconName; size?: number; color?: ColorRole; filled?: boolean; accessibilityLabel?: string;
+  name: IconName; size?: number; color?: string; filled?: boolean; accessibilityLabel?: string;
 }) {
   const theme = useTheme();
   // Android uses the outline glyph with the dock pill as the selected-state cue.
@@ -42,5 +42,5 @@ export function Icon({ name, size = 24, color = 'text', filled = false, accessib
     if (typeof name === 'string') name = filledSymbol(name);
     else if (name.ios) name = { ...name, ios: filledSymbol(name.ios) };
   }
-  return <IconGlyph name={name} size={size} tintColor={theme.color[color]} accessibilityLabel={accessibilityLabel} />;
+  return <IconGlyph name={name} size={size} tintColor={color in theme.color ? theme.color[color as ColorRole] : color} accessibilityLabel={accessibilityLabel} />;
 }

@@ -2,37 +2,50 @@ import { View } from 'react-native';
 import type { Transaction } from '../api/models';
 import { spokenInr } from '../lib/format';
 import { transactionPresentation } from '../workspace/dashboard-data';
-import { CategoryIcon } from './CategoryIcon';
+import { CategoryIcon, type CategoryIconKind } from './CategoryIcon';
 import { Money } from './Money';
 import { PressableScale } from './PressableScale';
 import { Text } from './Text';
 import { useTheme } from './ThemeProvider';
 
-export function TxRow({ tx, onPress }: { tx: Transaction; onPress: () => void }) {
-  const { space } = useTheme();
-  const presentation = transactionPresentation(tx);
-  const transfer = tx.type === 'Transfer' || presentation.sign === '↔ ';
-  const credit = !transfer && presentation.sign === '+';
-  const sign = transfer ? 'never' : credit ? 'always' : 'auto';
-  const value = Math.abs(tx.amount) * (sign === 'auto' ? -1 : 1);
-  const meta = [tx.categoryName ?? (transfer ? 'Transfer' : presentation.income ? 'Income' : null), tx.accountName]
-    .filter(Boolean).join(' · ');
-  const categoryKey = tx.categoryId ?? tx.categoryName ?? '';
-  const category = Array.from(categoryKey).reduce((index, character) => (index * 31 + character.charCodeAt(0)) % 8, 0);
-  const icon = transfer ? { ios: 'arrow.left.arrow.right', android: 'swap_horiz' } as const
-    : credit ? { ios: 'arrow.down.left', android: 'south_west' } as const
-    : { ios: 'receipt', android: 'receipt_long' } as const;
+export { CategoryIcon, categoryIndex } from './CategoryIcon';
 
-  return (
-    <PressableScale onPress={onPress} accessibilityRole="button"
-      accessibilityLabel={[presentation.label, meta, spokenInr(value, { sign })].filter(Boolean).join(', ')}
-      contentStyle={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: space.s4, paddingVertical: space.s3 }}>
-      <CategoryIcon category={category} kind={transfer ? 'transfer' : credit ? 'income' : 'cat'} icon={icon} />
-      <View style={{ flex: 1 }}>
-        <Text variant="label">{presentation.label}</Text>
-        {meta ? <Text variant="caption" tone="text2">{meta}</Text> : null}
+export function txKind(tx: Pick<Transaction, 'type'>): CategoryIconKind {
+  return tx.type === 'Income' ? 'income' : tx.type === 'Transfer' ? 'transfer' : 'cat';
+}
+
+export function signedAmount(tx: Transaction) {
+  const { sign } = transactionPresentation(tx);
+  return sign.startsWith('↔') ? 0 : sign === '+' ? Math.abs(tx.amount) : -Math.abs(tx.amount);
+}
+
+export function TxRow({ tx, onPress, testID }: { tx: Transaction; onPress?: () => void; testID?: string }) {
+  const { space } = useTheme();
+  const { label } = transactionPresentation(tx);
+  const kind = txKind(tx);
+  const value = signedAmount(tx);
+  const amount = Math.abs(tx.amount);
+  const meta = [kind === 'transfer' ? 'Transfer' : tx.categoryName ?? 'Uncategorized',
+    tx.accountName ?? tx.paymentChannel].filter(Boolean).join(' · ');
+  const spoken = kind === 'transfer' ? `transfer ${amount}` : spokenInr(value, { sign: 'always' });
+
+  const body = (
+    <View style={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: space.s4, paddingVertical: space.s3 }}>
+      <CategoryIcon category={tx.categoryName} kind={kind} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text variant="label" numberOfLines={2}>{label}</Text>
+        <Text variant="caption" tone="text2" numberOfLines={2}>{meta}</Text>
       </View>
-      <Money value={value} sign={sign} tone={credit ? 'income' : 'text'} style={{ flexShrink: 1, textAlign: 'right' }} />
-    </PressableScale>
+      {kind === 'transfer'
+        ? <Text variant="label" tone="text2" accessibilityLabel={spoken}>↔ {amount.toLocaleString('en-IN')}</Text>
+        : <Money value={value} sign="always" tone={value > 0 ? 'income' : 'text'} style={{ flexShrink: 1, textAlign: 'right' }} />}
+    </View>
   );
+
+  return onPress ? (
+    <PressableScale testID={testID} onPress={onPress} accessibilityRole="button"
+      accessibilityLabel={[label, meta, spoken].filter(Boolean).join(', ')} accessibilityHint="Opens the transaction editor">
+      {body}
+    </PressableScale>
+  ) : <View testID={testID}>{body}</View>;
 }

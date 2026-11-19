@@ -4,12 +4,12 @@ import { PressableScale } from './PressableScale';
 import { Text } from './Text';
 import { useTheme } from './ThemeProvider';
 
-export function QuickAction({ icon, label, primary = false, onPress }: {
-  icon: IconName; label: string; primary?: boolean; onPress: () => void;
+export function QuickAction({ icon, label, primary = false, onPress, testID }: {
+  icon: IconName; label: string; primary?: boolean; onPress: () => void; testID?: string;
 }) {
   const { color, scheme, radius, elevation, space } = useTheme();
   return (
-    <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
+    <PressableScale testID={testID} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
       layer={primary ? 'on-primary' : 'primary'}
       stateLayerStyle={{ left: '50%', marginLeft: -28, right: undefined, bottom: undefined,
         width: 56, height: 56, borderRadius: radius.l }}

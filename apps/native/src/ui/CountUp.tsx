@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { TextInput, View, type StyleProp, type TextStyle } from 'react-native';
 import { isLoaded } from 'expo-font';
 import Animated, { useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { spokenInr } from '../lib/format';
@@ -8,12 +8,14 @@ import { dur, timing } from './motion';
 import { Text, defaultMaxFontSizeMultiplier, textStyleFor, type TextTone, type TextVariant } from './Text';
 import { useTheme } from './ThemeProvider';
 
+export { inrWorklet } from './countUpFormat';
+
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
-export function CountUp({ value, from = 0, format, duration = dur.countUp, variant = 'number',
-  tone = 'text', sign = 'auto', delay = 0 }: {
+export function CountUp({ value, from = 0, format, duration = dur.countUp, variant = 'numberL',
+  tone = 'text', sign = 'auto', delay = 0, accessibilityLabel, style, testID }: {
   value: number; from?: number; format?: (value: number) => string; duration?: number;
-  variant?: TextVariant; tone?: TextTone; sign?: CountUpSign; delay?: number;
+  variant?: TextVariant; tone?: TextTone; sign?: CountUpSign; delay?: number; accessibilityLabel?: string; style?: StyleProp<TextStyle>; testID?: string;
 }) {
   const theme = useTheme();
   const reduced = useReducedMotion();
@@ -23,7 +25,7 @@ export function CountUp({ value, from = 0, format, duration = dur.countUp, varia
   const previous = useRef<{ from: number; value: number } | undefined>(undefined);
   const [initial] = useState(() => format ? format(reduced ? value : from) : formatInrWorklet(reduced ? value : from, sign));
   const final = format ? format(value) : formatInrWorklet(value, sign);
-  const spoken = format ? final : spokenInr(Math.sign(value) * Math.round(Math.abs(value)), { sign });
+  const spoken = accessibilityLabel ?? (format ? final : spokenInr(Math.sign(value) * Math.round(Math.abs(value)), { sign }));
   const { fontFamily, ...typography } = textStyleFor(theme, variant, tone, true);
 
   useEffect(() => {
@@ -50,19 +52,19 @@ export function CountUp({ value, from = 0, format, duration = dur.countUp, varia
   } as { text: string } & Partial<React.ComponentProps<typeof TextInput>>));
 
   return (
-    <View style={{ alignSelf: 'flex-start', minWidth: width }}>
+    <View testID={testID} style={{ alignSelf: 'flex-start', minWidth: width }}>
       <Text numeric variant={variant} tone={tone} importantForAccessibility="no-hide-descendants"
         accessibilityElementsHidden pointerEvents="none"
-        style={{ opacity: 0, alignSelf: 'flex-start' }} onLayout={event => setWidth(event.nativeEvent.layout.width)}>{final}</Text>
+        style={[style, { opacity: 0, alignSelf: 'flex-start' }]} onLayout={event => setWidth(event.nativeEvent.layout.width)}>{final}</Text>
       {reduced ? (
         <Text numeric variant={variant} tone={tone} accessibilityLabel={spoken} accessibilityLiveRegion="none"
-          style={{ position: 'absolute', inset: 0 }}>{final}</Text>
+          style={[{ position: 'absolute', inset: 0 }, style]}>{final}</Text>
       ) : (
         <AnimatedTextInput editable={false} caretHidden defaultValue={initial} animatedProps={animatedProps}
           accessibilityLabel={spoken} accessibilityLiveRegion="none"
           maxFontSizeMultiplier={defaultMaxFontSizeMultiplier(variant)}
           style={[typography, fontFamily && isLoaded(fontFamily) ? { fontFamily } : undefined,
-            { padding: 0, position: 'absolute', inset: 0 }, animatedStyle]} />
+            { padding: 0, position: 'absolute', inset: 0 }, animatedStyle, style]} />
       )}
     </View>
   );

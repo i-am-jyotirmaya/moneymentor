@@ -16,15 +16,28 @@ export function categoryIconColors({ color, category, scheme }: Theme, index: nu
   };
 }
 
-export function CategoryIcon({ category, kind = 'cat', size = 44, icon }: {
-  category: number; kind?: CategoryIconKind; size?: number; icon: IconName;
+const glyphs: Record<CategoryIconKind, IconName> = {
+  cat: { android: 'shopping_bag', ios: 'bag' },
+  income: { android: 'payments', ios: 'banknote' },
+  transfer: { android: 'swap_horiz', ios: 'arrow.left.arrow.right' },
+};
+
+export function categoryIndex(name: string | null | undefined) {
+  if (!name) return 7;
+  let hash = 0;
+  for (const character of name) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return hash % 7;
+}
+
+export function CategoryIcon({ category, kind = 'cat', size = 44, icon = glyphs[kind] }: {
+  category: number | string | null | undefined; kind?: CategoryIconKind; size?: number; icon?: IconName;
 }) {
   const theme = useTheme();
-  const colors = categoryIconColors(theme, category, kind);
+  const colors = categoryIconColors(theme, typeof category === 'number' ? category : categoryIndex(category), kind);
   return (
     <View style={{ width: size, height: size, borderRadius: theme.radius.m, alignItems: 'center',
       justifyContent: 'center', backgroundColor: colors.background }}>
-      <IconGlyph name={icon} size={Math.round(size * 20 / 44)} tintColor={colors.glyph} />
+      <IconGlyph name={icon} size={Math.round(size * 0.5)} tintColor={colors.glyph} />
     </View>
   );
 }
