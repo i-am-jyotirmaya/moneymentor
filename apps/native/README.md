@@ -174,7 +174,7 @@ no CI integration.
 When starting its own Metro with no `EXPO_PUBLIC_API_BASE_URL` environment variable and no `apps/native/.env`, the runner exports the non-secret defaults from `.env.example` (including `EXPO_PUBLIC_API_BASE_URL=https://10.0.2.2:7085`) without creating or modifying `.env`.
 
 Artifacts stay in `apps/native/e2e-artifacts/<UTC timestamp>/`, including the home
-screenshot, Maestro console/debug output, Metro logs when started, and a device
+screenshot, Maestro console output (`maestro.log`), Metro logs when started, and a device
 screenshot plus logcat on Maestro failure. Set `ANDROID_SERIAL` to override the
 device (default `emulator-5554`) or `FLOW_DIR` to select an explicit flow file or
 directory instead of the automatic selection; extra command arguments pass
@@ -182,11 +182,12 @@ through to `maestro test`. Selecting `signin.yaml` or a directory containing it
 requires both credential variables and fails before device access if missing.
 Each invocation uses one artifact directory, including when both flows run.
 
-The sign-in flow labels the two credential-input steps so the resolved values
-do not appear in the Maestro CLI step titles. Maestro 2.12.1 can still retain
-evaluated input values in debug metadata. Keep sign-in artifacts private and do
-not upload or attach raw debug directories, logs or screenshots to tickets or
-PRs. Use only a throwaway account and discard its credentials after the pass.
+The sign-in flow labels the credential-input steps to keep their values out of
+Maestro step titles. The runner captures console output in the log and omits
+`--debug-output`. On exit after a pass, failure, or interrupt, it redacts the
+sign-in password from files in the run directory and the run's Maestro test
+directories under `~/.maestro/tests` (or `$MAESTRO_HOME_DIR/tests`). Use a
+throwaway account and discard its credentials after the run.
 
 
 ## M4 — Platform polish

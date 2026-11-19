@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set +x
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -74,6 +75,10 @@ for tool in adb curl node; do
     exit 1
   fi
 done
+if [[ -n "${MAESTRO_TEST_PASSWORD:-}" ]] && ! command -v perl >/dev/null 2>&1; then
+  echo "Required command for artifact redaction not found: perl" >&2
+  exit 1
+fi
 if [[ "$(adb -s "$DEVICE" get-state 2>/dev/null || true)" != device ]]; then
   echo "Android device $DEVICE is not attached/authorized. Start or attach it first." >&2
   exit 1
@@ -86,12 +91,46 @@ fi
 RUN_DIR="$PWD/e2e-artifacts/$(date -u +%Y%m%dT%H%M%S%NZ)"
 mkdir -p "$RUN_DIR"
 METRO_PID=""
+MARKER=""
+# This runs indirectly through the EXIT trap.
+# shellcheck disable=SC2317
+redact_secrets() {
+  if [[ -n "${MAESTRO_TEST_PASSWORD:-}" ]]; then
+    local tests_dir="${MAESTRO_HOME_DIR:-$HOME/.maestro}/tests"
+    {
+      find "$RUN_DIR" -type f -print0 || return 1
+      if [[ -n "$MARKER" && -d "$tests_dir" ]]; then
+        find "$tests_dir" -mindepth 1 -maxdepth 1 -type d -newer "$MARKER" \
+          -exec find {} -type f -print0 \; || return 1
+      fi
+    } 2>/dev/null | xargs -0 -r perl -0777 -pi -e "$(cat <<'PERL'
+      BEGIN { $secret = $ENV{MAESTRO_TEST_PASSWORD} }
+      s/\Q$secret\E/[REDACTED]/g;
+      END { exit 1 if $failed }
+      BEGIN { $SIG{__WARN__} = sub { $failed = 1 } }
+PERL
+    )" -- 2>/dev/null
+  fi
+}
+# ShellCheck cannot always follow calls from EXIT traps.
+# shellcheck disable=SC2317
 cleanup() {
+  local status=$?
   if [[ -n "$METRO_PID" ]]; then
     # The new process group contains only the Metro instance started below.
     kill -- "-$METRO_PID" 2>/dev/null || true
     wait "$METRO_PID" 2>/dev/null || true
   fi
+  if ! redact_secrets; then
+    echo "E2E artifact redaction failed." >&2
+    if ((status == 0)); then
+      status=1
+    fi
+  fi
+  if [[ -n "$MARKER" ]]; then
+    rm -f -- "$MARKER" || true
+  fi
+  exit "$status"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -102,6 +141,8 @@ adb -s "$DEVICE" reverse tcp:8081 tcp:8081
 if ! node -e 'const s = require("net").connect(8081, "127.0.0.1"); s.on("connect", () => { s.destroy(); process.exit(0); }); s.on("error", () => process.exit(1)); s.setTimeout(2000, () => { s.destroy(); process.exit(1); });'; then
   if [[ -z "${EXPO_PUBLIC_API_BASE_URL+x}" && ! -e .env ]]; then
     set -a
+    # The script runs from apps/native, where this file lives.
+    # shellcheck disable=SC1091
     source .env.example
     set +a
     echo "Using non-secret defaults from .env.example; the API need not be running for the smoke flow."
@@ -130,12 +171,11 @@ if [[ "$METRO_READY" != true ]]; then
   exit 1
 fi
 
-set +e
+MARKER=$(mktemp)
+MAESTRO_EXIT=0
+# Keep raw Maestro output off the terminal until artifacts are redacted on exit.
 "$MAESTRO" --device "$DEVICE" test "${FLOWS[@]}" \
-  --test-output-dir "$RUN_DIR" --debug-output "$RUN_DIR/debug" "$@" \
-  2>&1 | tee "$RUN_DIR/maestro.log"
-MAESTRO_EXIT=${PIPESTATUS[0]}
-set -e
+  --test-output-dir "$RUN_DIR" "$@" >"$RUN_DIR/maestro.log" 2>&1 || MAESTRO_EXIT=$?
 if ((MAESTRO_EXIT != 0)); then
   adb -s "$DEVICE" exec-out screencap -p >"$RUN_DIR/failure.png" || true
   adb -s "$DEVICE" logcat -d >"$RUN_DIR/logcat.txt" 2>&1 || true
