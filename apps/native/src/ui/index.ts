@@ -27,3 +27,6 @@ export * from './Banner';
 export * from './Toast';
 export { formatPercent, spokenPercent } from '../lib/format';
 export * from './charts';
+export { Sheet, rubberBand, sheetMaxHeight, shouldCloseOnRelease, type SheetProps } from './Sheet';
+export * from './MoreSheet';
+export * from './HouseholdSheet';
