@@ -2,12 +2,15 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useContext, useEffect } from "react";
 import { BackHandler } from "react-native";
+import { SafeAreaInsetsContext } from "react-native-safe-area-context";
 import { backAction } from "../src/lib/back-policy";
 import { SessionProvider, useSession } from "../src/auth/session";
 import { appFonts } from "../src/ui/fonts";
 import { ThemeProvider } from "../src/ui/ThemeProvider";
+import { ToastProvider } from "../src/ui/Toast";
+import { DOCK_SPACE } from "../src/workspace/dock";
 import { colors } from "../src/ui/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -38,6 +41,7 @@ function Navigation() {
   return <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }} />;
 }
 export default function RootLayout() {
+  const bottomInset = useContext(SafeAreaInsetsContext)?.bottom ?? 0;
   const [loaded, error] = useFonts(appFonts);
   useEffect(() => {
     if (loaded || error) {
@@ -49,7 +53,11 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider><SessionProvider><Navigation /></SessionProvider></ThemeProvider>
+      <ThemeProvider>
+        <ToastProvider bottomOffset={bottomInset + DOCK_SPACE}>
+          <SessionProvider><Navigation /></SessionProvider>
+        </ToastProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }
