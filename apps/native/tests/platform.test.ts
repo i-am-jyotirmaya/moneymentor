@@ -1,5 +1,5 @@
 import { backAction } from '../src/lib/back-policy';
-import { forceLightActivity, withFontScale, withKeyboardResize } from '../plugins/with-platform';
+import { forceLightActivity, withoutFontScale, withKeyboardResize } from '../plugins/with-platform';
 import config from '../app.config';
 
 test.each([
@@ -11,11 +11,11 @@ test.each([
 ] as const)('back policy %s %s %s', (stack, signedIn, path, expected) => {
   expect(backAction(stack, signedIn, path)).toBe(expected);
 });
-test('fontScale preserves existing changes and is idempotent', () => {
-  const result = withFontScale('keyboard|orientation');
-  expect(result).toBe('keyboard|orientation|fontScale');
-  expect(withFontScale(result)).toBe(result);
-  expect(withFontScale()).toBe('fontScale');
+test('removing fontScale preserves other changes and is idempotent', () => {
+  const result = withoutFontScale('keyboard|fontScale|orientation|fontScale');
+  expect(result).toBe('keyboard|orientation');
+  expect(withoutFontScale(result)).toBe(result);
+  expect(withoutFontScale()).toBe('');
 });
 test('keyboard resize replaces conflicting adjustment modes without losing state flags', () => {
   expect(withKeyboardResize('stateHidden|adjustPan')).toBe('stateHidden|adjustResize');

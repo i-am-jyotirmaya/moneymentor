@@ -1,7 +1,7 @@
 import { AndroidConfig, withAndroidManifest, withMainActivity, withAndroidStyles, type ConfigPlugin } from 'expo/config-plugins';
 
-export function withFontScale(value = '') {
-  return [...new Set([...value.split('|').filter(Boolean), 'fontScale'])].join('|');
+export function withoutFontScale(value = '') {
+  return value.split('|').filter(entry => entry && entry !== 'fontScale').join('|');
 }
 export function withKeyboardResize(value = '') {
   const values = value.split('|').filter(item => item && !item.startsWith('adjust'));
@@ -25,7 +25,7 @@ const withPlatform: ConfigPlugin = config => {
   });
   config = withAndroidManifest(config, mod => {
     const activity = AndroidConfig.Manifest.getMainActivityOrThrow(mod.modResults);
-    activity.$['android:configChanges'] = withFontScale(activity.$['android:configChanges']);
+    activity.$['android:configChanges'] = withoutFontScale(activity.$['android:configChanges']);
     // Preserve state flags but require IME resize for edge-to-edge screens.
     activity.$['android:windowSoftInputMode'] = withKeyboardResize(activity.$['android:windowSoftInputMode']);
     return mod;
