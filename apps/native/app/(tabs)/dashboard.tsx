@@ -4,7 +4,8 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import type { Goal } from '../../src/api/workspace-models';
 import { useSession } from '../../src/auth/session';
 import { formatInr, getCurrentMonthKey } from '../../src/lib/format';
-import { CashFlowBars, Card, CategoryDonut, categoryIndex, EmptyState, GoalRing, HeroCard, QuickAction, SavingsArea, Segmented, SliceGauge, TxRow, useThemedStyles, type DonutSlice } from '../../src/ui/stubs';
+import { CashFlowBars, Card, CategoryDonut, categoryIndex, EmptyState, GoalRing, HeroCard, QuickAction, SavingsArea, savingsPoints, donutLegendPlacement, formatPercent, Segmented, SliceGauge, TxRow, useThemedStyles, type DonutSlice } from '../../src/ui';
+import { savingsBaseline } from '../../src/ui/charts/chartMath';
 import type { ThemeValue } from '../../src/ui/ThemeProvider';
 import { useTheme } from '../../src/ui/ThemeProvider';
 import { useWorkspace } from '../../src/workspace/context';
@@ -26,6 +27,7 @@ const makeStyles = (t: ThemeValue) => ({
   dot: { width: 10, height: 10, borderRadius: 3 },
   donutRow: { flexDirection: 'row' as const, gap: 16, alignItems: 'center' as const, flexWrap: 'wrap' as const },
   rows: { flex: 1, minWidth: 140, gap: 8 },
+  donutStack: { flexDirection: 'column' as const, alignItems: 'stretch' as const },
   row: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
   rowName: { ...t.type.label, color: t.color.text, flex: 1 },
   rowShare: { ...t.type.caption, color: t.color.text2 },
@@ -98,12 +100,12 @@ export default function Dashboard() {
         <View style={{ flexShrink: 1 }}><Text accessibilityRole="header" style={s.title}>Where it went</Text><Text style={s.subtitle}>Spending by category</Text></View>
         <Pressable style={s.linkTarget} accessibilityRole="link" onPress={() => go('/(tabs)/transactions')}><Text style={s.link}>All</Text></Pressable>
       </View>
-      {slices.length ? <View style={s.donutRow} accessible accessibilityLabel={`Spending by category. ${slices.slice(0, 6).map(sl => `${sl.name} ${data.spends > 0 ? Math.round(sl.amount / data.spends * 100) : 0} percent, ${formatInr(sl.amount)}`).join('. ')}`}>
+      {slices.length ? <View style={[s.donutRow, donutLegendPlacement(theme.fontScale) === 'below' && s.donutStack]} accessible accessibilityLabel={`Spending by category. ${slices.slice(0, 6).map(sl => `${sl.name} ${data.spends > 0 ? Math.round(sl.amount / data.spends * 100) : 0} percent, ${formatInr(sl.amount)}`).join('. ')}`}>
         <CategoryDonut slices={slices} total={data.spends} colorFor={colorFor} size={theme.fontScale >= 1.5 ? 132 : 150} />
         <View style={s.rows}>{slices.slice(0, 5).map(sl => <View key={sl.id} style={s.row}>
           <View style={[s.dot, { backgroundColor: colorFor(sl) }]} />
           <Text numberOfLines={1} style={s.rowName}>{sl.name}</Text>
-          <Text style={s.rowShare}>{data.spends > 0 ? Math.max(1, Math.round(sl.amount / data.spends * 100)) : 0}%</Text>
+          <Text style={s.rowShare}>{formatPercent(data.spends > 0 ? sl.amount / data.spends * 100 : 0)}</Text>
         </View>)}</View>
       </View> : <Text style={s.subtitle}>No spending yet this month.</Text>}
     </Card>
@@ -111,10 +113,10 @@ export default function Dashboard() {
     <Card testID="dashboard-savings">
       <View style={s.cardHead}>
         <View style={{ flexShrink: 1 }}><Text accessibilityRole="header" style={s.title}>Savings rate</Text><Text style={s.subtitle}>Share of income kept</Text></View>
-        {lastRate !== null ? <Text style={[theme.type.title, { color: theme.color.text, fontFamily: 'InterTight_700Bold' }]}>{Math.round(lastRate * 10) / 10}%</Text> : null}
+        {lastRate !== null ? <Text style={[theme.type.title, { color: theme.color.text, fontFamily: 'InterTight_700Bold' }]}>{formatPercent(lastRate)}</Text> : null}
       </View>
       <View accessible accessibilityLabel={`Savings rate trend. ${trend.months.map(m => `${m.label} ${m.savingsRate === null ? 'no data' : `${Math.round(m.savingsRate)} percent`}`).join(', ')}`}>
-        <SavingsArea points={trend.months.slice(-6).map(m => ({ key: m.key, label: m.label, rate: m.savingsRate }))} />
+        <SavingsArea points={savingsPoints(trend.months.slice(-6))} baseline={savingsBaseline(savingsPoints(trend.months.slice(-6))) ?? undefined} />
       </View>
     </Card>
 

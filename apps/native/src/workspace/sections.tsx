@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type SetStateAction } from 'react';
 import { AppState, Text, View } from 'react-native';
 import { useSession } from '../auth/session';
-import { styles } from '../ui/theme';
+
 import { bannerPriority, classifyFailure, sectionStatus, type Failure } from './section-state';
-import { Action, Loading, ws } from './ui';
+import { Action, Loading } from './ui';
+import { useLegacy } from './legacy-styles';
 
 type Entry = { data: unknown; loadedAt: number };
 type Notice = { failure: Failure | null; cached: boolean; empty: boolean; loadedAt?: number; retry: () => void };
@@ -71,7 +72,7 @@ export function useSectionLoad<T>(name: string, key: string, load: () => Promise
   }, [cache, key]);
   return { data, setData, status, failure, retry, loading: !entry && status === 'loading', blocked: (!entry || isEmpty) && (status === 'offline' || status === 'error') };
 }
-export function SectionPanel({ section }: { section: { status: string; failure: Failure | null; retry: () => void } }) {
+export function SectionPanel({ section }: { section: { status: string; failure: Failure | null; retry: () => void } }) { const { styles, ws } = useLegacy();
   if (section.status === 'loading') return <Loading />;
   return <View style={ws.content} accessibilityRole="alert"><Text style={ws.heading}>{section.status === 'offline' ? "You're offline" : 'Couldn’t load this section'}</Text><Text style={styles.text}>{section.status === 'offline' ? "Spndrr needs a connection to load this. We'll reload as soon as you're back." : section.failure?.message}</Text><Action title="Try again" onPress={section.retry} filled /></View>;
 }
@@ -87,6 +88,6 @@ export function useSectionBanner(active: string) {
   const time = notice.loadedAt ? new Date(notice.loadedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   return { text: offline ? `You're offline. Showing what loaded at ${time}.` : "Couldn't refresh. Showing earlier data.", title: offline ? 'Retry' : 'Try again', retry };
 }
-export function SectionBanner({ banner }: { banner: ReturnType<typeof useSectionBanner> }) {
+export function SectionBanner({ banner }: { banner: ReturnType<typeof useSectionBanner> }) { const { styles, ws } = useLegacy();
   return banner ? <View style={ws.card} accessibilityRole="alert"><Text style={styles.text}>{banner.text}</Text><Action title={banner.title} onPress={banner.retry} /></View> : null;
 }

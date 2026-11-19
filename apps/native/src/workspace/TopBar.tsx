@@ -31,12 +31,12 @@ export function TopBar({ title, household, onHouseholdPress, householdExpanded, 
       {household ? <Pressable testID="household-switcher" onPress={onHouseholdPress} hitSlop={{ top: 8, bottom: 8 }}
         accessibilityRole="button" accessibilityLabel={householdA11yLabel(household.name, household.canWrite)} accessibilityState={{ expanded: !!householdExpanded }}
         style={({ pressed }) => [bar.household, pressed && bar.pressed]}>
-        {!household.canWrite ? <Icon name={{ android: 'lock', ios: 'lock' }} tintColor={color.text2} /> : null}
-        {/* The chevron is an inline view after a no-break space, so it stays on the last word's line when the name wraps. */}
+        {/* Name, chevron and role share one Text (one baseline). The chevron follows a no-break space so it never orphans. */}
         <Text maxFontSizeMultiplier={2} style={[type.caption, bar.householdText, { color: color.text2 }]}>
+          {!household.canWrite ? <View style={bar.chevron}><Icon name={{ android: 'lock', ios: 'lock' }} tintColor={color.text2} /></View> : null}
           {household.name}{'\u00A0'}<View style={bar.chevron}><Icon name={{ android: 'expand_more', ios: 'chevron.down' }} tintColor={color.text2} /></View>
+          {showRole ? `\u00A0· ${household.canWrite ? 'Can write' : 'Read only'}` : ''}
         </Text>
-        {showRole ? <Text maxFontSizeMultiplier={2} style={[type.caption, { color: color.text2 }]}>{household.canWrite ? '· Can write' : '· Read only'}</Text> : null}
       </Pressable> : null}
     </View>
     {action ? <Pressable testID="top-bar-action" onPress={action.onPress} accessibilityRole="button" accessibilityLabel={action.label}
