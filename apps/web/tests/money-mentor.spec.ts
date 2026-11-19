@@ -241,6 +241,18 @@ test("web Transactions groups dates, filters the loaded page and keeps the Add a
   await expect(page.getByRole("button", { name: /Edit transaction/ }).first()).toBeVisible();
 });
 
+test("browser offline status leaves loaded transaction data visible", async ({ page, context }) => {
+  await page.goto("/transactions");
+  const edit = page.getByRole("button", { name: /Edit transaction/ }).first();
+  await expect(edit).toBeVisible();
+  const status = page.getByRole("status", { name: "Browser connection" });
+  await context.setOffline(true);
+  await expect(status).toContainText("You’re offline.");
+  await expect(edit).toBeVisible();
+  await context.setOffline(false);
+  await expect(status).toBeEmpty();
+});
+
 test("mobile transaction editor is hidden until an edit icon is tapped", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
 

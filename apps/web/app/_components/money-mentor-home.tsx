@@ -18,8 +18,11 @@ import {
   MobileMenu,
 } from "./workspace-navigation";
 import { WorkspaceSection } from "./workspace-section";
+import { WorkspaceConnection } from "./workspace-connection";
+import { useSpndrrWeb } from "./web-design";
 
 export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
+  const isWeb = useSpndrrWeb();
   const {
     session,
     updateQuery,
@@ -162,6 +165,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
               }}
               selectedHouseholdId={selectedHouseholdId}
             />
+            {isWeb ? <WorkspaceConnection /> : null}
             <WorkspaceError
               error={error}
               isLoading={isLoadingData}
