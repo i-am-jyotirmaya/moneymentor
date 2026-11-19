@@ -170,12 +170,14 @@ export function TransactionsPanel({
 export function TransactionRow({
   canWrite = true,
   compact = false,
+  revamp = false,
   onDelete,
   onEdit,
   transaction,
 }: {
   canWrite?: boolean;
   compact?: boolean;
+  revamp?: boolean;
   onDelete?: () => void;
   onEdit?: () => void;
   transaction: TransactionListItem;
@@ -226,7 +228,7 @@ export function TransactionRow({
         <p
           className={`text-sm font-bold ${isIncome ? "text-positive" : "text-[var(--ink)]"}`}
         >
-          {isNeutral ? "↔ " : isCredit ? "+" : "-"}
+          {isNeutral ? "↔ " : isCredit ? "+" : revamp ? "−" : "-"}
           {formatMoney(transaction.amount, transaction.currencyCode)}
         </p>
         {onEdit ? (

@@ -65,6 +65,7 @@ export function WorkspaceSection({
     return (
       <TransactionsSection
         canWrite={props.canWriteSelectedHousehold}
+        dashboard={props.dashboard}
         deletedTransactions={props.deletedTransactions}
         isLoading={props.isLoadingTransactions}
         month={props.transactionMonth}

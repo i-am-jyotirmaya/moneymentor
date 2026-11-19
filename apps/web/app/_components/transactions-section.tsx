@@ -7,13 +7,17 @@ import { listFinancialAccounts } from "@/lib/api";
 import type {
   CategoryCatalogResponse,
   FinancialAccount, TransactionKind, PaymentChannel,
+  MonthlyDashboardResponse,
   TransactionListItem,
   TransactionPageResponse,
   TransactionVisibility,
 } from "@/lib/api";
 import {
+  ArrowDownLeft,
+  ArrowUpRight,
   ChevronLeft,
   ChevronRight,
+  Plus,
   ReceiptText,
   RotateCcw,
   Save,
@@ -22,6 +26,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { type TransactionEditForm } from "../_hooks/use-transaction-state";
+import { useWorkspaceUrl } from "../_hooks/use-workspace-url";
 import {
   EmptyInline,
   Field,
@@ -29,9 +34,29 @@ import {
   TransactionRow,
 } from "./common-ui";
 import { formatDate, formatMoney, formatMonthKey } from "./workspace-format";
+import { ProgressLink } from "./navigation-progress";
+import { useSpndrrWeb } from "./web-design";
+import styles from "./cobalt-transactions.module.css";
+
+const transactionDay = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "UTC" });
+const filters = ["All", "Expenses", "Income", "Transfers", "Investments"] as const;
+type TransactionFilter = typeof filters[number];
+const filterTypes = { Expenses: "Expense", Income: "Income", Transfers: "Transfer", Investments: "Investment" };
+
+function groupTransactionDays(transactions: TransactionListItem[]) {
+  const days = new Map<string, TransactionListItem[]>();
+  for (const transaction of transactions) {
+    const day = transaction.transactionDate.slice(0, 10);
+    const entries = days.get(day);
+    if (entries) entries.push(transaction);
+    else days.set(day, [transaction]);
+  }
+  return [...days];
+}
 
 export function TransactionsSection({
   canWrite,
+  dashboard,
   deletedTransactions,
   isLoading,
   month,
@@ -44,6 +69,7 @@ export function TransactionsSection({
   transactions,
 }: {
   canWrite: boolean;
+  dashboard: MonthlyDashboardResponse | null;
   deletedTransactions: TransactionListItem[];
   isLoading: boolean;
   month: string;
@@ -55,23 +81,44 @@ export function TransactionsSection({
   page: TransactionPageResponse | null;
   transactions: TransactionListItem[];
 }) {
+  const isWeb = useSpndrrWeb();
+  const { params } = useWorkspaceUrl();
+  const [filter, setFilter] = useState<TransactionFilter>("All");
   const currentPage = page?.page ?? 1;
   const totalPages = Math.max(page?.totalPages ?? 0, 1);
+  const shown = !isWeb || filter === "All" ? transactions : transactions.filter((transaction) =>
+    transaction.type === filterTypes[filter],
+  );
+  const monthTotals = dashboard?.month === month ? dashboard : null;
+  const composer = new URLSearchParams({ compose: "add" });
+  const household = params.get("household");
+  if (household) composer.set("household", household);
+
+  function renderRow(transaction: TransactionListItem) {
+    return <TransactionRow
+      canWrite={canWrite}
+      key={transaction.id}
+      onDelete={() => onDeleteTransaction(transaction)}
+      onEdit={() => onSelectTransaction(transaction)}
+      revamp={isWeb}
+      transaction={transaction}
+    />;
+  }
 
   return (
     <section
       aria-busy={isLoading}
-      className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0"
+      className={`min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0 ${isWeb ? styles.page : ""}`}
     >
-      <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
+      <article className={isWeb ? styles.panel : "rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm"}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-semibold tracking-normal">
+            <h2 className={isWeb ? styles.title : "text-2xl font-semibold tracking-normal"}>
               Transactions
             </h2>
-            <p className="mt-1 text-sm font-medium text-[var(--muted)]">
+            {!isWeb ? <p className="mt-1 text-sm font-medium text-[var(--muted)]">
               Review one month at a time and edit a record when you need to.
-            </p>
+            </p> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <MonthNavigator
@@ -80,28 +127,50 @@ export function TransactionsSection({
               month={month}
               onMonthChange={onMonthChange}
             />
-            <ReceiptText className="h-5 w-5 text-[var(--accent)]" />
+            {!isWeb ? <ReceiptText className="h-5 w-5 text-[var(--accent)]" />
+              : canWrite ? <ProgressLink className={styles.add} href={`/assistant?${composer}`}>
+                  <Plus aria-hidden="true" size={18} /> Add transaction
+                </ProgressLink> : null}
           </div>
         </div>
 
+        {isWeb && monthTotals ? <dl className={styles.totals}>
+          <div>
+            <ArrowDownLeft aria-hidden="true" size={18} />
+            <dt>Income this month</dt>
+            <dd>{monthTotals.income > 0 ? "+" : ""}{formatMoney(monthTotals.income, monthTotals.currencyCode)}</dd>
+          </div>
+          <div>
+            <ArrowUpRight aria-hidden="true" size={18} />
+            <dt>Spending this month</dt>
+            <dd>{monthTotals.spends > 0 ? "−" : monthTotals.spends < 0 ? "+" : ""}{formatMoney(Math.abs(monthTotals.spends), monthTotals.currencyCode)}</dd>
+          </div>
+        </dl> : null}
+
+        {isWeb && transactions.length ? <fieldset className={styles.filters}>
+          <legend>Filter this page</legend>
+          {filters.map((value) => <label key={value}>
+            <input className="sr-only" type="radio" name="transaction-filter" checked={filter === value} onChange={() => setFilter(value)} />
+            <span>{value}</span>
+          </label>)}
+        </fieldset> : null}
+
         <div
-          className={`mt-5 divide-y divide-[var(--border)] ${isLoading ? "opacity-60" : ""}`}
+          className={`mt-5 ${isWeb ? "" : "divide-y divide-[var(--border)]"} ${isLoading ? "opacity-60" : ""}`}
         >
           {isLoading ? (
             <SectionSkeleton rows={3} />
-          ) : transactions.length > 0 ? (
-            transactions.map((transaction) => (
-              <TransactionRow
-                canWrite={canWrite}
-                key={transaction.id}
-                onDelete={() => onDeleteTransaction(transaction)}
-                onEdit={() => onSelectTransaction(transaction)}
-                transaction={transaction}
-              />
-            ))
+          ) : shown.length > 0 ? (
+            isWeb ? groupTransactionDays(shown).map(([day, entries]) =>
+              <section key={day} className={styles.day}>
+                <h3><time dateTime={day}>{transactionDay.format(new Date(day))}</time></h3>
+                <div className={`divide-y divide-[var(--border)] ${styles.entries}`}>{entries.map(renderRow)}</div>
+              </section>,
+            ) : shown.map(renderRow)
           ) : (
             <EmptyInline
-              text={`No transactions found in ${formatMonthKey(month)}.`}
+              text={transactions.length > 0 ? "No matching transactions on this page."
+                : `No transactions found in ${formatMonthKey(month)}.`}
             />
           )}
         </div>
@@ -138,7 +207,7 @@ export function TransactionsSection({
         </div>
       </article>
 
-      <article className="mt-5 rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
+      <article className={isWeb ? styles.trash : "mt-5 rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm"}>
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 id="recently-deleted" className="text-lg font-semibold">
@@ -210,6 +279,7 @@ export function TransactionEditModal({
   onSave: (event: FormEvent<HTMLFormElement>) => void;
   transaction: TransactionListItem;
 }) {
+  const isWeb = useSpndrrWeb();
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
   const [accountError, setAccountError] = useState<string | null>(null);
   useEffect(() => {
@@ -220,6 +290,12 @@ export function TransactionEditModal({
   }, [accessToken, transaction.householdId]);
   const isTransfer = ["Transfer", "CreditCardPayment", "CashWithdrawal"].includes(editForm.kind);
   const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const pointerStartedOutside = useRef(false);
+
+  function isOutsideDialog(dialog: HTMLDialogElement, x: number, y: number) {
+    const { left, right, top, bottom } = dialog.getBoundingClientRect();
+    return x < left || x > right || y < top || y > bottom;
+  }
   const isIncome = ["Income", "Cashback"].includes(editForm.kind);
 
   useEffect(() => {
@@ -239,13 +315,22 @@ export function TransactionEditModal({
     <dialog
       aria-describedby="transaction-editor-description"
       aria-labelledby="transaction-editor-title"
-      className="fixed inset-0 m-auto max-h-[90dvh] w-[min(92vw,560px)] overflow-hidden rounded-xl border border-[var(--border)] bg-surface p-0 text-[var(--ink)] shadow-2xl backdrop:bg-slate-950/45"
+      className={`fixed inset-0 m-auto max-h-[90dvh] w-[min(92vw,560px)] overflow-hidden rounded-xl border border-[var(--border)] bg-surface p-0 text-[var(--ink)] shadow-2xl backdrop:bg-slate-950/45 ${isWeb ? styles.editor : ""}`}
       onCancel={(event) => {
         event.preventDefault();
         onClose();
       }}
+      closedby={isWeb ? "any" : undefined}
+      onPointerDown={isWeb ? (event) => {
+        pointerStartedOutside.current = isOutsideDialog(event.currentTarget, event.clientX, event.clientY);
+      } : undefined}
+      onPointerUp={isWeb ? (event) => {
+        if (!("closedBy" in HTMLDialogElement.prototype) && pointerStartedOutside.current &&
+          isOutsideDialog(event.currentTarget, event.clientX, event.clientY)) onClose();
+        pointerStartedOutside.current = false;
+      } : undefined}
       onClick={(event) => {
-        if (event.target === event.currentTarget) {
+        if (!isWeb && event.target === event.currentTarget) {
           onClose();
         }
       }}
@@ -288,7 +373,7 @@ export function TransactionEditModal({
           <Dropdown label="Payment channel (optional)" value={editForm.paymentChannel} disabled={isSaving}
             options={["Unknown", "UPI", "Card", "Cash", "BankTransfer", "AutoDebit", "Wallet", "Cheque"].map(value => ({ value, label: value.replace(/([a-z])([A-Z])/g, "$1 $2") }))}
             onChange={value => onEditFormChange({ ...editForm, paymentChannel: value as PaymentChannel })} />
-          <Field label="Amount">
+          <div className={isWeb ? styles.editAmount : undefined}><Field label="Amount">
             <input
               className="form-control"
               min="0.01"
@@ -300,7 +385,7 @@ export function TransactionEditModal({
               type="number"
               value={editForm.amount}
             />
-          </Field>
+          </Field></div>
           <CategoryPicker
             categories={categoryCatalog?.categories ?? []}
             categoryId={editForm.categoryId}

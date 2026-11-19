@@ -230,6 +230,17 @@ test("transaction list paginates by month and opens editing only from the edit i
   await expect(editor).toHaveCount(0);
 });
 
+test("web Transactions groups dates, filters the loaded page and keeps the Add action", async ({ page }) => {
+  await page.goto("/transactions");
+  await expect(page.getByRole("link", { name: "Add transaction" })).toHaveAttribute("href", /\/assistant\?compose=add/);
+  await expect(page.locator("time").first()).toBeVisible();
+  await page.getByText("Transfers", { exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Transfers" })).toBeChecked();
+  await expect(page.getByText("No matching transactions on this page.")).toBeVisible();
+  await page.getByText("All", { exact: true }).click();
+  await expect(page.getByRole("button", { name: /Edit transaction/ }).first()).toBeVisible();
+});
+
 test("mobile transaction editor is hidden until an edit icon is tapped", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
 
