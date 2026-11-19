@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { bottomSections, isBottomSection, moreSections, sections } from '../src/workspace/navigation';
 
 test('More contains secondary sections only and every workspace route has one navigation entry', () => {
@@ -13,4 +15,15 @@ test.each(['assistant', 'transactions', 'dashboard'])('%s is a direct tab', sect
 
 test.each(['reports', 'planning', 'household', 'settings', 'unknown'])('%s is not a direct tab', section => {
   expect(isBottomSection(section)).toBe(false);
+});
+
+test('Tabs declares a screen for each workspace route file in section order', () => {
+  const shell = readFileSync(join(__dirname, '../src/workspace/shell.tsx'), 'utf8');
+  const tabs = shell.match(/<Tabs\s[^]*?<\/Tabs>/)?.[0];
+  expect(tabs).toMatch(/\{sections\.map\(\(\{ section \}\) => <Tabs\.Screen key=\{section\} name=\{section\} \/>\)\}/);
+
+  const routeFiles = readdirSync(join(__dirname, '../app/(tabs)'))
+    .filter(file => /\.[jt]sx?$/.test(file) && !file.startsWith('_layout.'))
+    .map(file => file.replace(/\.[jt]sx?$/, ''));
+  expect(sections.map(({ section }) => section).sort()).toEqual(routeFiles.sort());
 });

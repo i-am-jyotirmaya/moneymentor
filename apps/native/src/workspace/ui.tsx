@@ -2,7 +2,7 @@ import { WorkspaceBannerVisible } from './banner';
 import { useOffline } from './connection';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useContext, useState, type ReactNode } from 'react';
-import { Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, styles } from '../ui/theme';
 import { Skeleton } from '../ui/Skeleton';
@@ -19,10 +19,21 @@ export const ws = StyleSheet.create({
   selected: { backgroundColor: colors.accentSoft },
   scrim: { flex: 1, backgroundColor: '#00000047', justifyContent: 'flex-end' },
 });
+export function iconGlyphSize(box: number, fontScale: number) {
+  return box / Math.max(fontScale, 1);
+}
+
+export function Icon({ name, tintColor = colors.accent }: { name: SymbolViewProps['name']; tintColor?: string }) {
+  const { fontScale } = useWindowDimensions();
+  return <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+    <SymbolView name={name} size={Platform.OS === 'android' ? iconGlyphSize(20, fontScale) : 20} style={{ width: 20, height: 20 }} tintColor={tintColor} />
+  </View>;
+}
+
 export function Action({ title, onPress, disabled = false, label, testID, selected = false, icon, hideLabel = false, filled = false, write = false }: { title: string; onPress: () => void; disabled?: boolean; label?: string; testID?: string; selected?: boolean; icon?: SymbolViewProps["name"]; hideLabel?: boolean; filled?: boolean; write?: boolean }) {
   const offline = useOffline();
   disabled = disabled || (write && offline);
-  return <Pressable testID={testID} accessibilityRole="button" accessibilityHint={write && offline ? "You're offline. Reconnect before making changes." : undefined} accessibilityLabel={label ?? title} accessibilityState={{ disabled, selected }} disabled={disabled} onPress={onPress} style={[ws.action, selected && ws.selected, filled && { backgroundColor: colors.accent }, disabled && { opacity: 0.45 }]}>{icon ? <SymbolView name={icon} size={20} tintColor={filled ? 'white' : colors.accent} /> : null}<Text style={[filled ? styles.buttonText : styles.link, { flexShrink: 1, textAlign: 'center' }, hideLabel && { display: 'none' }]}>{title}</Text></Pressable>;
+  return <Pressable testID={testID} accessibilityRole="button" accessibilityHint={write && offline ? "You're offline. Reconnect before making changes." : undefined} accessibilityLabel={label ?? title} accessibilityState={{ disabled, selected }} disabled={disabled} onPress={onPress} style={[ws.action, selected && ws.selected, filled && { backgroundColor: colors.accent }, disabled && { opacity: 0.45 }]}>{icon ? <Icon name={icon} tintColor={filled ? 'white' : colors.accent} /> : null}<Text style={[filled ? styles.buttonText : styles.link, { flexShrink: 1, textAlign: 'center' }, hideLabel && { display: 'none' }]}>{title}</Text></Pressable>;
 }
 export function Loading({ label = 'Loading content' }: { label?: string }) {
   return <Skeleton label={label} />;

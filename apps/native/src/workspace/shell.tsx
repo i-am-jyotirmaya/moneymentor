@@ -3,7 +3,7 @@ import { SectionsProvider, SectionBanner, SectionPanel, useSectionBanner } from 
 import { showNavLabels } from './section-state';
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode, type ComponentRef } from 'react';
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import type { SymbolViewProps } from 'expo-symbols';
 import { Image, Keyboard, KeyboardAvoidingView, Platform, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSession } from '../auth/session';
@@ -11,8 +11,8 @@ import { AndroidKeyboardFrame } from '../ui/AndroidKeyboardFrame';
 import { PrivacyPolicySheet } from '../ui/PrivacyPolicySheet';
 import { colors, styles } from '../ui/theme';
 import { WorkspaceProvider, useWorkspace } from './context';
-import { bottomLabel, bottomSections, isBottomSection, moreSections, sectionLabel, type Section } from './navigation';
-import { Action, ErrorNotice, Loading, ws } from './ui';
+import { bottomLabel, bottomSections, isBottomSection, moreSections, sectionLabel, sections, type Section } from './navigation';
+import { Action, ErrorNotice, Icon, Loading, ws } from './ui';
 
 const navIcons = {
   assistant: { android: 'smart_toy', ios: 'bubble.left' },
@@ -24,7 +24,7 @@ const navIcons = {
 function NavItem({ title, icon, selected, hideLabel, onPress, testID, expanded }: { title: string; icon: SymbolViewProps['name']; selected: boolean; hideLabel: boolean; onPress: () => void; testID: string; expanded?: boolean }) {
   return <Pressable accessibilityRole="tab" accessibilityLabel={title} accessibilityState={{ selected, expanded }} testID={testID} onPress={onPress}
     style={({ pressed }) => [chrome.navItem, selected && chrome.navItemActive, pressed && chrome.pressed]}>
-    <SymbolView name={icon} size={22} tintColor={selected ? 'white' : colors.muted} />
+    <Icon name={icon} tintColor={selected ? 'white' : colors.muted} />
     {!hideLabel ? <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.25} style={[chrome.navLabel, selected && chrome.navLabelActive]}>{title}</Text> : null}
   </Pressable>;
 }
@@ -91,7 +91,7 @@ function Shell() {
       <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={chrome.title}>{sectionLabel(active)}</Text>
       {households && households.households.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel={`Household, ${selected?.name ?? 'select household'}, ${selected?.canWrite ? 'can write' : 'read only'}`} accessibilityHint="Opens household switcher" accessibilityState={{ expanded: householdMenu }} testID="household-switcher" style={({ pressed }) => [chrome.household, pressed && chrome.pressed]} onPress={() => setHouseholdMenu(true)}>
         <View style={chrome.householdLabel}><Text numberOfLines={1} style={chrome.householdName}>{selected?.name ?? 'Household'}</Text><Text numberOfLines={1} style={ws.small}>{selected?.canWrite ? 'Can write' : 'Read only'}</Text></View>
-        <SymbolView name={{ android: 'expand_more', ios: 'chevron.down' }} size={16} tintColor={colors.muted} />
+        <Icon name={{ android: 'expand_more', ios: 'chevron.down' }} tintColor={colors.muted} />
       </Pressable> : null}
     </View>
     <SectionBanner banner={banner} />
@@ -99,7 +99,9 @@ function Shell() {
       <KeyboardAvoidingView style={ws.fill} behavior={Platform.OS === 'ios' && active !== 'assistant' ? 'padding' : undefined} keyboardVerticalOffset={keyboardOffset}>
         {/* Tabs keeps visited screens mounted. Keep the navigator mounted even if a section is temporarily blocked. */}
         <View style={ws.fill} importantForAccessibility={blocked ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={blocked}>
-          <Tabs backBehavior="history" tabBar={() => null} screenOptions={{ headerShown: false, lazy: true, animation: 'fade', sceneStyle: { backgroundColor: colors.background } }} />
+          <Tabs backBehavior="initialRoute" tabBar={() => null} screenOptions={{ headerShown: false, lazy: true, animation: 'fade', sceneStyle: { backgroundColor: colors.background } }}>
+            {sections.map(({ section }) => <Tabs.Screen key={section} name={section} />)}
+          </Tabs>
         </View>
         {blocked ? <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}><SectionPanel section={section} /></View> : null}
       </KeyboardAvoidingView>
