@@ -1,9 +1,19 @@
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, usePathname } from "expo-router";
-import { useEffect } from "react";
+import * as SplashScreen from "expo-splash-screen";
+import { useContext, useEffect } from "react";
 import { BackHandler } from "react-native";
+import { SafeAreaInsetsContext } from "react-native-safe-area-context";
 import { backAction } from "../src/lib/back-policy";
 import { SessionProvider, useSession } from "../src/auth/session";
+import { appFonts } from "../src/ui/fonts";
+import { ThemeProvider } from "../src/ui/ThemeProvider";
+import { ToastProvider } from "../src/ui/Toast";
+import { DOCK_SPACE } from "../src/workspace/dock";
 import { colors } from "../src/ui/theme";
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function Navigation() {
   const { status } = useSession();
@@ -31,5 +41,23 @@ function Navigation() {
   return <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }} />;
 }
 export default function RootLayout() {
-  return <SessionProvider><Navigation /></SessionProvider>;
+  const bottomInset = useContext(SafeAreaInsetsContext)?.bottom ?? 0;
+  const [loaded, error] = useFonts(appFonts);
+  useEffect(() => {
+    if (loaded || error) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [loaded, error]);
+
+  if (!loaded && !error) return null;
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <ToastProvider bottomOffset={bottomInset + DOCK_SPACE}>
+          <SessionProvider><Navigation /></SessionProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
+  );
 }

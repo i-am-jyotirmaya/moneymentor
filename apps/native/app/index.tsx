@@ -4,10 +4,11 @@ import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandTile, Button, RegistrationLink } from "../src/ui/AuthForm";
 import { Skeleton } from "../src/ui/Skeleton";
-import { colors, styles } from "../src/ui/theme";
-import { useSession } from "../src/auth/session";
 
-export default function Index() {
+import { useSession } from "../src/auth/session";
+import { useLegacy } from '../src/workspace/legacy-styles';
+
+export default function Index() { const { styles, colors } = useLegacy();
   const { client, status } = useSession();
   const router = useRouter();
   const [ready, setReady] = useState(false);

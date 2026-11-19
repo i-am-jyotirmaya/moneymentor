@@ -6,8 +6,8 @@ import { remainingKeyboardOverlap } from '../src/ui/AndroidKeyboardFrame';
 
 const source = (path: string) => readFileSync(join(__dirname, '..', path), 'utf8');
 
-test('Slice accent and shared form targets meet the mobile design tokens', () => {
-  expect(colors.accent).toBe('#0B7A4E');
+test('Cobalt Slice accent and shared form targets meet the mobile design tokens', () => {
+  expect(colors.accent).toBe('#2944D4');
   for (const style of [styles.input, styles.button, styles.linkTarget]) {
     expect(StyleSheet.flatten(style)?.minWidth).toBeGreaterThanOrEqual(48);
     expect(StyleSheet.flatten(style)?.minHeight).toBeGreaterThanOrEqual(48);

@@ -6,12 +6,15 @@ import type { HouseholdRole } from '../../src/api/workspace-models';
 import { useSession } from '../../src/auth/session';
 import { formatDate } from '../../src/lib/format';
 import { Button, Field } from '../../src/ui/AuthForm';
-import { styles } from '../../src/ui/theme';
+
 import { useWorkspace } from '../../src/workspace/context';
 import { canCreateHousehold, canEditReportSettings, canListSentInvitations, canManageHousehold, invitationValidation, reportingValidation } from '../../src/workspace/household-data';
-import { Action, Choice, ErrorNotice, Loading, Panel, ws } from '../../src/workspace/ui';
+import { Action, ErrorNotice, Loading, Panel } from '../../src/workspace/ui';
+import { Choice } from '../../src/workspace/choice';
+import { useLegacy } from '../../src/workspace/legacy-styles';
+import { useDockSpace } from '../../src/workspace/dock';
 
-export default function Household() {
+export default function Household() { const { styles, ws } = useLegacy(); const dock = useDockSpace();
   const { client } = useSession();
   const offline = useOffline();
   const { households, householdId, setHouseholdId, retry } = useWorkspace();
@@ -44,7 +47,7 @@ export default function Household() {
     finally { lock.current = false; setBusy(false); }
   }
   if (!households || section.blocked || section.loading) return <SectionPanel section={section} />;
-  return <ScrollView testID="household-screen" keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}>
+  return <ScrollView testID="household-screen" keyboardShouldPersistTaps="handled" style={ws.fill} contentContainerStyle={[ws.content, { paddingBottom: dock + 24 }]}>
     <Panel title="Household"><Text style={styles.text}>Personal is the default scope. Premium entitlement is managed by Spndrr support.</Text><Text style={styles.link}>{households.plan}</Text>
       {notice ? <Text accessibilityLiveRegion="polite" style={styles.text}>{notice}</Text> : null}
       <ErrorNotice error={error} retry={() => { setError(null); section.retry(); }} />

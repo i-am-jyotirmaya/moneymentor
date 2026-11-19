@@ -49,3 +49,42 @@ export function categoryRows(categories: Category[], income: boolean, query = ''
   const search = query.trim().toLocaleLowerCase();
   return search ? rows.filter(r => r.path.toLocaleLowerCase().includes(search) || rows.some(child => child.path.startsWith(`${r.path} › `) && child.path.toLocaleLowerCase().includes(search))) : rows;
 }
+
+// --- Cobalt Slice transactions list (B2) -----------------------------------------------------
+export type TxFilter = 'all' | 'expenses' | 'income' | 'transfers';
+export function matchesFilter(t: Transaction, filter: TxFilter) {
+  if (filter === 'all') return true;
+  if (filter === 'income') return t.type === 'Income';
+  if (filter === 'transfers') return t.type === 'Transfer';
+  return t.type === 'Expense' || t.type === 'Investment';
+}
+export function filterCounts(items: Transaction[]) {
+  return { all: items.length, expenses: items.filter(t => matchesFilter(t, 'expenses')).length,
+    income: items.filter(t => matchesFilter(t, 'income')).length, transfers: items.filter(t => matchesFilter(t, 'transfers')).length };
+}
+/** Signed day impact: income +, spend −, transfers neutral. */
+export function signedImpact(t: Transaction) {
+  if (t.type === 'Transfer') return 0;
+  return t.type === 'Income' ? Math.abs(t.amount) : -Math.abs(t.amount);
+}
+export function dayKey(value: string) { return value.slice(0, 10); }
+export function dayLabel(key: string, today: string) {
+  const [y, m, d] = key.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const [ty, tm, td] = today.split('-').map(Number);
+  const diff = Math.round((Date.UTC(ty, tm - 1, td) - date.getTime()) / 86_400_000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date);
+}
+/** Newest day first, preserving the API's order inside a day. */
+export function groupByDay(items: Transaction[], today: string) {
+  const groups = new Map<string, Transaction[]>();
+  for (const t of items) {
+    const key = dayKey(t.transactionDate);
+    groups.set(key, [...(groups.get(key) ?? []), t]);
+  }
+  return [...groups.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([key, list]) => ({
+    key, label: dayLabel(key, today), total: list.reduce((sum, t) => sum + signedImpact(t), 0), items: list,
+  }));
+}

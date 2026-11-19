@@ -28,7 +28,8 @@ export function formatDate(value: string) {
 }
 
 export function getCurrentMonthKey() {
-  return new Date().toISOString().slice(0, 7);
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export function shiftMonthKey(month: string, offset: number) {
@@ -58,3 +59,47 @@ export function getMonthOptions(selectedMonth: string) {
   return Array.from(options).sort((left, right) => right.localeCompare(left));
 }
 
+type InrOptions = { sign?: "auto" | "always" | "never"; compact?: boolean };
+
+const inrDigits = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+const compactInrDigits = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1 });
+const inrUnits = [
+  { threshold: 10_000_000, suffix: "Cr" },
+  { threshold: 100_000, suffix: "L" },
+  { threshold: 1_000, suffix: "K" },
+];
+
+export function formatInr(value: number, opts?: InrOptions): string {
+  let sign = "";
+  if (value < 0 && opts?.sign !== "never") sign = "−";
+  if (value > 0 && opts?.sign === "always") sign = "+";
+
+  const amount = Math.abs(value);
+  const unit = opts?.compact ? inrUnits.find(({ threshold }) => amount >= threshold) : undefined;
+  const digits = unit
+    ? compactInrDigits.format(amount / unit.threshold) + unit.suffix
+    : inrDigits.format(amount);
+  return `${sign}₹${digits}`;
+}
+
+export function spokenInr(value: number, opts?: InrOptions): string {
+  const formatted = formatInr(value, opts);
+  if (formatted.startsWith("−")) return `minus ${formatted.slice(1)}`;
+  if (formatted.startsWith("+")) return `plus ${formatted.slice(1)}`;
+  return formatted;
+}
+
+const percentDigits = new Intl.NumberFormat("en-IN", { useGrouping: false, maximumFractionDigits: 1 });
+
+export function formatPercent(value: number, opts?: { sign?: "auto" | "always" | "never" }): string {
+  const digits = percentDigits.format(Math.abs(value));
+  let sign = "";
+  if (digits !== "0" && value < 0 && opts?.sign !== "never") sign = "−";
+  if (digits !== "0" && value > 0 && opts?.sign === "always") sign = "+";
+  return `${sign}${digits}%`;
+}
+
+export function spokenPercent(value: number): string {
+  const digits = formatPercent(value).slice(0, -1);
+  return `${digits.startsWith("−") ? `minus ${digits.slice(1)}` : digits} percent`;
+}
