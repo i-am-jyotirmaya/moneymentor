@@ -58,3 +58,33 @@ export function getMonthOptions(selectedMonth: string) {
   return Array.from(options).sort((left, right) => right.localeCompare(left));
 }
 
+type InrOptions = { sign?: "auto" | "always" | "never"; compact?: boolean };
+
+const inrDigits = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+const compactInrDigits = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1 });
+const inrUnits = [
+  { threshold: 10_000_000, suffix: "Cr" },
+  { threshold: 100_000, suffix: "L" },
+  { threshold: 1_000, suffix: "K" },
+];
+
+export function formatInr(value: number, opts?: InrOptions): string {
+  let sign = "";
+  if (value < 0 && opts?.sign !== "never") sign = "−";
+  if (value > 0 && opts?.sign === "always") sign = "+";
+
+  const amount = Math.abs(value);
+  const unit = opts?.compact ? inrUnits.find(({ threshold }) => amount >= threshold) : undefined;
+  const digits = unit
+    ? compactInrDigits.format(amount / unit.threshold) + unit.suffix
+    : inrDigits.format(amount);
+  return `${sign}₹${digits}`;
+}
+
+export function spokenInr(value: number, opts?: InrOptions): string {
+  const formatted = formatInr(value, opts);
+  if (formatted.startsWith("−")) return `minus ${formatted.slice(1)}`;
+  if (formatted.startsWith("+")) return `plus ${formatted.slice(1)}`;
+  return formatted;
+}
+
