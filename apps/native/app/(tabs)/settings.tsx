@@ -2,19 +2,24 @@ import { useSectionLoad, SectionPanel } from '../../src/workspace/sections';
 import { useOffline } from '../../src/workspace/connection';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
+import { Badge, Card, ListRow, Segmented, useTheme } from '../../src/ui';
+import type { ThemePreference } from '../../src/ui/ThemeProvider';
 import { Linking, ScrollView, Share, Switch, Text, View } from 'react-native';
 import type { UserSettings } from '../../src/api/models';
 import { useSession } from '../../src/auth/session';
 import { Button, Field } from '../../src/ui/AuthForm';
 import { PrivacyPolicySheet } from '../../src/ui/PrivacyPolicySheet';
-import { styles } from '../../src/ui/theme';
+
 import { useWorkspace } from '../../src/workspace/context';
 import { FinancialAccounts } from '../../src/workspace/financial-accounts';
 import { reportingValidation } from '../../src/workspace/household-data';
 import { canDeleteAccount, settingsPayload } from '../../src/workspace/settings-data';
-import { Action, Choice, ErrorNotice, Loading, Panel, ws } from '../../src/workspace/ui';
+import { Action, ErrorNotice, Loading, Panel } from '../../src/workspace/ui';
+import { Choice } from '../../src/workspace/choice';
+import { useLegacy } from '../../src/workspace/legacy-styles';
+import { useDockSpace } from '../../src/workspace/dock';
 
-export default function Settings() {
+export default function Settings() { const { styles, ws } = useLegacy(); const theme = useTheme(); const dock = useDockSpace();
   const { client, session } = useSession();
   const offline = useOffline();
   const { householdId, households, retry } = useWorkspace();
@@ -60,8 +65,21 @@ export default function Settings() {
     finally { privacyLock.current = false; setPrivacyWorking(false); }
   }
   if (!form && (section.blocked || section.loading)) return <SectionPanel section={section} />;
-  return <><ScrollView testID="settings-screen" keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}>
+  return <><ScrollView testID="settings-screen" keyboardShouldPersistTaps="handled" style={ws.fill} contentContainerStyle={[ws.content, { paddingBottom: dock + 24 }]}>
     <ErrorNotice error={error} retry={() => { setError(''); section.retry(); }} />
+    <Text style={ws.small}>APPEARANCE</Text>
+    <Card padding={0} testID="settings-appearance">
+      <View style={{ padding: 16 }}><Segmented<ThemePreference> label="Appearance" value={theme.preference} onChange={theme.setPreference}
+        options={[{ key: 'system', label: 'System' }, { key: 'light', label: 'Light' }, { key: 'dark', label: 'Dark' }]} /></View>
+    </Card>
+    <Text style={ws.small}>PRIVACY</Text>
+    <Card padding={0}>
+      <ListRow icon={{ android: 'download', ios: 'square.and.arrow.down' }} title="Export my data" trailing="chevron" onPress={() => void privacy('export')} />
+      <ListRow icon={{ android: 'description', ios: 'doc.text' }} title="Privacy policy" trailing="chevron" onPress={() => setPolicy(true)} />
+    </Card>
+    {__DEV__ ? <><View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Text style={ws.small}>DEVELOPER</Text><Badge tone="dev" label="DEV BUILDS ONLY" /></View>
+      <Card padding={0}><ListRow icon={{ android: 'terminal', ios: 'terminal' }} title="Developer menu" trailing="chevron" onPress={openDevMenu} />
+        <ListRow icon={{ android: 'dns', ios: 'server.rack' }} title="API server" value={process.env.EXPO_PUBLIC_API_BASE_URL ?? 'default'} /></Card></> : null}
     {!form ? <Loading label="Loading settings" /> : <>
       <Panel title="Settings"><Text style={styles.text}>Personalize your tracking preferences.</Text>
         <Field label="Default currency" testID="settings-currency" maxLength={3} value={form.currencyCode} onChangeText={currencyCode => setForm({ ...form, currencyCode: currencyCode.toUpperCase() })} />
@@ -79,4 +97,9 @@ export default function Settings() {
       void client.logout().catch(() => undefined).finally(() => { router.replace('/(auth)/login'); setBusy(false); });
     }} /></Panel>
   </ScrollView><PrivacyPolicySheet visible={policy} onClose={() => setPolicy(false)} /></>;
+}
+
+function openDevMenu() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- dev-only native module, absent from release bundles
+  try { (require('expo-dev-client') as { openMenu(): void }).openMenu(); } catch { /* not a dev client */ }
 }

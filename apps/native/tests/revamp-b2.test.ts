@@ -1,6 +1,6 @@
 import type { Transaction } from '../src/api/models';
-import { donutRows } from '../src/ui/stubs/charts';
-import { inrWorklet } from '../src/ui/stubs/inr';
+import { donutRows } from '../src/ui/charts/chartMath';
+import { inrWorklet } from '../src/ui/countUpFormat';
 import { hasConversation, initialAssistantMessages, userMessage } from '../src/workspace/assistant-data';
 import { expenseSlices, goalProgress, goalRingStatus, heroLabel, savingsDelta } from '../src/workspace/dashboard-data';
 import { CURRENT_MONTH_STALE_MS, isStale, monthlyKey, toTrendPoint, trendMonthKeys } from '../src/workspace/monthly-trend';

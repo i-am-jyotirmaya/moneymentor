@@ -7,12 +7,13 @@ import type { Transaction } from '../../src/api/models';
 import { useSession } from '../../src/auth/session';
 import { formatDate, formatMoney, formatMonthKey, getCurrentMonthKey, getMonthOptions, shiftMonthKey } from '../../src/lib/format';
 import { Money } from '../../src/ui/Money';
-import { Card, EmptyState, FilterChips, Icon, PressableScale, TxRow, useThemedStyles, type IconName } from '../../src/ui/stubs';
+import { Card, EmptyState, FilterChips, Icon, PressableScale, TxRow, useThemedStyles, type IconName } from '../../src/ui';
 import { useTheme, type ThemeValue } from '../../src/ui/ThemeProvider';
 import { useDockSpace } from '../../src/workspace/dock';
 import { fetchMonthly } from '../../src/workspace/monthly-trend';
 import { useWorkspace } from '../../src/workspace/context';
-import { Action, Choice, ErrorNotice, Loading } from '../../src/workspace/ui';
+import { Action, ErrorNotice, Loading } from '../../src/workspace/ui';
+import { Choice } from '../../src/workspace/choice';
 import { buildTransactionPatch, filterCounts, groupByDay, matchesFilter, toTransactionEditForm, validateTransactionEdit, type TransactionEditForm, type TxFilter } from '../../src/workspace/transactions-data';
 import { TransactionEditor } from '../../src/workspace/transaction-editor';
 

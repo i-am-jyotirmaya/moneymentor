@@ -1,30 +1,30 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TextInput, View } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { Keyboard, ScrollView, Text, TextInput, View } from 'react-native';
+import { IconButton } from '../ui/IconButton';
+import { Sheet } from '../ui/Sheet';
+import { Button as FormButton } from '../ui/AuthForm';
 import type { CategoryCatalog, EventKind, FinancialAccount, PaymentChannel, Transaction, Visibility } from '../api/models';
 import { useSession } from '../auth/session';
-import { AndroidKeyboardFrame } from '../ui/AndroidKeyboardFrame';
-import { styles } from '../ui/theme';
-import { formatTone } from '../lib/format';
-import { Action, Choice, ErrorNotice, ws } from './ui';
-import { categoryRows, isIncomeKind, isTransferKind, type TransactionEditForm } from './transactions-data';
 
-function EditorSheet({ children, onClose, visible = true, maxHeight = '85%' }: { children: ReactNode; onClose: () => void; visible?: boolean; maxHeight?: '85%' | '90%' }) {
-  return <Modal visible={visible} transparent animationType="slide" onRequestClose={() => { Keyboard.dismiss(); onClose(); }}>
-    <SafeAreaProvider><AndroidKeyboardFrame><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={ws.scrim}><SafeAreaView accessibilityViewIsModal edges={['left', 'right', 'bottom']} style={{ maxHeight, backgroundColor: 'white' }}>{children}</SafeAreaView></View>
-    </KeyboardAvoidingView></AndroidKeyboardFrame></SafeAreaProvider>
-  </Modal>;
+import { formatTone } from '../lib/format';
+import { Action, ErrorNotice } from './ui';
+import { Choice } from './choice';
+import { categoryRows, isIncomeKind, isTransferKind, type TransactionEditForm } from './transactions-data';
+import { useLegacy } from './legacy-styles';
+
+/** A4 Sheet (focus trap, Back closes, sticky footer). */
+function EditorSheet({ children, onClose, visible = true, title, footer, testID }: { children: ReactNode; onClose: () => void; visible?: boolean; title: string; footer?: ReactNode; testID?: string }) {
+  return <Sheet open={visible} onClose={() => { Keyboard.dismiss(); onClose(); }} title={title} snap="tall" footer={footer} testID={testID}>{children}</Sheet>;
 }
 
 function AccountChoice({ label, value, options, disabled, onChange }: {
   label: string; value: string; options: { value: string; label: string }[]; disabled: boolean; onChange: (value: string) => void;
-}) {
+}) { const { styles, ws } = useLegacy();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const matches = options.filter(option => option.label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const close = () => { Keyboard.dismiss(); setOpen(false); };
-  return <><Action title={options.find(option => option.value === value)?.label ?? value} label={label} disabled={disabled} onPress={() => { Keyboard.dismiss(); setQuery(''); setOpen(true); }} /><EditorSheet visible={open} onClose={close}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}><Text style={ws.heading}>{label}</Text><TextInput style={styles.input} accessibilityLabel={`Search ${label.toLowerCase()}`} placeholder="Search options" value={query} onChangeText={setQuery} />{matches.map(option => <Action key={option.value} title={option.label} selected={value === option.value} onPress={() => { onChange(option.value); close(); }} />)}{!matches.length ? <Text style={styles.text}>No matching options.</Text> : null}<Action title="Close" onPress={close} /></ScrollView></EditorSheet></>;
+  return <><Action title={options.find(option => option.value === value)?.label ?? value} label={label} disabled={disabled} onPress={() => { Keyboard.dismiss(); setQuery(''); setOpen(true); }} /><EditorSheet visible={open} onClose={close} title={label}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}><TextInput style={styles.input} accessibilityLabel={`Search ${label.toLowerCase()}`} placeholder="Search options" value={query} onChangeText={setQuery} />{matches.map(option => <Action key={option.value} title={option.label} selected={value === option.value} onPress={() => { onChange(option.value); close(); }} />)}{!matches.length ? <Text style={styles.text}>No matching options.</Text> : null}<Action title="Close" onPress={close} /></ScrollView></EditorSheet></>;
 }
 
 export function TransactionEditor({ transaction, catalog, form, setForm, saving, error, close, save, onDelete }: {
@@ -32,7 +32,7 @@ export function TransactionEditor({ transaction, catalog, form, setForm, saving,
   saving: boolean; error: string | null; close: () => void; save: () => void;
   /** D5: Delete lives at the bottom of the editor (the row itself is a single tap target). */
   onDelete?: () => void;
-}) {
+}) { const { styles, ws } = useLegacy();
   const { client } = useSession();
   const [attempt, setAttempt] = useState(0);
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
@@ -52,9 +52,13 @@ export function TransactionEditor({ transaction, catalog, form, setForm, saving,
   const rows = categoryRows(catalog?.categories ?? [], income, search);
   const closeEditor = () => { Keyboard.dismiss(); close(); };
   const closeCategory = () => { Keyboard.dismiss(); setCategoryOpen(false); };
-  return <EditorSheet onClose={closeEditor} maxHeight="90%">
-    <View style={ws.content}><View style={ws.row}><Text style={ws.heading}>Edit transaction</Text><Action title="×" label="Close transaction editor" onPress={closeEditor} /></View><Text style={styles.text}>Last edited by {transaction.updatedByDisplayName ?? 'Spndrr'}</Text></View>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}>
+  const footer = <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+    {onDelete ? <View testID="transaction-edit-delete" collapsable={false}><IconButton icon={{ android: 'delete', ios: 'trash' }} label="Delete transaction" variant="tonal" onPress={() => { if (!saving) onDelete(); }} /></View> : null}
+    <View style={{ flex: 1 }}><FormButton write testID="transaction-edit-save" title="Save changes" loading={saving} disabled={saving} onPress={save} /></View>
+  </View>;
+  return <EditorSheet onClose={closeEditor} title="Edit transaction" footer={footer} testID="transaction-editor">
+    <View style={[ws.content, { paddingTop: 0 }]}><Text style={styles.text}>Last edited by {transaction.updatedByDisplayName ?? 'Spndrr'}</Text></View>
+    <View style={ws.content}>
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       <Text style={styles.label}>Financial event</Text><Choice label="Financial event" value={form.kind} disabled={saving || !!transaction.relatedTransactionId || ['Refund', 'Reversal'].includes(form.kind)} options={options(['Purchase', 'Income', 'Transfer', 'CreditCardPayment', 'Cashback', 'Fee', 'Interest', 'CashWithdrawal', 'Investment', ...(['Refund', 'Reversal'].includes(form.kind) ? [form.kind] : [])])} onChange={value => setForm({ ...form, kind: value as EventKind, categoryId: null, categoryName: '', counterpartyAccountId: null })} />
       <Text style={styles.label}>{transfer ? 'Source account (optional)' : 'Account (optional)'}</Text><AccountChoice label={transfer ? 'Source account (optional)' : 'Account (optional)'} value={form.accountId ?? ''} disabled={saving || !!accountError} options={accountOptions()} onChange={value => setForm({ ...form, accountId: value || null })} />
@@ -66,8 +70,7 @@ export function TransactionEditor({ transaction, catalog, form, setForm, saving,
       {income ? <>{field('Sender', 'senderName')}{field('Reason', 'reason')}</> : <>{field('Merchant', 'merchantName')}{field('Description', 'description')}</>}
       {field('Transaction date', 'transactionDate')}
       <Text style={styles.label}>Visibility</Text><Choice label="Visibility" value={form.visibility} disabled={saving} options={options(['Private', 'Household'])} onChange={value => setForm({ ...form, visibility: value as Visibility })} />
-    <View style={ws.content}><Action write testID="transaction-edit-save" title={saving ? 'Saving...' : 'Save transaction'} disabled={saving} onPress={save} />{onDelete ? <Action write testID="transaction-edit-delete" title="Delete transaction" label="Delete transaction" disabled={saving} onPress={onDelete} /> : null}</View>
-    </ScrollView>
-    <EditorSheet visible={categoryOpen} onClose={closeCategory}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}><Text style={ws.heading}>Category</Text><TextInput accessibilityLabel="Search categories" placeholder="Search a category or group" value={search} onChangeText={setSearch} style={styles.input} />{rows.map(row => <View key={row.value} style={{ paddingLeft: row.depth * 16 }}>{row.selectable ? <Action title={row.label} onPress={() => { setForm({ ...form, categoryId: row.value, categoryName: row.label }); closeCategory(); setSearch(''); }} /> : <Text style={styles.label}>{row.label}</Text>}</View>)}{!rows.some(row => row.selectable) ? <Text style={styles.text}>{categoryRows(catalog?.categories ?? [], income).some(row => row.selectable) ? 'No matching categories. Try another search.' : 'No categories available. Your current category will be kept.'}</Text> : null}<Action title="Close" onPress={closeCategory} /></ScrollView></EditorSheet>
+    </View>
+    <EditorSheet visible={categoryOpen} onClose={closeCategory} title="Category"><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}><TextInput accessibilityLabel="Search categories" placeholder="Search a category or group" value={search} onChangeText={setSearch} style={styles.input} />{rows.map(row => <View key={row.value} style={{ paddingLeft: row.depth * 16 }}>{row.selectable ? <Action title={row.label} onPress={() => { setForm({ ...form, categoryId: row.value, categoryName: row.label }); closeCategory(); setSearch(''); }} /> : <Text style={styles.label}>{row.label}</Text>}</View>)}{!rows.some(row => row.selectable) ? <Text style={styles.text}>{categoryRows(catalog?.categories ?? [], income).some(row => row.selectable) ? 'No matching categories. Try another search.' : 'No categories available. Your current category will be kept.'}</Text> : null}<Action title="Close" onPress={closeCategory} /></ScrollView></EditorSheet>
   </EditorSheet>;
 }

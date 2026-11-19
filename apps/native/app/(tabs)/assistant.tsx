@@ -3,10 +3,13 @@ import { useSectionLoad, useSections, useSectionBanner } from '../../src/workspa
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeInDown, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import type { CategoryCatalog, Transaction } from '../../src/api/models';
+import { TransactionEditor } from '../../src/workspace/transaction-editor';
+import { buildTransactionPatch, toTransactionEditForm, validateTransactionEdit, type TransactionEditForm } from '../../src/workspace/transactions-data';
 import { useSession } from '../../src/auth/session';
 import { PlaceholderInput } from '../../src/ui/AuthForm';
-import { Chip, Icon, PressableScale, TxRow, useThemedStyles, type IconName } from '../../src/ui/stubs';
+import { Chip, Icon, PressableScale, TxRow, useThemedStyles, type IconName } from '../../src/ui';
 import { useTheme, type ThemeValue } from '../../src/ui/ThemeProvider';
 import { useDockSpace } from '../../src/workspace/dock';
 import { useWorkspace } from '../../src/workspace/context';
@@ -36,7 +39,6 @@ function AssistantChat() {
   const theme = useTheme();
   const s = useThemedStyles(makeStyles);
   const dock = useDockSpace();
-  const router = useRouter();
   // Dashboard "Add" / "Ask" (and the Transactions FAB) open this tab with the composer focused.
   // Each request carries a fresh `at`, so the input remounts focused even when the mode repeats.
   const { compose, at } = useLocalSearchParams<{ compose?: string; at?: string }>();
@@ -60,6 +62,27 @@ function AssistantChat() {
       if (result.transaction) workspace.retry();
       if (alive.current) setMessages(current => [...current, responseMessage(result)]);
     } catch (caught) { if (alive.current) setError(assistantError(caught)); }
+    finally { lock.current = false; if (alive.current) setBusy(false); }
+  }
+  const [editor, setEditor] = useState<{ index: number; transaction: Transaction; form: TransactionEditForm; catalog: CategoryCatalog | null } | null>(null);
+  const [editorError, setEditorError] = useState<string | null>(null);
+  function openEditor(index: number) {
+    const tx = messages[index]?.transaction;
+    if (!tx) return;
+    setEditorError(null);
+    setEditor({ index, transaction: tx, form: toTransactionEditForm(tx), catalog: null });
+    void client.categories(tx.householdId).then(catalog => setEditor(current => current && current.transaction.id === tx.id ? { ...current, catalog } : current)).catch(() => undefined);
+  }
+  async function saveEditor() {
+    if (!editor || offline || lock.current) return;
+    const invalid = validateTransactionEdit(editor.form);
+    if (invalid) { setEditorError(invalid); return; }
+    lock.current = true; setBusy(true); setEditorError(null);
+    try {
+      const updated = await client.updateTransaction(editor.transaction.id, buildTransactionPatch(editor.transaction, editor.form));
+      workspace.retry();
+      if (alive.current) { setMessages(current => current.map((m, i) => i === editor.index ? { ...m, transaction: updated } : m)); setEditor(null); }
+    } catch (caught) { if (alive.current) setEditorError(assistantError(caught)); }
     finally { lock.current = false; if (alive.current) setBusy(false); }
   }
   async function undoLogged(index: number) {
@@ -93,7 +116,7 @@ function AssistantChat() {
                 ? <View style={s.confirm} accessibilityLiveRegion="polite"><Icon name={{ android: 'undo', ios: 'arrow.uturn.backward' }} size={18} color={theme.color.text2} /><Text style={[s.confirmText, { color: theme.color.text2 }]}>Removed from Transactions</Text></View>
                 : <><View style={s.confirm} accessibilityLiveRegion="polite"><Icon name={{ android: 'check_circle', ios: 'checkmark.circle.fill' }} size={18} color={theme.color.income} /><Text style={s.confirmText}>Added to Transactions</Text></View>
                   <View style={s.cardActions}>
-                    <SmallButton icon={{ android: 'edit', ios: 'pencil' }} label="Edit" onPress={() => router.navigate('/(tabs)/transactions')} />
+                    <SmallButton icon={{ android: 'edit', ios: 'pencil' }} label="Edit" disabled={busy || offline} onPress={() => openEditor(index)} />
                     <SmallButton icon={{ android: 'undo', ios: 'arrow.uturn.backward' }} label="Undo" disabled={busy || offline} onPress={() => void undoLogged(index)} />
                   </View></>}
               {message.text ? <Text style={s.assistantText}>{message.text}</Text> : null}
@@ -108,6 +131,8 @@ function AssistantChat() {
         </Pressable>
       </View></View>
     </KeyboardAvoidingView>
+    {editor ? <TransactionEditor transaction={editor.transaction} catalog={editor.catalog} form={editor.form} setForm={form => setEditor({ ...editor, form })} saving={busy} error={editorError}
+      close={() => setEditor(null)} save={() => void saveEditor()} onDelete={() => { const index = editor.index; setEditor(null); void undoLogged(index); }} /> : null}
   </View>;
 }
 function Example({ text, icon, onPress }: { text: string; icon: IconName; onPress: () => void }) {
