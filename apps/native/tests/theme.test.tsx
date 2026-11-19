@@ -92,3 +92,11 @@ test('ThemeProvider follows the system scheme and font scale unless preference o
 test('useTheme defaults to light tokens outside a provider', () => {
   expect(renderToStaticMarkup(<ThemeProbe />)).toBe('<span>light/system/1</span>');
 });
+
+test('status bar content contrasts with the resolved scheme', () => {
+  const { statusBarStyleFor } = jest.requireActual<typeof import('../src/ui/ThemeProvider')>(
+    '../src/ui/ThemeProvider',
+  );
+  expect(statusBarStyleFor('light')).toBe('dark-content');
+  expect(statusBarStyleFor('dark')).toBe('light-content');
+});

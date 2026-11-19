@@ -2,6 +2,8 @@
 // spndrr revamp "Cobalt Slice" tokens. NATIVE-FIRST. Status: Engineering Lead review PASS (Nov 19); Jyotirmaya decided Assistant naming, dark icon, net-kept hero, Inter Tight (Nov 19). Not marked approved overall.
 // Drop-in for apps/native/src/ui/theme.ts (keep the old `colors`/`styles` exports until screens migrate).
 // Fonts: @expo-google-fonts/inter (400/500/600/700) and @expo-google-fonts/inter-tight (600/700), loaded with expo-font.
+
+import type { ViewStyle } from 'react-native';
 import { StyleSheet } from "react-native";
 
 export const ref = {
@@ -351,7 +353,9 @@ export const motion = {
   'staggerMax': 8
 } as const;
 
-const lightElevation = {
+export type ElevationLevel = 'level0' | 'level1' | 'level2' | 'hero' | 'sheet';
+export type ElevationStyle = Pick<ViewStyle, 'boxShadow' | 'elevation' | 'shadowColor' | 'shadowOpacity' | 'shadowRadius' | 'shadowOffset' | 'borderWidth' | 'borderColor'>;
+const lightElevation: Record<ElevationLevel, ElevationStyle> = {
   'level0': {
     'elevation': 0
   },
@@ -400,7 +404,7 @@ const lightElevation = {
     }
   }
 };
-const darkElevation = {
+const darkElevation: Record<ElevationLevel, ElevationStyle> = {
   'level0': {
     'elevation': 0
   },
@@ -521,15 +525,14 @@ export type Theme = {
   scheme: 'light' | 'dark';
   color: typeof lightColors;
   category: readonly string[];
-  elevation: typeof lightElevation;
+  elevation: Record<ElevationLevel, ElevationStyle>;
   gradient: typeof lightGradients;
 };
 
 const cats = (c: typeof lightColors) => [c.cat1, c.cat2, c.cat3, c.cat4, c.cat5, c.cat6, c.cat7, c.cat8] as const;
 
 export const lightTheme: Theme = { scheme: 'light', color: lightColors, category: cats(lightColors), elevation: lightElevation, gradient: lightGradients };
-// @ts-expect-error The generated dark elevation levels omit light-only shadow fields.
-export const darkTheme: Theme = { scheme: 'dark', color: darkColors, category: cats(darkColors), elevation: darkElevation as typeof lightElevation, gradient: darkGradients as typeof lightGradients };
+export const darkTheme: Theme = { scheme: 'dark', color: darkColors, category: cats(darkColors), elevation: darkElevation, gradient: darkGradients as typeof lightGradients };
 
 /** Linear-gradient angle (CSS deg) to start/end points for expo-linear-gradient. */
 export function gradientPoints(angle: number) {
