@@ -20,8 +20,12 @@ test("login posts credentials to the API without putting them in the URL", async
   await page.goto("/login");
 
   await expect(page.getByRole("button", { name: "Sign in" })).toHaveAttribute("type", "submit");
-  await expect(page.getByLabel("Email")).not.toHaveAttribute("name", /.+/);
-  await expect(page.getByLabel("Password")).not.toHaveAttribute("name", /.+/);
+  const email = page.getByLabel("Email");
+  const password = page.getByLabel("Password", { exact: true });
+  await expect(email).not.toHaveAttribute("name", /.+/);
+  await expect(password).not.toHaveAttribute("name", /.+/);
+  await expect(email).toHaveAttribute("autocomplete", "username");
+  await expect(password).toHaveAttribute("autocomplete", "current-password");
 
   const loginRequest = page.waitForRequest(
     (request) =>
@@ -29,8 +33,14 @@ test("login posts credentials to the API without putting them in the URL", async
       request.method() === "POST",
   );
 
-  await page.getByLabel("Email").fill("demo@example.com");
-  await page.getByLabel("Password").fill("dummy-secret");
+  await email.fill("demo@example.com");
+  await password.fill("dummy-secret");
+  const reveal = page.getByRole("button", { name: "Show password" });
+  await reveal.click();
+  await expect(reveal).toHaveAttribute("aria-pressed", "true");
+  await expect(password).toHaveAttribute("type", "text");
+  await reveal.click();
+  await expect(password).toHaveAttribute("type", "password");
   await page.getByRole("button", { name: "Sign in" }).click();
 
   const request = await loginRequest;
@@ -54,11 +64,11 @@ test("mobile login keeps the fresh access-token session without an immediate ref
 
   await page.goto("/login");
   await page.getByLabel("Email").fill("demo@example.com");
-  await page.getByLabel("Password").fill("dummy-secret");
+  await page.getByLabel("Password", { exact: true }).fill("dummy-secret");
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect(page).toHaveURL(new URL("/", baseURL).href);
-  await expect(page.getByRole("heading", { name: "What did you spend or receive?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Log it, or ask about it." })).toBeVisible();
   await expect(page.getByText("Sign in to use the assistant input workspace.")).toHaveCount(0);
   expect(refreshRequestCount).toBe(0);
 });
@@ -72,13 +82,46 @@ test("desktop dashboard is the default authenticated screen", async ({ page }, t
   await expect(page.getByText("Backend data")).toHaveCount(0);
   await expect(page.getByText("Income", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Spends", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Groceries", { exact: true }).first()).toBeVisible();
+  const hero = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Net kept" }) });
+  await expect(hero.getByText("−₹22,295", { exact: true }).first()).toBeVisible();
+  await expect(hero.getByText("No income", { exact: true })).toBeVisible();
+  const categories = page.getByRole("table", { name: "Spending by category" });
+  await expect(categories.getByRole("row", { name: /Groceries/ }).getByRole("cell", { name: "₹3,250" })).toBeVisible();
+  const actions = page.getByRole("navigation", { name: "Dashboard actions" });
+  await expect(actions.getByRole("link", { name: "Add" })).toHaveAttribute("href", "/assistant?compose=add");
+  await expect(actions.getByRole("link", { name: "Ask" })).toHaveAttribute("href", "/assistant?compose=ask");
   await expect(page.locator("article").filter({ hasText: "Paid rent" }).first()).toBeVisible();
   await expect(page.getByText("Mock data active")).toHaveCount(0);
   await testInfo.attach("desktop-dashboard", {
     body: await page.screenshot({ fullPage: false }),
     contentType: "image/png",
   });
+});
+
+test("dashboard shows signed category balances without a misleading share for refunds", async ({ page }) => {
+  await page.route("**/api/dashboard/monthly?**", (route) => json(route, {
+    month: currentMonthKey,
+    monthLabel: formatMonthKey(currentMonthKey),
+    currencyCode: "INR",
+    income: 2000,
+    spends: 2400,
+    saved: -400,
+    savingsRate: -20,
+    categories: [
+      { name: "Rent", amount: 2600, budget: null, tone: "Watch", note: "" },
+      { name: "Groceries", amount: -200, budget: null, tone: "Healthy", note: "Net refunds" },
+    ],
+    judgements: [],
+    insights: [],
+    recentTransactions: [],
+  }));
+  await page.goto("/dashboard");
+
+  await expect(page.getByText("−20%", { exact: true })).toBeVisible();
+  await expect(page.getByText("Deficit", { exact: true })).toBeVisible();
+  const categories = page.getByRole("table", { name: "Spending by category" });
+  await expect(categories.getByRole("columnheader", { name: "Share" })).toHaveCount(0);
+  await expect(categories.getByRole("row", { name: /Groceries/ }).getByRole("cell", { name: "−₹200" })).toBeVisible();
 });
 
 test("desktop assistant opens as a compact floating chat", async ({ page }, testInfo) => {
@@ -275,12 +318,28 @@ test("Viewer household selection disables transaction writes", async ({ page }, 
 
 test("mobile root opens directly to the assistant", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
+  await page.setViewportSize({ width: 320, height: 720 });
 
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Assistant" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "What did you spend or receive?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Log it, or ask about it." })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Quick navigation" })
+    .getByRole("link", { name: "Assistant" })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("button", { name: "Start voice input" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeInViewport({ ratio: 1 });
+});
+
+test("the dashboard Ask action focuses the composer and offers finance questions", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("link", { name: "Ask", exact: true }).click();
+  await expect(page).toHaveURL(/\/assistant\?[^#]*compose=ask/);
+  const composer = page.getByRole("textbox", { name: "Message Spndrr" });
+  await expect(composer).toBeFocused();
+  const suggestion = page.getByRole("button", { name: "Where did I spend most this month?" });
+  await suggestion.click();
+  await expect(composer).toHaveValue("Where did I spend most this month?");
+  await expect(composer).toBeFocused();
 });
 
 test("mobile hamburger menu can open the dashboard", async ({ page }, testInfo) => {
@@ -731,14 +790,14 @@ test("Enter submits valid login credentials and preserves browser validation", a
   });
   await page.goto("/login");
   await page.getByLabel("Email").fill("invalid-email");
-  await page.getByLabel("Password").fill("dummy-secret");
-  await page.getByLabel("Password").press("Enter");
+  await page.getByLabel("Password", { exact: true }).fill("dummy-secret");
+  await page.getByLabel("Password", { exact: true }).press("Enter");
   await expect(page.getByLabel("Email")).toBeFocused();
   expect(loginCount).toBe(0);
 
   await page.getByLabel("Email").fill("demo@example.com");
   const request = page.waitForRequest(request => request.url().endsWith("/api/auth/login"));
-  await page.getByLabel("Password").press("Enter");
+  await page.getByLabel("Password", { exact: true }).press("Enter");
   expect((await request).postDataJSON()).toEqual({ email: "demo@example.com", password: "dummy-secret" });
   await expect(page).toHaveURL(/\/$/);
   expect(loginCount).toBe(1);

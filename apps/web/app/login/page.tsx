@@ -1,13 +1,14 @@
 import { Suspense } from "react";
 import { AuthForm } from "../_components/auth-form";
-import { AuthShell } from "../_components/auth-shell";
+import { WebAuthShell } from "../_components/auth-shell";
 import { ServerRegistrationLink } from "../_components/server-registration-link";
 
 export default function LoginPage() {
   return (
-    <AuthShell>
+    <WebAuthShell>
       <AuthForm
         mode="login"
+        revamp
         registrationLink={
           <Suspense
             fallback={
@@ -21,6 +22,6 @@ export default function LoginPage() {
           </Suspense>
         }
       />
-    </AuthShell>
+    </WebAuthShell>
   );
 }

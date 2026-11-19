@@ -8,6 +8,7 @@ import { BrandLogo } from "./brand-logo";
 import { Dropdown } from "./dropdown";
 import { BrandMarkIcon } from "./icons";
 import { ProgressLink as Link } from "./navigation-progress";
+import { useSpndrrWeb } from "./web-design";
 import { navItems, sectionLabel } from "./workspace-config";
 import { formatMoney } from "./workspace-format";
 import { AppSection } from "./workspace-types";
@@ -33,14 +34,15 @@ export function DesktopSidebar({
   sessionName: string;
   spends: number;
 }) {
+  const isWeb = useSpndrrWeb();
   const { params } = useWorkspaceUrl();
   const query = params.get("household")
     ? `?household=${encodeURIComponent(params.get("household")!)}`
     : "";
   return (
-    <aside className="hidden w-[272px] shrink-0 border-r border-white/10 bg-[var(--sidebar)] px-5 py-6 text-white lg:flex lg:min-h-0 lg:flex-col">
+    <aside className="workspace-sidebar hidden w-[272px] shrink-0 border-r border-white/10 bg-[var(--sidebar)] px-5 py-6 text-white lg:flex lg:min-h-0 lg:flex-col">
       <Link className="flex w-fit items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" href="/">
-        <BrandLogo variant="dark" />
+        <BrandLogo variant="dark" revamp={isWeb} />
       </Link>
 
       <nav className="mt-9 space-y-1" aria-label="Desktop navigation">
@@ -105,14 +107,14 @@ export function SidebarButton({
   return (
     <Link
       aria-current={active ? "page" : undefined}
-      className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold transition ${
+      className={`workspace-sidebar-link flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold transition ${
         active
           ? "bg-white text-[var(--sidebar)]"
           : "text-white/72 hover:bg-white/10 hover:text-white"
       }`}
       href={href}
     >
-      <Icon className="h-5 w-5" />
+      <Icon aria-hidden="true" className="h-5 w-5" />
       <span>{label}</span>
     </Link>
   );
@@ -128,7 +130,7 @@ export function MobileHeader({
   onMenuOpen: () => void;
 }) {
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--border)] bg-white/88 px-4 backdrop-blur lg:hidden">
+    <header className="workspace-narrow-header flex h-16 shrink-0 items-center justify-between border-b border-[var(--border)] bg-white/88 px-4 backdrop-blur lg:hidden">
       <button
         aria-label="Open menu"
         className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)]"
@@ -138,14 +140,14 @@ export function MobileHeader({
         <Menu className="h-5 w-5" />
       </button>
       <div className="min-w-0 text-center">
-        <p className="text-xs font-semibold text-[var(--muted)]">
+        <p className="workspace-greeting text-xs font-semibold text-[var(--muted)]">
           Welcome, {greetingName}
         </p>
         <h1 className="truncate text-lg font-semibold tracking-normal">
           {sectionLabel(activeSection)}
         </h1>
       </div>
-      <span aria-label="Spndrr" role="img" className="grid h-10 w-10 place-items-center">
+      <span aria-label="Spndrr" role="img" className="workspace-narrow-mark grid h-10 w-10 place-items-center">
         <BrandMarkIcon className="h-10 w-10" />
       </span>
     </header>
@@ -256,7 +258,7 @@ export function HouseholdScopeSelector({
     (household) => household.id === selectedHouseholdId,
   );
   return (
-    <div className="mb-4 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-white px-4 py-3 shadow-sm lg:mb-5">
+    <div className="workspace-scope mb-4 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-white px-4 py-3 shadow-sm lg:mb-5">
       <div className="flex min-w-0 flex-1 items-center gap-3 text-sm font-semibold">
         <Users className="h-4 w-4 shrink-0 text-[var(--accent)]" />
         <span className="hidden sm:inline">Household</span>
@@ -274,7 +276,7 @@ export function HouseholdScopeSelector({
         />
       </div>
       <span
-        className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${selected?.canWrite ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}
+        className={`workspace-scope-permission shrink-0 rounded-md px-2 py-1 text-xs font-bold ${selected?.canWrite ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}
       >
         {selected?.canWrite ? "Can write" : "Read only"}
       </span>
@@ -289,6 +291,7 @@ export function MobileBottomNav({
   activeSection: Exclude<AppSection, "home">;
   onMore: () => void;
 }) {
+  const isWeb = useSpndrrWeb();
   const { params } = useWorkspaceUrl();
   const query = params.get("household")
     ? `?household=${encodeURIComponent(params.get("household")!)}`
@@ -296,7 +299,7 @@ export function MobileBottomNav({
   return (
     <nav
       aria-label="Quick navigation"
-      className="grid shrink-0 grid-cols-4 border-t border-[var(--border)] bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
+      className="workspace-dock grid shrink-0 grid-cols-4 border-t border-[var(--border)] bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       {(["assistant", "transactions", "dashboard"] as const).map((section) => {
         const item = navItems.find((item) => item.section === section)!;
@@ -306,20 +309,20 @@ export function MobileBottomNav({
             key={section}
             href={`/${section}${query}`}
             aria-current={activeSection === section ? "page" : undefined}
-            className={`flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-semibold ${activeSection === section ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--muted)]"}`}
+            className={`workspace-dock-item flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-semibold ${activeSection === section ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--muted)]"}`}
           >
-            <Icon className="h-5 w-5" />
-            {section === "assistant" ? "Track" : item.label}
+            <span className="workspace-dock-icon"><Icon aria-hidden="true" className="h-5 w-5" /></span>
+            <span className="workspace-dock-label">{!isWeb && section === "assistant" ? "Track" : item.label}</span>
           </Link>
         );
       })}
       <button
         onClick={onMore}
-        className="flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-semibold text-[var(--muted)]"
+        className="workspace-dock-item flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-semibold text-[var(--muted)]"
         type="button"
       >
-        <Menu className="h-5 w-5" />
-        More
+        <span className="workspace-dock-icon"><Menu aria-hidden="true" className="h-5 w-5" /></span>
+        <span className="workspace-dock-label">More</span>
       </button>
     </nav>
   );

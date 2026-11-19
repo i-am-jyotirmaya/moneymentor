@@ -1,5 +1,42 @@
 import Link from "next/link";
+import styles from "./auth.module.css";
 import { BrandLogo } from "./brand-logo";
+
+export function WebAuthShell({
+  children,
+  signup = false,
+}: {
+  children: React.ReactNode;
+  signup?: boolean;
+}) {
+  return (
+    <main className={styles.shell}>
+      <div className={styles.layout}>
+        <div className={styles.intro}>
+          <svg aria-hidden="true" className={styles.slice} viewBox="0 0 88 88">
+            <path d="M41 6 A41 41 0 1 0 82 47 L41 47 Z M47 0 A41 41 0 0 1 88 41 L47 41 Z" />
+          </svg>
+          <Link className={styles.brand} href="/login">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcSet="/brand/cobalt-slice/spndrr-logo-dark.svg" />
+              <BrandLogo revamp />
+            </picture>
+          </Link>
+          <p className={styles.promise}>
+            {signup ? "Start tracking in plain words." : "Know where every rupee goes."}
+          </p>
+          {!signup && (
+            <p className={styles.description}>
+              Type what you spent. Spndrr sorts it, charts it and tells you when
+              something drifts.
+            </p>
+          )}
+        </div>
+        {children}
+      </div>
+    </main>
+  );
+}
 
 // Static public content stays in the server component graph.
 export function AuthShell({ children }: { children: React.ReactNode }) {

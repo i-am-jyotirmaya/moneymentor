@@ -1,11 +1,18 @@
 "use client";
 
 import type { TransactionListItem } from "@/lib/api";
-import { Bot, Mic, Send, X } from "lucide-react";
-import { FormEvent, RefObject } from "react";
+import { ArrowUp, ArrowUpLeft, Bot, MessageSquare, Mic, Send, X } from "lucide-react";
+import { FormEvent, RefObject, useEffect, useRef } from "react";
+import { useWorkspaceUrl } from "../_hooks/use-workspace-url";
 import { EmptyInline, TransactionRow } from "./common-ui";
+import { useSpndrrWeb } from "./web-design";
 import { promptIdeas } from "./workspace-config";
 import { InputMode, Message } from "./workspace-types";
+
+const exampleGroups = [
+  { intent: "add", label: "Log a transaction", examples: ["Spent 450 on groceries", "Got salary 50,000 today", "Paid 1,200 for subscriptions"] },
+  { intent: "ask", label: "Ask about your money", examples: ["Where did I spend most this month?", "How much did I spend on groceries?"] },
+] as const;
 
 export function AssistantSection({
   chatEndRef,
@@ -33,7 +40,7 @@ export function AssistantSection({
   transactions: TransactionListItem[];
 }) {
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5">
+    <section className="assistant-workspace flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5">
       <ChatSurface
         chatEndRef={chatEndRef}
         inputMode={inputMode}
@@ -96,11 +103,32 @@ export function ChatSurface({
   text: string;
   title: string;
 }) {
+  const isWeb = useSpndrrWeb();
+  const revamp = isWeb && !compact;
+  const { params } = useWorkspaceUrl();
+  const intent = params.get("compose");
+  const composer = useRef<HTMLTextAreaElement>(null);
+  const thread = revamp ? messages.filter(({ id }) => id !== "seed-assistant") : messages;
+  const isEmpty = revamp && thread.length === 0;
+  const groups = intent === "ask" ? [exampleGroups[1], exampleGroups[0]] : exampleGroups;
+
+  useEffect(() => {
+    if (revamp && (intent === "add" || intent === "ask")) {
+      composer.current?.focus({ preventScroll: true });
+    }
+  }, [intent, revamp]);
+
+  useEffect(() => {
+    if (isEmpty && !isSubmitting) return;
+    const scrollArea = chatEndRef.current?.parentElement;
+    scrollArea?.scrollTo({ top: scrollArea.scrollHeight });
+  }, [chatEndRef, isEmpty, isSubmitting, messages]);
+
   return (
     <div
       className={`chat-panel flex min-h-0 flex-1 flex-col overflow-hidden ${compact ? "rounded-lg" : ""}`}
     >
-      <div className="flex items-center justify-between border-b border-[var(--border)] bg-white/78 px-4 py-3">
+      {!revamp ? <div className="flex items-center justify-between border-b border-[var(--border)] bg-white/78 px-4 py-3">
         <div className="min-w-0">
           <h2 className="truncate text-base font-semibold">{title}</h2>
           <p className="text-sm font-medium text-[var(--muted)]">
@@ -111,20 +139,49 @@ export function ChatSurface({
           <Bot className="h-4 w-4" />
           {inputMode}
         </span>
-      </div>
+      </div> : null}
 
       <div className="chat-scroll min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-5 sm:px-5">
-        {messages.map((message) => (
-          <ChatMessageBubble key={message.id} message={message} />
-        ))}
-        {isSubmitting ? <TypingBubble /> : null}
+        {revamp ? <h2 className="assistant-thread-heading">{isEmpty ? "Log it, or ask about it." : "Conversation"}</h2> : null}
+        {isEmpty && onPromptClick ? (
+          <div className="assistant-examples">
+            <p>Log an expense or income in your own words, or ask a question about your spending.</p>
+            {groups.map(({ intent: groupIntent, label, examples }) => {
+              const Icon = groupIntent === "add" ? ArrowUpLeft : MessageSquare;
+              return (
+                <div key={groupIntent} className="assistant-example-group">
+                  <h3>{label}</h3>
+                  <ul>
+                    {examples.map((idea) => (
+                      <li key={idea}>
+                        <button type="button" onClick={() => {
+                          onPromptClick(idea);
+                          composer.current?.focus({ preventScroll: true });
+                        }}>
+                          <Icon aria-hidden="true" size={16} />
+                          {idea}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        <div className="space-y-3" role={isWeb ? "log" : undefined} aria-label={isWeb ? "Conversation" : undefined}>
+          {thread.map((message) => (
+            <ChatMessageBubble key={message.id} message={message} />
+          ))}
+        </div>
+        {isSubmitting ? <TypingBubble announce={isWeb} /> : null}
         <div ref={chatEndRef} />
       </div>
 
       {isListening ? <VoiceWavePanel /> : null}
 
       <div className="shrink-0 border-t border-[var(--border)] bg-white/90 p-3 backdrop-blur">
-        {showPromptIdeas && onPromptClick ? (
+        {!revamp && showPromptIdeas && onPromptClick ? (
           <div className="mb-3 hidden flex-wrap gap-2 sm:flex">
             {promptIdeas.map((idea) => (
               <button
@@ -146,12 +203,13 @@ export function ChatSurface({
               className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-3 py-2 text-base font-medium leading-6 text-[var(--ink)] outline-none placeholder:text-[var(--muted-2)]"
               onChange={(event) => onTextChange(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                   event.preventDefault();
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder="spent 500 on groceries or got salary 50000"
+              placeholder={revamp ? "Log a spend or ask…" : "spent 500 on groceries or got salary 50000"}
+              ref={composer}
               rows={1}
               value={text}
             />
@@ -164,11 +222,11 @@ export function ChatSurface({
 
           <button
             aria-label={isSubmitting ? "Sending message" : "Send message"}
-            className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_12px_30px_rgba(15,143,123,0.24)] transition hover:-translate-y-0.5 hover:bg-[#0b7d6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
+            className="assistant-send inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_12px_30px_rgba(15,143,123,0.24)] transition hover:-translate-y-0.5 hover:bg-[#0b7d6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
             disabled={isSubmitting}
             type="submit"
           >
-            <Send className="h-5 w-5" />
+            {isWeb ? <ArrowUp aria-hidden="true" className="h-5 w-5" /> : <Send className="h-5 w-5" />}
           </button>
         </form>
       </div>
@@ -279,9 +337,10 @@ export function ChatMessageBubble({ message }: { message: Message }) {
   );
 }
 
-export function TypingBubble() {
+export function TypingBubble({ announce = false }: { announce?: boolean }) {
   return (
-    <div className="chat-message-row flex justify-start" aria-live="polite">
+    <div className="chat-message-row flex justify-start" role={announce ? "status" : undefined} aria-live="polite">
+      {announce ? <span className="sr-only">Spndrr is responding.</span> : null}
       <div className="chat-message-bubble chat-message-bubble--assistant rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
         <span className="flex h-6 items-center gap-1.5">
           <span className="typing-dot" />

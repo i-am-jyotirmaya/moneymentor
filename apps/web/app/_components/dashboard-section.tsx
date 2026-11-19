@@ -2,6 +2,8 @@
 import { ProgressLink as Link } from "./navigation-progress";
 import { useWorkspaceUrl } from "../_hooks/use-workspace-url";
 import { SectionSkeleton } from "./loading-ui";
+import { CobaltDashboard } from "./cobalt-dashboard";
+import { useSpndrrWeb } from "./web-design";
 
 import type { MonthlyDashboardResponse } from "@/lib/api";
 import { BarChart3, CircleDollarSign, ReceiptText, Wallet } from "lucide-react";
@@ -28,10 +30,23 @@ export function DashboardSection({
   onMonthChange: (month: string) => void;
 }) {
   const { params } = useWorkspaceUrl();
+  const spndrrWeb = useSpndrrWeb();
   const household = params.get("household");
   const query = household ? `?household=${encodeURIComponent(household)}` : "";
   if (!dashboard) {
     return <SectionSkeleton />;
+  }
+
+  if (spndrrWeb) {
+    return (
+      <CobaltDashboard
+        dashboard={dashboard}
+        household={household}
+        isLoading={isLoading}
+        month={month}
+        onMonthChange={onMonthChange}
+      />
+    );
   }
 
   return (

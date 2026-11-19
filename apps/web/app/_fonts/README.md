@@ -11,3 +11,10 @@ pyftsubset Inter-VariableFont_opsz,wght.ttf --unicodes="U+0000-00FF,U+0131,U+015
 
 Size: 63,444 bytes. Latin only; non-Latin scripts fall back to the system face
 (pending product question Q-J4).
+
+## Inter Tight subset
+
+The Cobalt Slice mockup bundle supplies the Inter Tight variable source.
+The web display font uses the same glyph set and font features as Inter
+above, keeping the rupee sign and tabular figures. The WOFF2 file is 38,516
+bytes and is distributed with the Inter Tight OFL.

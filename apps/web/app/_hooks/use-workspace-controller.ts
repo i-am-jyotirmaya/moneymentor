@@ -375,10 +375,6 @@ export function useWorkspaceController() {
   }, []);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, isSubmitting]);
-
-  useEffect(() => {
     let active = true;
     if (!sessionReady || !session || session.requiresPrivacyConsent) {
       return;

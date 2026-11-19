@@ -3,11 +3,14 @@
 import { ApiError, getRegistration, validateSignupInvitation } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { AuthForm } from "./auth-form";
+import { AuthShell, WebAuthShell } from "./auth-shell";
+import styles from "./auth.module.css";
 import { SectionSkeleton } from "./loading-ui";
 import {
   ProgressLink as Link,
   useProgressRouter as useRouter,
 } from "./navigation-progress";
+import { useSpndrrWeb } from "./web-design";
 
 type SignupState = {
   ready: true;
@@ -15,6 +18,16 @@ type SignupState = {
 };
 
 export function SignupGate() {
+  const revamp = useSpndrrWeb();
+  const content = <SignupContent revamp={revamp} />;
+  return revamp ? (
+    <WebAuthShell signup>{content}</WebAuthShell>
+  ) : (
+    <AuthShell>{content}</AuthShell>
+  );
+}
+
+function SignupContent({ revamp }: { revamp: boolean }) {
   const router = useRouter();
   const [state, setState] = useState<SignupState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,18 +75,19 @@ export function SignupGate() {
     };
   }, [router]);
 
-  if (state) return <AuthForm mode="signup" invitation={state.invitation} />;
+  if (state)
+    return <AuthForm mode="signup" invitation={state.invitation} revamp={revamp} />;
   if (!error)
     return (
-      <div className="mx-auto w-full max-w-xl p-6">
+      <div className={revamp ? styles.panel : "mx-auto w-full max-w-xl p-6"}>
         <SectionSkeleton />
       </div>
     );
   const supportEmail =
     process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@spndrr.example";
   return (
-    <div className="grid place-items-center px-5 text-[var(--ink)]">
-      <section className="w-full max-w-md rounded-lg border border-[var(--border)] bg-white p-7">
+    <div className={revamp ? styles.panel : "grid place-items-center px-5 text-[var(--ink)]"}>
+      <section className={revamp ? styles.linkError : "w-full max-w-md rounded-lg border border-[var(--border)] bg-white p-7"}>
         <h1 className="text-2xl font-semibold">Signup link unavailable</h1>
         {error && (
           <>

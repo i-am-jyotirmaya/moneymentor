@@ -48,8 +48,8 @@ export type AppRoute = {
 
 /** Desktop sidebar and mobile drawer order, from workspace-config.tsx. */
 export const workspaceNavLinks = ["Dashboard", "Assistant", "Transactions", "Judgments", "Planning", "Household", "Settings"];
-/** The phone bottom bar ("Track" is the assistant; see audit N1). */
-export const quickNavLinks = ["Track", "Transactions", "Dashboard"];
+/** The quick navigation exposed by the web layout at narrow widths. */
+export const quickNavLinks = ["Assistant", "Transactions", "Dashboard"];
 
 const toTransactions = { linkName: "Transactions", url: /\/transactions\/?$/, heading: { mobile: "Transactions", desktop: "Transactions" } };
 const toDashboard = { linkName: "Dashboard", url: /\/dashboard\/?$/, heading: { mobile: "Dashboard", desktop: "Dashboard" } };
@@ -71,7 +71,7 @@ export const appRoutes: AppRoute[] = [
   },
   {
     path: "/assistant", id: "assistant", kind: "workspace",
-    heading: { mobile: "Assistant", desktop: "What did you spend or receive?" },
+    heading: { mobile: "Assistant", desktop: "Log it, or ask about it." },
     controls: [
       { role: "textbox", name: "Message Spndrr" },
       { role: "button", name: "Send message" },
@@ -86,8 +86,8 @@ export const appRoutes: AppRoute[] = [
     controls: [
       { role: "button", name: "Previous dashboard month" },
       { role: "combobox", name: "Dashboard month" },
-      { role: "link", name: "Track a transaction" },
-      { role: "link", name: "Review judgments" },
+      { role: "link", name: /^(Add|Track a transaction)$/ },
+      { role: "link", name: /^(Judgments|Review judgments)$/ },
     ],
     navigatesTo: toTransactions,
   },

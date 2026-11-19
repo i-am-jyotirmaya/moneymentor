@@ -1,0 +1,261 @@
+/* Web adaptation of the Cobalt Slice palette. The Capacitor layout still
+   imports the shared base tokens, and does not load this stylesheet. */
+:root[data-spndrr-web] {
+  --sp-bg: #f4f6fb;
+  --sp-surface-low: #eceff6;
+  --sp-surface-container: #e3e8ff;
+  --sp-field: #eceff6;
+  --sp-text-placeholder: #5f6984;
+  --sp-primary: #2944d4;
+  --sp-primary-pressed: #2238b8;
+  --sp-primary-container: #e3e8ff;
+  --sp-on-primary-container: #13207a;
+  --sp-outline: #7c859d;
+  --sp-outline-variant: #dde2ec;
+  --sp-focus: var(--sp-primary);
+  --sp-positive: #08754a;
+  --sp-positive-container: #ddf5e9;
+  --sp-danger: #be2a33;
+  --sp-danger-container: #ffe8e8;
+  --sp-font-display: var(--font-inter-tight), var(--sp-font-sans);
+  --sp-grad-auth: linear-gradient(180deg, #e3e8ff, #f4f6fb 60%);
+  --sp-grad-hero: linear-gradient(135deg, #141f63, #1f33a6 55%, #2944d4);
+  --sp-on-hero: #fff;
+  --sp-on-hero-muted: #c9d2ff;
+  --sp-cat-2: #b47e15;
+  --sp-cat-3: #008185;
+  --sp-cat-4: #731f5a;
+  --sp-cat-5: #6f5700;
+  --sp-cat-6: #348be5;
+  --sp-cat-7: #d2456f;
+  --sp-cat-8: #6b7389;
+}
+
+[data-spndrr-web] .workspace-sidebar {
+  --sidebar: #0e1433;
+  overflow-y: auto;
+}
+
+[data-spndrr-web] .workspace-sidebar-link {
+  min-block-size: 3rem;
+  border-radius: var(--sp-radius-sm);
+}
+
+[data-spndrr-web] .workspace-sidebar-link[aria-current="page"] {
+  color: var(--sp-on-primary);
+  background: var(--sp-primary);
+  font-weight: 700;
+}
+
+[data-spndrr-web] .workspace-sidebar :focus-visible {
+  outline-color: var(--sp-on-primary);
+}
+
+[data-spndrr-web] .workspace-scope-permission {
+  background: var(--sp-surface-low);
+  color: var(--sp-text-secondary);
+}
+
+[data-spndrr-web] .chat-panel {
+  background: var(--sp-bg);
+}
+
+[data-spndrr-web] .assistant-workspace .chat-panel {
+  border-radius: var(--sp-radius-xl);
+}
+
+[data-spndrr-web] .assistant-workspace .chat-scroll {
+  padding: clamp(1rem, 4vw, 2.75rem);
+}
+
+.assistant-thread-heading {
+  font-family: var(--sp-font-display);
+  font-size: clamp(1.5rem, 1.25rem + 1.5vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.assistant-examples {
+  max-inline-size: 38rem;
+  color: var(--sp-text-secondary);
+}
+
+.assistant-example-group {
+  margin-block-start: 1.25rem;
+}
+
+.assistant-example-group h3 {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  margin-block-end: 0.375rem;
+}
+
+.assistant-example-group ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.assistant-example-group button {
+  display: flex;
+  align-items: center;
+  text-align: start;
+  gap: 0.5rem;
+  min-block-size: 3rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--sp-outline-variant);
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-surface);
+  color: var(--sp-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.assistant-example-group button svg {
+  flex-shrink: 0;
+  color: var(--sp-primary);
+}
+
+.assistant-example-group button:hover {
+  border-color: var(--sp-primary);
+  background: var(--sp-primary-container);
+}
+
+[data-spndrr-web] .chat-message-row {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-spndrr-web] .chat-message-row {
+    animation: chat-message-in 180ms ease-out both;
+  }
+}
+
+[data-spndrr-web] .chat-message-bubble--user {
+  background: var(--sp-primary);
+  color: var(--sp-on-primary);
+}
+
+[data-spndrr-web] .chat-text-bar {
+  min-inline-size: 0;
+}
+
+[data-spndrr-web] .chat-text-bar:focus-within {
+  border-color: var(--sp-primary);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+  transform: none;
+}
+
+[data-spndrr-web] .assistant-send,
+[data-spndrr-web] .ai-voice-button {
+  border-color: transparent;
+  box-shadow: none;
+  animation: none;
+}
+
+[data-spndrr-web] .ai-voice-button {
+  min-inline-size: 3rem;
+  min-block-size: 3rem;
+  background: var(--sp-primary-container);
+}
+
+[data-spndrr-web] .ai-voice-button::before,
+[data-spndrr-web] .ai-voice-button::after {
+  content: none;
+}
+
+[data-spndrr-web] :is(.assistant-send:hover, .ai-voice-button--listening) {
+  background: var(--sp-primary-pressed);
+  color: var(--sp-on-primary);
+}
+
+/* Tailwind's lg breakpoint is also used by the workspace route controller. */
+@media (width < 64rem) {
+  [data-spndrr-web] .workspace-narrow-header {
+    min-block-size: 4rem;
+    height: auto;
+    justify-content: flex-start;
+    gap: 0.625rem;
+    background: var(--sp-bg);
+    border: 0;
+  }
+
+  [data-spndrr-web] .workspace-narrow-header > button {
+    order: 2;
+    margin-inline-start: auto;
+    min-inline-size: 3rem;
+    min-block-size: 3rem;
+    border-radius: var(--sp-radius-full);
+    flex-shrink: 0;
+  }
+
+  [data-spndrr-web] .workspace-narrow-header h1 {
+    font-family: var(--sp-font-display);
+    font-size: 1.25rem;
+    text-align: start;
+  }
+
+  [data-spndrr-web] .workspace-greeting {
+    display: none;
+  }
+
+  [data-spndrr-web] .workspace-narrow-mark {
+    order: -1;
+    inline-size: 2rem;
+    flex-shrink: 0;
+  }
+
+  [data-spndrr-web] .workspace-scope {
+    margin-inline: 0.75rem;
+    padding: 0.375rem 0.625rem;
+    border-radius: var(--sp-radius-md);
+  }
+
+  [data-spndrr-web] .workspace-dock {
+    margin-inline: 0.625rem;
+    margin-block: 0.375rem max(0.625rem, env(safe-area-inset-bottom));
+    padding: 0.25rem;
+    border: 1px solid var(--sp-outline-variant);
+    border-radius: var(--sp-radius-xl);
+    box-shadow: var(--sp-shadow-2);
+    background: var(--sp-surface);
+  }
+
+  [data-spndrr-web] .workspace-dock-item {
+    min-inline-size: 0;
+    border-radius: var(--sp-radius-md);
+    background: none;
+    padding-inline: 0.125rem;
+  }
+
+  [data-spndrr-web] .workspace-dock-icon {
+    display: grid;
+    place-items: center;
+    inline-size: min(100%, 3.5rem);
+    min-block-size: 1.875rem;
+    border-radius: var(--sp-radius-full);
+  }
+
+  [data-spndrr-web] .workspace-dock-item[aria-current="page"] .workspace-dock-icon {
+    color: var(--sp-on-primary);
+    background: var(--sp-primary);
+  }
+
+  [data-spndrr-web] .workspace-dock-label {
+    max-inline-size: 100%;
+    overflow-wrap: anywhere;
+    font-family: var(--sp-font-display);
+    font-size: 0.6875rem;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    text-align: center;
+  }
+}
+
+@media (forced-colors: active) {
+  [data-spndrr-web] :is(.workspace-sidebar-link[aria-current="page"], .workspace-dock-item[aria-current="page"] .workspace-dock-icon) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

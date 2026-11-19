@@ -1,0 +1,401 @@
+.dashboard {
+  --category-other: var(--sp-cat-8, #6b7389);
+  min-inline-size: 0;
+}
+
+.content {
+  container: dashboard / inline-size;
+  display: grid;
+  gap: 1.25rem;
+  max-inline-size: 80rem;
+  margin-inline: auto;
+  padding-block-end: 1.5rem;
+}
+
+.header,
+.cardHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem 1rem;
+}
+
+.header h1,
+.card h2,
+.balance,
+.gaugeLabel strong,
+.donut strong {
+  font-family: var(--sp-font-display, inherit);
+  font-weight: 700;
+}
+
+.header h1 {
+  font-size: clamp(1.5rem, 1.25rem + 1.4cqi, 2.25rem);
+  line-height: 1.14;
+  letter-spacing: -0.035em;
+}
+
+.month button {
+  min-block-size: 3rem;
+  min-inline-size: 3rem;
+}
+
+.hero {
+  --hero-halo: radial-gradient(ellipse at 94% 0%, var(--sp-hero-glow, rgb(112 136 245 / 0.42)), transparent 46%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: clamp(1rem, 4cqi, 2.5rem);
+  color: var(--sp-on-hero, #fff);
+  background: var(--hero-halo), var(--sp-grad-hero);
+  border-radius: 1.75rem;
+  box-shadow: var(--sp-elev-hero, 0 18px 40px -16px rgb(41 68 212 / 0.42));
+}
+
+.heroCopy {
+  min-inline-size: 0;
+}
+
+.eyebrow {
+  margin-block-end: 0.375rem;
+  color: var(--sp-on-hero-muted, #dce2ff);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.hero h2 {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.balance {
+  margin-block-start: 0.125rem;
+  overflow-wrap: anywhere;
+  font-size: clamp(1.75rem, 1.1rem + 3.7cqi, 3.75rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: -0.045em;
+}
+
+.gauge,
+.donut {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.gauge {
+  inline-size: clamp(4.5rem, 23cqi, 8.75rem);
+}
+
+.gaugeRing,
+.donutRing {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  mask-image: radial-gradient(circle closest-side, transparent 70%, black 71%);
+}
+
+.gaugeRing {
+  background: conic-gradient(currentColor var(--kept), rgb(255 255 255 / 0.21) 0);
+}
+
+.gaugeLabel {
+  position: relative;
+  display: grid;
+  gap: 0.125rem;
+  max-inline-size: 67%;
+  overflow-wrap: anywhere;
+  line-height: 1.05;
+}
+
+.gaugeLabel strong {
+  font-size: clamp(1rem, 3.8cqi, 1.75rem);
+}
+
+.gaugeLabel span,
+.donut span {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.gaugeLabel span {
+  color: var(--sp-on-hero-muted, #dce2ff);
+}
+
+.flows {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.flows > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 0.12);
+}
+
+.flows svg,
+.viewAll svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
+}
+
+.flows dd {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 4rem), 1fr));
+  gap: 0.5rem;
+}
+
+.action {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 0.375rem;
+  min-inline-size: 0;
+  min-block-size: 3rem;
+  padding: 0.3125rem 0.125rem;
+  border-radius: 1rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+  font-family: var(--sp-font-display, inherit);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.actionIcon {
+  display: grid;
+  place-items: center;
+  inline-size: 3rem;
+  max-inline-size: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--sp-surface);
+  color: var(--accent);
+  box-shadow: var(--sp-shadow-1);
+}
+
+.actionIcon svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+.primaryAction .actionIcon {
+  border-color: var(--sp-primary);
+  background: var(--sp-primary);
+  color: var(--sp-on-primary);
+}
+
+.action:hover {
+  background: var(--accent-soft);
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+
+.card {
+  display: grid;
+  gap: 1rem;
+  min-inline-size: 0;
+  padding: clamp(1rem, 3cqi, 1.5rem);
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  background: var(--sp-surface);
+  box-shadow: var(--sp-shadow-1);
+}
+
+.card h2 {
+  font-size: 1.125rem;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.notes,
+.breakdown {
+  display: grid;
+  gap: 0.75rem;
+  min-inline-size: 0;
+}
+
+.breakdown {
+  align-items: center;
+}
+
+.donut {
+  inline-size: min(100%, 9.25rem);
+  justify-self: center;
+}
+
+.donutRing {
+  background: conic-gradient(var(--slices));
+}
+
+.donut p {
+  display: grid;
+  gap: 0.125rem;
+  max-inline-size: 64%;
+  overflow-wrap: anywhere;
+  line-height: 1.1;
+}
+
+.donut span {
+  color: var(--muted);
+}
+
+.donut strong {
+  font-size: 1rem;
+  letter-spacing: -0.025em;
+}
+
+.categories {
+  inline-size: 100%;
+  border-collapse: collapse;
+  text-align: start;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.categories :is(th, td) {
+  padding: 0.625rem 0.5rem;
+  text-align: end;
+  vertical-align: top;
+}
+
+.categories th:first-child {
+  padding-inline-start: 0;
+  text-align: start;
+}
+
+.categories :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.categories thead th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.categories tbody tr {
+  border-block-start: 1px solid var(--border);
+}
+
+.categories td:last-child {
+  font-weight: 700;
+}
+
+.categoryName {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  font-weight: 700;
+}
+
+.swatch {
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  align-self: center;
+  flex: none;
+  border-radius: 50%;
+}
+
+.otherSwatch {
+  background: repeating-linear-gradient(45deg, var(--category-other) 0 2px, var(--sp-surface) 2px 3px);
+}
+
+.categoryNote {
+  display: block;
+  margin-block-start: 0.125rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.viewAll {
+  display: inline-flex;
+  min-block-size: 3rem;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.viewAll:hover {
+  text-decoration: underline;
+}
+
+@container dashboard (inline-size >= 38rem) {
+  .hero {
+    row-gap: 0.625rem;
+    column-gap: 2.5rem;
+  }
+
+  .gauge {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+  }
+
+  .flows {
+    grid-column: 1;
+  }
+
+  .action {
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-items: start;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.625rem;
+    border: 1px solid var(--border);
+    background: var(--sp-surface);
+    font-size: 0.875rem;
+    text-align: start;
+  }
+}
+
+@container dashboard (inline-size >= 64rem) {
+  .breakdown:has(.donut) {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .donut {
+    inline-size: 8.5rem;
+  }
+}
+
+@media (forced-colors: active) {
+  .gaugeRing,
+  .donutRing {
+    mask-image: none;
+    border: 1px solid CanvasText;
+  }
+}

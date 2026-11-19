@@ -1,9 +1,9 @@
 import { AuthForm } from "../_components/auth-form";
-import { AuthShell } from "../_components/auth-shell";
+import { WebAuthShell } from "../_components/auth-shell";
 export default function RequestAccessPage() {
   return (
-    <AuthShell>
-      <AuthForm mode="request" />
-    </AuthShell>
+    <WebAuthShell signup>
+      <AuthForm mode="request" revamp />
+    </WebAuthShell>
   );
 }
