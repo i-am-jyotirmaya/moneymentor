@@ -90,7 +90,7 @@ export function GoalCreateForm({
         Share with household
       </label>
       <button
-        className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+        className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary disabled:opacity-50"
         disabled={isPlanningWorking}
         type="submit"
       >

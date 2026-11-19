@@ -21,7 +21,7 @@ export function SectionSkeleton({ rows = 4 }: { rows?: number }) {
           <Skeleton key={i} className="h-28" />
         ))}
       </div>
-      <div className="space-y-4 rounded-lg border border-[var(--border)] bg-white p-5">
+      <div className="space-y-4 rounded-lg border border-[var(--border)] bg-surface p-5">
         {Array.from({ length: rows }, (_, i) => (
           <Skeleton key={i} className="h-14" />
         ))}

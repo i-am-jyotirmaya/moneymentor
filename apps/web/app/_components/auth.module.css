@@ -9,7 +9,7 @@
   --auth-outline: var(--sp-outline);
   --auth-divider: var(--sp-outline-variant);
   --auth-primary: var(--sp-primary);
-  --auth-link: var(--sp-primary);
+  --auth-link: var(--sp-accent-text);
   --auth-tonal: var(--sp-primary-container);
   --auth-press: var(--sp-primary-pressed);
   --auth-danger: var(--sp-danger);
@@ -23,29 +23,6 @@
   background-color: var(--auth-bg);
   background-image: var(--auth-backdrop);
   color: var(--auth-text);
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  .shell {
-    --auth-bg: #0a0d18;
-    --auth-backdrop: linear-gradient(180deg, #151d45 0%, #0a0d18 60%);
-    --auth-surface: #1a2033;
-    --auth-field: #121726;
-    --auth-text: #eef1f8;
-    --auth-muted: #aeb5c8;
-    --auth-placeholder: #8c94aa;
-    --auth-outline: #8c94aa;
-    --auth-divider: #323b56;
-    --auth-primary: #4a63ec;
-    --auth-link: #9daeff;
-    --auth-tonal: #202c63;
-    --auth-press: #4158d9;
-    --auth-danger: #ff8a8a;
-    --auth-danger-bg: #451f2a;
-    --auth-panel-shadow: none;
-    color-scheme: dark;
-  }
 }
 
 .layout {
@@ -87,10 +64,11 @@
   margin-block-end: 0.25rem;
 }
 
-.brand img {
+.wordmark {
   display: block;
   block-size: clamp(2.5rem, 5vw, 3.5rem);
-  inline-size: auto;
+  aspect-ratio: 276.637 / 88;
+  background: var(--sp-auth-logo) center / contain no-repeat;
 }
 
 .promise,

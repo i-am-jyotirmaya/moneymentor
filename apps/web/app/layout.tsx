@@ -2,6 +2,8 @@ import { inter } from "./_fonts/inter";
 import { interTight } from "./_fonts/inter-tight";
 import { NavigationProgress } from "./_components/navigation-progress";
 import { SpndrrWebDesign } from "./_components/web-design";
+import { AppearanceInit } from "./_components/appearance-init";
+import { AppearanceSync } from "./_components/appearance";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./cobalt-slice.css";
@@ -12,7 +14,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#F4F6FB",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F4F6FB" },
+    { media: "(prefers-color-scheme: dark)", color: "#0A0D18" },
+  ],
 };
 
 export default function RootLayout({
@@ -21,16 +26,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // Light is forced until the dark-mode PR (SPEC 6.4 / section 11 step 5),
-    // which replaces the static attribute with the head script.
     <html
       lang="en"
       className={`${inter.variable} ${interTight.variable} h-full antialiased`}
-      data-theme="light"
       data-spndrr-web=""
+      suppressHydrationWarning
     >
+      <head><AppearanceInit /></head>
       <body className="min-h-full">
         <SpndrrWebDesign>
+          <AppearanceSync />
           <NavigationProgress>{children}</NavigationProgress>
         </SpndrrWebDesign>
       </body>

@@ -75,7 +75,7 @@ function PrivacyPolicySheet({
       ref={dialogRef}
     >
       <div className="flex h-full flex-col">
-        <header className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-white px-2 pb-1 pt-[max(env(safe-area-inset-top),0.25rem)]">
+        <header className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-surface px-2 pb-1 pt-[max(env(safe-area-inset-top),0.25rem)]">
           <button
             aria-label="Close privacy policy"
             className="grid h-12 w-12 shrink-0 place-items-center rounded-lg"

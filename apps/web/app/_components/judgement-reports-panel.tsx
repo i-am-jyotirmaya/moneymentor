@@ -99,11 +99,11 @@ export function JudgementReportsPanel({
           </p>
         </div>
         {allowHouseholdScope ? (
-          <div aria-label="Judgment scope" className="flex rounded-lg border border-[var(--border)] bg-white p-1">
+          <div aria-label="Judgment scope" className="flex rounded-lg border border-[var(--border)] bg-surface p-1">
             {(["Personal", "Household"] as const).map((option) => (
               <button
                 aria-pressed={scope === option}
-                className={`rounded-md px-4 py-2 text-sm font-semibold ${scope === option ? "bg-[var(--accent)] text-white" : "text-[var(--muted)]"}`}
+                className={`rounded-md px-4 py-2 text-sm font-semibold ${scope === option ? "bg-primary text-on-primary" : "text-[var(--muted)]"}`}
                 key={option}
                 onClick={() => { setNotice(null); setReplyingTo(null); updateQuery({ scope: option, cadence: null, period: null }); }}
                 type="button"
@@ -117,9 +117,9 @@ export function JudgementReportsPanel({
 
       <LoadingBar active={isLoading} />
       {error ? <p role="alert" className="mb-4 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-4 py-3 text-sm text-[var(--danger)]">{error}</p> : null}
-      {notice ? <p role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p> : null}
+      {notice ? <p role="status" className="mb-4 rounded-lg border border-emerald-200 bg-positive-container px-4 py-3 text-sm text-positive">{notice}</p> : null}
       {!isLoading && !error && judgments.length === 0 ? (
-        <div className="rounded-lg border border-[var(--border)] bg-white p-8 text-center shadow-sm">
+        <div className="rounded-lg border border-[var(--border)] bg-surface p-8 text-center shadow-sm">
           <CheckCircle2 className="mx-auto h-8 w-8 text-[var(--accent)]" />
           <h3 className="mt-3 text-lg font-semibold">Nothing needs your attention right now</h3>
           <p className="mt-2 text-sm text-[var(--muted)]">The engine reviews patterns daily and stays quiet when it has nothing useful to add.</p>
@@ -128,7 +128,7 @@ export function JudgementReportsPanel({
       {!isLoading && judgments.length > 0 ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {judgments.map((item) => (
-            <article className="rounded-lg border border-[var(--border)] bg-white p-5 shadow-sm" key={item.id}>
+            <article className="rounded-lg border border-[var(--border)] bg-surface p-5 shadow-sm" key={item.id}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <span className="inline-flex items-center gap-1 rounded-md bg-[var(--surface)] px-2 py-1 text-xs font-semibold text-[var(--muted)]">
@@ -152,7 +152,7 @@ export function JudgementReportsPanel({
                     value={explanation}
                   />
                   <div className="flex gap-2">
-                    <button className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={savingId !== null} onClick={() => void explain(item.id)} type="button">Send explanation</button>
+                    <button className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50" disabled={savingId !== null} onClick={() => void explain(item.id)} type="button">Send explanation</button>
                     <button className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold" onClick={() => { setReplyingTo(null); setExplanation(""); }} type="button">Cancel</button>
                   </div>
                 </div>

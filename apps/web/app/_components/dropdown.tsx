@@ -194,7 +194,7 @@ export function Dropdown({
 
   const panel = open ? (
     <div
-      className={`z-50 m-0 flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-white p-1.5 text-[var(--ink)] shadow-xl shadow-slate-950/15 ${panelClassName}`}
+      className={`z-50 m-0 flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-surface p-1.5 text-[var(--ink)] shadow-xl shadow-slate-950/15 ${panelClassName}`}
       onKeyDown={handleKeyDown}
       popover="manual"
       ref={panelRef}

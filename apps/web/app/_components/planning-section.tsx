@@ -38,7 +38,7 @@ export function PlanningSection(props: PlanningSectionProps) {
   return (
     <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-2xl font-semibold tracking-normal">
@@ -71,7 +71,7 @@ export function PlanningSection(props: PlanningSectionProps) {
           </div>
 
           {!canWrite ? (
-            <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600">
+            <p className="mt-4 rounded-lg bg-surface-low px-3 py-2 text-sm font-semibold text-fg-muted">
               This household is read-only for you. Planning data is visible, but
               changes are disabled.
             </p>
@@ -89,7 +89,7 @@ export function PlanningSection(props: PlanningSectionProps) {
           ) : null}
           {planningNotice ? (
             <p
-              className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
+              className="mt-4 rounded-lg bg-surface-low px-3 py-2 text-sm font-semibold text-fg-muted"
               role="status"
             >
               {planningNotice}
@@ -97,7 +97,7 @@ export function PlanningSection(props: PlanningSectionProps) {
           ) : null}
         </article>
 
-        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
           <h3 className="text-lg font-semibold">Current nudges</h3>
           <div className="mt-4 space-y-3">
             {judgements.length > 0 ? (
@@ -108,7 +108,7 @@ export function PlanningSection(props: PlanningSectionProps) {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-bold">{judgement.title}</p>
-                    <span className="rounded-md bg-white px-2 py-1 text-xs font-bold text-[var(--muted)]">
+                    <span className="rounded-md bg-surface px-2 py-1 text-xs font-bold text-[var(--muted)]">
                       {judgement.severity ?? judgement.tone}
                     </span>
                   </div>
@@ -125,13 +125,13 @@ export function PlanningSection(props: PlanningSectionProps) {
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
           <h3 className="text-lg font-semibold">Goals</h3>
           <div className="mt-4 space-y-3">
             {visibleGoals.length > 0 ? (
               visibleGoals.slice(0, 8).map((goal) => (
                 <button
-                  className={`w-full rounded-lg border p-3 text-left ${selectedGoalId === goal.id ? "border-[var(--accent)] bg-emerald-50/40" : "border-[var(--border)]"}`}
+                  className={`w-full rounded-lg border p-3 text-left ${selectedGoalId === goal.id ? "border-[var(--accent)] bg-positive-container/40" : "border-[var(--border)]"}`}
                   key={goal.id}
                   onClick={() => updateQuery({ goal: goal.id }, "goal-plan")}
                   type="button"
@@ -148,7 +148,7 @@ export function PlanningSection(props: PlanningSectionProps) {
                       {formatMoney(goal.currentAmount, currencyCode)}
                     </span>
                   </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-low">
                     <div
                       className="h-full rounded-full bg-[var(--accent)]"
                       style={{
@@ -170,7 +170,7 @@ export function PlanningSection(props: PlanningSectionProps) {
           </div>
         </article>
 
-        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
           <h3 className="text-lg font-semibold">Commitments</h3>
           <div className="mt-4 space-y-3">
             {commitments.length > 0 ? (
@@ -191,7 +191,7 @@ export function PlanningSection(props: PlanningSectionProps) {
                       {formatMoney(commitment.amount, currencyCode)}
                     </p>
                     <p
-                      className={`text-xs font-bold ${commitment.isActive ? "text-emerald-600" : "text-slate-500"}`}
+                      className={`text-xs font-bold ${commitment.isActive ? "text-positive" : "text-fg-muted"}`}
                     >
                       {commitment.isActive ? "Active" : "Paused"}
                     </p>
@@ -224,7 +224,7 @@ export function PlanningSection(props: PlanningSectionProps) {
         }}
       />
 
-      <article className="mt-5 rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+      <article className="mt-5 rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
         <h3 className="text-lg font-semibold">Category groups</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {visibleGroups.length > 0 ? (

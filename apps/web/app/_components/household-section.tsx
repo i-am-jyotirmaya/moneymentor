@@ -71,7 +71,7 @@ export function HouseholdSection({
   return (
     <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-2xl font-semibold tracking-normal">
@@ -89,7 +89,7 @@ export function HouseholdSection({
 
           {statusMessage ? (
             <p
-              className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"
+              className="mt-4 rounded-lg border border-emerald-200 bg-positive-container px-4 py-3 text-sm font-semibold text-positive"
               role="status"
             >
               {statusMessage}
@@ -102,7 +102,7 @@ export function HouseholdSection({
               <div className="mt-3 grid gap-3">
                 {invitations.map((invitation) => (
                   <article
-                    className="rounded-lg border border-[var(--border)] bg-white p-3"
+                    className="rounded-lg border border-[var(--border)] bg-surface p-3"
                     key={invitation.id}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -118,7 +118,7 @@ export function HouseholdSection({
                       </div>
                       <div className="flex gap-2">
                         <button
-                          className="h-9 rounded-lg border border-[var(--border)] bg-white px-3 text-xs font-bold text-[var(--muted)] disabled:opacity-65"
+                          className="h-9 rounded-lg border border-[var(--border)] bg-surface px-3 text-xs font-bold text-[var(--muted)] disabled:opacity-65"
                           disabled={isSaving}
                           onClick={() =>
                             onInvitationResponse(invitation.id, "decline")
@@ -128,7 +128,7 @@ export function HouseholdSection({
                           Decline
                         </button>
                         <button
-                          className="h-9 rounded-lg bg-[var(--accent)] px-3 text-xs font-bold text-white disabled:opacity-65"
+                          className="h-9 rounded-lg bg-primary px-3 text-xs font-bold text-on-primary disabled:opacity-65"
                           disabled={isSaving}
                           onClick={() =>
                             onInvitationResponse(invitation.id, "accept")
@@ -185,7 +185,7 @@ export function HouseholdSection({
               <div className="mt-3 grid gap-2">
                 {sentInvitations.map((invitation) => (
                   <div
-                    className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-white p-3"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-surface p-3"
                     key={invitation.id}
                   >
                     <div className="min-w-0">
@@ -209,7 +209,7 @@ export function HouseholdSection({
         <aside className="space-y-5">
           {selectedHousehold ? (
             <form
-              className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm"
+              className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm"
               key={selectedHousehold.id}
               onSubmit={onSaveHouseholdSettings}
             >
@@ -237,7 +237,7 @@ export function HouseholdSection({
                 />
               </Field>
               <button
-                className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
+                className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-4 text-sm font-bold text-white disabled:opacity-65"
                 disabled={isSaving || !canEditSelectedSettings}
                 type="submit"
               >
@@ -248,7 +248,7 @@ export function HouseholdSection({
           ) : null}
 
           <form
-            className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm"
+            className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm"
             onSubmit={onCreateHousehold}
           >
             <h3 className="text-lg font-semibold">Create household</h3>
@@ -261,7 +261,7 @@ export function HouseholdSection({
               />
             </Field>
             <button
-              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-4 text-sm font-bold text-white disabled:opacity-65"
               disabled={isSaving || !households.canUseHouseholds}
               type="submit"
             >
@@ -271,7 +271,7 @@ export function HouseholdSection({
           </form>
 
           <form
-            className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm"
+            className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm"
             onSubmit={onAddMember}
           >
             <h3 className="text-lg font-semibold">Invite member</h3>
@@ -294,7 +294,7 @@ export function HouseholdSection({
               value={memberRole}
             />
             <button
-              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-4 text-sm font-bold text-white disabled:opacity-65"
               disabled={isSaving || !canManageSelectedHousehold}
               type="submit"
             >

@@ -63,7 +63,7 @@ export function TransactionsSection({
       aria-busy={isLoading}
       className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0"
     >
-      <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+      <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-2xl font-semibold tracking-normal">
@@ -138,7 +138,7 @@ export function TransactionsSection({
         </div>
       </article>
 
-      <article className="mt-5 rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+      <article className="mt-5 rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 id="recently-deleted" className="text-lg font-semibold">
@@ -239,7 +239,7 @@ export function TransactionEditModal({
     <dialog
       aria-describedby="transaction-editor-description"
       aria-labelledby="transaction-editor-title"
-      className="fixed inset-0 m-auto max-h-[90dvh] w-[min(92vw,560px)] overflow-hidden rounded-xl border border-[var(--border)] bg-white p-0 text-[var(--ink)] shadow-2xl backdrop:bg-slate-950/45"
+      className="fixed inset-0 m-auto max-h-[90dvh] w-[min(92vw,560px)] overflow-hidden rounded-xl border border-[var(--border)] bg-surface p-0 text-[var(--ink)] shadow-2xl backdrop:bg-slate-950/45"
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -284,7 +284,7 @@ export function TransactionEditModal({
           {isTransfer && <Dropdown label="Destination account (optional)" value={editForm.counterpartyAccountId ?? ""} disabled={isSaving || !!accountError}
             options={[{ value: "", label: "Unspecified" }, ...accounts.filter(x => (x.isActive || x.id === editForm.counterpartyAccountId) && x.id !== editForm.accountId).map(x => ({ value: x.id, label: x.name }))]}
             searchable onChange={value => onEditFormChange({ ...editForm, counterpartyAccountId: value || null })} />}
-          {accountError && <p role="alert" className="text-sm text-red-700">{accountError}</p>}
+          {accountError && <p role="alert" className="text-sm text-danger">{accountError}</p>}
           <Dropdown label="Payment channel (optional)" value={editForm.paymentChannel} disabled={isSaving}
             options={["Unknown", "UPI", "Card", "Cash", "BankTransfer", "AutoDebit", "Wallet", "Cheque"].map(value => ({ value, label: value.replace(/([a-z])([A-Z])/g, "$1 $2") }))}
             onChange={value => onEditFormChange({ ...editForm, paymentChannel: value as PaymentChannel })} />
@@ -397,9 +397,9 @@ export function TransactionEditModal({
           />
         </div>
 
-        <div className="shrink-0 border-t border-[var(--border)] bg-white px-5 py-4">
+        <div className="shrink-0 border-t border-[var(--border)] bg-surface px-5 py-4">
           <button
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-4 text-sm font-bold text-white disabled:opacity-65"
             disabled={isSaving}
             type="submit"
           >

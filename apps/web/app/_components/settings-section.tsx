@@ -9,6 +9,8 @@ import { Field, PreferenceToggle } from "./common-ui";
 import { Dropdown } from "./dropdown";
 import { PrivacyPolicyLink } from "./privacy-policy-link";
 import { SettingsForm } from "./workspace-types";
+import { AppearanceControl } from "./appearance";
+import { useSpndrrWeb } from "./web-design";
 
 export function SettingsSection({
   accessToken, householdId, canWrite,
@@ -39,6 +41,7 @@ export function SettingsSection({
   onFormChange: (form: SettingsForm) => void;
   onSave: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const isWeb = useSpndrrWeb();
   if (!form) {
     return <SectionSkeleton />;
   }
@@ -46,7 +49,7 @@ export function SettingsSection({
   return (
     <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
       <form className="grid gap-4 xl:grid-cols-2" onSubmit={onSave}>
-        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-2xl font-semibold tracking-normal">
@@ -59,6 +62,7 @@ export function SettingsSection({
             <Settings className="h-5 w-5 text-[var(--accent)]" />
           </div>
           <div className="mt-5 grid gap-4">
+            {isWeb ? <AppearanceControl /> : null}
             <Field label="Default currency">
               <input
                 className="form-control uppercase"
@@ -97,7 +101,7 @@ export function SettingsSection({
           </div>
         </article>
 
-        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
           <h3 className="text-base font-semibold">Capture preferences</h3>
           <div className="mt-4 space-y-3">
             <PreferenceToggle
@@ -110,7 +114,7 @@ export function SettingsSection({
             />
           </div>
           <button
-            className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white disabled:opacity-65"
+            className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-4 text-sm font-bold text-white disabled:opacity-65"
             disabled={isSaving}
             type="submit"
           >
@@ -121,7 +125,7 @@ export function SettingsSection({
       </form>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">
-        <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+        <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
           <h3 className="text-lg font-semibold">Your privacy data</h3>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
             Download a versioned JSON copy of your profile, consent history,
@@ -152,10 +156,10 @@ export function SettingsSection({
         </article>
 
         <form
-          className="rounded-lg border border-red-200 bg-white p-4 shadow-sm"
+          className="rounded-lg border border-red-200 bg-surface p-4 shadow-sm"
           onSubmit={onDeleteAccount}
         >
-          <h3 className="text-lg font-semibold text-red-800">Delete account</h3>
+          <h3 className="text-lg font-semibold text-danger">Delete account</h3>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
             This deletes private data and anonymizes eligible shared household
             records. Enter your password and type DELETE.

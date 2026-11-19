@@ -17,10 +17,7 @@ export function WebAuthShell({
             <path d="M41 6 A41 41 0 1 0 82 47 L41 47 Z M47 0 A41 41 0 0 1 88 41 L47 41 Z" />
           </svg>
           <Link className={styles.brand} href="/login">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcSet="/brand/cobalt-slice/spndrr-logo-dark.svg" />
-              <BrandLogo revamp />
-            </picture>
+            <span className={styles.wordmark} role="img" aria-label="Spndrr" />
           </Link>
           <p className={styles.promise}>
             {signup ? "Start tracking in plain words." : "Know where every rupee goes."}

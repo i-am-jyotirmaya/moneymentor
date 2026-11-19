@@ -21,11 +21,11 @@ export function getFallbackAssistantMessage(result: AssistantMessageResponse) {
 
 export function toneClass(tone: DashboardJudgement["tone"]) {
   if (tone === "Healthy") {
-    return "bg-emerald-50 text-emerald-700";
+    return "bg-positive-container text-positive";
   }
 
   if (tone === "Watch") {
-    return "bg-amber-50 text-amber-700";
+    return "bg-warning-container text-warning";
   }
 
   return "bg-rose-50 text-rose-700";

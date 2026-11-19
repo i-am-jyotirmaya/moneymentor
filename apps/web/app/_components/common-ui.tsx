@@ -41,14 +41,14 @@ export function MetricCard({
   value: string;
 }) {
   const toneClassName = {
-    income: "bg-emerald-50 text-emerald-700",
-    neutral: "bg-slate-100 text-slate-700",
+    income: "bg-positive-container text-positive",
+    neutral: "bg-surface-low text-fg-muted",
     saved: "bg-[var(--accent-soft)] text-[var(--accent)]",
     spend: "bg-rose-50 text-rose-700",
   }[tone];
 
   return (
-    <article className="rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+    <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <span
           className={`grid h-10 w-10 place-items-center rounded-lg ${toneClassName}`}
@@ -94,7 +94,7 @@ export function CategoryRow({
           </p>
         </div>
       </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface">
         <div
           className="h-full rounded-full bg-[var(--accent)]"
           style={{ width: `${Math.min(percent, 100)}%` }}
@@ -144,7 +144,7 @@ export function TransactionsPanel({
   transactions: TransactionListItem[];
 }) {
   return (
-    <article className="mt-5 rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+    <article className="mt-5 rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold">Recent transactions</h3>
@@ -202,7 +202,7 @@ export function TransactionRow({
         <div className="flex min-w-0 items-center gap-2">
           <p className="truncate text-sm font-semibold">{transactionLabel}</p>
           <span
-            className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${isIncome ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"}`}
+            className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${isIncome ? "bg-positive-container text-positive" : "bg-surface-low text-fg-muted"}`}
           >
             {kindLabel}
           </span>
@@ -224,7 +224,7 @@ export function TransactionRow({
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <p
-          className={`text-sm font-bold ${isIncome ? "text-emerald-700" : "text-[var(--ink)]"}`}
+          className={`text-sm font-bold ${isIncome ? "text-positive" : "text-[var(--ink)]"}`}
         >
           {isNeutral ? "↔ " : isCredit ? "+" : "-"}
           {formatMoney(transaction.amount, transaction.currencyCode)}
@@ -244,7 +244,7 @@ export function TransactionRow({
         {onDelete ? (
           <button
             aria-label={`Delete transaction ${transactionLabel}`}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition hover:border-red-300 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition hover:border-red-300 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
             disabled={!canWrite}
             onClick={onDelete}
             title={canWrite ? "Move to trash" : "Viewer access is read-only"}
@@ -316,7 +316,7 @@ export function EmptyState({
   return (
     <div className="grid min-h-44 place-items-center rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center">
       <div>
-        <div className="mx-auto grid h-11 w-11 place-items-center rounded-lg bg-white text-[var(--accent)] shadow-sm">
+        <div className="mx-auto grid h-11 w-11 place-items-center rounded-lg bg-surface text-[var(--accent)] shadow-sm">
           <Icon className="h-5 w-5" />
         </div>
         <p className="mt-4 text-sm font-semibold">{title}</p>
@@ -352,7 +352,7 @@ export function MonthNavigator({
   const currentMonth = getCurrentMonthKey();
 
   return (
-    <div className="inline-flex items-center rounded-lg border border-[var(--border)] bg-white p-1 shadow-sm">
+    <div className="inline-flex items-center rounded-lg border border-[var(--border)] bg-surface p-1 shadow-sm">
       <button
         aria-label={`Previous ${label.toLowerCase()}`}
         className="grid h-9 w-9 place-items-center rounded-md text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--ink)] disabled:opacity-45"

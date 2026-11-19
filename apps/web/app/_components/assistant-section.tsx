@@ -55,7 +55,7 @@ export function AssistantSection({
         text={text}
         title="What did you spend or receive?"
       />
-      <div className="hidden min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm lg:block">
+      <div className="hidden min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm lg:block">
         <h3 className="text-base font-semibold">Recent tracked</h3>
         <div className="mt-3 divide-y divide-[var(--border)]">
           {transactions.slice(0, 5).map((transaction) => (
@@ -128,7 +128,7 @@ export function ChatSurface({
     <div
       className={`chat-panel flex min-h-0 flex-1 flex-col overflow-hidden ${compact ? "rounded-lg" : ""}`}
     >
-      {!revamp ? <div className="flex items-center justify-between border-b border-[var(--border)] bg-white/78 px-4 py-3">
+      {!revamp ? <div className="flex items-center justify-between border-b border-[var(--border)] bg-surface/78 px-4 py-3">
         <div className="min-w-0">
           <h2 className="truncate text-base font-semibold">{title}</h2>
           <p className="text-sm font-medium text-[var(--muted)]">
@@ -180,12 +180,12 @@ export function ChatSurface({
 
       {isListening ? <VoiceWavePanel /> : null}
 
-      <div className="shrink-0 border-t border-[var(--border)] bg-white/90 p-3 backdrop-blur">
+      <div className="shrink-0 border-t border-[var(--border)] bg-surface/90 p-3 backdrop-blur">
         {!revamp && showPromptIdeas && onPromptClick ? (
           <div className="mb-3 hidden flex-wrap gap-2 sm:flex">
             {promptIdeas.map((idea) => (
               <button
-                className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--muted)] transition hover:-translate-y-0.5 hover:border-[var(--accent)] hover:text-[var(--ink)]"
+                className="rounded-lg border border-[var(--border)] bg-surface px-3 py-2 text-sm font-semibold text-[var(--muted)] transition hover:-translate-y-0.5 hover:border-[var(--accent)] hover:text-[var(--ink)]"
                 key={idea}
                 onClick={() => onPromptClick(idea)}
                 type="button"
@@ -197,7 +197,7 @@ export function ChatSurface({
         ) : null}
 
         <form className="flex items-end gap-2" onSubmit={onSubmit}>
-          <div className="chat-text-bar flex min-h-14 flex-1 items-end gap-2 rounded-full border border-[var(--border)] bg-white px-2 py-2 shadow-inner transition">
+          <div className="chat-text-bar flex min-h-14 flex-1 items-end gap-2 rounded-full border border-[var(--border)] bg-surface px-2 py-2 shadow-inner transition">
             <textarea
               aria-label="Message Spndrr"
               className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-3 py-2 text-base font-medium leading-6 text-[var(--ink)] outline-none placeholder:text-[var(--muted-2)]"
@@ -222,7 +222,7 @@ export function ChatSurface({
 
           <button
             aria-label={isSubmitting ? "Sending message" : "Send message"}
-            className="assistant-send inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_12px_30px_rgba(15,143,123,0.24)] transition hover:-translate-y-0.5 hover:bg-[#0b7d6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
+            className="assistant-send inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-on-primary shadow-[0_12px_30px_rgba(15,143,123,0.24)] transition hover:-translate-y-0.5 hover:bg-[#0b7d6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-65"
             disabled={isSubmitting}
             type="submit"
           >
@@ -266,12 +266,12 @@ export function DesktopAssistantDock({
       {isOpen ? (
         <section
           aria-label="Assistant chat"
-          className="mb-4 flex h-[560px] w-[420px] min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-white shadow-[0_28px_90px_rgba(16,43,38,0.22)]"
+          className="mb-4 flex h-[560px] w-[420px] min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-surface shadow-[0_28px_90px_rgba(16,43,38,0.22)]"
           role="dialog"
         >
-          <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] bg-white px-4 py-3">
+          <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] bg-surface px-4 py-3">
             <div className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--ink)] text-white">
+              <span className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--sp-strong-action,var(--ink))] text-white">
                 <Bot className="h-5 w-5" />
               </span>
               <div>
@@ -381,7 +381,7 @@ export function VoiceWavePanel() {
   return (
     <div
       aria-live="polite"
-      className="voice-recording-panel mx-3 mb-3 rounded-lg border border-[var(--accent)] bg-[var(--ink)] px-4 py-3 text-white shadow-lg"
+      className="voice-recording-panel mx-3 mb-3 rounded-lg border border-[var(--accent)] bg-[var(--sp-strong-action,var(--ink))] px-4 py-3 text-white shadow-lg"
       data-testid="voice-wave"
     >
       <div className="flex items-center justify-between gap-3">

@@ -34,7 +34,7 @@ export function FinancialAccountsPanel({ accessToken, householdId, canWrite }: {
       shared: account.ownerUserProfileId === null, isActive: account.isActive });
     setNotice(null);
   }
-  return <article className="mt-4 rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm">
+  return <article className="mt-4 rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
     <h2 className="text-xl font-semibold">Financial accounts</h2>
     <p className="mt-1 text-sm text-[var(--muted)]">Accounts are optional. Add bank, credit card, cash or wallet accounts and names you use in chat.</p>
     <div className="mt-4 space-y-2">
@@ -57,10 +57,10 @@ export function FinancialAccountsPanel({ accessToken, householdId, canWrite }: {
         <label><input type="checkbox" disabled={!canWrite || saving || !!editing} checked={form.shared} onChange={e => setForm({ ...form, shared: e.target.checked })} /> Shared account (owner/admin)</label>
         <label><input type="checkbox" disabled={!canWrite || saving} checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} /> Active</label>
       </div>
-      <div className="flex gap-2"><button className="rounded-lg bg-[var(--accent)] px-4 py-2 font-semibold text-white" disabled={!canWrite || saving} type="submit">{saving ? "Saving…" : editing ? "Save account" : "Add account"}</button>
+      <div className="flex gap-2"><button className="rounded-lg bg-primary px-4 py-2 font-semibold text-on-primary" disabled={!canWrite || saving} type="submit">{saving ? "Saving…" : editing ? "Save account" : "Add account"}</button>
         {editing && <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => { setEditing(undefined); setForm(empty); }}>Cancel</button>}</div>
     </form>
-    {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
-    {notice && <p role="status" className="mt-3 text-sm text-emerald-700">{notice}</p>}
+    {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
+    {notice && <p role="status" className="mt-3 text-sm text-positive">{notice}</p>}
   </article>;
 }

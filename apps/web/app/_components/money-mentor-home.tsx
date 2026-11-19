@@ -273,12 +273,12 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
 
       {undoTransaction ? (
         <div
-          className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-lg bg-[var(--ink)] px-4 py-3 text-sm font-semibold text-white shadow-xl"
+          className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-4 py-3 text-sm font-semibold text-white shadow-xl"
           role="status"
         >
           Moved to Recently Deleted.
           <button
-            className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 font-bold"
+            className="inline-flex items-center gap-2 rounded-md bg-surface/10 px-3 py-2 font-bold"
             onClick={() => void handleRestoreTransaction(undoTransaction)}
             type="button"
           >

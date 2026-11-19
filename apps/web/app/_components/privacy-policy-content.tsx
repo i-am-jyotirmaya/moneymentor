@@ -28,7 +28,7 @@ export function PrivacyPolicyContent({ headingLevel = 1 }: PrivacyPolicyContentP
         </p>
       </section>
       <Title className="mt-3 text-4xl font-semibold">Spndrr beta privacy policy</Title>
-      <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+      <p className="mt-4 rounded-lg border border-amber-300 bg-warning-container p-4 text-sm font-semibold text-warning">
         This plain-language beta policy is a product draft and must receive legal review before general availability.
       </p>
 

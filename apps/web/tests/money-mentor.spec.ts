@@ -342,6 +342,30 @@ test("the dashboard Ask action focuses the composer and offers finance questions
   await expect(composer).toBeFocused();
 });
 
+test("browser appearance follows the system and persists an override", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/settings");
+
+  const root = page.locator("html");
+  const appearance = page.getByLabel("Appearance");
+  await expect(appearance).toHaveValue("system");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(10, 13, 24)");
+
+  await appearance.selectOption("light");
+  await expect(root).toHaveAttribute("data-appearance", "light");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(244, 246, 251)");
+  await page.reload();
+  await expect(appearance).toHaveValue("light");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(244, 246, 251)");
+
+  await appearance.selectOption("system");
+  await expect(root).not.toHaveAttribute("data-appearance", /.+/);
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(10, 13, 24)");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(244, 246, 251)");
+});
+
 test("mobile hamburger menu can open the dashboard", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only scenario");
 

@@ -34,7 +34,7 @@ export function WorkspaceError({
 export function SignedOutHome() {
   return (
     <main className="grid min-h-screen place-items-center bg-[var(--background)] px-5 text-[var(--ink)]">
-      <section className="w-full max-w-md rounded-lg border border-[var(--border)] bg-white p-6 text-center shadow-[0_18px_55px_rgba(16,43,38,0.08)]">
+      <section className="w-full max-w-md rounded-lg border border-[var(--border)] bg-surface p-6 text-center shadow-[0_18px_55px_rgba(16,43,38,0.08)]">
         <h1 className="flex justify-center">
           <BrandLogo />
         </h1>
@@ -43,12 +43,12 @@ export function SignedOutHome() {
         </p>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <Link
-            className="inline-flex h-11 items-center justify-center rounded-lg bg-[var(--ink)] px-4 text-sm font-bold text-white"
+            className="inline-flex h-11 items-center justify-center rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-4 text-sm font-bold text-white"
             href="/login"
           >
             Login
           </Link>
-          <RegistrationLink className="inline-flex h-11 items-center justify-center rounded-lg border border-[var(--border)] bg-white px-4 text-sm font-bold text-[var(--ink)]" />
+          <RegistrationLink className="inline-flex h-11 items-center justify-center rounded-lg border border-[var(--border)] bg-surface px-4 text-sm font-bold text-[var(--ink)]" />
         </div>
       </section>
     </main>
@@ -77,7 +77,7 @@ export function PrivacyConsentGate({
 }) {
   return (
     <main className="grid min-h-screen place-items-center bg-[var(--background)] px-5 text-[var(--ink)]">
-      <section className="w-full max-w-xl rounded-xl border border-[var(--border)] bg-white p-7 shadow-lg">
+      <section className="w-full max-w-xl rounded-xl border border-[var(--border)] bg-surface p-7 shadow-lg">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
           Privacy update
         </p>
@@ -95,7 +95,7 @@ export function PrivacyConsentGate({
         </PrivacyPolicyLink>
         <div className="mt-8 flex flex-wrap gap-3">
           <button
-            className="rounded-lg bg-[var(--ink)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+            className="rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
             disabled={isSaving}
             onClick={onAccept}
             type="button"

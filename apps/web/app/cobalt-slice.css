@@ -1,6 +1,6 @@
 /* Web adaptation of the Cobalt Slice palette. The Capacitor layout still
    imports the shared base tokens, and does not load this stylesheet. */
-:root[data-spndrr-web] {
+:root[data-spndrr-web]:where(:not([data-theme="dark"])) {
   --sp-bg: #f4f6fb;
   --sp-surface-low: #eceff6;
   --sp-surface-container: #e3e8ff;
@@ -17,7 +17,6 @@
   --sp-positive-container: #ddf5e9;
   --sp-danger: #be2a33;
   --sp-danger-container: #ffe8e8;
-  --sp-font-display: var(--font-inter-tight), var(--sp-font-sans);
   --sp-grad-auth: linear-gradient(180deg, #e3e8ff, #f4f6fb 60%);
   --sp-grad-hero: linear-gradient(135deg, #141f63, #1f33a6 55%, #2944d4);
   --sp-on-hero: #fff;
@@ -29,6 +28,103 @@
   --sp-cat-6: #348be5;
   --sp-cat-7: #d2456f;
   --sp-cat-8: #6b7389;
+}
+
+:root[data-spndrr-web] {
+  --sp-font-display: var(--font-inter-tight), var(--sp-font-sans);
+  --sp-strong-action: #0e1220;
+  --sp-accent-text: var(--sp-primary);
+  --sp-chart-income: var(--sp-positive);
+  --sp-chart-spend: var(--sp-primary);
+  --sp-mark-slice: #0e1220;
+  --accent: var(--sp-accent-text);
+  --accent-ring: color-mix(in srgb, var(--sp-accent-text) 24%, transparent);
+  --sp-auth-logo: url("/brand/cobalt-slice/spndrr-logo.svg");
+}
+
+/* Older engines are assigned a resolved theme by the appearance script. */
+:root[data-spndrr-web][data-theme="dark"] {
+  --sp-strong-action: #2944d4;
+  --sp-accent-text: #9daeff;
+  --sp-grad-auth: linear-gradient(180deg, #151d45, #0a0d18 60%);
+  --sp-grad-hero: linear-gradient(135deg, #10173f, #18257a 60%, #2a3fc0);
+  --sp-on-hero: #fff;
+  --sp-on-hero-muted: #c9d2ff;
+  --sp-auth-logo: url("/brand/cobalt-slice/spndrr-logo-dark.svg");
+  --sp-cat-8: #9aa2b8;
+  --sp-mark-slice: #fff;
+}
+
+@supports (color: light-dark(white, black)) {
+  :root[data-spndrr-web] {
+    color-scheme: light dark;
+    --sp-bg: light-dark(#f4f6fb, #0a0d18);
+    --sp-surface: light-dark(#fff, #121726);
+    --sp-surface-low: light-dark(#eceff6, #0e1322);
+    --sp-surface-container: light-dark(#e3e8ff, #1a2033);
+    --sp-surface-high: light-dark(#d9deea, #1e2539);
+    --sp-field: light-dark(#eceff6, #0e1322);
+    --sp-text: light-dark(#0e1220, #eef1f8);
+    --sp-text-secondary: light-dark(#4a5168, #aeb5c8);
+    --sp-text-placeholder: light-dark(#5f6984, #8c94aa);
+    --sp-primary: light-dark(#2944d4, #4a63ec);
+    --sp-primary-pressed: light-dark(#2238b8, #3b53d6);
+    --sp-accent-text: light-dark(#2944d4, #9daeff);
+    --sp-primary-container: light-dark(#e3e8ff, #1e2a66);
+    --sp-on-primary-container: light-dark(#13207a, #c9d2ff);
+    --sp-outline: light-dark(#7c859d, #8c94aa);
+    --sp-outline-variant: light-dark(#dde2ec, #262d42);
+    --sp-focus: var(--sp-accent-text);
+    --sp-positive: light-dark(#08754a, #5fd39b);
+    --sp-positive-container: light-dark(#ddf5e9, #0e3424);
+    --sp-danger: light-dark(#be2a33, #ff8a8a);
+    --sp-danger-container: light-dark(#ffe8e8, #45161a);
+    --sp-warning: light-dark(#8a5300, #f2c16b);
+    --sp-warning-container: light-dark(#ffedcc, #3d2900);
+    --sp-strong-action: light-dark(#0e1220, #2944d4);
+    --sp-cat-1: light-dark(#2944d4, #8197ff);
+    --sp-cat-2: light-dark(#b47e15, #fda525);
+    --sp-cat-3: light-dark(#008185, #1fa197);
+    --sp-cat-4: light-dark(#731f5a, #f365b0);
+    --sp-cat-5: light-dark(#6f5700, #f9e488);
+    --sp-cat-6: light-dark(#348be5, #a9d6ff);
+    --sp-cat-7: light-dark(#d2456f, #ff7f66);
+    --sp-cat-8: light-dark(#6b7389, #9aa2b8);
+    --sp-chart-spend: light-dark(#2944d4, #7088f5);
+    --sp-mark-slice: light-dark(#0e1220, #fff);
+    --sp-grad-auth: linear-gradient(180deg, light-dark(#e3e8ff, #151d45), var(--sp-bg) 60%);
+    --sp-grad-hero: linear-gradient(135deg, light-dark(#141f63, #10173f), light-dark(#1f33a6, #18257a) 55%, light-dark(#2944d4, #2a3fc0));
+  }
+
+  :root[data-spndrr-web][data-appearance="light"] { color-scheme: light; }
+  :root[data-spndrr-web][data-appearance="dark"] { color-scheme: dark; }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-spndrr-web]:not([data-appearance="light"]) {
+    --sp-auth-logo: url("/brand/cobalt-slice/spndrr-logo-dark.svg");
+  }
+}
+
+:root[data-spndrr-web][data-appearance="dark"] {
+  --sp-auth-logo: url("/brand/cobalt-slice/spndrr-logo-dark.svg");
+}
+
+[data-spndrr-web] .form-control {
+  background: var(--sp-field);
+  border-color: var(--sp-outline);
+}
+
+[data-spndrr-web] .form-control:focus {
+  border-color: var(--sp-focus);
+}
+
+[data-spndrr-web] .toggle-control {
+  background: var(--sp-field);
+}
+
+[data-spndrr-web] .toggle-control:checked {
+  background: var(--sp-primary);
 }
 
 [data-spndrr-web] .workspace-sidebar {

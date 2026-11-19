@@ -40,7 +40,7 @@ export function GoalPlanPanel({
   return (
     <article
       id="goal-plan"
-      className="mt-5 rounded-lg border border-[var(--border)] bg-white p-4 shadow-sm"
+      className="mt-5 rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -51,7 +51,7 @@ export function GoalPlanPanel({
           </p>
         </div>
         {planningRun ? (
-          <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
+          <span className="rounded-md bg-surface-low px-2 py-1 text-xs font-bold text-fg-muted">
             {planningRun.runType} · {planningRun.status}
           </span>
         ) : null}
@@ -76,7 +76,7 @@ export function GoalPlanPanel({
             </div>
             {goalDetail.goal.userProfileId === null ? (
               <button
-                className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-xs font-bold disabled:opacity-50"
+                className="rounded-lg border border-[var(--border)] bg-surface px-3 py-2 text-xs font-bold disabled:opacity-50"
                 disabled={isPlanningWorking}
                 onClick={() => void handleConsent()}
                 type="button"
@@ -134,7 +134,7 @@ export function GoalPlanPanel({
               />
             </label>
             <button
-              className="self-end rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+              className="self-end rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary disabled:opacity-50"
               disabled={
                 !canWrite ||
                 isPlanningWorking ||
@@ -167,7 +167,7 @@ export function GoalPlanPanel({
                         Review with AI
                       </button>
                       <button
-                        className="rounded-md bg-[var(--ink)] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                        className="rounded-md bg-[var(--sp-strong-action,var(--ink))] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
                         disabled={
                           isPlanningWorking ||
                           goalDetail.plan?.activeVersionId === version.id
@@ -208,7 +208,7 @@ export function GoalPlanPanel({
                           {option.explanation}
                         </p>
                         {option.risks.length ? (
-                          <ul className="mt-3 list-disc space-y-1 pl-4 text-xs font-medium text-amber-800">
+                          <ul className="mt-3 list-disc space-y-1 pl-4 text-xs font-medium text-warning">
                             {option.risks.map((risk) => (
                               <li key={risk}>{risk}</li>
                             ))}

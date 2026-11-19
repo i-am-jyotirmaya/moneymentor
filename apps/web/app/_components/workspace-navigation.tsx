@@ -129,11 +129,12 @@ export function MobileHeader({
   greetingName: string;
   onMenuOpen: () => void;
 }) {
+  const isWeb = useSpndrrWeb();
   return (
-    <header className="workspace-narrow-header flex h-16 shrink-0 items-center justify-between border-b border-[var(--border)] bg-white/88 px-4 backdrop-blur lg:hidden">
+    <header className="workspace-narrow-header flex h-16 shrink-0 items-center justify-between border-b border-[var(--border)] bg-surface/88 px-4 backdrop-blur lg:hidden">
       <button
         aria-label="Open menu"
-        className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)]"
+        className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--border)] bg-surface text-[var(--ink)]"
         onClick={onMenuOpen}
         type="button"
       >
@@ -148,7 +149,12 @@ export function MobileHeader({
         </h1>
       </div>
       <span aria-label="Spndrr" role="img" className="workspace-narrow-mark grid h-10 w-10 place-items-center">
-        <BrandMarkIcon className="h-10 w-10" />
+        {isWeb ? (
+          <svg aria-hidden="true" viewBox="0 0 88 88" className="w-full">
+            <path d="M41 6 A41 41 0 1 0 82 47 L41 47 Z" fill="var(--sp-primary)" />
+            <path d="M47 0 A41 41 0 0 1 88 41 L47 41 Z" fill="var(--sp-mark-slice)" />
+          </svg>
+        ) : <BrandMarkIcon className="h-10 w-10" />}
       </span>
     </header>
   );
@@ -184,7 +190,7 @@ export function MobileMenu({
     >
       <aside
         aria-label="Mobile menu"
-        className="flex h-full w-[min(84vw,340px)] flex-col bg-white p-5 shadow-2xl"
+        className="flex h-full w-[min(84vw,340px)] flex-col bg-surface p-5 shadow-2xl"
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -212,7 +218,7 @@ export function MobileMenu({
                 className={`flex h-12 w-full items-center gap-3 rounded-lg border px-3 text-sm font-bold transition ${
                   activeSection === item.section
                     ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                    : "border-[var(--border)] bg-white text-[var(--ink)]"
+                    : "border-[var(--border)] bg-surface text-[var(--ink)]"
                 }`}
                 key={item.section}
                 href={`/${item.section}${query}`}
@@ -231,7 +237,7 @@ export function MobileMenu({
             {sessionEmail}
           </p>
           <button
-            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--ink)] px-3 text-sm font-bold text-white"
+            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-3 text-sm font-bold text-white"
             onClick={onSignOut}
             type="button"
           >
@@ -258,7 +264,7 @@ export function HouseholdScopeSelector({
     (household) => household.id === selectedHouseholdId,
   );
   return (
-    <div className="workspace-scope mb-4 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-white px-4 py-3 shadow-sm lg:mb-5">
+    <div className="workspace-scope mb-4 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-surface px-4 py-3 shadow-sm lg:mb-5">
       <div className="flex min-w-0 flex-1 items-center gap-3 text-sm font-semibold">
         <Users className="h-4 w-4 shrink-0 text-[var(--accent)]" />
         <span className="hidden sm:inline">Household</span>
@@ -276,7 +282,7 @@ export function HouseholdScopeSelector({
         />
       </div>
       <span
-        className={`workspace-scope-permission shrink-0 rounded-md px-2 py-1 text-xs font-bold ${selected?.canWrite ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}
+        className={`workspace-scope-permission shrink-0 rounded-md px-2 py-1 text-xs font-bold ${selected?.canWrite ? "bg-positive-container text-positive" : "bg-surface-low text-fg-muted"}`}
       >
         {selected?.canWrite ? "Can write" : "Read only"}
       </span>
@@ -299,7 +305,7 @@ export function MobileBottomNav({
   return (
     <nav
       aria-label="Quick navigation"
-      className="workspace-dock grid shrink-0 grid-cols-4 border-t border-[var(--border)] bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
+      className="workspace-dock grid shrink-0 grid-cols-4 border-t border-[var(--border)] bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       {(["assistant", "transactions", "dashboard"] as const).map((section) => {
         const item = navItems.find((item) => item.section === section)!;
