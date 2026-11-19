@@ -88,3 +88,17 @@ export function spokenInr(value: number, opts?: InrOptions): string {
   return formatted;
 }
 
+const percentDigits = new Intl.NumberFormat("en-IN", { useGrouping: false, maximumFractionDigits: 1 });
+
+export function formatPercent(value: number, opts?: { sign?: "auto" | "always" | "never" }): string {
+  const digits = percentDigits.format(Math.abs(value));
+  let sign = "";
+  if (digits !== "0" && value < 0 && opts?.sign !== "never") sign = "−";
+  if (digits !== "0" && value > 0 && opts?.sign === "always") sign = "+";
+  return `${sign}${digits}%`;
+}
+
+export function spokenPercent(value: number): string {
+  const digits = formatPercent(value).slice(0, -1);
+  return `${digits.startsWith("−") ? `minus ${digits.slice(1)}` : digits} percent`;
+}
