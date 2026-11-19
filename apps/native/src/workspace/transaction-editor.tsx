@@ -27,9 +27,11 @@ function AccountChoice({ label, value, options, disabled, onChange }: {
   return <><Action title={options.find(option => option.value === value)?.label ?? value} label={label} disabled={disabled} onPress={() => { Keyboard.dismiss(); setQuery(''); setOpen(true); }} /><EditorSheet visible={open} onClose={close}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}><Text style={ws.heading}>{label}</Text><TextInput style={styles.input} accessibilityLabel={`Search ${label.toLowerCase()}`} placeholder="Search options" value={query} onChangeText={setQuery} />{matches.map(option => <Action key={option.value} title={option.label} selected={value === option.value} onPress={() => { onChange(option.value); close(); }} />)}{!matches.length ? <Text style={styles.text}>No matching options.</Text> : null}<Action title="Close" onPress={close} /></ScrollView></EditorSheet></>;
 }
 
-export function TransactionEditor({ transaction, catalog, form, setForm, saving, error, close, save }: {
+export function TransactionEditor({ transaction, catalog, form, setForm, saving, error, close, save, onDelete }: {
   transaction: Transaction; catalog: CategoryCatalog | null; form: TransactionEditForm; setForm: (f: TransactionEditForm) => void;
   saving: boolean; error: string | null; close: () => void; save: () => void;
+  /** D5: Delete lives at the bottom of the editor (the row itself is a single tap target). */
+  onDelete?: () => void;
 }) {
   const { client } = useSession();
   const [attempt, setAttempt] = useState(0);
@@ -64,7 +66,7 @@ export function TransactionEditor({ transaction, catalog, form, setForm, saving,
       {income ? <>{field('Sender', 'senderName')}{field('Reason', 'reason')}</> : <>{field('Merchant', 'merchantName')}{field('Description', 'description')}</>}
       {field('Transaction date', 'transactionDate')}
       <Text style={styles.label}>Visibility</Text><Choice label="Visibility" value={form.visibility} disabled={saving} options={options(['Private', 'Household'])} onChange={value => setForm({ ...form, visibility: value as Visibility })} />
-    <View style={ws.content}><Action write testID="transaction-edit-save" title={saving ? 'Saving...' : 'Save transaction'} disabled={saving} onPress={save} /></View>
+    <View style={ws.content}><Action write testID="transaction-edit-save" title={saving ? 'Saving...' : 'Save transaction'} disabled={saving} onPress={save} />{onDelete ? <Action write testID="transaction-edit-delete" title="Delete transaction" label="Delete transaction" disabled={saving} onPress={onDelete} /> : null}</View>
     </ScrollView>
     <EditorSheet visible={categoryOpen} onClose={closeCategory}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}><Text style={ws.heading}>Category</Text><TextInput accessibilityLabel="Search categories" placeholder="Search a category or group" value={search} onChangeText={setSearch} style={styles.input} />{rows.map(row => <View key={row.value} style={{ paddingLeft: row.depth * 16 }}>{row.selectable ? <Action title={row.label} onPress={() => { setForm({ ...form, categoryId: row.value, categoryName: row.label }); closeCategory(); setSearch(''); }} /> : <Text style={styles.label}>{row.label}</Text>}</View>)}{!rows.some(row => row.selectable) ? <Text style={styles.text}>{categoryRows(catalog?.categories ?? [], income).some(row => row.selectable) ? 'No matching categories. Try another search.' : 'No categories available. Your current category will be kept.'}</Text> : null}<Action title="Close" onPress={closeCategory} /></ScrollView></EditorSheet>
   </EditorSheet>;

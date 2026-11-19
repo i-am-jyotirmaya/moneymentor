@@ -15,6 +15,8 @@ import { NavDock, type NavDockRoute } from './NavDock';
 import { TopBar } from './TopBar';
 import { Action, ErrorNotice, Loading, ws } from './ui';
 import { useTheme } from '../ui/ThemeProvider';
+import { formatMonthKey, getMonthOptions } from '../lib/format';
+import { DOCK_SPACE } from './dock';
 
 const navIcons = {
   assistant: { android: 'smart_toy', ios: 'bubble.left' },
@@ -51,7 +53,7 @@ function BottomSheet({ visible, title, onClose, children }: { visible: boolean; 
 
 function Shell() {
   const { client, session, status } = useSession();
-  const { households, householdId, setHouseholdId, section } = useWorkspace();
+  const { households, householdId, setHouseholdId, section, month, setMonth } = useWorkspace();
   const [keyboardOpen, setKeyboardOpen] = useState(Keyboard.isVisible());
   const shell = useTheme();
   // The revamp replaces the dev-client floating gear with a long press on the mark (and Settings → Developer).
@@ -67,6 +69,7 @@ function Shell() {
   const banner = useSectionBanner(active);
   const [menu, setMenu] = useState(false);
   const [householdMenu, setHouseholdMenu] = useState(false);
+  const [monthMenu, setMonthMenu] = useState(false);
   const body = useRef<ComponentRef<typeof View>>(null);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
   const [policy, setPolicy] = useState(false);
@@ -92,6 +95,7 @@ function Shell() {
   const selected = households?.households.find(h => h.id === householdId);
   const blocked = section.blocked && !households && active !== 'assistant';
   function pressDock(key: DockRoute) { if (key === 'more') setMenu(true); else navigate(key); }
+  const sceneOptions = (section: string) => revampedSections.has(section) ? undefined : { sceneStyle: { backgroundColor: colors.background, paddingBottom: keyboardOpen ? 0 : DOCK_SPACE } };
   return <SafeAreaView edges={keyboardOpen ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']} style={[ws.fill, { backgroundColor: shell.color.bg }]}>
     {/* TODO(A1): move to ThemeProvider's SystemBars once it owns the system bars. */}
     <StatusBar barStyle={shell.scheme === 'dark' ? 'light-content' : 'dark-content'} />
@@ -99,24 +103,30 @@ function Shell() {
     <TopBar title={sectionLabel(active)}
       household={households && households.households.length > 0 ? { name: selected?.name ?? 'Select household', canWrite: !!selected?.canWrite } : null}
       onHouseholdPress={() => setHouseholdMenu(true)} householdExpanded={householdMenu}
+      action={active === 'dashboard' ? { icon: { android: 'calendar_month', ios: 'calendar' }, label: `Choose month, ${formatMonthKey(month)}`, onPress: () => setMonthMenu(true) } : undefined}
       onMarkLongPress={__DEV__ ? () => devClient()?.openMenu() : undefined} />
     <SectionBanner banner={banner} />
     <WorkspaceBannerVisible.Provider value={!!banner}><View ref={body} style={ws.fill} onLayout={() => body.current?.measureInWindow((_x, y) => setKeyboardOffset(y))}>
       <KeyboardAvoidingView style={ws.fill} behavior={Platform.OS === 'ios' && active !== 'assistant' ? 'padding' : undefined} keyboardVerticalOffset={keyboardOffset}>
         {/* Tabs keeps visited screens mounted. Keep the navigator mounted even if a section is temporarily blocked. */}
         <View style={ws.fill} importantForAccessibility={blocked ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={blocked}>
-          <Tabs backBehavior="initialRoute" tabBar={() => null} screenOptions={{ headerShown: false, lazy: true, animation: 'fade', sceneStyle: { backgroundColor: colors.background } }}>
-            {sections.map(({ section }) => <Tabs.Screen key={section} name={section} />)}
+          <Tabs backBehavior="initialRoute" tabBar={() => null} screenOptions={{ headerShown: false, lazy: true, animation: 'fade', sceneStyle: { backgroundColor: shell.color.bg } }}>
+            {/* Revamped screens pad their own scroll content by useDockSpace(); the rest get scene padding until B3. */}
+            {sections.map(({ section }) => <Tabs.Screen key={section} name={section} options={sceneOptions(section)} />)}
           </Tabs>
         </View>
-        {blocked ? <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}><SectionPanel section={section} /></View> : null}
+        {blocked ? <View style={[StyleSheet.absoluteFill, { backgroundColor: shell.color.bg, paddingBottom: DOCK_SPACE }]}><SectionPanel section={section} /></View> : null}
       </KeyboardAvoidingView>
     </View></WorkspaceBannerVisible.Provider>
     {/* Rendered by the shell rather than Tabs' tabBar so it stays reachable over a blocked-section overlay. */}
-    {!keyboardOpen ? <NavDock routes={dockRoutes} active={active} moreOpen={menu} onPress={pressDock} /> : null}
+    {/* The dock floats over the scene; screens reserve DOCK_SPACE at the end of their content. */}
+    {!keyboardOpen ? <View pointerEvents="box-none" style={chrome.dock}><NavDock routes={dockRoutes} active={active} moreOpen={menu} onPress={pressDock} /></View> : null}
     <BottomSheet visible={menu} title="More" onClose={() => setMenu(false)}>
       {moreSections.map(item => <Action key={item.section} testID={`menu-${item.section}`} title={item.label} selected={active === item.section} onPress={() => navigate(item.section)} />)}
       <Text style={styles.label}>{session.user.displayName}</Text><Text style={styles.text}>{session.user.email}</Text><Action title="Sign out" testID="menu-sign-out" onPress={signOut} />
+    </BottomSheet>
+    <BottomSheet visible={monthMenu} title="Dashboard month" onClose={() => setMonthMenu(false)}>
+      {getMonthOptions(month).map(value => <Action key={value} testID={`month-${value}`} title={formatMonthKey(value)} selected={value === month} onPress={() => { setMonth(value); setMonthMenu(false); }} />)}
     </BottomSheet>
     <BottomSheet visible={householdMenu} title="Household" onClose={() => setHouseholdMenu(false)}>
       {households?.households.map(h => <Action key={h.id} title={`${h.name} (${h.kind})`} label={`${h.name}, ${h.kind}, ${h.canWrite ? 'can write' : 'read only'}`} selected={h.id === householdId} onPress={() => { setHouseholdId(h.id); setHouseholdMenu(false); }} />)}
@@ -126,7 +136,9 @@ function Shell() {
 }
 export function WorkspaceShell() { const { session } = useSession(); return <SectionsProvider key={session?.user.id}><WorkspaceProvider><Shell /></WorkspaceProvider></SectionsProvider>; }
 
+const revampedSections = new Set<string>(['dashboard', 'transactions', 'assistant']);
 const chrome = StyleSheet.create({
+  dock: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   pressed: { opacity: 0.7 },
   sheet: { maxHeight: '90%', backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
   sheetHandle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border },

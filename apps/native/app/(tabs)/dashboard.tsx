@@ -1,49 +1,146 @@
-import { SectionPanel } from '../../src/workspace/sections';
-import { ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { formatDate, formatMoney, formatMonthKey, formatTone, getCurrentMonthKey, getMonthOptions, shiftMonthKey } from '../../src/lib/format';
-import { colors, styles } from '../../src/ui/theme';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import type { Goal } from '../../src/api/workspace-models';
+import { useSession } from '../../src/auth/session';
+import { formatInr, getCurrentMonthKey } from '../../src/lib/format';
+import { CashFlowBars, Card, CategoryDonut, categoryIndex, EmptyState, GoalRing, HeroCard, QuickAction, SavingsArea, Segmented, SliceGauge, TxRow, useThemedStyles, type DonutSlice } from '../../src/ui/stubs';
+import type { ThemeValue } from '../../src/ui/ThemeProvider';
+import { useTheme } from '../../src/ui/ThemeProvider';
 import { useWorkspace } from '../../src/workspace/context';
-import { categoryPercent, monthlyFlowBars, transactionPresentation } from '../../src/workspace/dashboard-data';
-import { Action, Choice, Panel, ws } from '../../src/workspace/ui';
+import { expenseSlices, goalProgress, goalRingStatus, heroLabel, savingsDelta } from '../../src/workspace/dashboard-data';
+import { useDockSpace } from '../../src/workspace/dock';
+import { useMonthlyTrend } from '../../src/workspace/monthly-trend';
+import { SectionPanel } from '../../src/workspace/sections';
+
+const makeStyles = (t: ThemeValue) => ({
+  content: { paddingHorizontal: t.layout.gutter, paddingTop: 8, gap: t.layout.sectionGap },
+  actions: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, gap: 8 },
+  cardHead: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, justifyContent: 'space-between' as const, gap: 12, flexWrap: 'wrap' as const },
+  title: { ...t.type.title, color: t.color.text },
+  subtitle: { ...t.type.caption, color: t.color.text2 },
+  link: { ...t.type.label, color: t.color.primaryText },
+  linkTarget: { minHeight: 48, minWidth: 48, justifyContent: 'center' as const, alignItems: 'flex-end' as const },
+  legend: { flexDirection: 'row' as const, gap: 16, flexWrap: 'wrap' as const },
+  legendItem: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
+  dot: { width: 10, height: 10, borderRadius: 3 },
+  donutRow: { flexDirection: 'row' as const, gap: 16, alignItems: 'center' as const, flexWrap: 'wrap' as const },
+  rows: { flex: 1, minWidth: 140, gap: 8 },
+  row: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  rowName: { ...t.type.label, color: t.color.text, flex: 1 },
+  rowShare: { ...t.type.caption, color: t.color.text2 },
+  goal: { width: 188, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12 },
+  goalName: { ...t.type.label, color: t.color.text },
+  section: { ...t.type.title, color: t.color.text },
+});
 
 export default function Dashboard() {
-  const { dashboard: data, month, setMonth, loading, section } = useWorkspace();
+  const { dashboard: data, month, loading, section, householdId } = useWorkspace();
+  const { client } = useSession();
   const router = useRouter();
+  const theme = useTheme();
+  const s = useThemedStyles(makeStyles);
+  const dock = useDockSpace();
+  const [period, setPeriod] = useState<'6M' | '12M'>('6M');
+  const trend = useMonthlyTrend(period === '6M' ? 6 : 12);
+  const [goals, setGoals] = useState<Goal[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (!householdId) return;
+    client.listGoals(householdId).then(list => { if (alive) setGoals(list.filter(g => g.status !== 'Cancelled')); }, () => { if (alive) setGoals(null); });
+    return () => { alive = false; };
+  }, [client, householdId]);
   if (!data) return <SectionPanel section={section} />;
-  const money = (value: number) => formatMoney(value, data.currencyCode);
-  const flow = monthlyFlowBars(data.income, data.spends);
-  return <ScrollView testID="dashboard-screen" accessibilityState={{ busy: loading }} contentContainerStyle={ws.content}>
-    <View><Text style={styles.label}>{data.monthLabel}</Text><Text style={styles.text}>Your income, spending, and progress at a glance.</Text></View>
-    <View style={ws.row}><Action title="‹" label="Previous dashboard month" disabled={loading} onPress={() => setMonth(shiftMonthKey(month, -1))} /><Choice label="Dashboard month" value={month} disabled={loading} options={getMonthOptions(month).map(value => ({ value, label: formatMonthKey(value) }))} onChange={setMonth} /><Action title="›" label="Next dashboard month" disabled={loading || shiftMonthKey(month, 1) > getCurrentMonthKey()} onPress={() => setMonth(shiftMonthKey(month, 1))} /></View>
-    <View style={ws.row}><Action title="Track a transaction" onPress={() => router.navigate('/(tabs)/assistant')} /><Action title="Review judgments" onPress={() => router.navigate('/(tabs)/reports')} /><Action title="Plan a goal" onPress={() => router.navigate('/(tabs)/planning')} /></View>
-    {[
-      ['Income', money(data.income), 'Tracked income'],
-      ['Spends', money(data.spends), 'Tracked expenses'],
-      ['Saved', money(data.saved), data.savingsRate === null ? 'Income not tracked' : `${data.savingsRate}% savings rate`],
-      ['Categories', data.categories.length.toString(), 'Spending categories'],
-    ].map(([label, value, detail]) => <Panel title={label} key={label}><Text style={styles.title}>{value}</Text><Text style={styles.text}>{detail}</Text></Panel>)}
-    <Panel title="Monthly cash flow"><Text style={styles.text}>Compare income and spending for {data.monthLabel}.</Text><View testID="dashboard-cash-flow-chart" style={{ gap: 12 }}>
-      {flow.entries.map(entry => <View key={entry.label} style={{ gap: 6 }} accessible accessibilityLabel={`${entry.label}: ${money(entry.amount)}`}>
-        <View style={ws.row}><Text style={styles.label}>{entry.label}</Text><Text style={styles.label}>{money(entry.amount)}</Text></View>
-        <View style={{ borderRadius: 8, backgroundColor: colors.surface, flexDirection: 'row', height: 16, overflow: 'hidden' }}>
-          {flow.hasNegative ? <View style={{ width: '50%', alignItems: 'flex-end', borderRightWidth: 1, borderColor: colors.muted2 }}>
-            {entry.amount < 0 ? <View style={{ width: `${entry.percent}%`, height: 16, backgroundColor: entry.label === 'Income' ? colors.accent : colors.muted }} /> : null}
-          </View> : null}
-          {entry.amount >= 0 ? <View style={{ flex: 1 }}><View style={{ width: `${entry.percent}%`, height: 16, backgroundColor: entry.label === 'Income' ? colors.accent : colors.muted }} /></View> : null}
-        </View>
-      </View>)}
-      {!data.income && !data.spends ? <Text style={styles.text}>No cash flow recorded for this month.</Text> : null}
-    </View></Panel>
-    <Panel title="Category spending"><Text style={styles.text}>Calculated from stored expenses.</Text>{data.categories.length ? data.categories.map((category, index) => {
-      const percent = categoryPercent(category.amount, data.spends);
-      return <View style={ws.item} key={`${category.name}-${index}`}><View style={ws.row}><Text style={styles.label}>{category.name}</Text><Text style={styles.label}>{money(category.amount)}</Text></View><Text style={ws.small}>{category.note}</Text><Text style={ws.small}>{percent}%</Text><View style={{ height: 8, backgroundColor: 'white', borderRadius: 8 }}><View style={{ height: 8, width: `${Math.min(percent, 100)}%`, backgroundColor: colors.accent, borderRadius: 8 }} /></View></View>;
-    }) : <Text style={styles.text}>No expenses are tracked for this month yet.</Text>}</Panel>
-    <Panel title="Judgements">{data.judgements.map((judgement, index) => <View style={ws.item} key={index}><View style={ws.row}><Text style={{ color: judgement.tone === 'Healthy' ? colors.accent : judgement.tone === 'Watch' ? '#B45309' : '#BE123C', fontWeight: '700' }}>{formatTone(judgement.tone)}</Text><Text style={styles.label}>{judgement.value}</Text></View><Text style={styles.label}>{judgement.title}</Text><Text style={styles.text}>{judgement.text}</Text></View>)}</Panel>
-    <Panel title="Insights">{data.insights.map((insight, index) => <View style={ws.item} key={index}><Text style={styles.label}>{insight.title}</Text><Text style={styles.text}>{insight.text}</Text></View>)}</Panel>
-    <Panel title="Recent transactions"><Text style={styles.text}>Your latest expenses and income.</Text>{data.recentTransactions.length ? data.recentTransactions.map(transaction => {
-      const display = transactionPresentation(transaction);
-      return <View key={transaction.id} style={ws.item}><Text style={styles.label}>{display.label}</Text><Text style={ws.small}>{formatTone(transaction.kind ?? transaction.type)}</Text><Text style={ws.small}>{transaction.categoryName ?? 'Uncategorized'}{display.income && transaction.senderName ? ` - From ${transaction.senderName}` : ''}{!display.income && transaction.merchantName ? ` - ${transaction.merchantName}` : ''} - {formatDate(transaction.transactionDate)}{transaction.accountName ? ` · ${transaction.accountName}` : ''}{transaction.counterpartyAccountName ? ` → ${transaction.counterpartyAccountName}` : ''}{transaction.relatedTransactionId ? ' · Linked adjustment' : ''}</Text><Text style={[styles.label, display.income && { color: colors.accent }]}>{display.sign}{formatMoney(transaction.amount, transaction.currencyCode)}</Text></View>;
-    }) : <Text style={styles.text}>No transactions yet. Try tracking an expense or income in the assistant.</Text>}</Panel>
+
+  const current = getCurrentMonthKey();
+  const rate = data.savingsRate;
+  const slices = expenseSlices(data.categories);
+  const colorFor = (slice: DonutSlice) => slice.id === 'other' ? theme.category[7] : theme.category[categoryIndex(slice.name)];
+  const empty = !data.income && !data.spends && data.recentTransactions.length === 0;
+  const lastRate = [...trend.months].reverse().find(p => p.savingsRate !== null)?.savingsRate ?? null;
+  const go = (path: '/(tabs)/assistant' | '/(tabs)/planning' | '/(tabs)/reports' | '/(tabs)/transactions', params?: Record<string, string>) => router.navigate(params ? { pathname: path, params } : path);
+
+  return <ScrollView testID="dashboard-screen" accessibilityState={{ busy: loading }} contentContainerStyle={[s.content, { paddingBottom: dock + 24 }]}>
+    <HeroCard testID="dashboard-hero" label={heroLabel(month, current)} value={data.saved}
+      delta={savingsDelta(trend.months, month)}
+      a11ySummary={`${heroLabel(month, current)}: net ${formatInr(data.saved, { sign: 'always' })}. In ${formatInr(data.income)}, out ${formatInr(data.spends)}.${rate === null ? '' : ` You kept ${Math.round(rate)} percent of income.`}`}
+      pills={[
+        { icon: { android: 'south_west', ios: 'arrow.down.left' }, label: 'In', value: formatInr(data.income, { compact: data.income >= 1e7 }) },
+        { icon: { android: 'north_east', ios: 'arrow.up.right' }, label: 'Out', value: formatInr(data.spends, { compact: data.spends >= 1e7 }) },
+      ]}
+      gauge={rate === null ? undefined : <SliceGauge rate={rate} />} />
+
+    <View style={s.actions}>
+      <QuickAction testID="quick-add" primary icon={{ android: 'add', ios: 'plus' }} label="Add" onPress={() => go('/(tabs)/assistant', { compose: 'log', at: String(Date.now()) })} />
+      <QuickAction testID="quick-ask" icon={{ android: 'forum', ios: 'bubble.left.and.bubble.right' }} label="Ask" onPress={() => go('/(tabs)/assistant', { compose: 'ask', at: String(Date.now()) })} />
+      <QuickAction testID="quick-goals" icon={{ android: 'flag', ios: 'flag' }} label="Goals" onPress={() => go('/(tabs)/planning')} />
+      <QuickAction testID="quick-judgments" icon={{ android: 'shield_person', ios: 'checkmark.shield' }} label="Judgments" onPress={() => go('/(tabs)/reports')} />
+    </View>
+
+    {empty ? <Card><EmptyState icon={{ android: 'receipt_long', ios: 'list.bullet.rectangle' }} title="Nothing logged this month" body="Tell the Assistant what you spent or received, in your own words." action={{ label: 'Log a transaction', onPress: () => go('/(tabs)/assistant', { compose: 'log', at: String(Date.now()) }) }} /></Card> : null}
+
+    <Card testID="dashboard-cash-flow-chart">
+      <View style={s.cardHead}>
+        <View style={{ flexShrink: 1 }}><Text accessibilityRole="header" style={s.title}>Cash flow</Text><Text style={s.subtitle}>Income vs spending</Text></View>
+        <Segmented label="Cash flow period" options={[{ key: '6M', label: '6M' }, { key: '12M', label: '12M' }]} value={period} onChange={setPeriod} />
+      </View>
+      <View accessible accessibilityLabel={`Cash flow, last ${period === '6M' ? 6 : 12} months. ${trend.months.map(m => `${m.label}: in ${m.income === null ? 'no data' : formatInr(m.income)}, out ${m.spend === null ? 'no data' : formatInr(m.spend)}`).join('. ')}`}>
+        <CashFlowBars months={trend.months} selected={month} />
+      </View>
+      <View style={s.legend}>
+        <View style={s.legendItem}><View style={[s.dot, { backgroundColor: theme.color.chartIncome }]} /><Text style={s.subtitle}>Income</Text></View>
+        <View style={s.legendItem}><View style={[s.dot, { backgroundColor: theme.color.chartSpend }]} /><Text style={s.subtitle}>Spending</Text></View>
+      </View>
+    </Card>
+
+    <Card testID="dashboard-categories">
+      <View style={s.cardHead}>
+        <View style={{ flexShrink: 1 }}><Text accessibilityRole="header" style={s.title}>Where it went</Text><Text style={s.subtitle}>Spending by category</Text></View>
+        <Pressable style={s.linkTarget} accessibilityRole="link" onPress={() => go('/(tabs)/transactions')}><Text style={s.link}>All</Text></Pressable>
+      </View>
+      {slices.length ? <View style={s.donutRow} accessible accessibilityLabel={`Spending by category. ${slices.slice(0, 6).map(sl => `${sl.name} ${data.spends > 0 ? Math.round(sl.amount / data.spends * 100) : 0} percent, ${formatInr(sl.amount)}`).join('. ')}`}>
+        <CategoryDonut slices={slices} total={data.spends} colorFor={colorFor} size={theme.fontScale >= 1.5 ? 132 : 150} />
+        <View style={s.rows}>{slices.slice(0, 5).map(sl => <View key={sl.id} style={s.row}>
+          <View style={[s.dot, { backgroundColor: colorFor(sl) }]} />
+          <Text numberOfLines={1} style={s.rowName}>{sl.name}</Text>
+          <Text style={s.rowShare}>{data.spends > 0 ? Math.max(1, Math.round(sl.amount / data.spends * 100)) : 0}%</Text>
+        </View>)}</View>
+      </View> : <Text style={s.subtitle}>No spending yet this month.</Text>}
+    </Card>
+
+    <Card testID="dashboard-savings">
+      <View style={s.cardHead}>
+        <View style={{ flexShrink: 1 }}><Text accessibilityRole="header" style={s.title}>Savings rate</Text><Text style={s.subtitle}>Share of income kept</Text></View>
+        {lastRate !== null ? <Text style={[theme.type.title, { color: theme.color.text, fontFamily: 'InterTight_700Bold' }]}>{Math.round(lastRate * 10) / 10}%</Text> : null}
+      </View>
+      <View accessible accessibilityLabel={`Savings rate trend. ${trend.months.map(m => `${m.label} ${m.savingsRate === null ? 'no data' : `${Math.round(m.savingsRate)} percent`}`).join(', ')}`}>
+        <SavingsArea points={trend.months.slice(-6).map(m => ({ key: m.key, label: m.label, rate: m.savingsRate }))} />
+      </View>
+    </Card>
+
+    {goals && goals.length ? <View style={{ gap: 12 }}>
+      <View style={s.cardHead}><Text accessibilityRole="header" style={s.section}>Goals</Text>
+        <Pressable style={s.linkTarget} accessibilityRole="link" onPress={() => go('/(tabs)/planning')}><Text style={s.link}>See all</Text></Pressable></View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+        {goals.slice(0, 3).map(goal => <Card key={goal.id} padding={16}>
+          <Pressable style={s.goal} accessibilityRole="button" onPress={() => go('/(tabs)/planning')}
+            accessibilityLabel={`${goal.name}, ${Math.round(goalProgress(goal) * 100)} percent, ${formatInr(goal.currentAmount)} of ${formatInr(goal.targetAmount)}`}>
+            <GoalRing progress={goalProgress(goal)} status={goalRingStatus(goal)} size={64} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text numberOfLines={2} style={s.goalName}>{goal.name}</Text>
+              <Text style={s.subtitle}>{formatInr(goal.currentAmount, { compact: true })} of {formatInr(goal.targetAmount, { compact: true })}</Text>
+            </View>
+          </Pressable>
+        </Card>)}
+      </ScrollView>
+    </View> : null}
+
+    <Card testID="dashboard-recent">
+      <View style={s.cardHead}><Text accessibilityRole="header" style={s.title}>Recent</Text>
+        <Pressable style={s.linkTarget} accessibilityRole="link" onPress={() => go('/(tabs)/transactions')}><Text style={s.link}>All transactions</Text></Pressable></View>
+      {data.recentTransactions.length
+        ? data.recentTransactions.slice(0, 4).map(tx => <TxRow key={tx.id} tx={tx} testID={`recent-${tx.id}`} onPress={() => go('/(tabs)/transactions')} />)
+        : <Text style={s.subtitle}>No transactions yet. Try logging one in the Assistant.</Text>}
+    </Card>
   </ScrollView>;
 }

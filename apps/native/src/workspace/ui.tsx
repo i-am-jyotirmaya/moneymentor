@@ -43,9 +43,12 @@ export function ErrorNotice({ error, retry }: { error: string | null; retry: () 
   const bannerVisible = useContext(WorkspaceBannerVisible);
   return error && !offline && !bannerVisible ? <View style={ws.content} accessibilityRole="alert"><Text style={styles.error}>{error}</Text><Action title="Try again" onPress={retry} /></View> : null;
 }
-export function Choice({ label, value, options, onChange, disabled = false }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void; disabled?: boolean }) {
-  const [open, setOpen] = useState(false);
-  return <><Action title={options.find(option => option.value === value)?.label ?? value} label={label} disabled={disabled} onPress={() => { Keyboard.dismiss(); setOpen(true); }} /><Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><View style={ws.scrim}><SafeAreaView style={{ maxHeight: '85%', backgroundColor: 'white' }}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}><Text style={ws.heading}>{label}</Text>{options.map(option => <Action key={option.value} title={option.label} selected={value === option.value} onPress={() => { onChange(option.value); setOpen(false); }} />)}<Action title="Close" onPress={() => setOpen(false)} /></ScrollView></SafeAreaView></View></Modal></>;
+/** `hidden` + `open`/`setOpen` let a screen supply its own trigger (e.g. the Transactions month stepper). */
+export function Choice({ label, value, options, onChange, disabled = false, hidden = false, open: openProp, setOpen: setOpenProp }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void; disabled?: boolean; hidden?: boolean; open?: boolean; setOpen?: (open: boolean) => void }) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = setOpenProp ?? setOpenState;
+  return <>{hidden ? null : <Action title={options.find(option => option.value === value)?.label ?? value} label={label} disabled={disabled} onPress={() => { Keyboard.dismiss(); setOpen(true); }} />}<Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><View style={ws.scrim}><SafeAreaView style={{ maxHeight: '85%', backgroundColor: 'white' }}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ws.content}><Text style={ws.heading}>{label}</Text>{options.map(option => <Action key={option.value} title={option.label} selected={value === option.value} onPress={() => { onChange(option.value); setOpen(false); }} />)}<Action title="Close" onPress={() => setOpen(false)} /></ScrollView></SafeAreaView></View></Modal></>;
 }
 export function Panel({ title, children }: { title: string; children: ReactNode }) {
   return <View style={ws.card}><Text style={ws.heading}>{title}</Text>{children}</View>;
