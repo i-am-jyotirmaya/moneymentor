@@ -235,7 +235,7 @@ export function ChatSurface({
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder={revamp ? "Log a spend or ask…" : "spent 500 on groceries or got salary 50000"}
+              placeholder={revamp ? "Log or ask…" : "spent 500 on groceries or got salary 50000"}
               ref={composer}
               rows={1}
               value={text}

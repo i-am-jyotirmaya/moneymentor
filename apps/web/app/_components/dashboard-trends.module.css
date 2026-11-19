@@ -77,7 +77,7 @@
 
 .plot text {
   fill: var(--sp-text-secondary);
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .gridline {

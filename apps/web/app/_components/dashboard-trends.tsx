@@ -7,6 +7,8 @@ import { formatMoney } from "./workspace-format";
 import styles from "./dashboard-trends.module.css";
 
 const chartWidth = 480;
+const plotLeft = 68;
+const plotWidth = chartWidth - plotLeft;
 const plotTop = 12;
 const plotBottom = 132;
 const chartHeight = 158;
@@ -21,34 +23,61 @@ function chartAxis(min: number, max: number) {
   return (value: number) => plotBottom - (value - min) / (max - min) * (plotBottom - plotTop);
 }
 
-function ChartGrid({ baseline, months }: { baseline: number; months: TrendMonth[] }) {
-  const slot = chartWidth / months.length;
+function compactCurrency(currency: string) {
+  try {
+    const formatter = new Intl.NumberFormat("en-IN", {
+      style: "currency", currency, notation: "compact", maximumFractionDigits: 1,
+    });
+    return (value: number) => formatter.format(value).replace(/^-/, "−");
+  } catch {
+    return (value: number) => formatMoney(value, currency);
+  }
+}
+
+function ChartGrid({ min, max, y, format, months }: {
+  min: number;
+  max: number;
+  y: (value: number) => number;
+  format: (value: number) => string;
+  months: TrendMonth[];
+}) {
+  const slot = plotWidth / months.length;
+  const ticks = min < 0 ? [max, 0, min] : [max, max / 2, 0];
   return (
     <g>
-      {[plotTop, baseline, plotBottom].map((y, index) =>
-        <line key={index} className={styles.gridline} x1="0" x2={chartWidth} y1={y} y2={y} />,
-      )}
-      {months.map(({ month }, index) =>
-        <text key={month} x={(index + 0.5) * slot} y={152} textAnchor="middle">
-          {shortMonth.format(monthDate(month))}
-        </text>,
-      )}
+      {ticks.map((value) => (
+        <g key={value}>
+          <text x={plotLeft - 8} y={y(value)} dominantBaseline="middle" textAnchor="end">{format(value)}</text>
+          <line className={styles.gridline} x1={plotLeft} x2={chartWidth} y1={y(value)} y2={y(value)} />
+        </g>
+      ))}
+      {months.map(({ month }, index) => {
+        if (months.length > 6 && index % 2 === 0) return null;
+        return (
+          <text key={month} x={plotLeft + (index + 0.5) * slot} y={152} textAnchor="middle">
+            {shortMonth.format(monthDate(month))}
+          </text>
+        );
+      })}
     </g>
   );
 }
 
 function CashFlowChart({ months }: { months: TrendMonth[] }) {
   const allValues = months.flatMap(({ values }) => values ? [values.income, values.spends] : []);
-  const y = chartAxis(Math.min(0, ...allValues), Math.max(1, ...allValues));
-  const slot = chartWidth / months.length;
+  const min = Math.min(0, ...allValues);
+  const max = Math.max(1, ...allValues);
+  const y = chartAxis(min, max);
+  const slot = plotWidth / months.length;
   const baseline = y(0);
   const barWidth = Math.min(14, slot * 0.26);
+  const currency = months.at(-1)?.values?.currencyCode ?? "INR";
 
   return (
     <svg aria-hidden="true" className={styles.plot} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
-      <ChartGrid baseline={baseline} months={months} />
+      <ChartGrid min={min} max={max} y={y} format={compactCurrency(currency)} months={months} />
       {months.map(({ month, values }, index) => {
-        const x = (index + 0.5) * slot;
+        const x = plotLeft + (index + 0.5) * slot;
         if (!values || (values.income === 0 && values.spends === 0)) {
           return <line className={styles.gridline} key={month} x1={x - 5} x2={x + 5} y1={baseline - 1} y2={baseline - 1} />;
         }
@@ -72,8 +101,10 @@ function SavingsChart({ months }: { months: TrendMonth[] }) {
     return <p className={styles.empty}>The trend appears after two months with recorded income.</p>;
   }
 
-  const y = chartAxis(Math.min(0, ...rates), Math.max(25, ...rates));
-  const slot = chartWidth / months.length;
+  const min = Math.min(0, ...rates);
+  const max = Math.max(25, ...rates);
+  const y = chartAxis(min, max);
+  const slot = plotWidth / months.length;
   const baseline = y(0);
   const segments: { x: number; y: number; deficit: boolean }[][] = [];
   let segment: (typeof segments)[number] = [];
@@ -83,13 +114,13 @@ function SavingsChart({ months }: { months: TrendMonth[] }) {
       continue;
     }
     if (segment.length === 0) segments.push(segment);
-    segment.push({ x: (index + 0.5) * slot, y: y(values.savingsRate), deficit: values.savingsRate < 0 });
+    segment.push({ x: plotLeft + (index + 0.5) * slot, y: y(values.savingsRate), deficit: values.savingsRate < 0 });
   }
 
   return (
     <svg aria-hidden="true" className={styles.plot} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
-      {baseline < plotBottom ? <rect className={styles.deficitArea} x="0" y={baseline} width={chartWidth} height={plotBottom - baseline} /> : null}
-      <ChartGrid baseline={baseline} months={months} />
+      {baseline < plotBottom ? <rect className={styles.deficitArea} x={plotLeft} y={baseline} width={plotWidth} height={plotBottom - baseline} /> : null}
+      <ChartGrid min={min} max={max} y={y} format={(value) => `${Math.round(value * 10) / 10}%`.replace(/^-/, "−")} months={months} />
       {segments.map((points) => {
         const line = points.map(({ x, y }) => `${x},${y}`).join(" ");
         return (
