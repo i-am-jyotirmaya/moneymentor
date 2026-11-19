@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { BackHandler } from "react-native";
 import { backAction } from "../src/lib/back-policy";
 import { SessionProvider, useSession } from "../src/auth/session";
+import { ThemeProvider } from "../src/ui/ThemeProvider";
 import { colors } from "../src/ui/theme";
 
 function Navigation() {
@@ -31,5 +32,5 @@ function Navigation() {
   return <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }} />;
 }
 export default function RootLayout() {
-  return <SessionProvider><Navigation /></SessionProvider>;
+  return <ThemeProvider><SessionProvider><Navigation /></SessionProvider></ThemeProvider>;
 }
