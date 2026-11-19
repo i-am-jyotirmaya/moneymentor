@@ -129,8 +129,14 @@ parsing. No dependencies were added. Manual device verification still needed:
 
 ## Native E2E smoke (Maestro, local only)
 
-Prerequisites: install Maestro CLI with the [free OSS installer](https://docs.maestro.dev/getting-started/installing-maestro)
-(`curl -fsSL "https://get.maestro.mobile.dev" | bash`), have Android SDK `adb`
+Prerequisites: install the pinned Maestro CLI **2.12.1** with the
+[free OSS installer](https://docs.maestro.dev/getting-started/installing-maestro):
+
+```sh
+export MAESTRO_VERSION=2.12.1; curl -Ls "https://get.maestro.mobile.dev" | bash
+```
+
+Have Android SDK `adb`
 available, run `emulator-5554`, and install the debug dev build
 (`com.spndrr.app.dev`) first. The runner does not build or start an emulator.
 
@@ -140,6 +146,27 @@ From the repository root:
 pnpm --filter native e2e:android
 ```
 
+Without credentials, this command runs only `.maestro/smoke.yaml`. With both
+credential variables supplied, it also runs `.maestro/signin.yaml`: sign in,
+visit every workspace tab, then sign out through Settings and verify the login
+screen. Supply a throwaway local account through the environment only:
+
+```sh
+MAESTRO_TEST_EMAIL="$THROWAWAY_EMAIL" MAESTRO_TEST_PASSWORD="$THROWAWAY_PASSWORD" pnpm --filter native e2e:android
+```
+
+The runner also accepts `SPNDRR_E2E_EMAIL` / `SPNDRR_E2E_PASSWORD` when neither
+`MAESTRO_TEST_EMAIL` nor `MAESTRO_TEST_PASSWORD` is supplied. Never commit
+credentials, put them in `apps/native/.env`, or use shared/vault test accounts.
+A local-only signup helper at `/workspace/spndrr/tools/local-signup` can create
+a throwaway account when the local API is running; see that directory's README.
+The helper is outside this repository. The sign-in flow requires a reachable API
+and an account ready to enter the workspace (including required privacy consent).
+
+The runner checks the installed CLI against **2.12.1** and fails on a mismatch
+or failed version check. `MAESTRO_ALLOW_VERSION_MISMATCH=1` opts into a warning
+and continues. `MAESTRO_VERSION` is needed only for installation, not normal runs.
+
 The runner reuses Metro on port 8081 or starts it non-interactively and stops only
 its own Metro on exit. The flow clears app state and checks the signed-out home
 and Login button; no API or sign-in is needed. This is separate from Jest and has
@@ -147,10 +174,20 @@ no CI integration.
 When starting its own Metro with no `EXPO_PUBLIC_API_BASE_URL` environment variable and no `apps/native/.env`, the runner exports the non-secret defaults from `.env.example` (including `EXPO_PUBLIC_API_BASE_URL=https://10.0.2.2:7085`) without creating or modifying `.env`.
 
 Artifacts stay in `apps/native/e2e-artifacts/<UTC timestamp>/`, including the home
-screenshot, Maestro console/debug output, Metro logs when started, and a device
+screenshot, Maestro console output (`maestro.log`), Metro logs when started, and a device
 screenshot plus logcat on Maestro failure. Set `ANDROID_SERIAL` to override the
-device or `FLOW_DIR` to override `.maestro`; extra command arguments pass through
-to `maestro test`.
+device (default `emulator-5554`) or `FLOW_DIR` to select an explicit flow file or
+directory instead of the automatic selection; extra command arguments pass
+through to `maestro test`. Selecting `signin.yaml` or a directory containing it
+requires both credential variables and fails before device access if missing.
+Each invocation uses one artifact directory, including when both flows run.
+
+The sign-in flow labels the credential-input steps to keep their values out of
+Maestro step titles. The runner captures console output in the log and omits
+`--debug-output`. On exit after a pass, failure, or interrupt, it redacts the
+sign-in password from files in the run directory and the run's Maestro test
+directories under `~/.maestro/tests` (or `$MAESTRO_HOME_DIR/tests`). Use a
+throwaway account and discard its credentials after the run.
 
 
 ## M4 — Platform polish
