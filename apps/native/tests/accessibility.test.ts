@@ -28,7 +28,6 @@ test.each([
   ...["assistant", "transactions", "dashboard", "reports", "planning", "household", "settings"].map(
     section => [`app/(tabs)/${section}.tsx`, `${section}-screen`],
   ),
-  ["src/workspace/shell.tsx", "nav-more"],
 ])("%s preserves Maestro selector %s", (file, id) => {
   expect(source(file)).toMatch(new RegExp(`testID=\\{?[^>]*["']${id}["']`));
 });
@@ -38,11 +37,17 @@ test.each(["assistant", "transactions", "dashboard"])(
   section => {
     const shell = source("src/workspace/shell.tsx");
     expect(shell).toContain('bottomSections.map(section =>');
-    expect(shell).toContain('testID={`nav-${section}`}');
+    expect(shell).toContain('<NavDock routes={dockRoutes}');
+    expect(source("src/workspace/NavDock.tsx")).toContain('testID={`nav-${route.key}`}');
     const navigation = source("src/workspace/navigation.ts");
     expect(navigation.match(/bottomSections\s*=\s*\[([^\]]+)\]/)?.[1]).toContain(`'${section}'`);
   },
 );
+
+test("the dock keeps the Maestro selector nav-more", () => {
+  expect(source("src/workspace/shell.tsx")).toContain("{ key: 'more', label: 'More'");
+  expect(source("src/workspace/NavDock.tsx")).toContain('testID={`nav-${route.key}`}');
+});
 
 test.each(["reports", "planning", "household", "settings"])(
   "More sheet exposes menu-%s",

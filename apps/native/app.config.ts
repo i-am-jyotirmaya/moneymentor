@@ -8,7 +8,7 @@ const config: ExpoConfig = {
   scheme: "spndrr",
   version: "0.1.0",
   icon: "./assets/icon.png",
-  userInterfaceStyle: "light",
+  userInterfaceStyle: "automatic",
   androidStatusBar: { backgroundColor: "#F3F5F9", barStyle: "dark-content" },
   backgroundColor: "#F3F5F9",
   android: {

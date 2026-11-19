@@ -28,8 +28,9 @@ test('month navigation crosses years and retains selected months outside the 36 
     expect(options.at(-1)).toBe('2020-01');
   } finally { jest.useRealTimers(); }
 });
-test('mobile nav order, Track label, menu sections and report spelling match web', () => {
-  expect(bottomSections.map(bottomLabel)).toEqual(['Track', 'Transactions', 'Dashboard']);
+test('mobile nav order, Assistant label, menu sections and report spelling match web', () => {
+  expect(bottomSections.map(bottomLabel)).toEqual(['Assistant', 'Transactions', 'Dashboard']);
+  expect(bottomSections.map(bottomLabel)).not.toContain('Track');
   expect(sections.map(item => item.label)).toEqual(['Dashboard', 'Assistant', 'Transactions', 'Judgments', 'Planning', 'Household', 'Settings']);
   expect(sectionLabel('reports')).toBe('Judgments');
   expect(sectionLabel('unknown')).toBe('Dashboard');

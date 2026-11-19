@@ -1,4 +1,4 @@
-import { AndroidConfig, withAndroidManifest, withMainActivity, withAndroidStyles, type ConfigPlugin } from 'expo/config-plugins';
+import { AndroidConfig, withAndroidManifest, withAndroidStyles, type ConfigPlugin } from 'expo/config-plugins';
 
 export function withoutFontScale(value = '') {
   return value.split('|').filter(entry => entry && entry !== 'fontScale').join('|');
@@ -6,12 +6,6 @@ export function withoutFontScale(value = '') {
 export function withKeyboardResize(value = '') {
   const values = value.split('|').filter(item => item && !item.startsWith('adjust'));
   return [...new Set([...values, 'adjustResize'])].join('|');
-}
-export function forceLightActivity(source: string) {
-  const statement = 'androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO)';
-  if (source.includes(statement)) return source;
-  if (!source.includes('super.onCreate(')) throw new Error('MainActivity onCreate not found');
-  return source.replace(/super\.onCreate\(/, `${statement};\n    super.onCreate(`);
 }
 const withPlatform: ConfigPlugin = config => {
   config = withAndroidStyles(config, mod => {
@@ -30,9 +24,7 @@ const withPlatform: ConfigPlugin = config => {
     activity.$['android:windowSoftInputMode'] = withKeyboardResize(activity.$['android:windowSoftInputMode']);
     return mod;
   });
-  return withMainActivity(config, mod => {
-    mod.modResults.contents = forceLightActivity(mod.modResults.contents);
-    return mod;
-  });
+  // Night mode follows the system (userInterfaceStyle "automatic"); MainActivity no longer forces light.
+  return config;
 };
 export default withPlatform;
