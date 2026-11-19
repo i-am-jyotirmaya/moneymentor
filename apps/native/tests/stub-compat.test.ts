@@ -1,14 +1,22 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { createElement } from 'react';
+import { createElement, type ComponentProps } from 'react';
 import type { Transaction } from '../src/api/models';
 import * as ui from '../src/ui';
 import { lightTheme } from '../src/ui/theme';
+
+// These tests check exports and props without mounting native charts.
+jest.mock('@shopify/react-native-skia', () => ({}));
+jest.mock('victory-native', () => ({}));
+jest.mock('react-native-gesture-handler', () => ({}));
+jest.mock('react-native-worklets', () => ({}));
 
 const stubIndex = '/workspace/spndrr/proof/a2/b2-stubs/index.ts';
 const expected = [
   'useThemedStyles', 'PressableScale', 'Card', 'Icon', 'CountUp', 'inrWorklet', 'QuickAction',
   'Chip', 'FilterChips', 'Segmented', 'TxRow', 'CategoryIcon', 'categoryIndex', 'signedAmount',
   'txKind', 'EmptyState', 'HeroCard', 'heroBackground',
+  'CashFlowBars', 'CategoryDonut', 'GoalRing', 'SavingsArea', 'SliceGauge', 'donutRows',
+  'savingsPoints', 'donutLegendPlacement', 'CategoryPlanList', 'GoalProjection', 'ChartA11y',
 ] as const satisfies readonly (keyof typeof ui)[];
 
 test.each(expected)('exports %s from the native UI barrel', name => {
@@ -20,8 +28,7 @@ testStubIndex('exports every runtime name from the B2 stub index (requires the l
   const source = readFileSync(stubIndex, 'utf8');
   const exports = [...source.matchAll(/export\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g)];
   expect(exports.length).toBeGreaterThan(0);
-  for (const [, names, module] of exports) {
-    if (module === './charts') continue;
+  for (const [, names] of exports) {
     for (const entry of names.split(',').map(name => name.trim()).filter(Boolean)) {
       if (entry.startsWith('type ')) continue;
       expect(ui).toHaveProperty(entry, expect.any(Function));
@@ -79,4 +86,27 @@ test('maps category names and transaction signs like the stub', () => {
   expect(ui.signedAmount(tx)).toBe(-1200);
   expect(ui.signedAmount({ ...tx, type: 'Income' })).toBe(1200);
   expect(ui.signedAmount({ ...tx, type: 'Transfer' })).toBe(0);
+});
+
+type TrendPoint = {
+  key: string; label: string; income: number | null; spend: number | null;
+  saved: number | null; savingsRate: number | null;
+};
+
+test('accepts the B2 chart props and monthly trend output through the barrel', () => {
+  const months: TrendPoint[] = [
+    { key: '2026-10', label: 'Oct', income: null, spend: null, saved: null, savingsRate: null },
+    { key: '2026-11', label: 'Nov', income: 1000, spend: 600, saved: 400, savingsRate: 40 },
+  ];
+  const cashFlowMonths: ComponentProps<typeof ui.CashFlowBars>['months'] = months;
+  const slices: ui.DonutSlice[] = [{ id: 'food', name: 'Food', amount: 600 }];
+  const status: ui.GoalStatus = 'feasible';
+  const elements = [
+    createElement(ui.CashFlowBars, { months: cashFlowMonths, selected: '2026-11' }),
+    createElement(ui.CategoryDonut, { slices, total: 600, colorFor: () => '#222222' }),
+    createElement(ui.GoalRing, { progress: 0.4, status }),
+    createElement(ui.SavingsArea, { points: ui.savingsPoints(months), baseline: { value: 30, label: 'Target' } }),
+    createElement(ui.SliceGauge, { rate: 40 }),
+  ];
+  expect(elements).toHaveLength(5);
 });
