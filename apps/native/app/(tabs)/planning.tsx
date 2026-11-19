@@ -1,22 +1,27 @@
 import { useSectionLoad, SectionPanel } from '../../src/workspace/sections';
 import { useOffline } from '../../src/workspace/connection';
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, ScrollView, Switch, Text, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useSession } from '../../src/auth/session';
 import type { Goal, GoalPlanningRun, GoalPlanVersion } from '../../src/api/workspace-models';
 import { formatDate, formatMoney } from '../../src/lib/format';
 import { PlaceholderInput } from '../../src/ui/AuthForm';
-import { colors, styles } from '../../src/ui/theme';
+
 import { useWorkspace } from '../../src/workspace/context';
 import { emptyGoalForm, emptyPlanForm, goalPayload, goalProgress, goalValidation, planningGroups, planningPending, planPayload, planValidation, planningRequestKey } from '../../src/workspace/planning-data';
-import { Action, Choice, ErrorNotice, Loading, Panel, ws } from '../../src/workspace/ui';
+import { Action, ErrorNotice, Loading, Panel } from '../../src/workspace/ui';
+import { Choice } from '../../src/workspace/choice';
+import { Card, GoalRing, Icon } from '../../src/ui';
+import { goalProgress as goalRingProgress, goalRingStatus } from '../../src/workspace/dashboard-data';
+import { useLegacy } from '../../src/workspace/legacy-styles';
+import { useDockSpace } from '../../src/workspace/dock';
 
 export default function Planning() {
   const { session } = useSession();
   const { householdId } = useWorkspace();
   return <PlanningScope key={`${session?.user.id}:${householdId}`} />;
 }
-function PlanningScope() {
+function PlanningScope() { const { styles, colors, ws } = useLegacy(); const dock = useDockSpace();
   const { client } = useSession();
   const offline = useOffline();
   const { householdId, households, dashboard, settings } = useWorkspace();
@@ -101,7 +106,16 @@ function PlanningScope() {
   if (section.blocked || section.loading) return <SectionPanel section={section} />;
   const disabled = offline || !canWrite || busy || planningPending(run);
   const judgements = dashboard?.judgements ?? [];
-  return <ScrollView testID="planning-screen" style={ws.fill} contentContainerStyle={ws.content} keyboardShouldPersistTaps="handled" accessibilityState={{ busy: loading || busy }}>
+  return <ScrollView testID="planning-screen" style={ws.fill} contentContainerStyle={[ws.content, { paddingBottom: dock + 24 }]} keyboardShouldPersistTaps="handled" accessibilityState={{ busy: loading || busy }}>
+    {goals.length ? <Card testID="planning-goals">
+      <View style={ws.row}><Text style={ws.heading}>All goals</Text><Text style={ws.small}>{goals.filter(g => g.status === 'Active').length} active</Text></View>
+      {goals.map(g => <Pressable key={g.id} accessibilityRole="button" accessibilityState={{ selected: g.id === selectedGoal }} onPress={() => setSelected(g.id)}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 64, paddingVertical: 8 }}>
+        <GoalRing size={44} progress={goalRingProgress(g)} status={goalRingStatus(g)} />
+        <View style={{ flex: 1 }}><Text style={styles.label}>{g.name}</Text><Text style={ws.small}>{money(g.currentAmount)} of {money(g.targetAmount)}{g.targetDate ? ` · ${formatDate(g.targetDate)}` : ''}</Text></View>
+        {g.id === selectedGoal ? <Icon name={{ android: 'check_circle', ios: 'checkmark.circle.fill' }} size={20} color="primaryText" /> : null}
+      </Pressable>)}
+    </Card> : null}
     <Panel title="Planning"><Text style={styles.text}>Goals, SIPs, premiums, and rule-based nudges in one place.</Text>
       <View style={ws.row}>{[['Active goals', goals.filter(g => g.status === 'Active').length], ['Commitments', commitments.filter(c => c.isActive).length], ['Judgements', judgements.length]].map(([label, value]) => <View key={label}><Text style={ws.small}>{label}</Text><Text style={ws.heading}>{value}</Text></View>)}</View>
       {!canWrite ? <Text style={styles.text}>This household is read-only for you. Planning data is visible, but changes are disabled.</Text> : !loading && loaded ? <View style={{ gap: 12 }}>
@@ -145,6 +159,6 @@ function PlanningScope() {
     </> : null}
   </ScrollView>;
 }
-function Field({ label, id, value, onChange, placeholder, maxLength, numeric, multiline }: { label: string; id?: string; value: string; onChange: (value: string) => void; placeholder?: string; maxLength?: number; numeric?: boolean; multiline?: boolean }) {
+function Field({ label, id, value, onChange, placeholder, maxLength, numeric, multiline }: { label: string; id?: string; value: string; onChange: (value: string) => void; placeholder?: string; maxLength?: number; numeric?: boolean; multiline?: boolean }) { const { styles } = useLegacy();
   return <View style={styles.field}><Text style={styles.label}>{label}</Text><PlaceholderInput testID={id ?? label.toLowerCase().replaceAll(' ', '-')} accessibilityLabel={label} style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} maxLength={maxLength} keyboardType={numeric ? 'decimal-pad' : 'default'} multiline={multiline} autoCapitalize="none" /></View>;
 }

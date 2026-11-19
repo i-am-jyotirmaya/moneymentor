@@ -7,7 +7,8 @@ import { registrationIsOpen } from "../../src/auth/registration";
 import { useSession } from "../../src/auth/session";
 import { AuthForm, Button, ErrorBox, type Invitation } from "../../src/ui/AuthForm";
 import { Skeleton } from "../../src/ui/Skeleton";
-import { colors, styles } from "../../src/ui/theme";
+import { useLegacy } from '../../src/workspace/legacy-styles';
+
 
 export default function Signup() {
   const params = useLocalSearchParams<{ token?: string | string[] }>();
@@ -15,7 +16,7 @@ export default function Signup() {
   return <SignupGate key={token ?? "open"} token={token} />;
 }
 
-function SignupGate({ token }: { token?: string }) {
+function SignupGate({ token }: { token?: string }) { const { styles, colors } = useLegacy();
   const { client } = useSession();
   const router = useRouter();
   const [state, setState] = useState<{ token?: string; invitation?: Invitation } | null>(null);

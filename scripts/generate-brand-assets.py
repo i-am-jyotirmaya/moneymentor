@@ -5,6 +5,7 @@ Run from any directory: python scripts/generate-brand-assets.py
 
 import json
 from pathlib import Path
+from shutil import copyfile
 
 from PIL import Image, ImageOps
 
@@ -80,3 +81,19 @@ for density, scale in (("mdpi", 1), ("hdpi", 1.5), ("xhdpi", 2), ("xxhdpi", 3), 
     save(square(mark, round(108 * scale), coverage=0.52), res / f"drawable-{density}/spndrr_mark.png", optimize=True)
     for name in ("ic_launcher", "ic_launcher_round"):
         save(square(mark, round(48 * scale), coverage=0.7, background=BACKGROUND), res / f"mipmap-{density}/{name}.png", optimize=True)
+
+
+# Native Expo assets are supplied by ForgeDesigner as finished artwork.
+revamp = ROOT / "assets/branding/revamp/source"
+if revamp.is_dir():
+    native_assets = ROOT / "apps/native/assets"
+    native_assets.mkdir(parents=True, exist_ok=True)
+    for source, destination in (
+        ("spndrr-app-icon-1024.png", "icon.png"),
+        ("spndrr-adaptive-foreground-1024.png", "adaptive-icon.png"),
+        ("spndrr-adaptive-monochrome-1024.png", "adaptive-icon-monochrome.png"),
+        ("spndrr-splash-light-1024.png", "splash.png"),
+        ("spndrr-splash-dark-1024.png", "splash-dark.png"),
+        ("spndrr-mark-dark.png", "spndrr-mark-dark.png"),
+    ):
+        copyfile(revamp / source, native_assets / destination)

@@ -17,5 +17,23 @@ export function sectionLabel(section: string) {
   return sections.find(item => item.section === section)?.label ?? 'Dashboard';
 }
 export function bottomLabel(section: Section) {
-  return section === 'assistant' ? 'Track' : sectionLabel(section);
+  return sectionLabel(section);
+}
+export const dockRoutes = [...bottomSections, 'more'] as const;
+export type DockRoute = typeof dockRoutes[number];
+/** More stays active while its sheet is open and for every route reached from it. */
+export function activeDockRoute(active: string, moreOpen: boolean): DockRoute {
+  return moreOpen || !isBottomSection(active) ? 'more' : active;
+}
+/** Left edge of the indicator pill, centred in equal-width dock items. */
+export function pillOffset(dockWidth: number, index: number, count: number = dockRoutes.length, pill = 64) {
+  const item = dockWidth / count;
+  return item * index + (item - pill) / 2;
+}
+export function householdA11yLabel(name: string, canWrite: boolean) {
+  return `Household, ${name}, ${canWrite ? 'can write' : 'read only'}. Switch household`;
+}
+/** The role drops from the visible line at fontScale >= 1.5; it stays in the a11y name. */
+export function showHouseholdRole(fontScale: number) {
+  return fontScale < 1.5;
 }

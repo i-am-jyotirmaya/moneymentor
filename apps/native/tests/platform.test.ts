@@ -1,5 +1,7 @@
 import { backAction } from '../src/lib/back-policy';
-import { forceLightActivity, withoutFontScale, withKeyboardResize } from '../plugins/with-platform';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { withoutFontScale, withKeyboardResize } from '../plugins/with-platform';
 import config from '../app.config';
 
 test.each([
@@ -22,8 +24,8 @@ test('keyboard resize replaces conflicting adjustment modes without losing state
   expect(withKeyboardResize('stateHidden|adjustResize')).toBe('stateHidden|adjustResize');
   expect(withKeyboardResize()).toBe('adjustResize');
 });
-test('platform configuration forces light, resize and verified link declarations', () => {
-  expect(config.userInterfaceStyle).toBe('light');
+test('platform configuration follows the system theme, resize and verified link declarations', () => {
+  expect(config.userInterfaceStyle).toBe('automatic');
   expect(config.android?.softwareKeyboardLayoutMode).toBe('resize');
   expect(config.android?.intentFilters?.[0].autoVerify).toBe(true);
   expect(config.android?.intentFilters?.[0].data).toEqual([
@@ -31,19 +33,24 @@ test('platform configuration forces light, resize and verified link declarations
     { scheme: 'https', host: 'mvp.spndrr.com', path: '/signup/' },
   ]);
   expect(config.ios?.associatedDomains).toContain('applinks:mvp.spndrr.com');
-  expect(config.android?.adaptiveIcon).toMatchObject({ foregroundImage: './assets/adaptive-icon.png', monochromeImage: './assets/adaptive-icon-monochrome.png' });
+  expect(config.android?.adaptiveIcon).toMatchObject({ foregroundImage: './assets/adaptive-icon.png', monochromeImage: './assets/adaptive-icon-monochrome.png', backgroundColor: '#0E1433' });
 });
 
-test('light activity modification preserves startup and is idempotent', () => {
-  const source = 'override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(null) }';
-  const result = forceLightActivity(source);
-  expect(result).toContain('MODE_NIGHT_NO');
-  expect(result).toContain('super.onCreate(null)');
-  expect(forceLightActivity(result)).toBe(result);
-  expect(() => forceLightActivity('unexpected template')).toThrow('onCreate not found');
+test('dark mode is no longer forced off in MainActivity', () => {
+  expect(readFileSync(join(__dirname, '..', 'plugins', 'with-platform.ts'), 'utf8')).not.toContain('MODE_NIGHT_NO');
 });
 
 test('light system chrome retains the Slice background colour', () => {
-  expect(config.backgroundColor).toBe('#F3F5F9');
-  expect(config.androidStatusBar).toMatchObject({ backgroundColor: '#F3F5F9', barStyle: 'dark-content' });
+  expect(config.backgroundColor).toBe('#F4F6FB');
+  expect(config.androidStatusBar).toMatchObject({ backgroundColor: '#F4F6FB', barStyle: 'dark-content' });
+});
+
+test('the splash config supplies both approved artwork variants and runs platform overrides last', () => {
+  expect(config.plugins).toContainEqual(['expo-splash-screen', {
+    backgroundColor: '#F4F6FB',
+    image: './assets/splash.png',
+    imageWidth: 200,
+    dark: { backgroundColor: '#0A0D18', image: './assets/splash-dark.png' },
+  }]);
+  expect(config.plugins?.at(-1)).toBe('./plugins/with-platform');
 });

@@ -204,7 +204,7 @@ throwaway account and discard its credentials after the run.
 ## M5 — Mobile-first workspace
 
 The shell uses a 28dp decorative Slice mark, a left-aligned title, and the household
-switcher. Track, Transactions and Dashboard are direct tabs; More opens a sheet
+switcher. Assistant, Transactions and Dashboard are direct tabs; More opens a sheet
 with Reports, Planning, Household, Settings and Sign out. The active tab is a filled
 pill. Visited tab screens retain their state and use a fade transition. The tab bar
 hides when the IME is visible, and form fields scroll without hiding behind the keyboard.
