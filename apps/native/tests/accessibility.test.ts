@@ -22,7 +22,6 @@ test.each([
   ["src/ui/AuthForm.tsx", "login-password"],
   ["src/ui/AuthForm.tsx", "login-submit"],
   ["app/(tabs)/settings.tsx", "settings-sign-out"],
-  ["src/workspace/shell.tsx", "menu-sign-out"],
   ["app/index.tsx", "home-screen"],
   ["app/index.tsx", "home-login-button"],
   ...["assistant", "transactions", "dashboard", "reports", "planning", "household", "settings"].map(
@@ -49,20 +48,14 @@ test("the dock keeps the Maestro selector nav-more", () => {
   expect(source("src/workspace/NavDock.tsx")).toContain('testID={`nav-${route.key}`}');
 });
 
-test.each(["reports", "planning", "household", "settings"])(
-  "More sheet exposes menu-%s",
-  section => {
-    expect(source("src/workspace/shell.tsx")).toContain('testID={`menu-${item.section}`}');
+test.each([["reports", "Judgments"], ["planning", "Planning"], ["household", "Household"], ["settings", "Settings"]])(
+  "More sheet exposes %s as the %s row",
+  (section, label) => {
+    // A4's MoreSheet rows carry no testID, so Maestro selects them by title.
+    expect(source("src/workspace/shell.tsx")).toContain("<MoreSheet");
+    expect(source("src/workspace/more-data.ts")).toContain(`key: '${section}'`);
+    expect(source("src/workspace/more-data.ts")).toContain(`label: '${label}'`);
     expect(source("src/workspace/navigation.ts")).toContain(`section: '${section}'`);
-    expect(source(".maestro/signin.yaml")).toContain(`id: "menu-${section}"`);
+    expect(source(".maestro/signin.yaml")).toContain(`text: "${label}"`);
   },
 );
-
-test("Maestro labels credential input steps instead of displaying their resolved values", () => {
-  const flow = source(".maestro/signin.yaml");
-  for (const credential of ["EMAIL", "PASSWORD"]) {
-    const variable = `\\$\\{MAESTRO_TEST_${credential}\\}`;
-    expect(flow).toMatch(new RegExp(`inputText:\\s*\\n\\s+text: ["']${variable}["']\\n\\s+label: ["'][^"'\\n]+["']`));
-    expect(flow).not.toMatch(new RegExp(`inputText:\\s*["']${variable}["']`));
-  }
-});

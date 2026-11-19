@@ -20,7 +20,7 @@ test.each(['reports', 'planning', 'household', 'settings', 'unknown'])('%s is no
 test('Tabs declares a screen for each workspace route file in section order', () => {
   const shell = readFileSync(join(__dirname, '../src/workspace/shell.tsx'), 'utf8');
   const tabs = shell.match(/<Tabs\s[^]*?<\/Tabs>/)?.[0];
-  expect(tabs).toMatch(/\{sections\.map\(\(\{ section \}\) => <Tabs\.Screen key=\{section\} name=\{section\} \/>\)\}/);
+  expect(tabs).toMatch(/\{sections\.map\(\(\{ section \}\) => <Tabs\.Screen key=\{section\} name=\{section\}(?: options=\{sceneOptions\(section\)\})? \/>\)\}/);
 
   const routeFiles = readdirSync(join(__dirname, '../app/(tabs)'))
     .filter(file => /\.[jt]sx?$/.test(file) && !file.startsWith('_layout.'))

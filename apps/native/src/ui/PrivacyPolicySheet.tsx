@@ -1,6 +1,7 @@
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, styles } from "./theme";
+import { useLegacy } from '../workspace/legacy-styles';
+
 
 const supportEmail = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@spndrr.example";
 // Full policy copy from the web policy; keep paragraphs in source order.
@@ -22,13 +23,13 @@ const content = [
   ["Heading", "Contact"],
 ] as const;
 
-export function PrivacyPolicySheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function PrivacyPolicySheet({ visible, onClose }: { visible: boolean; onClose: () => void }) { const { styles, colors } = useLegacy();
   const insets = useSafeAreaInsets();
   return <Modal visible={visible} presentationStyle="fullScreen" animationType="slide" onRequestClose={onClose}>
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }}>
-      <View style={local.bar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close privacy policy" onPress={onClose} style={local.close}><Text style={{ fontSize: 24 }}>×</Text></Pressable>
-        <Text accessibilityRole="header" style={local.barTitle}>Privacy policy</Text>
+      <View style={[local.bar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close privacy policy" onPress={onClose} style={local.close}><Text style={{ fontSize: 24, color: colors.ink }}>×</Text></Pressable>
+        <Text accessibilityRole="header" style={[local.barTitle, { color: colors.ink }]}>Privacy policy</Text>
       </View>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: Math.max(insets.bottom, 24), gap: 16 }}>
         {content.map(([kind, text], index) => <Text key={text} accessibilityRole={kind === "p" ? undefined : "header"} style={index === 0 ? [styles.label, { color: colors.accent }] : kind === "p" ? styles.text : [styles.title, { fontSize: kind === "Title" ? 30 : 20 }]}>{text}</Text>)}
@@ -40,7 +41,7 @@ export function PrivacyPolicySheet({ visible, onClose }: { visible: boolean; onC
 }
 const local = StyleSheet.create({
   // Text may wrap at large font scales; only the close target has a fixed size.
-  bar: { flexDirection: "row", alignItems: "center", gap: 8, padding: 4, backgroundColor: "white", borderBottomWidth: 1, borderColor: colors.border },
+  bar: { flexDirection: "row", alignItems: "center", gap: 8, padding: 4, borderBottomWidth: 1 },
   close: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
-  barTitle: { flex: 1, fontSize: 18, fontWeight: "600", color: colors.ink, paddingVertical: 8 },
+  barTitle: { flex: 1, fontSize: 18, fontWeight: "600", paddingVertical: 8 },
 });

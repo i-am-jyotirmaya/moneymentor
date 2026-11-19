@@ -14,7 +14,7 @@ test('ordinary chat omits date and uses selected household and settings currency
   expect(buildAssistantRequest('food 50', 'INR', null).householdId).toBeUndefined();
 });
 test.each(['Responded', 'NeedsClarification', 'Unsupported', 'Failed'] as const)('%s preserves server reply including confirmations', status => {
-  expect(responseMessage({ ...result, status, assistantMessage: 'Tracked ₹180 under Snacks from Zepto.', transaction })).toEqual({ role: 'assistant', text: 'Tracked ₹180 under Snacks from Zepto.', ...(status === 'Responded' ? { addedToTransactions: true } : {}) });
+  expect(responseMessage({ ...result, status, assistantMessage: 'Tracked ₹180 under Snacks from Zepto.', transaction })).toEqual({ role: 'assistant', text: 'Tracked ₹180 under Snacks from Zepto.', ...(status === 'Responded' ? { addedToTransactions: true, transaction } : {}) });
   expect(responseMessage({ ...result, status, assistantMessage: '' }).text).toBe('');
 });
 test('only a successful response with a transaction has the Added to Transactions marker', () => {

@@ -5,11 +5,13 @@ import { Switch, Text, View } from 'react-native';
 import type { FinancialAccount } from '../api/models';
 import { useSession } from '../auth/session';
 import { Button, Field } from '../ui/AuthForm';
-import { styles } from '../ui/theme';
-import { accountPayload, accountValidation, emptyAccount } from './settings-data';
-import { Action, Choice, ErrorNotice, Loading, Panel, ws } from './ui';
 
-export function FinancialAccounts({ householdId, canWrite }: { householdId: string | null; canWrite: boolean }) {
+import { accountPayload, accountValidation, emptyAccount } from './settings-data';
+import { Action, ErrorNotice, Loading, Panel } from './ui';
+import { Choice } from './choice';
+import { useLegacy } from './legacy-styles';
+
+export function FinancialAccounts({ householdId, canWrite }: { householdId: string | null; canWrite: boolean }) { const { styles, ws } = useLegacy();
   const { client } = useSession();
   const offline = useOffline();
   const [form, setForm] = useState(() => emptyAccount(householdId));

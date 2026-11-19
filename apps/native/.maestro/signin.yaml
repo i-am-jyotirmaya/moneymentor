@@ -61,7 +61,8 @@ appId: com.spndrr.app.dev
 - tapOn:
     id: "nav-more"
 - tapOn:
-    id: "menu-reports"
+    # A4 MoreSheet rows have no testID yet; select by row title.
+    text: "Judgments"
 - extendedWaitUntil:
     visible:
       id: "reports-screen"
@@ -69,7 +70,8 @@ appId: com.spndrr.app.dev
 - tapOn:
     id: "nav-more"
 - tapOn:
-    id: "menu-planning"
+    # A4 MoreSheet rows have no testID yet; select by row title.
+    text: "Planning"
 - extendedWaitUntil:
     visible:
       id: "planning-screen"
@@ -77,7 +79,8 @@ appId: com.spndrr.app.dev
 - tapOn:
     id: "nav-more"
 - tapOn:
-    id: "menu-household"
+    # A4 MoreSheet rows have no testID yet; select by row title.
+    text: "Household"
 - extendedWaitUntil:
     visible:
       id: "household-screen"
@@ -85,7 +88,8 @@ appId: com.spndrr.app.dev
 - tapOn:
     id: "nav-more"
 - tapOn:
-    id: "menu-settings"
+    # A4 MoreSheet rows have no testID yet; select by row title.
+    text: "Settings"
 - extendedWaitUntil:
     visible:
       id: "settings-screen"
