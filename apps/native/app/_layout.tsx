@@ -1,10 +1,15 @@
+import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, usePathname } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { BackHandler } from "react-native";
 import { backAction } from "../src/lib/back-policy";
 import { SessionProvider, useSession } from "../src/auth/session";
+import { appFonts } from "../src/ui/fonts";
 import { ThemeProvider } from "../src/ui/ThemeProvider";
 import { colors } from "../src/ui/theme";
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function Navigation() {
   const { status } = useSession();
@@ -32,5 +37,14 @@ function Navigation() {
   return <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }} />;
 }
 export default function RootLayout() {
+  const [loaded, error] = useFonts(appFonts);
+  useEffect(() => {
+    if (loaded || error) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [loaded, error]);
+
+  if (!loaded && !error) return null;
+
   return <ThemeProvider><SessionProvider><Navigation /></SessionProvider></ThemeProvider>;
 }
