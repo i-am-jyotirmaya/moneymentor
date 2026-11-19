@@ -18,6 +18,7 @@ import {
 } from "./common-ui";
 import { ProgressLink as Link } from "./navigation-progress";
 import { formatMoney } from "./workspace-format";
+import { DashboardTrends } from "./dashboard-trends";
 import styles from "./cobalt-dashboard.module.css";
 
 function signedMoney(value: number, currency: string, positiveSign = true) {
@@ -167,13 +168,17 @@ function CategoryBreakdown({ dashboard }: { dashboard: MonthlyDashboardResponse 
 }
 
 export function CobaltDashboard({
+  accessToken,
   dashboard,
+  householdId,
   household,
   isLoading,
   month,
   onMonthChange,
 }: {
+  accessToken: string;
   dashboard: MonthlyDashboardResponse;
+  householdId: string | null;
   household: string | null;
   isLoading: boolean;
   month: string;
@@ -213,6 +218,8 @@ export function CobaltDashboard({
             </Link>
           ))}
         </nav>
+
+        <DashboardTrends accessToken={accessToken} dashboard={dashboard} householdId={householdId} isLoading={isLoading} />
 
         <div className={styles.panels}>
           <CategoryBreakdown dashboard={dashboard} />

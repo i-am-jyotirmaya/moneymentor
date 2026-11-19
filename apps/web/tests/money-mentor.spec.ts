@@ -124,6 +124,38 @@ test("dashboard shows signed category balances without a misleading share for re
   await expect(categories.getByRole("row", { name: /Groceries/ }).getByRole("cell", { name: "−₹200" })).toBeVisible();
 });
 
+test("dashboard trends expand with cached months and show unavailable data", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/dashboard/monthly") requests.push(url.searchParams.get("month") ?? currentMonthKey);
+  });
+  await page.route("**/api/dashboard/monthly?**", async (route) => {
+    const month = new URL(route.request().url()).searchParams.get("month");
+    if (month === previousMonthKey) await route.fulfill({ status: 503, body: "Temporarily unavailable" });
+    else await route.fallback();
+  });
+
+  await page.goto("/dashboard");
+  const trends = page.getByRole("region", { name: "Monthly trends" });
+  await trends.getByText("View monthly values", { exact: true }).click();
+  const table = trends.getByRole("table");
+  await expect(table.getByRole("row")).toHaveCount(7);
+  await expect(table.getByRole("row").filter({ hasText: formatMonthKey(previousMonthKey) }))
+    .toContainText("Unavailable");
+  expect(requests.filter((month) => month === currentMonthKey)).toHaveLength(1);
+
+  const loaded = requests.filter((month) => month !== previousMonthKey);
+  await trends.getByText("12M", { exact: true }).click();
+  await expect(trends.getByRole("radio", { name: "12 months" })).toBeChecked();
+  await trends.getByText("View monthly values", { exact: true }).click();
+  await expect(table.getByRole("row")).toHaveCount(13);
+  for (const month of new Set(loaded)) {
+    expect(requests.filter((requested) => requested === month)).toHaveLength(1);
+  }
+});
+
 test("desktop assistant opens as a compact floating chat", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
 

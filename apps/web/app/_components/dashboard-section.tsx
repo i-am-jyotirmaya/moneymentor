@@ -19,12 +19,16 @@ import {
 import { formatMoney } from "./workspace-format";
 
 export function DashboardSection({
+  accessToken,
   dashboard,
+  householdId,
   isLoading,
   month,
   onMonthChange,
 }: {
+  accessToken: string;
   dashboard: MonthlyDashboardResponse | null;
+  householdId: string | null;
   isLoading: boolean;
   month: string;
   onMonthChange: (month: string) => void;
@@ -40,6 +44,8 @@ export function DashboardSection({
   if (spndrrWeb) {
     return (
       <CobaltDashboard
+        accessToken={accessToken}
+        householdId={householdId}
         dashboard={dashboard}
         household={household}
         isLoading={isLoading}

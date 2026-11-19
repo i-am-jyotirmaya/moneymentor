@@ -33,6 +33,8 @@ export function WorkspaceSection({
   if (section === "dashboard") {
     return (
       <DashboardSection
+        accessToken={props.accessToken}
+        householdId={props.selectedHouseholdId}
         dashboard={props.dashboard}
         isLoading={props.isLoadingDashboard}
         month={props.dashboardMonth}
