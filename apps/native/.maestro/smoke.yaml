@@ -1,0 +1,24 @@
+appId: com.spndrr.app.dev
+---
+- stopApp
+# Avoid launchApp so openLink cold-starts the dev client instead of the launcher ignoring it.
+- clearState
+- openLink: "exp+spndrr://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+# The first bundle may finish before the onboarding/menu becomes available.
+- extendedWaitUntil:
+    visible:
+      text: "Continue|Close|Sign in to use the assistant input workspace\\."
+    timeout: 120000
+- tapOn:
+    text: "Continue"
+    optional: true
+- tapOn:
+    text: "Close"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 120000
+- assertVisible:
+    id: "home-login-button"
+- takeScreenshot: home

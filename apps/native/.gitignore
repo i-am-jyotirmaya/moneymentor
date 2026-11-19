@@ -1,0 +1,11 @@
+android/
+ios/
+.expo/
+dist/
+node_modules/
+.env*
+!.env.example
+coverage/
+# Generated and managed by the Expo CLI
+expo-env.d.ts
+e2e-artifacts/
