@@ -16,6 +16,16 @@ test("native source does not use the unsupported status accessibility role", () 
 
 const source = (file: string) => readFileSync(join(__dirname, "..", file), "utf8");
 
+test('Settings reserves the dock outside its scroll viewport', () => {
+  expect(source('app/(tabs)/settings.tsx')).toContain('style={[ws.fill, { marginBottom: dock }]}');
+});
+
+test('Planning uses the same Judgment spelling as the navigation', () => {
+  const planning = source('app/(tabs)/planning.tsx');
+  expect(planning).toContain("['Judgments', judgements.length]");
+  expect(planning).not.toContain("'Judgements'");
+});
+
 test.each([
   ["src/ui/AuthForm.tsx", "login-screen"],
   ["src/ui/AuthForm.tsx", "login-email"],

@@ -98,7 +98,7 @@ function Shell() {
         {/* Tabs keeps visited screens mounted. Keep the navigator mounted even if a section is temporarily blocked. */}
         <View style={ws.fill} importantForAccessibility={blocked ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={blocked}>
           <Tabs backBehavior="initialRoute" tabBar={() => null} screenOptions={{ headerShown: false, lazy: true, animation: 'fade', sceneStyle: { backgroundColor: shell.color.bg } }}>
-            {/* Every screen pads its own scroll content by useDockSpace() so content scrolls under the floating dock. */}
+            {/* Each screen reserves useDockSpace() in its content or scroll viewport. */}
             {sections.map(({ section }) => <Tabs.Screen key={section} name={section} />)}
           </Tabs>
         </View>
@@ -106,7 +106,7 @@ function Shell() {
       </KeyboardAvoidingView>
     </View></WorkspaceBannerVisible.Provider>
     {/* Rendered by the shell rather than Tabs' tabBar so it stays reachable over a blocked-section overlay. */}
-    {/* The dock floats over the scene; screens reserve DOCK_SPACE at the end of their content. */}
+    {/* The dock floats over the scene; screens reserve DOCK_SPACE so their last controls remain reachable. */}
     {!keyboardOpen ? <View pointerEvents="box-none" style={chrome.dock}><NavDock routes={dockRoutes} active={active} moreOpen={menu} onPress={pressDock} /></View> : null}
     <Sheet open={menu} onClose={() => setMenu(false)} title="More" testID="more-sheet">
       <MoreSheet user={{ name: session.user.displayName, email: session.user.email, plan: settings?.plan ?? 'Free' }}
