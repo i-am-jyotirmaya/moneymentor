@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spndrr Slice mark, Android 12+ splash icon. 288dp canvas, mark fits a 176dp circle (limit 192dp). Colours flip via values-night. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="288dp" android:height="288dp" android:viewportWidth="288" android:viewportHeight="288">
+    <group android:translateX="46.747" android:translateY="46.747" android:scaleX="1.94507" android:scaleY="1.94507">
+        <path android:fillColor="@color/sp_mark" android:pathData="M47 12 A41 41 0 1 0 88 53 L47 53 Z"/>
+        <path android:fillColor="@color/sp_mark_slice" android:pathData="M53 6 A41 41 0 0 1 94 47 L53 47 Z"/>
+    </group>
+</vector>

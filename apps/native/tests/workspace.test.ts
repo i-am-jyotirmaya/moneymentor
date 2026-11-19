@@ -28,6 +28,22 @@ test('month navigation crosses years and retains selected months outside the 36 
     expect(options.at(-1)).toBe('2020-01');
   } finally { jest.useRealTimers(); }
 });
+test('the current month follows local time when UTC is still in the previous month', () => {
+  // Use Node's real environment because Jest's global process.env is a copy.
+  const { env } = jest.requireActual<typeof import('node:process')>('node:process');
+  const previousTimezone = env.TZ;
+  try {
+    env.TZ = 'Asia/Kolkata';
+    const instant = new Date('2026-12-01T00:30:00+05:30');
+    jest.useFakeTimers().setSystemTime(instant);
+    expect(new Date().toISOString().slice(0, 7)).toBe('2026-11');
+    expect(getCurrentMonthKey()).toBe('2026-12');
+  } finally {
+    if (previousTimezone === undefined) delete env.TZ;
+    else env.TZ = previousTimezone;
+    jest.useRealTimers();
+  }
+});
 test('mobile nav order, Assistant label, menu sections and report spelling match web', () => {
   expect(bottomSections.map(bottomLabel)).toEqual(['Assistant', 'Transactions', 'Dashboard']);
   expect(bottomSections.map(bottomLabel)).not.toContain('Track');
