@@ -1,5 +1,6 @@
 "use client";
 import { Flag } from "lucide-react";
+import type { CSSProperties } from "react";
 import {
   usePlanningController,
   type PlanningSectionProps,
@@ -8,7 +9,27 @@ import { EmptyInline } from "./common-ui";
 import { GoalCreateForm } from "./goal-create-form";
 import { GoalPlanPanel } from "./goal-plan-panel";
 import { formatDate, formatMoney } from "./workspace-format";
+import { useSpndrrWeb } from "./web-design";
+import styles from "./cobalt-planning.module.css";
+
+function GoalProgress({ name, current, target, compact = false }: {
+  name: string;
+  current: number;
+  target: number;
+  compact?: boolean;
+}) {
+  const percent = target > 0 ? Math.max(0, Math.min(100, Math.round(current / target * 100))) : 0;
+  return (
+    <div className={`${styles.ring} ${compact ? styles.compact : ""}`} style={{ "--goal-fill": `${percent}%` } as CSSProperties}>
+      {compact ? <span className="sr-only">{percent}% saved</span>
+        : <progress aria-label={`Progress toward ${name}`} aria-valuetext={`${percent}% saved`} className="sr-only" max={100} value={percent} />}
+      <span aria-hidden="true">{percent}%</span>
+    </div>
+  );
+}
+
 export function PlanningSection(props: PlanningSectionProps) {
+  const isWeb = useSpndrrWeb();
   const {
     canWrite,
     commitments,
@@ -35,15 +56,30 @@ export function PlanningSection(props: PlanningSectionProps) {
     handleConsent,
     visibleGroups,
   } = usePlanningController(props);
+  const featuredGoal = goalDetail?.goal ?? visibleGoals.find((goal) => goal.status === "Active") ?? visibleGoals[0];
   return (
-    <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
+    <section className={`min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0 ${isWeb ? styles.planning : ""}`}>
+      {isWeb ? <h1 className={styles.title}>Planning</h1> : null}
+      {isWeb && featuredGoal ? (
+        <article className={styles.featured}>
+          <GoalProgress name={featuredGoal.name} current={featuredGoal.currentAmount} target={featuredGoal.targetAmount} />
+          <div>
+            <p className={styles.support}>Featured goal · {featuredGoal.status}</p>
+            <h2>{featuredGoal.name}</h2>
+            <p className={styles.saved}>{formatMoney(featuredGoal.currentAmount, currencyCode)}</p>
+            <p className={styles.support}>
+              of {formatMoney(featuredGoal.targetAmount, currencyCode)}
+              {featuredGoal.targetDate ? ` · Target ${formatDate(featuredGoal.targetDate)}` : ""}
+            </p>
+          </div>
+        </article>
+      ) : null}
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-semibold tracking-normal">
-                Planning
-              </h2>
+              {isWeb ? <h2 className="text-lg font-semibold">Plan your goals</h2>
+                : <h2 className="text-2xl font-semibold tracking-normal">Planning</h2>}
               <p className="mt-1 text-sm font-medium text-[var(--muted)]">
                 Goals, SIPs, premiums, and rule-based nudges in one place.
               </p>
@@ -131,12 +167,14 @@ export function PlanningSection(props: PlanningSectionProps) {
             {visibleGoals.length > 0 ? (
               visibleGoals.slice(0, 8).map((goal) => (
                 <button
-                  className={`w-full rounded-lg border p-3 text-left ${selectedGoalId === goal.id ? "border-[var(--accent)] bg-positive-container/40" : "border-[var(--border)]"}`}
+                  className={`w-full rounded-lg border p-3 text-left ${selectedGoalId === goal.id ? "border-[var(--accent)] bg-primary-container" : "border-[var(--border)]"}`}
+                  aria-pressed={isWeb ? selectedGoalId === goal.id : undefined}
                   key={goal.id}
                   onClick={() => updateQuery({ goal: goal.id }, "goal-plan")}
                   type="button"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    {isWeb ? <GoalProgress name={goal.name} current={goal.currentAmount} target={goal.targetAmount} compact /> : null}
                     <div>
                       <p className="text-sm font-bold">{goal.name}</p>
                       <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
@@ -144,18 +182,18 @@ export function PlanningSection(props: PlanningSectionProps) {
                         {goal.status}
                       </p>
                     </div>
-                    <span className="text-sm font-bold">
+                    <span className="ml-auto text-end text-sm font-bold">
                       {formatMoney(goal.currentAmount, currencyCode)}
                     </span>
                   </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-low">
+                  {!isWeb ? <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-low">
                     <div
                       className="h-full rounded-full bg-[var(--accent)]"
                       style={{
                         width: `${Math.min(100, Math.round((goal.currentAmount / Math.max(goal.targetAmount, 1)) * 100))}%`,
                       }}
                     />
-                  </div>
+                  </div> : null}
                   <p className="mt-2 text-xs font-medium text-[var(--muted)]">
                     {formatMoney(goal.remainingAmount, currencyCode)} left
                     {goal.requiredMonthlyContribution

@@ -1,4 +1,5 @@
 "use client";
+import { useSpndrrWeb } from "./web-design";
 import type { GoalPlanPace } from "@/lib/api";
 import type { usePlanningController } from "../_hooks/use-planning-controller";
 import { EmptyInline } from "./common-ui";
@@ -37,6 +38,7 @@ export function GoalPlanPanel({
   handleReview,
   handleConsent,
 }: Props) {
+  const isWeb = useSpndrrWeb();
   return (
     <article
       id="goal-plan"
@@ -207,6 +209,19 @@ export function GoalPlanPanel({
                         <p className="mt-3 text-sm text-[var(--muted)]">
                           {option.explanation}
                         </p>
+                        {isWeb && option.milestones?.length ? (
+                          <details className="mt-3 border-t border-outline-variant pt-2">
+                            <summary className="min-h-12 content-center text-sm font-semibold">Planned milestones</summary>
+                            <ol className="grid gap-2 text-sm">
+                              {option.milestones.map((milestone, index) => (
+                                <li key={`${milestone.targetDate}-${index}`} className="flex flex-wrap items-baseline justify-between gap-2">
+                                  <span>{milestone.label} · <time dateTime={milestone.targetDate}>{formatDate(milestone.targetDate)}</time></span>
+                                  <strong className="tabular">{formatMoney(milestone.targetAmount, currencyCode)}</strong>
+                                </li>
+                              ))}
+                            </ol>
+                          </details>
+                        ) : null}
                         {option.risks.length ? (
                           <ul className="mt-3 list-disc space-y-1 pl-4 text-xs font-medium text-warning">
                             {option.risks.map((risk) => (

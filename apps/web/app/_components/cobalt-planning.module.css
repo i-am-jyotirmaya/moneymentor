@@ -1,0 +1,89 @@
+.planning {
+  inline-size: 100%;
+  max-inline-size: 75rem;
+  margin-inline: auto;
+}
+
+.planning article {
+  border-radius: var(--sp-radius-xl);
+}
+
+.planning :is(h1, h2, h3) {
+  font-family: var(--sp-font-display, var(--sp-font-sans));
+}
+
+.title {
+  margin-block-end: 1rem;
+  font-size: 2rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.featured {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(0.875rem, 3vw, 1.75rem);
+  margin-block-end: 1.25rem;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  border: 1px solid var(--sp-outline-variant);
+  background: var(--sp-surface);
+}
+
+.featured h2 {
+  font-size: clamp(1.125rem, 1rem + 0.7vw, 1.625rem);
+  font-weight: 700;
+}
+
+.saved {
+  font-family: var(--sp-font-display, var(--sp-font-sans));
+  font-size: clamp(1.375rem, 1.125rem + 1vw, 2rem);
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.support {
+  color: var(--sp-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.ring {
+  --ring-fill: var(--sp-chart-spend);
+  --ring-track: var(--sp-surface-low);
+  display: grid;
+  flex: none;
+  place-items: center;
+  position: relative;
+  inline-size: clamp(4.5rem, 12vw, 7rem);
+  aspect-ratio: 1;
+  font-family: var(--sp-font-display, var(--sp-font-sans));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--ring-fill) var(--goal-fill), var(--ring-track) 0);
+  mask-image: radial-gradient(transparent 58%, black 59%);
+}
+
+.compact {
+  inline-size: 2.625rem;
+  font-size: 0.75rem;
+}
+
+@media (width < 64rem) {
+  .title { display: none; }
+}
+
+@media (forced-colors: active) {
+  .ring::before {
+    forced-color-adjust: none;
+    --ring-fill: CanvasText;
+    --ring-track: Canvas;
+  }
+}

@@ -525,6 +525,7 @@ test("goal deep links load the selected goal", async ({ page }) => {
   await page.route("**/api/goals?**", route => json(route, [goal]));
   await page.route("**/api/goals/goal-emergency", route => json(route, { goal, plan: null, currentUserConsent: null }));
   await page.goto("/planning?goal=goal-emergency#goal-plan");
+  await expect(page.getByRole("progressbar", { name: "Progress toward Emergency reserve" })).toHaveAttribute("value", "2");
   await expect(page.locator("#goal-plan").getByText("Emergency reserve", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.locator("#goal-plan").getByText("Emergency reserve", { exact: true })).toBeVisible();
