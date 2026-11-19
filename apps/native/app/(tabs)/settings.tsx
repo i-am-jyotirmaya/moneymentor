@@ -65,7 +65,8 @@ export default function Settings() { const { styles, ws } = useLegacy(); const t
     finally { privacyLock.current = false; setPrivacyWorking(false); }
   }
   if (!form && (section.blocked || section.loading)) return <SectionPanel section={section} />;
-  return <><ScrollView testID="settings-screen" keyboardShouldPersistTaps="handled" style={ws.fill} contentContainerStyle={[ws.content, { paddingBottom: dock + 24 }]}>
+  // Reserve dock space in the viewport itself so the last card and its controls cannot sit behind it.
+  return <><ScrollView testID="settings-screen" keyboardShouldPersistTaps="handled" style={[ws.fill, { marginBottom: dock }]} contentContainerStyle={[ws.content, { paddingBottom: 24 }]}>
     <ErrorNotice error={error} retry={() => { setError(''); section.retry(); }} />
     <Text style={ws.small}>APPEARANCE</Text>
     <Card padding={0} testID="settings-appearance">

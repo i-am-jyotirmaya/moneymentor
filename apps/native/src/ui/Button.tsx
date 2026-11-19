@@ -32,8 +32,9 @@ export function Button({ label, onPress, variant = 'filled', size = 'l', icon, l
     <PressableScale accessibilityRole="button" accessibilityLabel={label}
       accessibilityState={{ disabled: disabled || loading, busy: loading }} onPress={onPress}
       disabled={disabled || loading} layer={variant === 'filled' ? 'on-primary' : 'primary'}
-      pressedBackground={colors.pressed} style={{ alignSelf: fullWidth ? 'stretch' : 'flex-start', opacity: disabled ? 0.45 : 1 }}
-      contentStyle={{ minHeight: size === 'l' ? 56 : 48, borderRadius: theme.radius.l, paddingHorizontal: theme.space.s5,
+      pressedBackground={colors.pressed} style={{ alignSelf: fullWidth ? 'stretch' : 'flex-start',
+        flexGrow: 0, maxWidth: '100%', minHeight: size === 'l' ? 56 : 48, opacity: disabled ? 0.45 : 1 }}
+      contentStyle={{ flexGrow: 0, minHeight: size === 'l' ? 56 : 48, borderRadius: theme.radius.l, paddingHorizontal: theme.space.s5,
         paddingVertical: theme.space.s3, flexDirection: 'row', alignItems: 'center', gap: theme.space.s3,
         backgroundColor: colors.background, borderColor: colors.border, borderWidth: variant === 'outline' ? 1 : 0 }}>
       {loading ? <ActivityIndicator color={colors.text} /> : icon && <Icon name={icon} size={20} color={foreground[variant]} />}

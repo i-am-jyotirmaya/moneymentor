@@ -19,7 +19,7 @@ export function EmptyState({ icon, title, body, action, example }: {
       <Text variant="title" style={{ textAlign: 'center' }}>{title}</Text>
       <Text variant="body" tone="text2" style={{ textAlign: 'center' }}>{body}</Text>
       {example && <Text variant="caption" tone="text2" style={{ textAlign: 'center' }}>{example}</Text>}
-      {action && <View style={{ alignItems: 'center' }}><Button {...action} variant="filled" /></View>}
+      {action && <View style={{ alignSelf: 'center', maxWidth: '100%', flexGrow: 0 }}><Button {...action} variant="filled" /></View>}
     </View>
   );
 }

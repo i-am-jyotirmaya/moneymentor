@@ -31,7 +31,9 @@ const makeStyles = ({ color, space, radius }: ThemeValue) => ({
     alignItems: 'center', justifyContent: 'center',
   } as const,
   initials: { color: color.onPrimaryContainer },
-  identity: { flex: 1 },
+  identity: { flex: 1, minWidth: 0 },
+  identityHeader: { flexDirection: 'row', alignItems: 'center', gap: space.s2 } as const,
+  name: { flexShrink: 1, flexGrow: 1 },
   count: { flexDirection: 'row', alignItems: 'center', gap: space.s4 } as const,
   divider: {
     height: StyleSheet.hairlineWidth, backgroundColor: color.outline,
@@ -48,10 +50,12 @@ export function MoreSheet({ user, items, onSelect, onSignOut }: MoreSheetProps) 
           <Text variant="titleL" style={s.initials}>{initialsFor(user.name)}</Text>
         </View>
         <View style={s.identity}>
-          <Text variant="titleL">{user.name}</Text>
-          <Text variant="caption" tone="text2">{user.email}</Text>
+          <View style={s.identityHeader}>
+            <Text variant="titleL" style={s.name}>{user.name}</Text>
+            <Badge tone="primary" label={user.plan} />
+          </View>
+          <Text variant="caption" tone="text2" numberOfLines={1} ellipsizeMode="middle" accessibilityLabel={user.email}>{user.email}</Text>
         </View>
-        <Badge tone="primary" label={user.plan} />
       </View>
       <View style={s.divider} />
       {items.map(({ key, icon, label, subtitle, badge = 0 }) => badge > 0 ? (

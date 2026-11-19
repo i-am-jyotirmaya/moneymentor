@@ -31,12 +31,11 @@ export function TopBar({ title, household, onHouseholdPress, householdExpanded, 
       {household ? <Pressable testID="household-switcher" onPress={onHouseholdPress} hitSlop={{ top: 8, bottom: 8 }}
         accessibilityRole="button" accessibilityLabel={householdA11yLabel(household.name, household.canWrite)} accessibilityState={{ expanded: !!householdExpanded }}
         style={({ pressed }) => [bar.household, pressed && bar.pressed]}>
-        {/* Name, chevron and role share one Text (one baseline). The chevron follows a no-break space so it never orphans. */}
-        <Text maxFontSizeMultiplier={2} style={[type.caption, bar.householdText, { color: color.text2 }]}>
-          {!household.canWrite ? <View style={bar.chevron}><Icon name={{ android: 'lock', ios: 'lock' }} tintColor={color.text2} /></View> : null}
-          {household.name}{'\u00A0'}<View style={bar.chevron}><Icon name={{ android: 'expand_more', ios: 'chevron.down' }} tintColor={color.text2} /></View>
-          {showRole ? `\u00A0· ${household.canWrite ? 'Can write' : 'Read only'}` : ''}
-        </Text>
+        {/* Give the name the flexible space; keep the chevron and permission label together on the same row. */}
+        {!household.canWrite ? <Icon name={{ android: 'lock', ios: 'lock' }} tintColor={color.text2} /> : null}
+        <Text numberOfLines={1} maxFontSizeMultiplier={2} style={[type.caption, bar.householdText, { color: color.text2 }]}>{household.name}</Text>
+        <Icon name={{ android: 'expand_more', ios: 'chevron.down' }} tintColor={color.text2} />
+        {showRole ? <Text numberOfLines={1} maxFontSizeMultiplier={2} style={[type.caption, bar.role, { color: color.text2 }]}>· {household.canWrite ? 'Can write' : 'Read only'}</Text> : null}
       </Pressable> : null}
     </View>
     {action ? <Pressable testID="top-bar-action" onPress={action.onPress} accessibilityRole="button" accessibilityLabel={action.label}
@@ -50,9 +49,9 @@ const bar = StyleSheet.create({
   root: { minHeight: layout.topBar, paddingHorizontal: layout.gutter, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
   mark: { width: 28, height: 28, flexShrink: 0 },
   titles: { flex: 1, minWidth: 0 },
-  household: { minHeight: 32, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', alignSelf: 'flex-start', columnGap: 2 },
-  householdText: { flexShrink: 1 },
-  chevron: { width: 20, height: 16, alignItems: 'center', justifyContent: 'center', transform: [{ translateY: 4 }] },
+  household: { minHeight: 32, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', columnGap: 2 },
+  householdText: { flexShrink: 1, minWidth: 0 },
+  role: { flexShrink: 0 },
   action: { width: layout.touch, height: layout.touch, alignItems: 'center', justifyContent: 'center', borderRadius: 999, marginRight: -12 },
   pressed: { opacity: 0.6 },
 });
