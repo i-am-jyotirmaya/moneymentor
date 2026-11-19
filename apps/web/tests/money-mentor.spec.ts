@@ -344,8 +344,8 @@ test("delete offers undo and Premium remains read-only", async ({ page }, testIn
   await expect(page.getByText("Moved to Recently Deleted.")).toHaveCount(0);
 
   await page.goto("/settings");
-  await expect(page.getByLabel("Plan").first()).toHaveAttribute("readonly", "");
-  await expect(page.getByText(/Entitlements are server-controlled/).first()).toBeVisible();
+  await expect(page.getByText("Premium plan", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Plan", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Read the beta privacy policy" }).first()).toBeVisible();
   await expect(page.getByText(/Support:/).first()).toBeVisible();
 });
@@ -504,13 +504,14 @@ test("contextual judgments can receive an explanation and be dismissed", async (
   const id = "11111111-1111-1111-1111-111111111111";
   await page.route("**/api/judgements/active**", route => json(route, [{
     id, title: "Merchant visits changed", value: "INR 400", message: "Four visits this week.",
-    decisionAction: "Ask", followUpQuestion: "Was this planned?",
+    decisionAction: "Ask", severity: "Alert", followUpQuestion: "Was this planned?",
   }]));
   await page.route(`**/api/judgements/${id}/explanations`, route => json(route, { feedbackId: id }));
   await page.route(`**/api/judgements/${id}/dismiss`, route => route.fulfill({ status: 204 }));
   await page.goto("/reports");
   await expect(page.getByRole("heading", { name: "Judgments", exact: true })).toBeVisible();
   await expect(page.getByText("Merchant visits changed")).toBeVisible();
+  await expect(page.getByText("Needs attention", { exact: true })).toBeVisible();
   await expect(page.getByText("Was this planned?")).toBeVisible();
   await page.getByRole("button", { name: "Add context" }).click();
   await page.getByLabel("Your explanation").fill("This was a planned work expense.");
@@ -774,7 +775,7 @@ test("shared default visibility dropdown saves the selected setting", async ({ p
   await page.getByRole("button", { name: "Save settings", exact: true }).click();
   expect((await request).postDataJSON()).toMatchObject({ defaultTransactionVisibility: "Household" });
   await expect(visibility).toHaveText("Household");
-  await expect(page.locator("select")).toHaveCount(0);
+  await expect(visibility).toHaveJSProperty("tagName", "BUTTON");
 });
 
 test("shared goal dropdowns submit goal type and reset optional pace", async ({ page }) => {

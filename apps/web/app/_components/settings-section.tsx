@@ -11,6 +11,7 @@ import { PrivacyPolicyLink } from "./privacy-policy-link";
 import { SettingsForm } from "./workspace-types";
 import { AppearanceControl } from "./appearance";
 import { useSpndrrWeb } from "./web-design";
+import styles from "./cobalt-settings-reports.module.css";
 
 export function SettingsSection({
   accessToken, householdId, canWrite,
@@ -46,14 +47,24 @@ export function SettingsSection({
     return <SectionSkeleton />;
   }
 
+  const visibility = (
+    <Dropdown
+      label="Default visibility"
+      onChange={(value) => onFormChange({ ...form, defaultTransactionVisibility: value as TransactionVisibility })}
+      options={[{ value: "Private", label: "Private" }, { value: "Household", label: "Household" }]}
+      value={form.defaultTransactionVisibility}
+    />
+  );
+
   return (
-    <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
+    <section className={`min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0 ${isWeb ? styles.page : ""}`}>
+      {isWeb ? <h1 className={styles.title}>Settings</h1> : null}
       <form className="grid gap-4 xl:grid-cols-2" onSubmit={onSave}>
         <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-2xl font-semibold tracking-normal">
-                Settings
+                {isWeb ? "Preferences" : "Settings"}
               </h2>
               <p className="mt-1 text-sm font-medium text-[var(--muted)]">
                 Personalize your tracking preferences.
@@ -85,19 +96,14 @@ export function SettingsSection({
                 value={form.timeZone}
               />
             </Field>
-            <Field label="Plan">
+            {!isWeb ? <Field label="Plan">
               <input className="form-control" readOnly value={form.plan} />
               <span className="text-xs font-medium text-[var(--muted)]">
                 Entitlements are server-controlled. Contact support for beta
                 access changes.
               </span>
-            </Field>
-            <Dropdown
-              label="Default visibility"
-              onChange={(value) => onFormChange({ ...form, defaultTransactionVisibility: value as TransactionVisibility })}
-              options={[{ value: "Private", label: "Private" }, { value: "Household", label: "Household" }]}
-              value={form.defaultTransactionVisibility}
-            />
+            </Field> : null}
+            {!isWeb ? visibility : null}
           </div>
         </article>
 
@@ -112,9 +118,10 @@ export function SettingsSection({
                 onFormChange({ ...form, requireMerchantForExpenses: checked })
               }
             />
+            {isWeb ? visibility : null}
           </div>
           <button
-            className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-4 text-sm font-bold text-white disabled:opacity-65"
+            className={`mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold disabled:opacity-65 ${isWeb ? "bg-primary text-on-primary" : "bg-[var(--sp-strong-action,var(--ink))] text-white"}`}
             disabled={isSaving}
             type="submit"
           >
@@ -123,6 +130,11 @@ export function SettingsSection({
           </button>
         </article>
       </form>
+
+      {isWeb ? <article className="mt-5 rounded-lg border border-outline-variant bg-surface p-4">
+        <h2 className="text-lg font-semibold">Plan</h2>
+        <p className={styles.plan}><strong>{form.plan} plan</strong><span>Contact support for access changes.</span></p>
+      </article> : null}
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">
         <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
@@ -156,7 +168,7 @@ export function SettingsSection({
         </article>
 
         <form
-          className="rounded-lg border border-red-200 bg-surface p-4 shadow-sm"
+          className={`rounded-lg border border-red-200 bg-surface p-4 shadow-sm ${isWeb ? styles.dangerPanel : ""}`}
           onSubmit={onDeleteAccount}
         >
           <h3 className="text-lg font-semibold text-danger">Delete account</h3>

@@ -10,8 +10,25 @@ import {
   type JudgementReportObservation,
   type JudgementReportScope,
 } from "@/lib/api";
-import { CheckCircle2, MessageCircle, Sparkles } from "lucide-react";
+import { CheckCircle2, CircleAlert, Info, MessageCircle, Sparkles, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSpndrrWeb } from "./web-design";
+import styles from "./cobalt-settings-reports.module.css";
+
+const severityIndicators = {
+  Info: { label: "Insight", icon: Info, tone: "info" },
+  Nudge: { label: "Worth a look", icon: Info, tone: "info" },
+  Warning: { label: "Watch", icon: TriangleAlert, tone: "warning" },
+  Alert: { label: "Needs attention", icon: CircleAlert, tone: "danger" },
+} as const;
+
+function SeverityBadge({ item }: { item: JudgementReportObservation }) {
+  const indicator = item.severity === "Info" && item.tone === "Healthy"
+    ? { label: "Healthy", icon: CheckCircle2, tone: "positive" }
+    : severityIndicators[item.severity] ?? severityIndicators.Info;
+  const Icon = indicator.icon;
+  return <span className={styles.badge} data-tone={indicator.tone}><Icon aria-hidden="true" size={16} />{indicator.label}</span>;
+}
 
 type JudgementReportsPanelProps = {
   accessToken: string;
@@ -24,6 +41,7 @@ export function JudgementReportsPanel({
   householdId,
   allowHouseholdScope,
 }: JudgementReportsPanelProps) {
+  const isWeb = useSpndrrWeb();
   const { params, updateQuery } = useWorkspaceUrl();
   const scope: JudgementReportScope =
     allowHouseholdScope && params.get("scope") === "Household" ? "Household" : "Personal";
@@ -89,17 +107,19 @@ export function JudgementReportsPanel({
   }
 
   return (
-    <section aria-busy={isLoading} className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
+    <section aria-busy={isLoading} className={`min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0 ${isWeb ? styles.page : ""}`}>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-[var(--muted)]">Based on your tracked activity</p>
-          <h2 className="text-3xl font-semibold tracking-normal">Judgments</h2>
+          {isWeb ? <h1 className={styles.title}>Judgments</h1> : <>
+            <p className="text-sm font-semibold text-[var(--muted)]">Based on your tracked activity</p>
+            <h2 className="text-3xl font-semibold tracking-normal">Judgments</h2>
+          </>}
           <p className="mt-1 text-sm font-medium text-[var(--muted)]">
             Patterns worth a closer look. Ordinary spending may produce no judgment.
           </p>
         </div>
         {allowHouseholdScope ? (
-          <div aria-label="Judgment scope" className="flex rounded-lg border border-[var(--border)] bg-surface p-1">
+          <div role="group" aria-label="Judgment scope" className={`flex rounded-lg border border-[var(--border)] bg-surface p-1 ${isWeb ? styles.scope : ""}`}>
             {(["Personal", "Household"] as const).map((option) => (
               <button
                 aria-pressed={scope === option}
@@ -131,10 +151,11 @@ export function JudgementReportsPanel({
             <article className="rounded-lg border border-[var(--border)] bg-surface p-5 shadow-sm" key={item.id}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <span className="inline-flex items-center gap-1 rounded-md bg-[var(--surface)] px-2 py-1 text-xs font-semibold text-[var(--muted)]">
+                  {isWeb ? <SeverityBadge item={item} /> : <span className="inline-flex items-center gap-1 rounded-md bg-[var(--surface)] px-2 py-1 text-xs font-semibold text-[var(--muted)]">
                     <Sparkles className="h-3 w-3" /> {item.decisionAction ?? "Observation"}
-                  </span>
-                  <h3 className="mt-3 text-lg font-semibold">{item.title}</h3>
+                  </span>}
+                  {isWeb ? <h2 className="mt-3 text-lg font-semibold">{item.title}</h2>
+                    : <h3 className="mt-3 text-lg font-semibold">{item.title}</h3>}
                 </div>
                 {item.value ? <span className="text-sm font-bold">{item.value}</span> : null}
               </div>
@@ -158,7 +179,7 @@ export function JudgementReportsPanel({
                 </div>
               ) : (
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold" onClick={() => { setExplanation(""); setNotice(null); setReplyingTo(item.id); }} type="button"><MessageCircle className="h-4 w-4" /> Add context</button>
+                  <button className={`inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold ${isWeb ? styles.tonalAction : ""}`} onClick={() => { setExplanation(""); setNotice(null); setReplyingTo(item.id); }} type="button"><MessageCircle className="h-4 w-4" /> Add context</button>
                   <button className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-50" disabled={savingId !== null} onClick={() => void dismiss(item.id)} type="button">Dismiss</button>
                 </div>
               )}
