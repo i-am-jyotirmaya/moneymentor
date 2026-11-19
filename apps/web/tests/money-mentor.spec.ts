@@ -284,6 +284,23 @@ test("assistant tracks income with sender and reason terminology", async ({ page
   await expect(editor.getByRole("option", { name: "Housing › Rent", exact: true })).toHaveCount(0);
 });
 
+test("a logged transaction card can undo the saved entry", async ({ page }) => {
+  const householdId = "44444444-4444-4444-8444-444444444444";
+  await page.goto(`/assistant?household=${householdId}`);
+  await page.getByRole("textbox", { name: "Message Spndrr" }).fill("Joe sent me 300 Rs for chips");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  const card = page.getByRole("article").filter({ hasText: "Added to Transactions" });
+  await expect(card.getByText("+₹300", { exact: true })).toBeVisible();
+  const request = page.waitForRequest((candidate) =>
+    candidate.method() === "DELETE" && candidate.url().endsWith("/api/transactions/txn-income-joe"),
+  );
+  await card.getByRole("button", { name: "Undo log" }).click();
+  await request;
+  await expect(page.getByRole("article").getByText("Moved to Recently Deleted", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeVisible();
+});
+
 test("household invitations can be accepted and sent", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Desktop-only scenario");
 

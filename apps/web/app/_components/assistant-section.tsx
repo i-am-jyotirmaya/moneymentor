@@ -1,13 +1,23 @@
 "use client";
 
 import type { TransactionListItem } from "@/lib/api";
-import { ArrowUp, ArrowUpLeft, Bot, MessageSquare, Mic, Send, X } from "lucide-react";
-import { FormEvent, RefObject, useEffect, useRef } from "react";
+import { ArrowUp, ArrowUpLeft, Bot, CheckCircle2, MessageSquare, Mic, Pencil, Send, Undo2, X } from "lucide-react";
+import { FormEvent, RefObject, useEffect, useRef, useState } from "react";
 import { useWorkspaceUrl } from "../_hooks/use-workspace-url";
 import { EmptyInline, TransactionRow } from "./common-ui";
 import { useSpndrrWeb } from "./web-design";
 import { promptIdeas } from "./workspace-config";
 import { InputMode, Message } from "./workspace-types";
+import { formatMoney } from "./workspace-format";
+
+type CaptureFeedback = {
+  canWrite: boolean;
+  householdId: string | null;
+  transactions: TransactionListItem[];
+  deletedTransactions: TransactionListItem[];
+  onDelete: (transaction: TransactionListItem) => Promise<void>;
+  onEdit: (transaction: TransactionListItem) => void;
+};
 
 const exampleGroups = [
   { intent: "add", label: "Log a transaction", examples: ["Spent 450 on groceries", "Got salary 50,000 today", "Paid 1,200 for subscriptions"] },
@@ -15,24 +25,34 @@ const exampleGroups = [
 ] as const;
 
 export function AssistantSection({
+  canWrite,
   chatEndRef,
+  deletedTransactions,
+  householdId,
   inputMode,
   isListening,
   isSubmitting,
   messages,
+  onDeleteTransaction,
   onPromptClick,
+  onSelectTransaction,
   onSubmit,
   onTextChange,
   onToggleVoice,
   text,
   transactions,
 }: {
+  canWrite: boolean;
   chatEndRef: RefObject<HTMLDivElement | null>;
+  deletedTransactions: TransactionListItem[];
+  householdId: string | null;
   inputMode: InputMode;
   isListening: boolean;
   isSubmitting: boolean;
   messages: Message[];
+  onDeleteTransaction: (transaction: TransactionListItem) => Promise<void>;
   onPromptClick: (idea: string) => void;
+  onSelectTransaction: (transaction: TransactionListItem) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onTextChange: (value: string) => void;
   onToggleVoice: () => void;
@@ -42,6 +62,7 @@ export function AssistantSection({
   return (
     <section className="assistant-workspace flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5">
       <ChatSurface
+        feedback={{ canWrite, householdId, transactions, deletedTransactions, onDelete: onDeleteTransaction, onEdit: onSelectTransaction }}
         chatEndRef={chatEndRef}
         inputMode={inputMode}
         isListening={isListening}
@@ -77,6 +98,7 @@ export function AssistantSection({
 export function ChatSurface({
   chatEndRef,
   compact = false,
+  feedback,
   inputMode,
   isListening,
   isSubmitting,
@@ -91,6 +113,7 @@ export function ChatSurface({
 }: {
   chatEndRef: RefObject<HTMLDivElement | null>;
   compact?: boolean;
+  feedback?: CaptureFeedback;
   inputMode: InputMode;
   isListening: boolean;
   isSubmitting: boolean;
@@ -110,7 +133,8 @@ export function ChatSurface({
   const composer = useRef<HTMLTextAreaElement>(null);
   const thread = revamp ? messages.filter(({ id }) => id !== "seed-assistant") : messages;
   const isEmpty = revamp && thread.length === 0;
-  const groups = intent === "ask" ? [exampleGroups[1], exampleGroups[0]] : exampleGroups;
+  const groups = feedback?.canWrite === false ? [exampleGroups[1]]
+    : intent === "ask" ? [exampleGroups[1], exampleGroups[0]] : exampleGroups;
 
   useEffect(() => {
     if (revamp && (intent === "add" || intent === "ask")) {
@@ -142,7 +166,10 @@ export function ChatSurface({
       </div> : null}
 
       <div className="chat-scroll min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-5 sm:px-5">
-        {revamp ? <h2 className="assistant-thread-heading">{isEmpty ? "Log it, or ask about it." : "Conversation"}</h2> : null}
+        {revamp ? <>
+          <h1 className="assistant-thread-heading hidden lg:block">{isEmpty ? "Log it, or ask about it." : "Conversation"}</h1>
+          <h2 className="assistant-thread-heading lg:hidden">{isEmpty ? "Log it, or ask about it." : "Conversation"}</h2>
+        </> : null}
         {isEmpty && onPromptClick ? (
           <div className="assistant-examples">
             <p>Log an expense or income in your own words, or ask a question about your spending.</p>
@@ -170,9 +197,9 @@ export function ChatSurface({
           </div>
         ) : null}
         <div className="space-y-3" role={isWeb ? "log" : undefined} aria-label={isWeb ? "Conversation" : undefined}>
-          {thread.map((message) => (
-            <ChatMessageBubble key={message.id} message={message} />
-          ))}
+          {thread.map((message) => revamp && feedback && message.transaction?.householdId === feedback.householdId
+            ? <LoggedTransaction key={message.id} message={message.text} transaction={message.transaction} feedback={feedback} />
+            : <ChatMessageBubble key={message.id} message={message} />)}
         </div>
         {isSubmitting ? <TypingBubble announce={isWeb} /> : null}
         <div ref={chatEndRef} />
@@ -231,6 +258,44 @@ export function ChatSurface({
         </form>
       </div>
     </div>
+  );
+}
+
+function LoggedTransaction({ message, transaction, feedback }: {
+  message: string;
+  transaction: TransactionListItem;
+  feedback: CaptureFeedback;
+}) {
+  const [working, setWorking] = useState(false);
+  const deleted = feedback.deletedTransactions.some(({ id }) => id === transaction.id);
+  const current = feedback.transactions.find(({ id }) => id === transaction.id);
+  const saved = current ?? transaction;
+  const adjustment = (saved.financialImpact?.spending ?? 0) < 0 || (saved.financialImpact?.rewards ?? 0) > 0;
+  const sign = saved.type === "Income" || adjustment ? "+" : saved.type === "Expense" ? "−" : "";
+  async function undoLog() {
+    setWorking(true);
+    try { await feedback.onDelete(saved); }
+    finally { setWorking(false); }
+  }
+
+  return (
+    <article className="assistant-transaction">
+      <p className="assistant-transaction-status">
+        <CheckCircle2 aria-hidden="true" size={16} /> {deleted ? "Moved to Recently Deleted" : "Added to Transactions"}
+      </p>
+      <div className="assistant-transaction-details">
+        <div>
+          <p className="font-semibold">{saved.merchantName ?? saved.senderName ?? saved.categoryName ?? saved.type}</p>
+          <p className="text-sm text-fg-muted">{saved.categoryName ?? "Uncategorized"}</p>
+        </div>
+        <strong>{sign}{formatMoney(saved.amount, saved.currencyCode)}</strong>
+      </div>
+      <p className="text-sm text-fg-muted">{message}</p>
+      {feedback.canWrite && !deleted ? <div className="assistant-transaction-actions">
+        {current ? <button type="button" onClick={() => feedback.onEdit(current)}><Pencil aria-hidden="true" size={16} /> Edit transaction</button> : null}
+        <button disabled={working} type="button" onClick={() => void undoLog()}><Undo2 aria-hidden="true" size={16} /> Undo log</button>
+      </div> : null}
+    </article>
   );
 }
 

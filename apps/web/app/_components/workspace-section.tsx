@@ -47,11 +47,16 @@ export function WorkspaceSection({
     return (
       <AssistantSection
         chatEndRef={props.chatEndRef}
+        canWrite={props.canWriteSelectedHousehold}
+        deletedTransactions={props.deletedTransactions}
+        householdId={props.selectedHouseholdId}
         inputMode={props.inputMode}
         isListening={props.isListening}
         isSubmitting={props.isSubmitting}
         messages={props.messages}
+        onDeleteTransaction={props.onDeleteTransaction}
         onPromptClick={props.onPromptClick}
+        onSelectTransaction={props.onSelectTransaction}
         onSubmit={props.onSubmit}
         onTextChange={props.onTextChange}
         onToggleVoice={props.onToggleVoice}

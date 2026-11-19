@@ -215,8 +215,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
                   onMemberRoleChange: setMemberRole,
                   onInvitationResponse: (invitationId, response) =>
                     void handleInvitationResponse(invitationId, response),
-                  onDeleteTransaction: (transaction) =>
-                    void handleDeleteTransaction(transaction),
+                  onDeleteTransaction: handleDeleteTransaction,
                   onRestoreTransaction: (transaction) =>
                     void handleRestoreTransaction(transaction),
                   onExportData: () => void handleExportData(),
@@ -274,7 +273,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
 
       {undoTransaction ? (
         <div
-          className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-4 py-3 text-sm font-semibold text-white shadow-xl"
+          className="workspace-undo fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-lg bg-[var(--sp-strong-action,var(--ink))] px-4 py-3 text-sm font-semibold text-white shadow-xl"
           role="status"
         >
           Moved to Recently Deleted.

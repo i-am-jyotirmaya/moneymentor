@@ -34,6 +34,7 @@ export type Message = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  transaction?: TransactionListItem;
 };
 
 export type SettingsForm = {
@@ -81,7 +82,7 @@ export type SectionRenderProps = {
   onCreateHousehold: (event: FormEvent<HTMLFormElement>) => void;
   onSaveHouseholdSettings: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteAccount: (event: FormEvent<HTMLFormElement>) => void;
-  onDeleteTransaction: (transaction: TransactionListItem) => void;
+  onDeleteTransaction: (transaction: TransactionListItem) => Promise<void>;
   onDeletionConfirmationChange: (value: string) => void;
   onDeletionPasswordChange: (value: string) => void;
   onEditFormChange: (form: TransactionEditForm) => void;

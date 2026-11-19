@@ -218,6 +218,55 @@
   background: var(--sp-primary-container);
 }
 
+.assistant-transaction {
+  display: grid;
+  gap: 0.75rem;
+  max-inline-size: min(100%, 32rem);
+  padding: 1rem;
+  background: var(--sp-surface);
+  border: 1px solid var(--sp-outline-variant);
+  border-radius: var(--sp-radius-md);
+}
+
+.assistant-transaction-status,
+.assistant-transaction-actions button {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+
+.assistant-transaction-status { color: var(--sp-positive); }
+
+.assistant-transaction-details,
+.assistant-transaction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.assistant-transaction-details strong {
+  font-family: var(--sp-font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.assistant-transaction-actions {
+  justify-content: flex-start;
+}
+
+.assistant-transaction-actions button {
+  min-block-size: 3rem;
+  padding-inline: 0.625rem;
+  border: 1px solid var(--sp-outline-variant);
+  border-radius: var(--sp-radius-sm);
+}
+
+.assistant-transaction-actions button:hover:not(:disabled) {
+  background: var(--sp-surface-low);
+}
+
 [data-spndrr-web] .chat-message-row {
   animation: none;
 }
@@ -268,6 +317,12 @@
 
 /* Tailwind's lg breakpoint is also used by the workspace route controller. */
 @media (width < 64rem) {
+  [data-spndrr-web] .workspace-undo {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom));
+    max-inline-size: calc(100% - 1rem);
+    inline-size: max-content;
+  }
+
   [data-spndrr-web] .workspace-narrow-header {
     min-block-size: 4rem;
     height: auto;

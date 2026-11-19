@@ -413,13 +413,14 @@ export function useWorkspaceController() {
     }
   }
 
-  function appendMessage(role: Message["role"], messageText: string) {
+  function appendMessage(role: Message["role"], messageText: string, transaction?: TransactionListItem) {
     setMessages((current) => [
       ...current,
       {
         id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         role,
         text: messageText,
+        transaction,
       },
     ]);
   }
@@ -540,6 +541,7 @@ export function useWorkspaceController() {
       appendMessage(
         "assistant",
         result.assistantMessage ?? getFallbackAssistantMessage(result),
+        result.transaction ?? undefined,
       );
 
       if (result.transaction) {
