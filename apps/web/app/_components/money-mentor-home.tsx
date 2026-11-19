@@ -267,6 +267,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
         onClose={() => setMobileMenuOpen(false)}
         onSignOut={signOut}
         open={mobileMenuOpen}
+        plan={settings?.plan ?? "Free"}
         sessionEmail={session.user.email}
         sessionName={session.user.displayName}
       />

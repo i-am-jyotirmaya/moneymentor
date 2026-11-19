@@ -41,9 +41,9 @@ export const knownFailures: Record<Check, Record<string, string>> = {
   "font-200": entries(["assistant", "dashboard", "transactions"], ["360"],
     "AUDIT T4: at 200% font size the bottom-nav labels overlap ('TrackTransactio Dashboard')"),
 
-  "drawer-escape": entries(["drawer"], phones, "AUDIT N5: the drawer can't be dismissed with Escape"),
-  "drawer-outside": entries(["drawer"], phones, "AUDIT N5: the drawer can't be dismissed by tapping the scrim"),
-  "drawer-focus": entries(["drawer"], phones, "AUDIT N4: the drawer is a plain <aside> and doesn't move focus into itself"),
+  "drawer-escape": {},
+  "drawer-outside": {},
+  "drawer-focus": {},
 
   "readonly-composer": entries(["assistant"], ["360", "1440"],
     "AUDIT S7: in a Viewer household the Assistant textarea, send and mic stay enabled (audit saw it at 360; this suite confirms 1440)"),

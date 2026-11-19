@@ -1,7 +1,8 @@
 "use client";
 
 import type { HouseholdDashboard, UserPlan } from "@/lib/api";
-import { Bot, LogOut, Menu, Users, X } from "lucide-react";
+import { Bot, ChevronRight, LogOut, Menu, Users, X } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useWorkspaceUrl } from "../_hooks/use-workspace-url";
 import { SidebarStat } from "./common-ui";
 import { BrandLogo } from "./brand-logo";
@@ -12,6 +13,7 @@ import { useSpndrrWeb } from "./web-design";
 import { navItems, sectionLabel } from "./workspace-config";
 import { formatMoney } from "./workspace-format";
 import { AppSection } from "./workspace-types";
+import styles from "./more-sheet.module.css";
 
 export function DesktopSidebar({
   activeSection,
@@ -134,6 +136,7 @@ export function MobileHeader({
     <header className="workspace-narrow-header flex h-16 shrink-0 items-center justify-between border-b border-[var(--border)] bg-surface/88 px-4 backdrop-blur lg:hidden">
       <button
         aria-label="Open menu"
+        aria-haspopup={isWeb ? "dialog" : undefined}
         className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--border)] bg-surface text-[var(--ink)]"
         onClick={onMenuOpen}
         type="button"
@@ -165,6 +168,7 @@ export function MobileMenu({
   onClose,
   onSignOut,
   open,
+  plan,
   sessionEmail,
   sessionName,
 }: {
@@ -172,15 +176,21 @@ export function MobileMenu({
   onClose: () => void;
   onSignOut: () => void;
   open: boolean;
+  plan: UserPlan;
   sessionEmail: string;
   sessionName: string;
 }) {
+  const isWeb = useSpndrrWeb();
   const { params } = useWorkspaceUrl();
   const query = params.get("household")
     ? `?household=${encodeURIComponent(params.get("household")!)}`
     : "";
   if (!open) {
     return null;
+  }
+
+  if (isWeb) {
+    return <WebMoreSheet {...{ activeSection, onClose, onSignOut, plan, query, sessionEmail, sessionName }} />;
   }
 
   return (
@@ -247,6 +257,93 @@ export function MobileMenu({
         </div>
       </aside>
     </div>
+  );
+}
+
+const sectionDescriptions: Partial<Record<Exclude<AppSection, "home">, string>> = {
+  planning: "Goals and commitments",
+  reports: "Patterns in your spending",
+  household: "Members and invitations",
+  settings: "Appearance, currency and privacy",
+};
+
+function WebMoreSheet({ activeSection, onClose, onSignOut, plan, query, sessionEmail, sessionName }: {
+  activeSection: Exclude<AppSection, "home">;
+  onClose: () => void;
+  onSignOut: () => void;
+  plan: UserPlan;
+  query: string;
+  sessionEmail: string;
+  sessionName: string;
+}) {
+  const modal = useRef<HTMLDialogElement>(null);
+  const pointerStartedOutside = useRef(false);
+  useEffect(() => {
+    const dialog = modal.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const closeOnDesktop = () => { if (desktop.matches && dialog?.open) dialog.close(); };
+    desktop.addEventListener("change", closeOnDesktop);
+    closeOnDesktop();
+    return () => {
+      desktop.removeEventListener("change", closeOnDesktop);
+      if (dialog?.open) dialog.close();
+    };
+  }, []);
+
+  function outsideDialog(dialog: HTMLDialogElement, x: number, y: number) {
+    const { left, right, top, bottom } = dialog.getBoundingClientRect();
+    return x < left || x > right || y < top || y > bottom;
+  }
+
+  const initials = sessionName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  return (
+    <dialog
+      ref={modal}
+      className={styles.sheet}
+      aria-label="Mobile menu"
+      closedby="any"
+      onClose={(event) => { if (!event.currentTarget.open) onClose(); }}
+      onPointerDown={(event) => {
+        pointerStartedOutside.current = outsideDialog(event.currentTarget, event.clientX, event.clientY);
+      }}
+      onPointerUp={(event) => {
+        if (!("closedBy" in HTMLDialogElement.prototype) && pointerStartedOutside.current
+          && outsideDialog(event.currentTarget, event.clientX, event.clientY)) event.currentTarget.close();
+        pointerStartedOutside.current = false;
+      }}
+    >
+      <header className={styles.header}>
+        <div className={styles.account}>
+          <span aria-hidden="true" className={styles.avatar}>{initials}</span>
+          <div>
+            <p className={styles.name}>{sessionName}</p>
+            <p className={styles.caption}>{sessionEmail}</p>
+          </div>
+          <span className={styles.plan}>{plan}</span>
+        </div>
+        <form method="dialog">
+          <button aria-label="Close menu" className={styles.close} type="submit"><X aria-hidden="true" size={20} /></button>
+        </form>
+      </header>
+      <nav className={styles.links} aria-label="Mobile navigation">
+        {navItems.map((item) => (
+          <Link key={item.section} href={`/${item.section}${query}`}
+            aria-label={item.label}
+            aria-current={activeSection === item.section ? "page" : undefined}
+            onClick={() => modal.current?.close()}>
+            <span aria-hidden="true" className={styles.icon}><item.icon size={18} /></span>
+            <span>{item.label}
+              {sectionDescriptions[item.section] ? <span className={styles.caption}>{sectionDescriptions[item.section]}</span> : null}
+            </span>
+            <ChevronRight aria-hidden="true" size={16} />
+          </Link>
+        ))}
+      </nav>
+      <button className={styles.signout} type="button" onClick={() => { modal.current?.close(); onSignOut(); }}>
+        <LogOut aria-hidden="true" size={18} /> Sign out
+      </button>
+    </dialog>
   );
 }
 
@@ -323,6 +420,7 @@ export function MobileBottomNav({
         );
       })}
       <button
+        aria-haspopup={isWeb ? "dialog" : undefined}
         onClick={onMore}
         className="workspace-dock-item flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-semibold text-[var(--muted)]"
         type="button"
