@@ -10,6 +10,7 @@ export function mobileLinkTarget(value: string, webOrigin = process.env.EXPO_PUB
       pathname = url.hostname ? `/${url.hostname}${url.pathname}` : url.pathname;
     } else if (url.protocol === "https:" && url.origin === new URL(webOrigin).origin) {
       pathname = url.pathname;
+      if (pathname !== '/signup' && pathname !== '/signup/') return null;
     } else return null;
     pathname = pathname.replace(/\/+$/, "") || "/";
     if (!routes.has(pathname)) return null;

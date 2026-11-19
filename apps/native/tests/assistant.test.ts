@@ -14,8 +14,13 @@ test('ordinary chat omits date and uses selected household and settings currency
   expect(buildAssistantRequest('food 50', 'INR', null).householdId).toBeUndefined();
 });
 test.each(['Responded', 'NeedsClarification', 'Unsupported', 'Failed'] as const)('%s preserves server reply including confirmations', status => {
-  expect(responseMessage({ ...result, status, assistantMessage: 'Tracked ₹180 under Snacks from Zepto.', transaction })).toEqual({ role: 'assistant', text: 'Tracked ₹180 under Snacks from Zepto.' });
+  expect(responseMessage({ ...result, status, assistantMessage: 'Tracked ₹180 under Snacks from Zepto.', transaction })).toEqual({ role: 'assistant', text: 'Tracked ₹180 under Snacks from Zepto.', ...(status === 'Responded' ? { addedToTransactions: true } : {}) });
   expect(responseMessage({ ...result, status, assistantMessage: '' }).text).toBe('');
+});
+test('only a successful response with a transaction has the Added to Transactions marker', () => {
+  expect(responseMessage({ ...result, transaction }).addedToTransactions).toBe(true);
+  expect(responseMessage(result).addedToTransactions).toBeUndefined();
+  expect(responseMessage({ ...result, status: 'NeedsClarification', transaction }).addedToTransactions).toBeUndefined();
 });
 test('fallback order matches web for clarification, transaction and unhandled responses', () => {
   expect(responseMessage({ ...result, status: 'NeedsClarification', transaction }).text).toBe('I need a little more detail before saving this.');

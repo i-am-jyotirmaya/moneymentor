@@ -1,12 +1,13 @@
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Linking, ScrollView, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../../src/api/client";
 import { registrationIsOpen } from "../../src/auth/registration";
 import { useSession } from "../../src/auth/session";
 import { AuthForm, Button, ErrorBox, type Invitation } from "../../src/ui/AuthForm";
-import { styles } from "../../src/ui/theme";
+import { Skeleton } from "../../src/ui/Skeleton";
+import { colors, styles } from "../../src/ui/theme";
 
 export default function Signup() {
   const params = useLocalSearchParams<{ token?: string | string[] }>();
@@ -41,12 +42,12 @@ function SignupGate({ token }: { token?: string }) {
     return () => { active = false; };
   }, [client, router, token, attempt]);
   if (state && state.token === token) return <AuthForm key={token ?? "open"} mode="signup" invitation={state.invitation} />;
-  if (!error) return <ActivityIndicator accessibilityLabel="Loading signup" />;
-  return <SafeAreaView style={{ flex: 1 }}><ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.page}><View style={styles.card}>
+  if (!error) return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, justifyContent: "center" }}><Skeleton label="Loading signup" style={{ alignSelf: "center", maxWidth: 460 }} /></SafeAreaView>;
+  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}><ScrollView contentContainerStyle={styles.page}><View style={styles.card}>
     <Text accessibilityRole="header" style={styles.title}>Signup link unavailable</Text>
     <ErrorBox message={error} /><Button title="Try again" onPress={() => { setError(""); setAttempt(n => n + 1); }} />
-    <Text accessibilityRole="link" style={styles.link} onPress={() => { void Linking.openURL(`mailto:${process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@spndrr.example"}`); }}>Contact support</Text>
-    <Link style={styles.link} href="/(auth)/login">Sign in to an existing account</Link>
-    <Link style={styles.link} href="/(auth)/request-access">Request MVP access</Link>
+    <Pressable accessibilityRole="link" style={styles.linkTarget} onPress={() => { void Linking.openURL(`mailto:${process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@spndrr.example"}`); }}><Text style={styles.link}>Contact support</Text></Pressable>
+    <Link asChild href="/(auth)/login"><Pressable accessibilityRole="link" style={styles.linkTarget}><Text style={styles.link}>Sign in to an existing account</Text></Pressable></Link>
+    <Link asChild href="/(auth)/request-access"><Pressable accessibilityRole="link" style={styles.linkTarget}><Text style={styles.link}>Request MVP access</Text></Pressable></Link>
   </View></ScrollView></SafeAreaView>;
 }

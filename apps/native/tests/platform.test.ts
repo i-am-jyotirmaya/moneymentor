@@ -1,5 +1,5 @@
 import { backAction } from '../src/lib/back-policy';
-import { forceLightActivity, withFontScale } from '../plugins/with-platform';
+import { forceLightActivity, withFontScale, withKeyboardResize } from '../plugins/with-platform';
 import config from '../app.config';
 
 test.each([
@@ -17,11 +17,21 @@ test('fontScale preserves existing changes and is idempotent', () => {
   expect(withFontScale(result)).toBe(result);
   expect(withFontScale()).toBe('fontScale');
 });
+test('keyboard resize replaces conflicting adjustment modes without losing state flags', () => {
+  expect(withKeyboardResize('stateHidden|adjustPan')).toBe('stateHidden|adjustResize');
+  expect(withKeyboardResize('stateHidden|adjustResize')).toBe('stateHidden|adjustResize');
+  expect(withKeyboardResize()).toBe('adjustResize');
+});
 test('platform configuration forces light, resize and verified link declarations', () => {
   expect(config.userInterfaceStyle).toBe('light');
   expect(config.android?.softwareKeyboardLayoutMode).toBe('resize');
   expect(config.android?.intentFilters?.[0].autoVerify).toBe(true);
+  expect(config.android?.intentFilters?.[0].data).toEqual([
+    { scheme: 'https', host: 'mvp.spndrr.com', path: '/signup' },
+    { scheme: 'https', host: 'mvp.spndrr.com', path: '/signup/' },
+  ]);
   expect(config.ios?.associatedDomains).toContain('applinks:mvp.spndrr.com');
+  expect(config.android?.adaptiveIcon).toMatchObject({ foregroundImage: './assets/adaptive-icon.png', monochromeImage: './assets/adaptive-icon-monochrome.png' });
 });
 
 test('light activity modification preserves startup and is idempotent', () => {

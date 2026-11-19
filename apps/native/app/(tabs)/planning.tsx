@@ -1,10 +1,11 @@
 import { useSectionLoad, SectionPanel } from '../../src/workspace/sections';
 import { useOffline } from '../../src/workspace/connection';
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, Switch, Text, TextInput, View } from 'react-native';
+import { Keyboard, ScrollView, Switch, Text, View } from 'react-native';
 import { useSession } from '../../src/auth/session';
 import type { Goal, GoalPlanningRun, GoalPlanVersion } from '../../src/api/workspace-models';
 import { formatDate, formatMoney } from '../../src/lib/format';
+import { PlaceholderInput } from '../../src/ui/AuthForm';
 import { colors, styles } from '../../src/ui/theme';
 import { useWorkspace } from '../../src/workspace/context';
 import { emptyGoalForm, emptyPlanForm, goalPayload, goalProgress, goalValidation, planningGroups, planningPending, planPayload, planValidation, planningRequestKey } from '../../src/workspace/planning-data';
@@ -23,7 +24,7 @@ function PlanningScope() {
   const [selected, setSelected] = useState<string | null>(null);
   const [run, setRun] = useState<GoalPlanningRun | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ area: 'goal' | 'planning'; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [goalForm, setGoalForm] = useState(emptyGoalForm);
   const [planForm, setPlanForm] = useState(emptyPlanForm);
@@ -52,7 +53,7 @@ function PlanningScope() {
         if (!current) return;
         if (next.status === 'Succeeded') {
           const value = await client.getGoal(next.goalId);
-          if (current) { setGoalDetail(value); setNotice('Your plan is ready.'); }
+          if (current) { setGoalDetail(value); setNotice({ area: 'planning', message: 'Your plan is ready.' }); }
         } else if (next.status === 'Failed') setError(next.error ?? 'Plan generation failed. You can retry.');
         if (current) setRun(next);
       }).catch(() => { if (current) { setError('Could not refresh plan generation status.'); setRun(value => value ? { ...value } : value); } });
@@ -68,11 +69,14 @@ function PlanningScope() {
   }
   async function create() {
     const validation = goalValidation(goalForm);
-    if (validation) { setError(validation); return; }
+    if (validation) { setNotice(null); setError(validation); return; }
     await mutate(async () => {
       const goal = await client.createGoal(goalPayload(goalForm, householdId!));
       if (!alive.current) return;
-      section.setData(data => ({ ...data, goals: [goal, ...data.goals.filter(g => g.id !== goal.id)] })); setSelected(goal.id); setRun(null); setGoalForm(emptyGoalForm()); setNotice('Goal created. Generate a plan when you are ready.');
+      section.setData(data => ({ ...data, goals: [goal, ...data.goals.filter(g => g.id !== goal.id)] }));
+      setSelected(goal.id); setRun(null); setGoalForm(emptyGoalForm());
+      setNotice({ area: 'goal', message: 'Goal created. Generate a plan when you are ready.' });
+      Keyboard.dismiss();
     });
   }
   async function planAction(action: 'generate' | 'activate' | 'review' | 'customize' | 'consent', version?: GoalPlanVersion) {
@@ -80,8 +84,8 @@ function PlanningScope() {
     if (action === 'generate' || action === 'customize') { const validation = planValidation(planForm); if (validation) { setError(validation); return; } }
     await mutate(async () => {
       const key = planningRequestKey();
-      if (action === 'generate') { const next = await client.createGoalPlanningRun(selectedGoal, planPayload(planForm), key); if (alive.current) { setRun(next); setNotice('We are securely preparing your plan in the background.'); } return; }
-      if (action === 'review' && version) { const next = await client.reviewGoalPlan(selectedGoal, version.id, key); if (alive.current) { setRun(next); setNotice('AI review started.'); } return; }
+      if (action === 'generate') { const next = await client.createGoalPlanningRun(selectedGoal, planPayload(planForm), key); if (alive.current) { setRun(next); setNotice({ area: 'planning', message: 'We are securely preparing your plan in the background.' }); } return; }
+      if (action === 'review' && version) { const next = await client.reviewGoalPlan(selectedGoal, version.id, key); if (alive.current) { setRun(next); setNotice({ area: 'planning', message: 'AI review started.' }); } return; }
       let message: string | null = null;
       if (action === 'activate' && version) { await client.activateGoalPlan(selectedGoal, version.id, key); message = 'You are now following this plan.'; }
       if (action === 'customize' && version) {
@@ -91,13 +95,13 @@ function PlanningScope() {
       }
       if (action === 'consent') { if (detail.currentUserConsent?.revokedAt === null) await client.deleteGoalParticipantConsent(selectedGoal); else await client.putGoalParticipantConsent(selectedGoal); }
       const next = await client.getGoal(selectedGoal);
-      if (alive.current) { setGoalDetail(next); setNotice(message); }
+      if (alive.current) { setGoalDetail(next); setNotice(message ? { area: 'planning', message } : null); }
     });
   }
   if (section.blocked || section.loading) return <SectionPanel section={section} />;
   const disabled = offline || !canWrite || busy || planningPending(run);
   const judgements = dashboard?.judgements ?? [];
-  return <ScrollView automaticallyAdjustKeyboardInsets testID="planning-screen" style={ws.fill} contentContainerStyle={ws.content} keyboardShouldPersistTaps="handled" accessibilityState={{ busy: loading || busy }}>
+  return <ScrollView testID="planning-screen" style={ws.fill} contentContainerStyle={ws.content} keyboardShouldPersistTaps="handled" accessibilityState={{ busy: loading || busy }}>
     <Panel title="Planning"><Text style={styles.text}>Goals, SIPs, premiums, and rule-based nudges in one place.</Text>
       <View style={ws.row}>{[['Active goals', goals.filter(g => g.status === 'Active').length], ['Commitments', commitments.filter(c => c.isActive).length], ['Judgements', judgements.length]].map(([label, value]) => <View key={label}><Text style={ws.small}>{label}</Text><Text style={ws.heading}>{value}</Text></View>)}</View>
       {!canWrite ? <Text style={styles.text}>This household is read-only for you. Planning data is visible, but changes are disabled.</Text> : !loading && loaded ? <View style={{ gap: 12 }}>
@@ -105,14 +109,15 @@ function PlanningScope() {
         <Field label="Target amount" value={goalForm.targetAmount} onChange={targetAmount => setGoalForm(f => ({ ...f, targetAmount }))} numeric />
         <Choice label="Goal type" value={goalForm.goalType} options={['Saving', 'EmergencyFund', 'DebtPayoff', 'Purchase', 'Investment'].map(value => ({ value, label: value === 'EmergencyFund' ? 'Emergency fund' : value === 'DebtPayoff' ? 'Debt payoff' : value }))} onChange={goalType => setGoalForm(f => ({ ...f, goalType: goalType as Goal['goalType'] }))} />
         <Field label="Target date (optional)" id="goal-target-date" value={goalForm.targetDate} onChange={targetDate => setGoalForm(f => ({ ...f, targetDate }))} placeholder="YYYY-MM-DD" />
-        <View style={ws.row}><Text style={styles.label}>Share with household</Text><Switch testID="goal-shared" accessibilityLabel="Share with household" value={goalForm.isShared} onValueChange={isShared => setGoalForm(f => ({ ...f, isShared }))} /></View>
+        <View style={ws.row}><Text style={styles.label}>Share with household</Text><Switch style={{ minWidth: 48, minHeight: 48 }} testID="goal-shared" accessibilityLabel="Share with household" value={goalForm.isShared} onValueChange={isShared => setGoalForm(f => ({ ...f, isShared }))} /></View>
+        {notice?.area === 'goal' ? <Text testID="planning-notice" accessibilityLiveRegion="polite" style={{ color: colors.accent, padding: 12, borderRadius: 8, backgroundColor: colors.accentSoft }}>{notice.message}</Text> : null}
         <Action write testID="create-goal" title="Create goal" disabled={busy} onPress={() => void create()} />
       </View> : null}
     </Panel>
     {loading ? <Loading label="Loading planning" /> : null}
     {!householdId ? <Text style={styles.text}>Select a household to view planning.</Text> : null}
     <ErrorNotice error={error} retry={() => { setError(null); section.retry(); goalSection.retry(); }} />
-    {notice ? <Text testID="planning-notice" accessibilityLiveRegion="polite" style={styles.text}>{notice}</Text> : null}
+    {notice?.area === 'planning' ? <Text testID="planning-notice" accessibilityLiveRegion="polite" style={styles.text}>{notice.message}</Text> : null}
     {!loading && loaded ? <>
       <Panel title="Current nudges">{judgements.length ? judgements.slice(0, 4).map((j, i) => <View key={i} style={ws.item}><Text style={styles.label}>{j.title}</Text><Text style={ws.small}>{j.severity ?? j.tone}</Text><Text style={styles.text}>{j.text}</Text></View>) : <Text style={styles.text}>No planning nudges for this month yet.</Text>}</Panel>
       <Panel title="Goals">{goals.length ? goals.slice(0, 8).map(g => <View key={g.id} style={ws.item}><Action testID={`goal-${g.id}`} title={g.name} selected={selectedGoal === g.id} disabled={busy} onPress={() => { if (selectedGoal !== g.id) { setSelected(g.id); setRun(null); } setError(null); }} /><Text style={ws.small}>{g.goalType} - {g.priority} priority - {g.status}</Text><Text style={styles.label}>{money(g.currentAmount)}</Text><View accessibilityLabel={`${goalProgress(g)}% complete`} style={{ height: 8, backgroundColor: 'white' }}><View style={{ height: 8, width: `${goalProgress(g)}%`, backgroundColor: colors.accent }} /></View><Text style={ws.small}>{money(g.remainingAmount)} left{g.requiredMonthlyContribution ? ` - needs ${money(g.requiredMonthlyContribution)}/mo` : ''}</Text></View>) : <Text testID="planning-empty" style={styles.text}>No goals yet. Create your first goal above.</Text>}</Panel>
@@ -141,5 +146,5 @@ function PlanningScope() {
   </ScrollView>;
 }
 function Field({ label, id, value, onChange, placeholder, maxLength, numeric, multiline }: { label: string; id?: string; value: string; onChange: (value: string) => void; placeholder?: string; maxLength?: number; numeric?: boolean; multiline?: boolean }) {
-  return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput testID={id ?? label.toLowerCase().replaceAll(' ', '-')} accessibilityLabel={label} style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} maxLength={maxLength} keyboardType={numeric ? 'decimal-pad' : 'default'} multiline={multiline} autoCapitalize="none" /></View>;
+  return <View style={styles.field}><Text style={styles.label}>{label}</Text><PlaceholderInput testID={id ?? label.toLowerCase().replaceAll(' ', '-')} accessibilityLabel={label} style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} maxLength={maxLength} keyboardType={numeric ? 'decimal-pad' : 'default'} multiline={multiline} autoCapitalize="none" /></View>;
 }
