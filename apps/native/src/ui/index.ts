@@ -2,6 +2,7 @@ export * from './Text';
 export * from './Money';
 export { Icon, iconGlyphSize, type IconName } from './Icon';
 export * from './ThemeProvider';
+export * from './useThemedStyles';
 export * from './color';
 export * from './motion';
 export * from './PressableScale';
