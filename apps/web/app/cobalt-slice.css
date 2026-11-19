@@ -169,6 +169,23 @@
   color: var(--sp-warning);
 }
 
+.cobalt-household {
+  inline-size: 100%;
+  max-inline-size: 75rem;
+  margin-inline: auto;
+}
+
+.cobalt-household article {
+  border-radius: var(--sp-radius-xl);
+}
+
+.cobalt-household h1 {
+  font-family: var(--sp-font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
 [data-spndrr-web] .chat-panel {
   background: var(--sp-bg);
 }

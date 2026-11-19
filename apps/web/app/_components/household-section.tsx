@@ -11,6 +11,7 @@ import { FormEvent } from "react";
 import { EmptyInline, Field } from "./common-ui";
 import { Dropdown } from "./dropdown";
 import { formatDate } from "./workspace-format";
+import { useSpndrrWeb } from "./web-design";
 
 export function HouseholdSection({
   householdName,
@@ -52,6 +53,7 @@ export function HouseholdSection({
   selectedHouseholdId: string | null;
   statusMessage: string | null;
 }) {
+  const isWeb = useSpndrrWeb();
   if (!households) {
     return <SectionSkeleton />;
   }
@@ -69,14 +71,13 @@ export function HouseholdSection({
   );
 
   return (
-    <section className="min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0">
+    <section className={`min-h-full overflow-y-auto px-4 py-4 lg:px-0 lg:py-0 ${isWeb ? "cobalt-household" : ""}`}>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <article className="rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-semibold tracking-normal">
-                Household
-              </h2>
+              {isWeb ? <h1 className="hidden lg:block">Household</h1>
+                : <h2 className="text-2xl font-semibold tracking-normal">Household</h2>}
               <p className="mt-1 text-sm font-medium text-[var(--muted)]">
                 Personal is the default scope. Premium entitlement is managed by
                 Spndrr support.

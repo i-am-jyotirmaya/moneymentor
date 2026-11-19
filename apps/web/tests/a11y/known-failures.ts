@@ -9,7 +9,6 @@ export type Check =
   | "drawer-escape" | "drawer-outside" | "drawer-focus" | "readonly-composer";
 
 const allRoutes = ["home", "assistant", "dashboard", "transactions", "reports", "planning", "household", "settings", "login", "signup", "request-access", "privacy"];
-const workspaceRoutes = allRoutes.slice(0, 8);
 const phones = ["320", "360", "412"];
 
 function entries(routes: string[], widths: string[], finding: string): Record<string, string> {
@@ -25,10 +24,7 @@ export const knownFailures: Record<Check, Record<string, string>> = {
     "AUDIT A2: touch targets under 48dp (menu/close 40x40, month arrows and row actions 36x36, voice 44x44, household selector 44px tall, 13px checkboxes, inline links)"),
 
   h1: {
-    ...entries(["login", "signup", "request-access"], ["360"], "AUDIT A5: auth pages have no <h1> at phone width"),
     ...entries(["privacy"], ["360", "1440"], "AUDIT A5: privacy puts the 'AI goal planning' <h2> before its <h1>"),
-    ...entries(workspaceRoutes, ["1440"],
-      "NEW (not in AUDIT.md, related to A5/N7): desktop workspace has no visible <h1>; the mobile header <h1> is lg:hidden and section titles are <h2>"),
   },
 
   placeholder: {},

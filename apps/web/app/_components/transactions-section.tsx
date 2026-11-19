@@ -113,9 +113,8 @@ export function TransactionsSection({
       <article className={isWeb ? styles.panel : "rounded-lg border border-[var(--border)] bg-surface p-4 shadow-sm"}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className={isWeb ? styles.title : "text-2xl font-semibold tracking-normal"}>
-              Transactions
-            </h2>
+            {isWeb ? <h1 className={styles.title}>Transactions</h1>
+              : <h2 className="text-2xl font-semibold tracking-normal">Transactions</h2>}
             {!isWeb ? <p className="mt-1 text-sm font-medium text-[var(--muted)]">
               Review one month at a time and edit a record when you need to.
             </p> : null}
