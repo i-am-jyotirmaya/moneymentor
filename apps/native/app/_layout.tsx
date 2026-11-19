@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -46,5 +47,9 @@ export default function RootLayout() {
 
   if (!loaded && !error) return null;
 
-  return <ThemeProvider><SessionProvider><Navigation /></SessionProvider></ThemeProvider>;
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider><SessionProvider><Navigation /></SessionProvider></ThemeProvider>
+    </GestureHandlerRootView>
+  );
 }

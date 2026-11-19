@@ -1,9 +1,14 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { useColorScheme, useWindowDimensions } from 'react-native';
+import * as SystemUI from 'expo-system-ui';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { StatusBar, useColorScheme, useWindowDimensions } from 'react-native';
 import { darkTheme, layout, lightTheme, motion, radius, space, type, type Theme } from './theme';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type ColorScheme = 'light' | 'dark';
+
+export function statusBarStyleFor(scheme: ColorScheme) {
+  return scheme === 'dark' ? 'light-content' : 'dark-content';
+}
 
 export function resolveScheme(
   preference: ThemePreference,
@@ -67,7 +72,18 @@ export function ThemeProvider({
     setPreference,
   }), [scheme, fontScale, currentPreference, setPreference]);
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  const { bg } = value.color;
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(bg).catch(() => {});
+  }, [scheme, bg]);
+
+  return (
+    <ThemeContext.Provider value={value}>
+      {/* RN 0.88 is edge-to-edge: the bars are transparent, so only the icon style follows the theme. */}
+      <StatusBar barStyle={statusBarStyleFor(scheme)} />
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
 export function useTheme(): ThemeValue {
