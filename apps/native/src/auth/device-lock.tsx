@@ -13,6 +13,21 @@ type LockState = "checking" | "open" | "locked";
 const DeviceLockContext = createContext<LockState>("checking");
 export const useDeviceLock = () => useContext(DeviceLockContext);
 
+async function waitForDevicePromptToClose() {
+  if (AppState.currentState !== "background") return true;
+  return new Promise<boolean>(resolve => {
+    const subscription = AppState.addEventListener("change", state => {
+      if (state === "active") finish(true);
+    });
+    const timeout = setTimeout(() => finish(false), 1_000);
+    function finish(active: boolean) {
+      clearTimeout(timeout);
+      subscription.remove();
+      resolve(active);
+    }
+  });
+}
+
 export function DeviceLockProvider({ children }: { children: ReactNode }) {
   const { client } = useSession();
   const { color } = useTheme();
@@ -87,8 +102,9 @@ export function DeviceLockProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      if (AppState.currentState === "background") return;
+      // The PIN activity can return its result just before the app becomes active.
       const revision = backgroundRevision.current;
+      if (!await waitForDevicePromptToClose() || revision !== backgroundRevision.current) return;
       client.setDeviceLocked(false);
       if (!client.getSnapshot().session) {
         restoring = true;

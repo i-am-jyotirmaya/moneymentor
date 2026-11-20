@@ -110,7 +110,8 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
         return;
       }
       const revision = state.revision;
-      if (!(await App.getState()).isActive || revision !== state.revision) return;
+      // A system PIN or biometric prompt can resolve before its app becomes active.
+      if (!await waitForDevicePromptToClose() || revision !== state.revision) return;
       state.unlocked = true;
       if (!getAuthSessionSnapshot()) {
         state.probing = true;
@@ -147,4 +148,12 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
       </>}
     </section>
   </main>;
+}
+
+async function waitForDevicePromptToClose() {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    if ((await App.getState()).isActive) return true;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  return false;
 }

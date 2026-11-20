@@ -56,6 +56,7 @@ test("a saved native session stays locked until device verification succeeds", a
   await page.addInitScript(() => {
     localStorage.setItem("spndrr.native-session", "saved");
     let attempts = 0;
+    let foregroundChecks = 0;
     const methods = (names: string[], rtype = "promise") => names.map(name => ({ name, rtype }));
     Object.assign(window, {
       CapacitorCustomPlatform: { name: "ios" },
@@ -67,7 +68,7 @@ test("a saved native session stays locked until device verification succeeds", a
         nativeCallback: async () => "listener",
         nativePromise: async (_plugin: string, method: string) => {
           if (method === "checkBiometry") return { deviceIsSecure: true };
-          if (method === "getState") return { isActive: true };
+          if (method === "getState") return { isActive: ++foregroundChecks > 1 };
           if (method === "internalAuthenticate" && ++attempts === 1) throw { code: "userCancel" };
         },
       },
