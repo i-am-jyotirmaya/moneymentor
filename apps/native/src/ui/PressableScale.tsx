@@ -50,14 +50,15 @@ export function PressableScale({
     overlay,
   ];
 
+  // Center the visual content in the touch target without growing it to the scroll viewport.
   return (
     <Pressable
       {...props}
-      style={(usesContentProps || !style) ? [{ minWidth: 48, minHeight: 48 }, style] : undefined}
+      style={(usesContentProps || !style) ? [{ minWidth: 48, minHeight: 48, justifyContent: 'center' }, style] : undefined}
       onPressIn={event => { setPressed(true); onPressIn?.(event); }}
       onPressOut={event => { setPressed(false); onPressOut?.(event); }}
     >
-      <Animated.View style={[{ flexGrow: 1, justifyContent: 'center' }, visualStyle, scaleContent === undefined && transform,
+      <Animated.View style={[{ justifyContent: 'center' }, visualStyle, scaleContent === undefined && transform,
         !usesContentProps && style && { overflow: 'hidden' }]}>
         {pressedBackground && <Animated.View pointerEvents="none" style={[stateStyle, { backgroundColor: pressedBackground }]} />}
         {scaleContent !== undefined && <Animated.View style={transform}>{scaleContent}</Animated.View>}
