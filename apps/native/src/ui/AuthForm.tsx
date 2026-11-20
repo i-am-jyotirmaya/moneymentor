@@ -85,20 +85,23 @@ export function Button({ title, onPress, disabled = false, testID, write = false
 export function BrandTile({ size = 48 }: { size?: number }) {
   return <Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" source={require("../../assets/spndrr-mark.png")} resizeMode="contain" style={{ width: size, height: size }} />;
 }
-export function RegistrationLink({ outlined = false }: { outlined?: boolean }) {
+export function useRegistrationDestination() {
   const { client } = useSession();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   useEffect(() => {
     let active = true;
     void registrationIsOpen(client).then(value => { if (active) setOpen(value); });
     return () => { active = false; };
   }, [client]);
-  const go = () => router.push(open ? "/(auth)/signup" : "/(auth)/request-access");
-  if (outlined) return <Button variant="outline" title={open ? "Create a new account" : "Request MVP access"} onPress={go} />;
+  return { open, href: open ? "/(auth)/signup" : "/(auth)/request-access" } as const;
+}
+
+function RegistrationLink() {
+  const router = useRouter();
+  const { open, href } = useRegistrationDestination();
   return <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", alignItems: "center", columnGap: 6 }}>
     <Text tone="text2">{open ? "New here?" : "Not on the beta yet?"}</Text>
-    <AuthLink title={open ? "Create an account" : "Request MVP access"} onPress={go} />
+    <AuthLink title={open ? "Create an account" : "Request MVP access"} onPress={() => router.push(href)} />
   </View>;
 }
 function AuthLink({ title, onPress, expanded }: { title: string; onPress: () => void; expanded?: boolean }) {
