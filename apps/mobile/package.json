@@ -27,7 +27,9 @@
     "@capacitor/filesystem": "^8.0.0",
     "@capacitor/share": "^8.0.0",
     "@capacitor/keyboard": "^8.0.0",
-    "@capacitor-community/speech-recognition": "7.0.1"
+    "@capacitor-community/speech-recognition": "7.0.1",
+    "@aparajita/capacitor-biometric-auth": "10.0.0",
+    "@capgo/capacitor-passkey": "8.5.10"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

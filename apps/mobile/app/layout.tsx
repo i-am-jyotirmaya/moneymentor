@@ -1,6 +1,7 @@
 import { inter } from "../../web/app/_fonts/inter";
 import { NavigationProgress } from "../../web/app/_components/navigation-progress";
 import type { Metadata, Viewport } from "next";
+import { DeviceLock } from "../components/device-lock";
 import { MobileRuntime } from "../components/mobile-runtime";
 import "./mobile.css";
 
@@ -27,7 +28,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} h-full antialiased`} data-theme="light">
       <body className="min-h-full">
         <MobileRuntime />
-        <NavigationProgress>{children}</NavigationProgress>
+        <NavigationProgress><DeviceLock>{children}</DeviceLock></NavigationProgress>
       </body>
     </html>
   );

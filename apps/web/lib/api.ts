@@ -1,5 +1,7 @@
 import {
   clearAuthSession,
+  canRefreshSession,
+  waitForSessionRefresh,
   coordinateSessionRefresh,
   getAuthSessionSnapshot,
   saveAuthSession,
@@ -606,7 +608,7 @@ async function readResponseError(response: Response) {
   }
 }
 
-async function apiRequest<TResponse>(
+export async function apiRequest<TResponse>(
   path: string,
   { accessToken, method = "GET", body, headers: requestHeaders }: RequestOptions = {},
   allowRefresh = true,
@@ -761,7 +763,9 @@ export function listTransactions(
 }
 
 export function refreshSession() {
+  if (!canRefreshSession()) return Promise.reject(new ApiError("Please sign in again.", 401, ["Please sign in again."]));
   return coordinateSessionRefresh(async () => {
+    if (!canRefreshSession()) throw new ApiError("Please sign in again.", 401, ["Please sign in again."]);
     const response = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
       method: "POST",
       credentials: "include",
@@ -781,6 +785,7 @@ export function refreshSession() {
 
 export async function logout(accessToken?: string) {
   try {
+    await waitForSessionRefresh();
     await apiRequest<void>(
       "/api/auth/logout",
       {

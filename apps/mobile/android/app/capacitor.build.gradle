@@ -14,6 +14,8 @@ dependencies {
     implementation project(':capacitor-share')
     implementation project(':capacitor-keyboard')
     implementation project(':capacitor-community-speech-recognition')
+    implementation project(':aparajita-capacitor-biometric-auth')
+    implementation project(':capgo-capacitor-passkey')
 
 }
 

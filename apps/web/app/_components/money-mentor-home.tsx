@@ -132,7 +132,6 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
       <LoadingBar
         active={isLoadingData || isLoadingDashboard || isLoadingTransactions}
       />
-      {children}
       <div className="flex h-full min-h-0">
         <DesktopSidebar
           activeSection={desktopSection}
@@ -162,6 +161,7 @@ export function MoneyMentorHome({ children }: { children?: React.ReactNode }) {
               }}
               selectedHouseholdId={selectedHouseholdId}
             />
+            {children}
             <WorkspaceError
               error={error}
               isLoading={isLoadingData}

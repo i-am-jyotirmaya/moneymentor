@@ -1,6 +1,9 @@
 package com.spndrr.app;
 
 import android.content.res.Configuration;
+import android.os.Build;
+import android.os.Bundle;
+import android.view.WindowManager;
 import android.webkit.WebView;
 import androidx.appcompat.app.AppCompatDelegate;
 import com.getcapacitor.BridgeActivity;
@@ -12,6 +15,16 @@ public class MainActivity extends BridgeActivity {
         // resolve to light even when the system is dark (audit E2).
         // Remove in the dark-mode PR.
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
+    }
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(false);
+        } else {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        }
     }
 
     // fontScale is in the manifest's configChanges, so a system font-size change keeps this

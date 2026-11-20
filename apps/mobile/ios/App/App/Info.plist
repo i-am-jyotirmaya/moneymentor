@@ -75,6 +75,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use Face ID to unlock Spndrr.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Use your microphone to enter expenses and finance questions by voice.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

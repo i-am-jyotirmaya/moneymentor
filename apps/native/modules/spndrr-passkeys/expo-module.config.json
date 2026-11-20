@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["SpndrrPasskeysModule"] },
+  "android": { "modules": ["com.spndrr.passkeys.SpndrrPasskeysModule"] }
+}

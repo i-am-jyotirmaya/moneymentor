@@ -2,6 +2,14 @@
 
 Android and iOS apps with the same UI and API flows as `apps/web`. Capacitor packages a **local Next.js static export** into native projects; it does not load the deployed website, require a Next.js server on the phone, or replace the web deployment.
 
+## Passkeys and device unlock
+
+Sign in with your password and add a passkey in **Settings → Passkeys**. Use
+**Sign in with a passkey** on later sign-ins. The device screen lock or biometrics
+protect saved sessions on relaunch and when returning from the background.
+See [Mobile passkey setup](../../docs/mobile-passkeys.md) for the platform
+associations, API configuration, and device verification.
+
 ## Run from Windows (Android)
 
 1. Install Node 24, the repository's pnpm version, Android Studio with SDK 36, and JDK 21. Set `ANDROID_HOME` and `JAVA_HOME` for your installation.
@@ -52,7 +60,7 @@ The mobile Playwright suite serves `out/` with a static server and runs the same
 
 Automatic mobile CI is temporarily paused for both pull requests and pushes. To validate on demand, use **Actions → mobile → Run workflow** and select the desired branch. Android setup installs explicit SDK packages instead of the removed legacy `tools` package. To resume automatic CI, restore `pull_request` and `push` (branch `main`) triggers in `.github/workflows/mobile.yml`, with path filters for `apps/mobile/**`, `apps/web/**`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, and `.github/workflows/mobile.yml`.
 
-Before distributing a build, test on an Android device and iPhone with the real HTTPS API: login → force close → reopen/refresh → expired access token → logout → reopen; request access and approved/expired/reused invitations; microphone accept/deny/stop; keyboard/notch layouts; export to Files; household permissions; account deletion. Confirm signout revokes the server session and the app remains signed out after relaunch. Native cookie/permission behavior cannot be proven by browser emulation.
+Before distributing a build, test on an Android device and iPhone with the real HTTPS API: login → force close → unlock and restore → expired access token → logout → reopen; request access and approved/expired/reused invitations; microphone accept/deny/stop; keyboard/notch layouts; export to Files; household permissions; account deletion. Confirm signout revokes the server session and the app remains signed out after relaunch. Native cookie/permission behavior cannot be proven by browser emulation.
 
 The iOS privacy manifest declares the Filesystem required-reason API. Review App Store data-collection disclosures against the deployed backend and speech provider before submission.
 

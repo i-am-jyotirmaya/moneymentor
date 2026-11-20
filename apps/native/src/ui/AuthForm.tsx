@@ -1,3 +1,4 @@
+import { getPasskeyCredential, supportsPasskeys } from "../auth/passkeys";
 import { WorkspaceBannerVisible } from '../workspace/banner';
 import { useOffline } from '../workspace/connection';
 import { Link, useRouter } from "expo-router";
@@ -186,11 +187,22 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
       setError(caught instanceof ApiError ? caught.errors.join(" ") : "Could not connect to Spndrr. Please try again in a moment.");
     } finally { setBusy(false); }
   }
+  async function signInWithPasskey() {
+    if (busy) return;
+    Keyboard.dismiss(); setError(""); setBusy(true);
+    try {
+      const session = await client.loginWithPasskey(options => getPasskeyCredential("get", options));
+      if (session) router.replace("/(tabs)/assistant");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not sign in with a passkey.");
+    } finally { setBusy(false); }
+  }
   const headline = request ? "Get early access." : signup ? "Start tracking in plain words." : "Know where every rupee goes.";
   const promise = request ? "Spndrr is available by approval while in beta. Tell us a little about yourself." : signup ? "Type what you spent the way you’d text a friend. Spndrr does the sorting." : "Type what you spent. Spndrr sorts it, charts it and tells you when something drifts.";
   return <View testID={mode === "login" ? "login-screen" : undefined} style={{ flex: 1 }}>
     <AuthBackdrop headline={headline} promise={promise}>
       <Text variant="headline">{request ? "Request MVP access" : signup ? "Create your account" : "Welcome back"}</Text>
+      {mode === "login" && supportsPasskeys() && <Button disabled={busy} variant="tonal" testID="login-passkey" title="Sign in with a passkey" onPress={() => void signInWithPasskey()} />}
       {sent ? <View accessibilityLiveRegion="polite" style={{ flexDirection: "row", gap: 8, padding: 16, borderRadius: 16, backgroundColor: color.primaryContainer }}><Icon name={{ ios: "checkmark.circle", android: "check_circle" }} size={20} color="onPrimaryContainer" /><Text style={{ flex: 1, color: color.onPrimaryContainer }}>Your request has been received. We’ll email you if access is approved.</Text></View> : <>
         {mode !== "login" && <Field label="Name" leading={{ ios: "person", android: "person" }} placeholder="Aarav Shah" maxLength={128} value={displayName} onChangeText={setDisplayName} autoComplete="name" textContentType="name" editable={!locks.displayName} />}
         <Field label="Email" leading={{ ios: "envelope", android: "mail" }} testID={mode === "login" ? "login-email" : undefined} placeholder="name@example.com" maxLength={256} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress" editable={!locks.email} />

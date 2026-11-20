@@ -6,6 +6,7 @@ import { useContext, useEffect } from "react";
 import { BackHandler } from "react-native";
 import { SafeAreaInsetsContext } from "react-native-safe-area-context";
 import { backAction } from "../src/lib/back-policy";
+import { DeviceLockProvider, useDeviceLock } from "../src/auth/device-lock";
 import { SessionProvider, useSession } from "../src/auth/session";
 import { appFonts } from "../src/ui/fonts";
 import { ThemeProvider } from "../src/ui/ThemeProvider";
@@ -17,6 +18,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function Navigation() {
   const { status } = useSession();
+  const deviceLock = useDeviceLock();
   const segments = useSegments();
   const router = useRouter();
   const pathname = usePathname();
@@ -32,10 +34,10 @@ function Navigation() {
     return () => subscription.remove();
   }, [router, inWorkspace, pathname]);
   useEffect(() => {
-    if (inWorkspace && (status === "signedOut" || status === "unavailable")) {
+    if (deviceLock === "open" && inWorkspace && (status === "signedOut" || status === "unavailable")) {
       router.replace("/(auth)/login");
     }
-  }, [status, inWorkspace, router]);
+  }, [deviceLock, status, inWorkspace, router]);
   // Expo Router owns both the linking/navigation container and the root safe-area provider.
   // Keep one persistent Stack and let +native-intent normalize external URLs.
   return <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }} />;
@@ -55,7 +57,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <ToastProvider bottomOffset={bottomInset + DOCK_SPACE}>
-          <SessionProvider><Navigation /></SessionProvider>
+          <SessionProvider><DeviceLockProvider><Navigation /></DeviceLockProvider></SessionProvider>
         </ToastProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

@@ -97,9 +97,9 @@ text support larger font scales without fixed text-container heights. Policy
 links and the consent checkbox are separate touch targets.
 
 `src/auth/session.tsx` provides one client and a `useSyncExternalStore` session
-subscription. Startup calls `restore()` using the refresh cookie; authenticated
-sessions enter Assistant, and signed-out startup shows the home gate with Login
-and registration actions. Sign-out and failed refresh route to login, matching
+subscription. Startup shows the device unlock prompt when a saved session exists and
+refreshes through the HttpOnly cookie after unlock. Signed-out startup shows the home
+gate with Login and registration actions. Sign-out and failed refresh route to login, matching
 the web workspace controller. Protected tabs leave
 on signed-out/unavailable state. A 401 refreshes once and retries once; concurrent
 401s share refresh. Settings shows the session name/email and signs out through
@@ -126,6 +126,17 @@ parsing. No dependencies were added. Manual device verification still needed:
   Back and the close button, verifying retained values and unchanged consent.
 - At Android fontScale 1.3, scroll the entire policy and check the app bar/close
   target; test keyboard scrolling and invitation entry on both platforms.
+
+## Passkeys and device unlock
+
+Sign in with your password, then open **Settings → Passkeys** to add a passkey.
+Once enrolled, **Sign in with a passkey** opens the system credential picker.
+Saved sessions require biometrics or the device's PIN, pattern, or passcode after
+relaunch and when returning from the background. Sign out from the lock screen
+if the device has no screen lock or you want to switch accounts.
+
+See [Mobile passkey setup](../../docs/mobile-passkeys.md) for domain associations,
+API configuration, and physical-device verification.
 
 ## Native E2E smoke (Maestro, local only)
 

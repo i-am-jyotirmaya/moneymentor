@@ -92,6 +92,22 @@ namespace MoneyMentor.Infrastructure.Migrations
                     b.ToTable("user_logins", "auth");
                 });
 
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserPasskey<System.Guid>", b =>
+                {
+                    b.Property<byte[]>("CredentialId")
+                        .HasMaxLength(1024)
+                        .HasColumnType("bytea");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("CredentialId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("user_passkeys", "auth");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -124,6 +140,30 @@ namespace MoneyMentor.Infrastructure.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("user_tokens", "auth");
+                });
+
+            modelBuilder.Entity("MoneyMentor.Infrastructure.Auth.PasskeyChallenge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("SessionId");
+
+                    b.ToTable("passkey_challenges", "auth");
                 });
 
             modelBuilder.Entity("MoneyMentor.Infrastructure.Identity.ApplicationRole", b =>
@@ -432,6 +472,57 @@ namespace MoneyMentor.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserPasskey<System.Guid>", b =>
+                {
+                    b.HasOne("MoneyMentor.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Microsoft.AspNetCore.Identity.IdentityPasskeyData", "Data", b1 =>
+                        {
+                            b1.Property<byte[]>("IdentityUserPasskeyCredentialId");
+
+                            b1.Property<byte[]>("AttestationObject")
+                                .IsRequired();
+
+                            b1.Property<byte[]>("ClientDataJson")
+                                .IsRequired();
+
+                            b1.Property<DateTimeOffset>("CreatedAt");
+
+                            b1.Property<bool>("IsBackedUp");
+
+                            b1.Property<bool>("IsBackupEligible");
+
+                            b1.Property<bool>("IsUserVerified");
+
+                            b1.Property<string>("Name");
+
+                            b1.Property<byte[]>("PublicKey")
+                                .IsRequired();
+
+                            b1.Property<long>("SignCount");
+
+                            b1.PrimitiveCollection<string>("Transports");
+
+                            b1.HasKey("IdentityUserPasskeyCredentialId");
+
+                            b1.ToTable("user_passkeys", "auth");
+
+                            b1
+                                .ToJson("Data")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("IdentityUserPasskeyCredentialId");
+                        });
+
+                    b.Navigation("Data")
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", b =>
                 {
                     b.HasOne("MoneyMentor.Infrastructure.Identity.ApplicationRole", null)
@@ -454,6 +545,14 @@ namespace MoneyMentor.Infrastructure.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("MoneyMentor.Infrastructure.Auth.PasskeyChallenge", b =>
+                {
+                    b.HasOne("MoneyMentor.Infrastructure.Identity.AuthSession", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("MoneyMentor.Infrastructure.Identity.AuthSession", b =>

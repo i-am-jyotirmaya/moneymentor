@@ -110,6 +110,28 @@ internal sealed class PostgresAuthManager : IAuthManager
                 failureKind == AuthFailureKind.LockedOut ? LockedOutErrors : InvalidCredentialsErrors);
         }
 
+        return await CompleteLoginAsync(user, ipAddress, cancellationToken);
+    }
+
+    public async Task<AuthManagerResult<AuthSessionResponse>> LoginWithPasskeyAsync(
+        ApplicationUser user,
+        string? ipAddress,
+        CancellationToken cancellationToken)
+    {
+        if (await _authRepository.IsLockedOutAsync(user, cancellationToken))
+        {
+            RecordAuthFailure("locked_out");
+            return AuthManagerResult<AuthSessionResponse>.Failure(AuthFailureKind.LockedOut, LockedOutErrors);
+        }
+
+        return await CompleteLoginAsync(user, ipAddress, cancellationToken);
+    }
+
+    private async Task<AuthManagerResult<AuthSessionResponse>> CompleteLoginAsync(
+        ApplicationUser user,
+        string? ipAddress,
+        CancellationToken cancellationToken)
+    {
         var resetResult = await _authRepository.ResetFailedLoginAsync(user, cancellationToken);
         if (!resetResult.Succeeded)
         {

@@ -50,3 +50,55 @@ test("bundled routes render at a narrow phone width without horizontal overflow"
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await page.screenshot({ path: "test-results/mobile-login.png", fullPage: true });
 });
+
+test("a saved native session stays locked until device verification succeeds", async ({ page }) => {
+  let refreshes = 0;
+  await page.addInitScript(() => {
+    localStorage.setItem("spndrr.native-session", "saved");
+    let attempts = 0;
+    const methods = (names: string[], rtype = "promise") => names.map(name => ({ name, rtype }));
+    Object.assign(window, {
+      CapacitorCustomPlatform: { name: "ios" },
+      Capacitor: {
+        PluginHeaders: [
+          { name: "App", methods: [...methods(["getLaunchUrl", "getState"]), ...methods(["addListener", "removeListener"], "callback")] },
+          { name: "BiometricAuthNative", methods: methods(["checkBiometry", "internalAuthenticate"]) },
+        ],
+        nativeCallback: async () => "listener",
+        nativePromise: async (_plugin: string, method: string) => {
+          if (method === "checkBiometry") return { deviceIsSecure: true };
+          if (method === "getState") return { isActive: true };
+          if (method === "internalAuthenticate" && ++attempts === 1) throw { code: "userCancel" };
+        },
+      },
+    });
+  });
+  await page.route("**/api/auth/refresh", route => {
+    refreshes++;
+    return route.fulfill({ json: {
+      accessToken: "test-access-token", accessTokenExpiresAt: "2099-01-01T00:00:00Z", requiresPrivacyConsent: false,
+      user: { id: "test-user", displayName: "Tester", email: "tester@example.com", roles: [] },
+    } });
+  });
+  await page.goto("/login/");
+  const locked = page.getByRole("heading", { name: "Spndrr is locked" });
+  const unlock = page.getByRole("button", { name: "Unlock Spndrr" });
+  await expect(locked).toBeVisible();
+  await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
+  await unlock.click();
+  await expect(unlock).toBeEnabled();
+  await expect(locked).toBeVisible();
+  expect(refreshes).toBe(0);
+
+  await unlock.click();
+  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+  expect(refreshes).toBe(1);
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event("pause"));
+    document.dispatchEvent(new Event("resume"));
+  });
+  await expect(locked).toBeVisible();
+  await unlock.click();
+  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+  expect(refreshes).toBe(1);
+});
