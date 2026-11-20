@@ -11,12 +11,13 @@ import { appFonts } from "../src/ui/fonts";
 import { ThemeProvider } from "../src/ui/ThemeProvider";
 import { ToastProvider } from "../src/ui/Toast";
 import { DOCK_SPACE } from "../src/workspace/dock";
+import { NavigationSoundsProvider } from "../src/workspace/navigation-sounds";
 import { colors } from "../src/ui/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function Navigation() {
-  const { status } = useSession();
+  const { status, session } = useSession();
   const segments = useSegments();
   const router = useRouter();
   const pathname = usePathname();
@@ -38,7 +39,10 @@ function Navigation() {
   }, [status, inWorkspace, router]);
   // Expo Router owns both the linking/navigation container and the root safe-area provider.
   // Keep one persistent Stack and let +native-intent normalize external URLs.
-  return <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }} />;
+  const workspaceScreen = inWorkspace && status === "authenticated" && !session?.requiresPrivacyConsent ? pathname : null;
+  return <NavigationSoundsProvider screen={workspaceScreen}>
+    <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }} />
+  </NavigationSoundsProvider>;
 }
 export default function RootLayout() {
   const bottomInset = useContext(SafeAreaInsetsContext)?.bottom ?? 0;

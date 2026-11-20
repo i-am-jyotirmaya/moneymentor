@@ -23,7 +23,12 @@ const config: ExpoConfig = {
   },
   ios: { bundleIdentifier: "com.spndrr.app.dev", associatedDomains: [`applinks:${origin.hostname}`] },
   // Run our native overrides after the standard plugins configure the activity.
-  plugins: ["expo-router", "expo-secure-store", "expo-dev-client", ["expo-splash-screen", { backgroundColor: "#F4F6FB", image: "./assets/splash.png", imageWidth: 200, dark: { backgroundColor: "#0A0D18", image: "./assets/splash-dark.png" } }], "./plugins/with-platform"],
+  plugins: [
+    "expo-router", "expo-secure-store", "expo-dev-client",
+    ["expo-audio", { microphonePermission: false, recordAudioAndroid: false, enableBackgroundPlayback: false }],
+    ["expo-splash-screen", { backgroundColor: "#F4F6FB", image: "./assets/splash.png", imageWidth: 200, dark: { backgroundColor: "#0A0D18", image: "./assets/splash-dark.png" } }],
+    "./plugins/with-platform",
+  ],
   extra: { apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL },
 };
 export default config;

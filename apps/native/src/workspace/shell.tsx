@@ -83,7 +83,7 @@ function Shell() {
     <Action title={saving ? 'Recording…' : 'Accept and continue'} disabled={saving} onPress={() => void accept()} /><Action title="Sign out" onPress={signOut} />
   </View></ScrollView><PrivacyPolicySheet visible={policy} onClose={() => setPolicy(false)} /></SafeAreaView>;
   const selected = households?.households.find(h => h.id === householdId);
-  const blocked = section.blocked && !households && active !== 'assistant';
+  const blocked = section.blocked && !households && active !== 'assistant' && active !== 'settings';
   function pressDock(key: DockRoute) { if (key === 'more') setMenu(true); else navigate(key); }
   return <SafeAreaView edges={keyboardOpen ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']} style={[ws.fill, { backgroundColor: shell.color.bg }]}>
     <AndroidKeyboardFrame style={ws.fill}>
