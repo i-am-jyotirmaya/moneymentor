@@ -25,7 +25,13 @@ const config: ExpoConfig = {
   },
   ios: { bundleIdentifier: "com.spndrr.app.dev", associatedDomains: [`applinks:${origin.hostname}`, `webcredentials:${passkeyHost}`] },
   // Run our native overrides after the standard plugins configure the activity.
-  plugins: ["expo-router", "expo-secure-store", ["expo-local-authentication", { faceIDPermission: "Use Face ID to unlock Spndrr." }], "expo-dev-client", ["expo-splash-screen", { backgroundColor: "#F4F6FB", image: "./assets/splash.png", imageWidth: 200, dark: { backgroundColor: "#0A0D18", image: "./assets/splash-dark.png" } }], ["./plugins/with-platform", { passkeyHost }]],
+  plugins: [
+    "expo-router", "expo-secure-store", "expo-dev-client",
+    ["expo-local-authentication", { faceIDPermission: "Use Face ID to unlock Spndrr." }],
+    ["expo-audio", { microphonePermission: false, recordAudioAndroid: false, enableBackgroundPlayback: false }],
+    ["expo-splash-screen", { backgroundColor: "#F4F6FB", image: "./assets/splash.png", imageWidth: 200, dark: { backgroundColor: "#0A0D18", image: "./assets/splash-dark.png" } }],
+    ["./plugins/with-platform", { passkeyHost }],
+  ],
   extra: { apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL },
 };
 export default config;

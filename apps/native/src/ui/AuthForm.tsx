@@ -21,9 +21,13 @@ import { useThemedStyles } from "./useThemedStyles";
 import { useLegacy } from '../workspace/legacy-styles';
 
 export type Invitation = { token: string; name: string; email: string };
-type PlaceholderInputProps = TextInputProps & { wrapperStyle?: StyleProp<ViewStyle>; placeholderStyle?: StyleProp<TextStyle> };
+type PlaceholderInputProps = TextInputProps & {
+  wrapperStyle?: StyleProp<ViewStyle>;
+  placeholderStyle?: StyleProp<TextStyle>;
+  placeholderOverlayStyle?: StyleProp<ViewStyle>;
+};
 /** Multiline fields keep typing/wrapping normally, but the empty hint stays on one line. */
-export function PlaceholderInput({ placeholder, placeholderTextColor, multiline, wrapperStyle, placeholderStyle, accessibilityHint, ...props }: PlaceholderInputProps) {
+export function PlaceholderInput({ placeholder, placeholderTextColor, multiline, wrapperStyle, placeholderStyle, placeholderOverlayStyle, accessibilityHint, ...props }: PlaceholderInputProps) {
   const { color } = useTheme();
   const hint = placeholderTextColor ?? color.text3;
   // Native single-line inputs already truncate their placeholder. Only controlled multiline inputs need the overlay.
@@ -32,7 +36,7 @@ export function PlaceholderInput({ placeholder, placeholderTextColor, multiline,
   }
   return <View style={[{ minWidth: 0 }, wrapperStyle]}>
     <TextInput {...props} multiline accessibilityHint={accessibilityHint ?? placeholder} />
-    {!props.value && <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={local.placeholderOverlay}>
+    {!props.value && <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[local.placeholderOverlay, placeholderOverlayStyle]}>
       <NativeText numberOfLines={1} ellipsizeMode="tail" allowFontScaling={props.allowFontScaling} maxFontSizeMultiplier={props.maxFontSizeMultiplier} style={[local.placeholder, { color: hint }, placeholderStyle]}>{placeholder}</NativeText>
     </View>}
   </View>;

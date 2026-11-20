@@ -20,9 +20,11 @@ import { Action, ErrorNotice, Loading, Panel } from '../../src/workspace/ui';
 import { Choice } from '../../src/workspace/choice';
 import { useLegacy } from '../../src/workspace/legacy-styles';
 import { useDockSpace } from '../../src/workspace/dock';
+import { useNavigationSounds } from '../../src/workspace/navigation-sounds';
 
 export default function Settings() { const { styles, ws } = useLegacy(); const theme = useTheme(); const dock = useDockSpace();
   const { client, session } = useSession();
+  const navigationSounds = useNavigationSounds();
   const offline = useOffline();
   const { householdId, households, retry } = useWorkspace();
   const router = useRouter();
@@ -66,7 +68,6 @@ export default function Settings() { const { styles, ws } = useLegacy(); const t
     } catch (e) { setError(e instanceof Error ? e.message : action === 'export' ? 'Could not export your data.' : 'Could not delete your account.'); }
     finally { privacyLock.current = false; setPrivacyWorking(false); }
   }
-  if (!form && (section.blocked || section.loading)) return <SectionPanel section={section} />;
   return <><ScrollView testID="settings-screen" keyboardShouldPersistTaps="handled" style={ws.fill} contentContainerStyle={[ws.content, { paddingBottom: dock + 24 }]}>
     <ErrorNotice error={error} retry={() => { setError(''); section.retry(); }} />
     <Text style={ws.small}>APPEARANCE</Text>
@@ -74,6 +75,12 @@ export default function Settings() { const { styles, ws } = useLegacy(); const t
       <View style={{ padding: 16 }}><Segmented<ThemePreference> label="Appearance" value={theme.preference} onChange={theme.setPreference}
         options={[{ key: 'system', label: 'System' }, { key: 'light', label: 'Light' }, { key: 'dark', label: 'Dark' }]} /></View>
     </Card>
+    {navigationSounds.enabled !== null ? <Card padding={0}>
+      <ListRow icon={{ android: 'volume_up', ios: 'speaker.wave.2' }} title="Navigation sounds"
+        subtitle="Play a sound when switching screens" trailing="switch" value={navigationSounds.enabled}
+        onPress={() => navigationSounds.setEnabled(!navigationSounds.enabled)} />
+    </Card> : null}
+    {navigationSounds.saveFailed ? <Text accessibilityRole="alert" style={styles.text}>Couldn’t save the sound preference. It applies until the app restarts.</Text> : null}
     <Text style={ws.small}>PRIVACY</Text>
     <Card padding={0}>
       <ListRow icon={{ android: 'download', ios: 'square.and.arrow.down' }} title="Export my data" trailing="chevron" onPress={() => void privacy('export')} />
@@ -82,7 +89,7 @@ export default function Settings() { const { styles, ws } = useLegacy(); const t
     {__DEV__ ? <><View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Text style={ws.small}>DEVELOPER</Text><Badge tone="dev" label="DEV BUILDS ONLY" /></View>
       <Card padding={0}><ListRow icon={{ android: 'terminal', ios: 'terminal' }} title="Developer menu" trailing="chevron" onPress={openDevMenu} />
         <ListRow icon={{ android: 'dns', ios: 'server.rack' }} title="API server" value={process.env.EXPO_PUBLIC_API_BASE_URL ?? 'default'} /></Card></> : null}
-    {!form ? <Loading label="Loading settings" /> : <>
+    {!form ? (section.blocked || section.loading ? <SectionPanel section={section} /> : <Loading label="Loading settings" />) : <>
       <Panel title="Settings"><Text style={styles.text}>Personalize your tracking preferences.</Text>
         <Field label="Default currency" testID="settings-currency" maxLength={3} value={form.currencyCode} onChangeText={currencyCode => setForm({ ...form, currencyCode: currencyCode.toUpperCase() })} />
         <Field label="Time zone" value={form.timeZone} autoCapitalize="none" onChangeText={timeZone => setForm({ ...form, timeZone })} />
