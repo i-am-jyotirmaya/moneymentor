@@ -126,7 +126,8 @@ function AssistantChat() {
       </ScrollView>
       <View style={s.composer}>{error && !offline && !banner ? <Text accessibilityRole="alert" style={s.error}>{error}</Text> : null}<View style={s.inputRow}>
         <PlaceholderInput key={focusKey} autoFocus={autoFocus} testID="assistant-input" accessibilityLabel="Message Spndrr"
-          wrapperStyle={s.inputWrapper} style={[s.inputText, s.input]} placeholderStyle={s.inputText}
+          wrapperStyle={s.inputWrapper} style={[s.inputText, s.input, Platform.OS === 'ios' && !text && s.emptyInput]}
+          placeholderStyle={s.inputText}
           placeholderOverlayStyle={s.inputPlaceholderOverlay} multiline maxLength={4000} editable={!offline}
           placeholder={placeholder} placeholderTextColor={theme.color.text3} value={text} onChangeText={setText} />
         <Pressable testID="assistant-send" accessibilityRole="button" accessibilityLabel={busy ? 'Sending message' : 'Send message'} accessibilityState={{ disabled: busy || offline, busy }} disabled={busy || offline} accessibilityHint={offline ? "You're offline" : undefined} onPress={() => void submit()} style={[s.send, (busy || !text.trim()) && { opacity: 0.6 }]}>
@@ -171,6 +172,7 @@ function Dot({ delay, color, still }: { delay: number; color: string; still: boo
   return <Animated.View style={[{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }, style]} />;
 }
 const inputInsets = { horizontal: 18, vertical: 16, border: 1 };
+const inputMinHeight = 56;
 const makeStyles = (t: ThemeValue) => ({
   fill: { flex: 1, backgroundColor: t.color.bg },
   messages: { paddingHorizontal: t.layout.gutter, paddingVertical: 16, gap: 12, flexGrow: 1 },
@@ -192,9 +194,11 @@ const makeStyles = (t: ThemeValue) => ({
   composer: { paddingHorizontal: t.layout.gutter, paddingVertical: 8, gap: 8 },
   inputRow: { flexDirection: 'row' as const, alignItems: 'flex-end' as const, gap: 10 },
   inputWrapper: { flex: 1, minWidth: 0 },
-  input: { minHeight: 56, maxHeight: 120, borderRadius: 28, backgroundColor: t.scheme === 'dark' ? t.color.surfaceRaised : t.color.surface,
+  input: { minHeight: inputMinHeight, maxHeight: 120, borderRadius: 28, backgroundColor: t.scheme === 'dark' ? t.color.surfaceRaised : t.color.surface,
     borderColor: t.color.outline, borderWidth: inputInsets.border, paddingHorizontal: inputInsets.horizontal,
     paddingVertical: inputInsets.vertical, textAlignVertical: 'top' as const, color: t.color.text },
+  // iOS can measure the last native text after a programmatic clear.
+  emptyInput: { height: Math.max(inputMinHeight, Math.ceil(t.type.body.lineHeight * t.fontScale) + 2 * (inputInsets.vertical + inputInsets.border)) },
   inputText: { ...t.type.body, includeFontPadding: false },
   inputPlaceholderOverlay: { top: inputInsets.vertical + inputInsets.border,
     left: inputInsets.horizontal + inputInsets.border, right: inputInsets.horizontal + inputInsets.border },
