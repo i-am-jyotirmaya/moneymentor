@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "../src/auth/session";
 import { AuthWelcome } from "../src/ui/AuthWelcome";
-import { authHero } from "../src/ui/AuthVisuals";
+import { authHero } from "../src/auth/appearance";
 import { Skeleton } from "../src/ui/Skeleton";
 import { useRegistrationDestination } from "../src/ui/AuthForm";
 

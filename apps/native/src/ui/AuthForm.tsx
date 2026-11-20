@@ -1,23 +1,23 @@
-import { WorkspaceBannerVisible } from '../workspace/banner';
-import { useOffline } from '../workspace/connection';
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useContext, useEffect, useState } from "react";
-import { Image, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text as NativeText, TextInput, View, type StyleProp, type TextInputProps, type TextStyle, type ViewStyle } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AccessibilityInfo, Keyboard, Platform, Pressable, StyleSheet, Text as NativeText, TextInput, View, type StyleProp, type TextInputProps, type TextStyle, type ViewStyle } from "react-native";
+import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { ApiError } from "../api/client";
 import { registrationIsOpen } from "../auth/registration";
 import { useSession } from "../auth/session";
 import { authFieldLocks, validateAuthForm } from "../auth/validation";
 import { invitationToken } from "../lib/deep-links";
-import { AndroidKeyboardFrame } from "./AndroidKeyboardFrame";
+import { WorkspaceBannerVisible } from "../workspace/banner";
+import { useOffline } from "../workspace/connection";
+import { useLegacy } from "../workspace/legacy-styles";
+import { AuthFrame } from "./AuthFrame";
+import { AuthPrimary } from "./AuthVisuals";
 import { Button as UiButton } from "./Button";
-import { withAlpha } from "./color";
 import { Icon, type IconName } from "./Icon";
+import { dur, ease } from "./motion";
 import { PrivacyPolicySheet } from "./PrivacyPolicySheet";
 import { Text } from "./Text";
-import { useTheme, type ThemeValue } from "./ThemeProvider";
-import { useThemedStyles } from "./useThemedStyles";
-import { useLegacy } from '../workspace/legacy-styles';
+import { useTheme } from "./ThemeProvider";
 
 export type Invitation = { token: string; name: string; email: string };
 type PlaceholderInputProps = TextInputProps & {
@@ -45,25 +45,39 @@ export function PlaceholderInput({ placeholder, placeholderTextColor, multiline,
  * A2's TextField has no testID or TextInput passthrough (keyboardType, autoComplete, editable…), which
  * auth and settings need, so this stays local until it does.
  */
-export function Field({ label, leading, error, style, onFocus, onBlur, ...props }: TextInputProps & { label: string; leading?: IconName; error?: string }) {
+export function Field({ label, leading, error, auth = false, optional = false, style, onFocus, onBlur, ...props }: TextInputProps & {
+  label: string; leading?: IconName; error?: string; auth?: boolean; optional?: boolean;
+}) {
   const { styles } = useLegacy();
   const { color } = useTheme();
   const [focused, setFocused] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const secure = !!props.secureTextEntry;
   const multiline = !!props.multiline;
-  return <View style={styles.field}>
-    <NativeText style={styles.label}>{label}</NativeText>
-    <View style={[local.frame, { borderColor: error ? color.negative : focused ? color.primary : color.outlineStrong, borderWidth: focused || error ? 2 : 1, backgroundColor: props.editable === false ? color.surfaceSunken : 'transparent' }, multiline && { alignItems: 'flex-start' }]}>
+  const locked = props.editable === false;
+  const outlined = focused || !!error;
+  const focusColor = auth ? color.primaryText : color.primary;
+  const borderColor = error ? color.negative : focused ? focusColor : color.outlineStrong;
+  const backgroundColor = locked || auth ? color.surfaceSunken : "transparent";
+  return <View style={auth ? local.authField : styles.field}>
+    {auth ? <View style={local.fieldHeading}>
+      <Text variant="label" style={local.fieldLabel}>{label}</Text>
+      {optional && <Text variant="caption" tone="text2">Optional</Text>}
+    </View> : <NativeText style={styles.label}>{label}</NativeText>}
+    <View style={[local.frame, auth && local.authFrame, { borderColor, borderWidth: outlined ? 2 : 1, backgroundColor }, multiline && local.multiline]}>
       {leading ? <Icon name={leading} size={20} color="text2" /> : null}
-      <PlaceholderInput accessibilityLabel={label} {...props} secureTextEntry={secure && !revealed}
+      <PlaceholderInput accessibilityLabel={optional ? `${label} (optional)` : label} {...props}
+        accessibilityState={locked ? { disabled: true } : props.accessibilityState}
+        secureTextEntry={secure && !revealed}
         onFocus={event => { setFocused(true); onFocus?.(event); }} onBlur={event => { setFocused(false); onBlur?.(event); }}
-        style={[styles.input, local.bare, style, { color: props.editable === false ? color.text2 : color.text }]} wrapperStyle={{ flex: 1 }} />
-      {secure ? <Pressable accessibilityRole="button" accessibilityLabel={revealed ? "Hide password" : "Show password"} hitSlop={4} onPress={() => setRevealed(value => !value)} style={local.eye}>
-        <Icon name={revealed ? { ios: "eye.slash", android: "visibility_off" } : { ios: "eye", android: "visibility" }} size={22} color="text2" />
-      </Pressable> : null}
+        style={[styles.input, local.bare, auth && local.authInput, style, { color: locked ? color.text2 : color.text }]} wrapperStyle={local.fill} />
+      {secure && <Pressable accessibilityRole="button" accessibilityLabel={revealed ? "Hide password" : "Show password"}
+        hitSlop={4} onPress={() => setRevealed(value => !value)} style={[local.eye, auth && local.authEye]}>
+        {auth ? <Text variant="caption" tone="primaryText">{revealed ? "Hide" : "Show"}</Text> :
+          <Icon name={revealed ? { ios: "eye.slash", android: "visibility_off" } : { ios: "eye", android: "visibility" }} size={22} color="text2" />}
+      </Pressable>}
     </View>
-    {error ? <View accessibilityLiveRegion="polite" style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Icon name={{ ios: "exclamationmark.circle", android: "error" }} size={16} color="negative" /><Text variant="caption" tone="negative" style={{ flexShrink: 1 }}>{error}</Text></View> : null}
+    {error ? <View accessibilityLiveRegion="polite" style={local.inlineError}><Icon name={{ ios: "exclamationmark.circle", android: "error" }} size={16} color="negative" /><Text variant="caption" tone="negative" style={local.shrink}>{error}</Text></View> : null}
   </View>;
 }
 export function ErrorBox({ message }: { message: string }) {
@@ -82,9 +96,6 @@ export function Button({ title, onPress, disabled = false, testID, write = false
     <UiButton label={title} onPress={onPress} disabled={disabled} variant={variant} loading={loading} icon={icon} fullWidth={fullWidth} />
   </View>;
 }
-export function BrandTile({ size = 48 }: { size?: number }) {
-  return <Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" source={require("../../assets/spndrr-mark.png")} resizeMode="contain" style={{ width: size, height: size }} />;
-}
 export function useRegistrationDestination() {
   const { client } = useSession();
   const [open, setOpen] = useState(false);
@@ -99,68 +110,52 @@ export function useRegistrationDestination() {
 function RegistrationLink() {
   const router = useRouter();
   const { open, href } = useRegistrationDestination();
-  return <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", alignItems: "center", columnGap: 6 }}>
-    <Text tone="text2">{open ? "New here?" : "Not on the beta yet?"}</Text>
+  return <View style={local.switchRow}>
+    <Text variant="caption" tone="text2">New to Spndrr?</Text>
     <AuthLink title={open ? "Create an account" : "Request MVP access"} onPress={() => router.push(href)} />
   </View>;
 }
-function AuthLink({ title, onPress, expanded }: { title: string; onPress: () => void; expanded?: boolean }) {
-  return <Pressable accessibilityRole="link" accessibilityState={expanded === undefined ? undefined : { expanded }} onPress={onPress} style={{ minHeight: 48, minWidth: 48, justifyContent: "center" }}>
+
+export function AuthLink({ title, onPress }: { title: string; onPress: () => void }) {
+  return <Pressable accessibilityRole="link" onPress={onPress} style={({ pressed }) => [local.link, pressed && local.pressed]}>
     <Text variant="label" tone="primaryText">{title}</Text>
   </Pressable>;
 }
-/** Auth backdrop: `gradient.authBackdrop` plus a faint Slice shape, behind the mark, headline and promise. */
-export function AuthBackdrop({ headline, promise, children }: { headline: string; promise: string; children: React.ReactNode }) {
-  const s = useThemedStyles(makeAuthStyles);
-  const { gradient, color } = useTheme();
-  const { colors: stops, locations } = gradient.authBackdrop;
-  const backdrop = `linear-gradient(180deg, ${stops.map((c, index) => `${c} ${Math.round((locations[index] ?? 1) * 100)}%`).join(", ")})`;
-  return <View style={[s.root, { backgroundImage: backdrop }]}>
-    <View pointerEvents="none" style={[s.slice, { backgroundColor: withAlpha(color.primary, 0.08) }]} />
-    <View pointerEvents="none" style={[s.sliceCut, { backgroundColor: withAlpha(color.primary, 0.06) }]} />
-    <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1 }}>
-      <AndroidKeyboardFrame>
-        <ScrollView automaticallyAdjustKeyboardInsets={Platform.OS === "ios"} keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"} keyboardShouldPersistTaps="handled" contentContainerStyle={s.scroll}>
-          <View style={s.hero}>
-            <View style={s.brand}><BrandTile size={56} /><Text variant="headline">Spndrr</Text></View>
-            <Text variant="display" accessibilityRole="header">{headline}</Text>
-            <Text variant="bodyL" tone="text2">{promise}</Text>
-          </View>
-          <SafeAreaView edges={["bottom"]} style={s.panel}>{children}</SafeAreaView>
-        </ScrollView>
-      </AndroidKeyboardFrame>
-    </SafeAreaView>
-  </View>;
-}
-const makeAuthStyles = (t: ThemeValue) => ({
-  root: { flex: 1, backgroundColor: t.color.bg, overflow: "hidden" } as ViewStyle,
-  slice: { position: "absolute", width: 320, height: 320, borderRadius: 160, top: 40, right: -110 } as ViewStyle,
-  sliceCut: { position: "absolute", width: 150, height: 160, borderTopRightRadius: 150, top: 40, right: -10 } as ViewStyle,
-  scroll: { flexGrow: 1, justifyContent: "space-between" } as ViewStyle,
-  hero: { paddingHorizontal: t.layout.gutter + 4, paddingTop: 32, paddingBottom: 32, gap: 16 } as ViewStyle,
-  brand: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 } as ViewStyle,
-  panel: { backgroundColor: t.color.surface, borderTopLeftRadius: t.radius.xl, borderTopRightRadius: t.radius.xl, paddingHorizontal: t.layout.gutter + 4, paddingTop: 28, paddingBottom: 16, gap: 16, ...t.elevation.sheet } as ViewStyle,
-});
+
+const reveal = FadeIn.duration(dur.base).easing(ease.decelerate).reduceMotion(ReduceMotion.System);
+
 function InvitationLinkForm() {
   const [expanded, setExpanded] = useState(false);
   const [link, setLink] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
-  return <View style={{ gap: 16, paddingTop: 8 }}>
-    <AuthLink title="Already approved? Open your invitation" expanded={expanded} onPress={() => setExpanded(!expanded)} />
-    {expanded && <>
-      <Field label="Approved signup link" value={link} onChangeText={setLink} autoComplete="off" autoCapitalize="none" autoCorrect={false} keyboardType="url" />
-      <ErrorBox message={error} />
-      <Button title="Open invitation" onPress={() => {
-        const token = invitationToken(link);
-        if (!token) { setError("Paste the complete approved signup link from your Spndrr email."); return; }
-        router.push({ pathname: "/(auth)/signup", params: { token } });
-      }} />
-    </>}
+  const { color } = useTheme();
+
+  function openInvitation() {
+    const token = invitationToken(link);
+    if (!token) { setError("Paste the complete approved signup link from your Spndrr email."); return; }
+    Keyboard.dismiss();
+    router.push({ pathname: "/(auth)/signup", params: { token } });
+  }
+
+  return <View style={[local.invitation, { borderColor: color.outline }]}>
+    <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
+      onPress={() => setExpanded(value => !value)} style={({ pressed }) => [local.disclosure, pressed && local.pressed]}>
+      <Icon name={expanded ? { ios: "chevron.down", android: "expand_more" } : { ios: "chevron.forward", android: "chevron_right" }}
+        size={15} color="primaryText" />
+      <Text variant="caption" tone="primaryText" style={local.shrink}>Already approved? Open your invitation</Text>
+    </Pressable>
+    {expanded && <Animated.View entering={reveal} style={local.invitationContent}>
+      <Field auth label="Signup link" placeholder="Paste your signup link" value={link}
+        onChangeText={value => { setLink(value); setError(""); }} error={error}
+        autoComplete="off" autoCapitalize="none" autoCorrect={false} keyboardType="url"
+        returnKeyType="go" onSubmitEditing={openInvitation} />
+      <Button title="Open invitation" variant="outline" onPress={openInvitation} />
+    </Animated.View>}
   </View>;
 }
+
 export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "request"; invitation?: Invitation }) {
-  const { color } = useTheme();
   const { client } = useSession();
   const router = useRouter();
   const [displayName, setDisplayName] = useState(invitation?.name ?? "");
@@ -174,6 +169,9 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
   const [error, setError] = useState("");
   const signup = mode === "signup", request = mode === "request";
   const locks = authFieldLocks(invitation);
+  useEffect(() => {
+    if (sent && Platform.OS === "ios") AccessibilityInfo.announceForAccessibility("Request received. If you’re approved, we’ll email you a signup link.");
+  }, [sent]);
   function openPolicy() { Keyboard.dismiss(); setPolicy(true); }
   async function submit() {
     if (busy) return;
@@ -193,40 +191,98 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
       setError(caught instanceof ApiError ? caught.errors.join(" ") : "Could not connect to Spndrr. Please try again in a moment.");
     } finally { setBusy(false); }
   }
-  const headline = request ? "Get early access." : signup ? "Start tracking in plain words." : "Know where every rupee goes.";
-  const promise = request ? "Spndrr is available by approval while in beta. Tell us a little about yourself." : signup ? "Type what you spent the way you’d text a friend. Spndrr does the sorting." : "Type what you spent. Spndrr sorts it, charts it and tells you when something drifts.";
-  return <View testID={mode === "login" ? "login-screen" : undefined} style={{ flex: 1 }}>
-    <AuthBackdrop headline={headline} promise={promise}>
-      <Text variant="headline">{request ? "Request MVP access" : signup ? "Create your account" : "Welcome back"}</Text>
-      {sent ? <View accessibilityLiveRegion="polite" style={{ flexDirection: "row", gap: 8, padding: 16, borderRadius: 16, backgroundColor: color.primaryContainer }}><Icon name={{ ios: "checkmark.circle", android: "check_circle" }} size={20} color="onPrimaryContainer" /><Text style={{ flex: 1, color: color.onPrimaryContainer }}>Your request has been received. We’ll email you if access is approved.</Text></View> : <>
-        {mode !== "login" && <Field label="Name" leading={{ ios: "person", android: "person" }} placeholder="Aarav Shah" maxLength={128} value={displayName} onChangeText={setDisplayName} autoComplete="name" textContentType="name" editable={!locks.displayName} />}
-        <Field label="Email" leading={{ ios: "envelope", android: "mail" }} testID={mode === "login" ? "login-email" : undefined} placeholder="name@example.com" maxLength={256} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress" editable={!locks.email} />
-        {!request && <Field label="Password" leading={{ ios: "lock", android: "lock" }} testID={mode === "login" ? "login-password" : undefined} placeholder="At least 8 characters" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete={signup ? "new-password" : "current-password"} textContentType={signup ? "newPassword" : "password"} />}
-        {request && <>
-          <Field label="Why would you like access? (optional)" value={reason} onChangeText={setReason} maxLength={1000} multiline style={{ minHeight: 96, textAlignVertical: "top" }} />
-          <Text tone="text2">We’ll use these details to review your request and contact you about access.</Text>
-        </>}
-        {signup && <Pressable accessibilityRole="checkbox" accessibilityLabel="Accept beta privacy policy" accessibilityState={{ checked: accepted }} onPress={() => setAccepted(!accepted)} style={{ flexDirection: "row", gap: 12, alignItems: "center", minHeight: 48 }}>
-          <Icon name={accepted ? { ios: "checkmark.square.fill", android: "check_box" } : { ios: "square", android: "check_box_outline_blank" }} size={24} color={accepted ? "primaryText" : "text2"} />
-          <Text tone="text2" style={{ flex: 1 }}>I accept the beta privacy policy (version 2026-07-26-ai-planning.1).</Text>
-        </Pressable>}
-        <ErrorBox message={error} />
-        <Button disabled={busy} loading={busy} testID={mode === "login" ? "login-submit" : undefined} title={request ? "Request MVP access" : signup ? "Create account" : "Sign in"} onPress={() => { void submit(); }} />
-      </>}
-      {mode === "login" ? <RegistrationLink /> : <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", alignItems: "center", columnGap: 6 }}><Text tone="text2">Have an account?</Text><Link asChild href="/(auth)/login"><Pressable accessibilityRole="link" style={{ minHeight: 48, justifyContent: "center" }}><Text variant="label" tone="primaryText">Sign in</Text></Pressable></Link></View>}
-      {request ? <InvitationLinkForm /> : null}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", alignItems: "center", columnGap: 4 }}>
-        <Text variant="caption" tone="text2">By continuing you agree to the</Text>
-        <Pressable accessibilityRole="link" onPress={openPolicy} style={{ minHeight: 48, justifyContent: "center" }}><Text variant="caption" tone="primaryText" style={{ fontWeight: "600" }}>privacy policy</Text></Pressable>
-      </View>
-    </AuthBackdrop>
-    <PrivacyPolicySheet visible={policy} onClose={() => setPolicy(false)} />
+  const title = sent ? "Request\nreceived." : request ? "Request\nMVP access." : signup ? "Create your\naccount." : "Welcome\nback.";
+  const intro = request ? "Tell us a little about yourself. If you’re approved, we’ll email you a signup link."
+    : signup ? (invitation ? "Your invitation is ready. Set up your account to start tracking." : "Set up your account to start tracking.")
+    : "Sign in to pick up where you left off.";
+  const existingAccount = <View style={local.switchRow}>
+    <Text variant="caption" tone="text2">Have an account?</Text>
+    <AuthLink title="Sign in" onPress={() => router.navigate("/(auth)/login")} />
   </View>;
+
+  return <AuthFrame testID={mode === "login" ? "login-screen" : undefined} title={title} expandedHero={mode === "login"}>
+    {sent ? (
+      <Animated.View entering={reveal} accessibilityLiveRegion="polite" style={local.confirmation}>
+        <Icon name={{ ios: "checkmark.circle.fill", android: "check_circle" }} size={44} color="primaryText" />
+        <Text variant="headline">We’ll be in touch.</Text>
+        <Text tone="text2">If you’re approved, look for a signup link in your email.</Text>
+        <AuthPrimary label="Back to welcome" onPress={() => router.dismissTo("/")} />
+      </Animated.View>
+    ) : (
+      <>
+        <Text tone="text2" style={local.intro}>{intro}</Text>
+
+        {mode !== "login" && <Field auth label="Full name" placeholder="e.g. Aarav Shah" maxLength={128}
+          value={displayName} onChangeText={setDisplayName} autoComplete="name" textContentType="name" />}
+        <Field auth label={locks.email ? "Invited email" : "Email address"} testID={mode === "login" ? "login-email" : undefined}
+          placeholder="you@example.com" maxLength={256} value={email} onChangeText={setEmail} keyboardType="email-address"
+          autoCapitalize="none" autoCorrect={false} spellCheck={false} autoComplete={mode === "login" ? "username" : "email"}
+          textContentType={mode === "login" ? "username" : "emailAddress"} editable={!locks.email} />
+        {locks.email && <Text variant="caption" tone="text2" style={local.associatedHint}>This email is linked to your invitation.</Text>}
+
+        {request ? <>
+          <Field auth optional label="What would you like to track?" placeholder="e.g. Everyday spending"
+            value={reason} onChangeText={setReason} maxLength={1000} multiline style={local.reason} />
+          <Text variant="caption" tone="text2">We’ll use these details to review your request and contact you about access.</Text>
+        </> : <Field auth label="Password" testID={mode === "login" ? "login-password" : undefined}
+          placeholder={signup ? "At least 8 characters" : "Enter your password"} value={password} onChangeText={setPassword}
+          secureTextEntry autoCapitalize="none" autoCorrect={false} spellCheck={false}
+          autoComplete={signup ? "new-password" : "current-password"} textContentType={signup ? "newPassword" : "password"}
+          returnKeyType={signup ? "done" : "go"} onSubmitEditing={signup ? undefined : () => { void submit(); }} />}
+        {signup && <View style={local.policyRow}>
+          <Pressable accessibilityRole="checkbox" accessibilityLabel="Accept beta privacy policy" accessibilityState={{ checked: accepted }}
+            onPress={() => setAccepted(value => !value)} style={({ pressed }) => [local.check, pressed && local.pressed]}>
+            <Icon name={accepted ? { ios: "checkmark.square.fill", android: "check_box" } : { ios: "square", android: "check_box_outline_blank" }}
+              size={22} color={accepted ? "primaryText" : "text2"} />
+            <Text variant="caption" tone="text2" style={local.shrink}>I accept the beta privacy policy.</Text>
+          </Pressable>
+          <AuthLink title="Read policy" onPress={openPolicy} />
+        </View>}
+
+        <ErrorBox message={error} />
+        <AuthPrimary loading={busy} testID={mode === "login" ? "login-submit" : undefined}
+          label={request ? "Send access request" : signup ? "Create account" : "Sign in"} onPress={() => { void submit(); }} />
+
+        {request && <InvitationLinkForm />}
+        {mode === "login" && <RegistrationLink />}
+        <View style={[local.footer, request && local.requestFooter]}>
+          {mode !== "login" && existingAccount}
+          {!signup && <AuthLink title="Privacy policy" onPress={openPolicy} />}
+        </View>
+      </>
+    )}
+    <PrivacyPolicySheet visible={policy} onClose={() => setPolicy(false)} />
+  </AuthFrame>;
 }
+
 const local = StyleSheet.create({
+  fill: { flex: 1 },
+  shrink: { flexShrink: 1 },
   placeholderOverlay: { position: "absolute", top: 12, left: 13, right: 13 },
   placeholder: { fontSize: 16 },
   frame: { minHeight: 56, borderRadius: 12, flexDirection: "row", alignItems: "center", paddingLeft: 16, paddingRight: 4, gap: 12 },
   bare: { flex: 1, borderWidth: 0, backgroundColor: "transparent", minHeight: 52, paddingHorizontal: 0 },
+  authField: { gap: 5 },
+  authFrame: { minHeight: 48, paddingStart: 12, paddingEnd: 8, gap: 4 },
+  authInput: { minHeight: 46, paddingVertical: 8 },
+  fieldHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  fieldLabel: { flexShrink: 1 },
+  multiline: { alignItems: "flex-start" },
   eye: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
+  authEye: { height: 44 },
+  inlineError: { flexDirection: "row", alignItems: "center", gap: 6 },
+  intro: { maxWidth: 340, marginBottom: 3 },
+  reason: { minHeight: 60, textAlignVertical: "top" },
+  associatedHint: { marginTop: -7 },
+  link: { minHeight: 48, minWidth: 48, justifyContent: "center" },
+  pressed: { opacity: 0.72 },
+  switchRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 6 },
+  policyRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", columnGap: 8 },
+  check: { minHeight: 48, flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 7 },
+  footer: { marginTop: "auto", alignItems: "center" },
+  requestFooter: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", columnGap: 6 },
+  invitation: { borderBottomWidth: StyleSheet.hairlineWidth },
+  disclosure: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 5 },
+  invitationContent: { paddingBottom: 12, gap: 10 },
+  confirmation: { gap: 14 },
 });

@@ -2,18 +2,12 @@ import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { ActivityIndicator, I18nManager, Image, StatusBar, StyleSheet, View, type ImageStyle, type StyleProp } from "react-native";
 import { FadeInDown, ReduceMotion } from "react-native-reanimated";
+import { authHero } from "../auth/appearance";
 import { Icon } from "./Icon";
 import { dur, ease } from "./motion";
 import { PressableScale } from "./PressableScale";
 import { Text } from "./Text";
 import { useTheme } from "./ThemeProvider";
-
-export const authHero = {
-  background: "#090F29",
-  white: "#F8FAFF",
-  ice: "#B9C9FF",
-  muted: "#CBD6F5",
-};
 
 export const authEntrance = (delay = 0) => FadeInDown.delay(delay).duration(dur.slow).easing(ease.decelerate)
   .withInitialValues({ opacity: 0, transform: [{ translateY: 10 }] })
@@ -50,15 +44,15 @@ export function AuthPrimary({
   label: string; onPress: () => void; testID?: string; light?: boolean; loading?: boolean;
 }) {
   const { color, radius } = useTheme();
-  const foreground = light ? "#101941" : color.onPrimary;
+  const foreground = light ? authHero.actionText : color.onPrimary;
   return (
     <PressableScale testID={testID} accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
       accessibilityState={{ busy: loading, disabled: loading }} disabled={loading} layer={light ? "primary" : "on-primary"}
       pressedBackground={light ? undefined : color.primaryPressed}
       contentStyle={[styles.primary, {
         borderRadius: radius.l,
-        backgroundColor: light ? "#E3EAFF" : color.primary,
-        backgroundImage: light ? "linear-gradient(105deg, #F3F6FF, #CBD8FF)" : undefined,
+        backgroundColor: light ? authHero.actionFill : color.primary,
+        backgroundImage: light ? authHero.actionGradient : undefined,
       }]}>
       <View pointerEvents="none" style={styles.arrow}>
         {loading ? <ActivityIndicator color={foreground} /> :

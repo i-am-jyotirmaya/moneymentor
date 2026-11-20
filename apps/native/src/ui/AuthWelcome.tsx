@@ -1,7 +1,8 @@
 import { ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AuthBrand, AuthPrimary, AuthSlice, authEntrance, authHero, useAuthStatusBar } from "./AuthVisuals";
+import { authHero } from "../auth/appearance";
+import { AuthBrand, AuthPrimary, AuthSlice, authEntrance, useAuthStatusBar } from "./AuthVisuals";
 import { Icon } from "./Icon";
 import { PressableScale } from "./PressableScale";
 import { Text } from "./Text";
@@ -70,29 +71,29 @@ export function AuthWelcome({
 const styles = StyleSheet.create({
   root: {
     flex: 1, backgroundColor: authHero.background,
-    backgroundImage: "radial-gradient(ellipse at 100% 0%, #233984 0%, #23398400 49%), radial-gradient(ellipse at 100% 91%, #162C6D 0%, #162C6D00 48%), linear-gradient(151deg, #101B43 0%, #090F29 56%)",
+    backgroundImage: authHero.welcomeGradient,
   },
   scroll: { flexGrow: 1 },
   content: { flexGrow: 1, width: "100%", maxWidth: 520, alignSelf: "center", paddingHorizontal: 24, paddingTop: 12, paddingBottom: 8 },
   masthead: { minHeight: 32, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 },
   badge: {
-    flexDirection: "row", alignItems: "center", gap: 6, borderColor: "#A7BBFF55",
+    flexDirection: "row", alignItems: "center", gap: 6, borderColor: authHero.badgeOutline,
     borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
   },
-  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#A0B5FF" },
-  badgeLabel: { color: "#E0E7FF" },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: authHero.badgeDot },
+  badgeLabel: { color: authHero.badgeText },
   intro: { marginTop: 28, gap: 14 },
   title: { letterSpacing: -2, color: authHero.white },
   promise: { color: authHero.muted, maxWidth: 310 },
   art: { justifyContent: "flex-end", marginHorizontal: -24, paddingHorizontal: 24, paddingTop: 132, paddingBottom: 8 },
   slice: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
-  demo: { alignSelf: "flex-start", maxWidth: "100%", backgroundColor: "#111B3A", borderColor: "#7088F5AA", borderWidth: 1, borderRadius: 15, padding: 4 },
-  exampleInput: { flexDirection: "row", alignItems: "center", backgroundColor: "#26366B", borderRadius: 10, gap: 8, paddingVertical: 5, paddingHorizontal: 8 },
+  demo: { alignSelf: "flex-start", maxWidth: "100%", backgroundColor: authHero.demoFill, borderColor: authHero.demoOutline, borderWidth: 1, borderRadius: 15, padding: 4 },
+  exampleInput: { flexDirection: "row", alignItems: "center", backgroundColor: authHero.demoInput, borderRadius: 10, gap: 8, paddingVertical: 5, paddingHorizontal: 8 },
   exampleText: { flexShrink: 1, color: authHero.white },
   exampleResult: { flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 4, paddingHorizontal: 8 },
   actions: { marginTop: "auto", paddingTop: 12, gap: 4 },
   switchRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 4 },
   switchLabel: { color: authHero.muted },
   signIn: { minHeight: 44, paddingHorizontal: 6, borderRadius: 10 },
-  signInLabel: { color: "#E5EDFF", textDecorationLine: "underline" },
+  signInLabel: { color: authHero.link, textDecorationLine: "underline" },
 });
