@@ -5,7 +5,7 @@ import { CapacitorPasskey, type PasskeyPublicKeyCredentialCreationOptionsJSON,
   type PasskeyPublicKeyCredentialRequestOptionsJSON } from "@capgo/capacitor-passkey";
 import { useEffect, useState } from "react";
 import { apiRequest, refreshSession, type AuthSession } from "../../web/lib/api";
-import { getAuthSessionSnapshot } from "../../web/lib/auth-session";
+import { canRefreshSession, getAuthSessionSnapshot } from "../../web/lib/auth-session";
 
 export type PasskeySummary = { id: string; createdAt: string };
 type Options<T> = { challengeId: string; publicKey: T };
@@ -52,7 +52,7 @@ export const removePasskey = async (id: string, password: string) =>
 
 async function validAccessToken(minimumLifetime = 30_000) {
   const session = getAuthSessionSnapshot();
-  if (!session) throw new Error("Please sign in again.");
+  if (!session || !canRefreshSession()) throw new Error("Sign in or unlock Spndrr to continue.");
   if (Date.parse(session.accessTokenExpiresAt) <= Date.now() + minimumLifetime) return (await refreshSession()).accessToken;
   return session.accessToken;
 }

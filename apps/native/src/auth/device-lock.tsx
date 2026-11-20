@@ -73,6 +73,7 @@ export function DeviceLockProvider({ children }: { children: ReactNode }) {
     flight.current = true;
     setBusy(true);
     setError("");
+    let restoring = false;
     try {
       const proof = await LocalAuthentication.authenticateAsync({
         promptMessage: "Unlock Spndrr",
@@ -89,14 +90,20 @@ export function DeviceLockProvider({ children }: { children: ReactNode }) {
       if (AppState.currentState === "background") return;
       const revision = backgroundRevision.current;
       client.setDeviceLocked(false);
-      if (!client.getSnapshot().session) await client.restore();
+      if (!client.getSnapshot().session) {
+        restoring = true;
+        await client.restore();
+      }
       if (revision === backgroundRevision.current) setState("open");
       else client.setDeviceLocked(true);
     } catch {
-      if (client.getSnapshot().status === "signedOut") setState("open");
-      else {
+      if (restoring && client.getSnapshot().status === "signedOut") {
+        client.setDeviceLocked(false);
+        setState("open");
+      } else {
         client.setDeviceLocked(true);
-        setError("Could not restore your session. Check your connection and try again.");
+        setError(restoring ? "Could not restore your session. Check your connection and try again."
+          : "Device unlock is unavailable. Try again or sign out.");
       }
     } finally {
       flight.current = false;

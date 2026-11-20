@@ -2,7 +2,7 @@
 
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
-import { AndroidBiometryStrength, BiometricAuth } from "@aparajita/capacitor-biometric-auth";
+import { AndroidBiometryStrength, BiometricAuth, BiometryErrorType } from "@aparajita/capacitor-biometric-auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, logout, refreshSession } from "../../web/lib/api";
@@ -102,8 +102,11 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
           allowDeviceCredential: true,
           androidBiometryStrength: AndroidBiometryStrength.strong,
         });
-      } catch {
-        // A dismissed or failed system prompt keeps the lock screen available for retry.
+      } catch (error) {
+        const code = (error as { code?: BiometryErrorType })?.code;
+        if (code !== BiometryErrorType.userCancel && code !== BiometryErrorType.systemCancel && code !== BiometryErrorType.appCancel) {
+          setError("Unlock failed. Try again with biometrics or your screen lock.");
+        }
         return;
       }
       const revision = state.revision;
