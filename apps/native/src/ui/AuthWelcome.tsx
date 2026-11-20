@@ -17,6 +17,8 @@ export function AuthWelcome({
   open: boolean; onRegister: () => void; onSignIn: () => void; testID: string; signInTestID: string;
 }) {
   const { width } = useWindowDimensions();
+  const artWidth = Math.min(520, width);
+  const artHeight = Math.min(342, Math.max(240, artWidth * 0.78));
   const displaySize = Math.max(36, Math.min(56, (width - 48) * 0.156));
   useAuthStatusBar();
 
@@ -36,13 +38,13 @@ export function AuthWelcome({
             <Text variant="bodyL" style={styles.promise}>Type what you spent. Spndrr sorts it and shows where your money goes.</Text>
           </Animated.View>
 
-          <Animated.View entering={artEntrance} style={[styles.art, { minHeight: Math.min(342, Math.max(240, width * 0.78)) }]}
+          <Animated.View entering={artEntrance} style={[styles.art, { minHeight: artHeight }]}
             accessible accessibilityRole="image" accessibilityLabel="Example. Type 240 rupees on lunch and Spndrr logs it under Dining.">
-            <AuthSlice style={styles.slice} />
+            <AuthSlice cover style={[styles.slice, { width: artWidth, height: artHeight }]} />
             <View style={styles.demo} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
               <View style={styles.exampleInput}>
                 <Icon name={{ ios: "sparkle", android: "auto_awesome" }} size={14} color={authHero.ice} />
-                <Text variant="label" style={styles.exampleText}>₹240 on lunch</Text>
+                <Text variant="label" style={[styles.exampleText, styles.exampleInputText]}>₹240 on lunch</Text>
                 <Icon name={{ ios: "return", android: "keyboard_return" }} size={15} color={authHero.ice} />
               </View>
               <View style={styles.exampleResult}>
@@ -86,10 +88,11 @@ const styles = StyleSheet.create({
   title: { letterSpacing: -2, color: authHero.white },
   promise: { color: authHero.muted, maxWidth: 310 },
   art: { justifyContent: "flex-end", marginHorizontal: -24, paddingHorizontal: 24, paddingTop: 132, paddingBottom: 8 },
-  slice: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
-  demo: { alignSelf: "flex-start", maxWidth: "100%", backgroundColor: authHero.demoFill, borderColor: authHero.demoOutline, borderWidth: 1, borderRadius: 15, padding: 4 },
+  slice: { position: "absolute", top: 0, alignSelf: "center" },
+  demo: { alignSelf: "flex-start", minWidth: 194, maxWidth: "100%", backgroundColor: authHero.demoFill, borderColor: authHero.demoOutline, borderWidth: 1, borderRadius: 15, padding: 4 },
   exampleInput: { flexDirection: "row", alignItems: "center", backgroundColor: authHero.demoInput, borderRadius: 10, gap: 8, paddingVertical: 5, paddingHorizontal: 8 },
   exampleText: { flexShrink: 1, color: authHero.white },
+  exampleInputText: { flexGrow: 1 },
   exampleResult: { flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 4, paddingHorizontal: 8 },
   actions: { marginTop: "auto", paddingTop: 12, gap: 4 },
   switchRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 4 },

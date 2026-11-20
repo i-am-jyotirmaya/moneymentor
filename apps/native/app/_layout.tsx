@@ -26,6 +26,12 @@ function Navigation() {
   const reduced = useReducedMotion();
   const inWorkspace = segments[0] === "(tabs)";
   useEffect(() => {
+    // The floating developer button should never cover the welcome or form headers.
+    if (!__DEV__) return;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- dev-client can be absent from native builds
+    try { require("expo-dev-client").setToolsButtonVisible(false); } catch { /* older dev client */ }
+  }, []);
+  useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
       const action = backAction(router.canGoBack(), inWorkspace, pathname);
       if (action === "pop") router.back();

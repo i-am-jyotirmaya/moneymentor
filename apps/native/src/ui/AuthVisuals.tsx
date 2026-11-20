@@ -31,10 +31,10 @@ export function AuthBrand({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function AuthSlice({ style }: { style?: StyleProp<ImageStyle> }) {
+export function AuthSlice({ style, cover = false }: { style?: StyleProp<ImageStyle>; cover?: boolean }) {
   return (
     <Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-      source={require("../../assets/auth-slice.png")} resizeMode="contain" style={style} />
+      source={require("../../assets/auth-slice.png")} resizeMode={cover ? "cover" : "contain"} style={style} />
   );
 }
 

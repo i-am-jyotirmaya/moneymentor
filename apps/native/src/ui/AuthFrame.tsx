@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { I18nManager, Keyboard, Platform, ScrollView, StyleSheet, View } from "react-native";
 import Animated from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AndroidKeyboardFrame } from "./AndroidKeyboardFrame";
 import { authHero } from "../auth/appearance";
 import { AuthBrand, AuthSlice, authEntrance, useAuthStatusBar } from "./AuthVisuals";
@@ -22,6 +22,7 @@ export function AuthFrame({
 }) {
   const router = useRouter();
   const { color, radius } = useTheme();
+  const { top } = useSafeAreaInsets();
   useAuthStatusBar();
 
   function back() {
@@ -32,13 +33,13 @@ export function AuthFrame({
 
   return (
     <View testID={testID} style={styles.root}>
-      <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
+      <SafeAreaView edges={["left", "right"]} style={styles.safeArea}>
         <AndroidKeyboardFrame>
           <ScrollView automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
             keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
-            <View style={[styles.hero, expandedHero && styles.expandedHero]}>
-              <View pointerEvents="none" style={styles.illustration}>
+            <View style={[styles.hero, { minHeight: (expandedHero ? 258 : 195) + top }]}>
+              <View pointerEvents="none" style={[styles.illustration, { top: top - 4 }]}>
                 <AuthSlice style={[styles.slice, expandedHero && styles.expandedSlice]} />
                 <View style={styles.shade} />
               </View>
@@ -77,11 +78,10 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   scroll: { flexGrow: 1 },
   hero: {
-    minHeight: 195, overflow: "hidden", backgroundColor: authHero.headerFill,
+    overflow: "hidden", backgroundColor: authHero.headerFill,
     backgroundImage: authHero.formGradient,
   },
-  expandedHero: { minHeight: 258 },
-  heroContent: { width: "100%", maxWidth: 520, alignSelf: "center", gap: 12, paddingHorizontal: 24, paddingTop: 8, paddingBottom: 34 },
+  heroContent: { width: "100%", maxWidth: 520, alignSelf: "center", gap: 12, paddingHorizontal: 24, paddingBottom: 34 },
   illustration: { ...StyleSheet.absoluteFill, width: "100%", maxWidth: 520, alignSelf: "center" },
   slice: { position: "absolute", end: -68, top: -9, width: "84%", height: "122%" },
   expandedSlice: { top: 0, height: "119%" },

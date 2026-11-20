@@ -70,7 +70,7 @@ export function Field({ label, leading, error, auth = false, optional = false, s
         accessibilityState={locked ? { disabled: true } : props.accessibilityState}
         secureTextEntry={secure && !revealed}
         onFocus={event => { setFocused(true); onFocus?.(event); }} onBlur={event => { setFocused(false); onBlur?.(event); }}
-        style={[styles.input, local.bare, auth && local.authInput, style, { color: locked ? color.text2 : color.text }]} wrapperStyle={local.fill} />
+        style={[styles.input, local.bare, auth && local.authInput, style, { color: locked ? color.text2 : color.text }]} wrapperStyle={local.fill} placeholderOverlayStyle={auth ? local.authPlaceholder : undefined} />
       {secure && <Pressable accessibilityRole="button" accessibilityLabel={revealed ? "Hide password" : "Show password"}
         hitSlop={4} onPress={() => setRevealed(value => !value)} style={[local.eye, auth && local.authEye]}>
         {auth ? <Text variant="caption" tone="primaryText">{revealed ? "Hide" : "Show"}</Text> :
@@ -260,6 +260,7 @@ const local = StyleSheet.create({
   shrink: { flexShrink: 1 },
   placeholderOverlay: { position: "absolute", top: 12, left: 13, right: 13 },
   placeholder: { fontSize: 16 },
+  authPlaceholder: { top: 8, left: 0, right: 0 },
   frame: { minHeight: 56, borderRadius: 12, flexDirection: "row", alignItems: "center", paddingLeft: 16, paddingRight: 4, gap: 12 },
   bare: { flex: 1, borderWidth: 0, backgroundColor: "transparent", minHeight: 52, paddingHorizontal: 0 },
   authField: { gap: 5 },
@@ -269,7 +270,7 @@ const local = StyleSheet.create({
   fieldLabel: { flexShrink: 1 },
   multiline: { alignItems: "flex-start" },
   eye: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
-  authEye: { height: 44 },
+  authEye: { width: "auto", height: "auto", minWidth: 48, minHeight: 44, paddingHorizontal: 4 },
   inlineError: { flexDirection: "row", alignItems: "center", gap: 6 },
   intro: { maxWidth: 340, marginBottom: 3 },
   reason: { minHeight: 60, textAlignVertical: "top" },
