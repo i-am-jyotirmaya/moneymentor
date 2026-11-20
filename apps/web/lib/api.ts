@@ -608,7 +608,7 @@ async function readResponseError(response: Response) {
   }
 }
 
-export async function apiRequest<TResponse>(
+async function apiRequest<TResponse>(
   path: string,
   { accessToken, method = "GET", body, headers: requestHeaders }: RequestOptions = {},
   allowRefresh = true,

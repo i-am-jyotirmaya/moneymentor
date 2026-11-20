@@ -1,17 +1,19 @@
 import * as LocalAuthentication from "expo-local-authentication";
 import * as ScreenCapture from "expo-screen-capture";
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { AppState, BackHandler, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { AppState, BackHandler, Platform, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { BrandTile, Button, ErrorBox } from "../ui/AuthForm";
+import { Button, ErrorBox } from "../ui/AuthForm";
 import { Skeleton } from "../ui/Skeleton";
-import { Text, useTheme } from "../ui";
+import { useTheme } from "../ui";
 import { useSession } from "./session";
 import { getAccessToken } from "./token-storage";
 
 type LockState = "checking" | "open" | "locked";
 const DeviceLockContext = createContext<LockState>("checking");
 export const useDeviceLock = () => useContext(DeviceLockContext);
+
+const isAppActive = () => AppState.currentState === "active";
 
 async function waitForDevicePromptToClose() {
   if (AppState.currentState !== "background") return true;
@@ -32,6 +34,7 @@ export function DeviceLockProvider({ children }: { children: ReactNode }) {
   const { client } = useSession();
   const { color } = useTheme();
   const [state, setState] = useState<LockState>("checking");
+  const [active, setActive] = useState(isAppActive);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const flight = useRef(false);
@@ -56,8 +59,10 @@ export function DeviceLockProvider({ children }: { children: ReactNode }) {
       if (mounted) setState("locked");
     });
     const appState = AppState.addEventListener("change", next => {
+      setActive(next === "active");
       if (next !== "background") return;
       backgroundRevision.current++;
+      if (!flight.current) setError("");
       if (client.getSnapshot().session) {
         client.setDeviceLocked(true);
         setState("locked");
@@ -83,8 +88,8 @@ export function DeviceLockProvider({ children }: { children: ReactNode }) {
     return () => back.remove();
   }, [state]);
 
-  async function unlock() {
-    if (flight.current) return;
+  const unlock = useCallback(async () => {
+    if (flight.current || !isAppActive()) return;
     flight.current = true;
     setBusy(true);
     setError("");
@@ -92,12 +97,15 @@ export function DeviceLockProvider({ children }: { children: ReactNode }) {
     try {
       const proof = await LocalAuthentication.authenticateAsync({
         promptMessage: "Unlock Spndrr",
+        disableDeviceFallback: false,
         biometricsSecurityLevel: Platform.OS === "android" && Number(Platform.Version) < 30 ? "weak" : "strong",
       });
       if (!proof.success) {
         if (proof.error === "not_enrolled" || proof.error === "passcode_not_set") {
           setError("Set up a screen lock in device settings, or sign out to use your account credentials.");
-        } else if (!["user_cancel", "system_cancel", "app_cancel"].includes(proof.error)) {
+        } else if (proof.error === "user_cancel") {
+          setError("Device unlock canceled.");
+        } else if (AppState.currentState !== "background") {
           setError("Unlock failed. Try again with biometrics or your screen lock.");
         }
         return;
@@ -125,7 +133,14 @@ export function DeviceLockProvider({ children }: { children: ReactNode }) {
       flight.current = false;
       setBusy(false);
     }
-  }
+  }, [client]);
+
+  useEffect(() => {
+    if (state !== "locked" || !active || busy || error) return;
+    let canceled = false;
+    queueMicrotask(() => { if (!canceled) void unlock(); });
+    return () => { canceled = true; };
+  }, [state, active, busy, error, unlock]);
 
   async function signOut() {
     if (flight.current) return;
@@ -147,19 +162,13 @@ export function DeviceLockProvider({ children }: { children: ReactNode }) {
       accessibilityElementsHidden={covered} importantForAccessibility={covered ? "no-hide-descendants" : "auto"}>
       {children}
     </View>
-    {covered && <SafeAreaView style={[StyleSheet.absoluteFill, { backgroundColor: color.bg }]}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
-        <View style={{ gap: 16, width: "100%", maxWidth: 440 }}>
-          <BrandTile />
-          {state === "checking" ? <Skeleton label="Loading session" /> : <>
-            <Text variant="headline" accessibilityRole="header">Spndrr is locked</Text>
-            <Text tone="text2">Unlock with your biometrics or device screen lock.</Text>
-            <ErrorBox message={error} />
-            <Button title="Unlock Spndrr" testID="unlock-spndrr" disabled={busy} onPress={() => void unlock()} />
-            <Button title="Sign out" variant="outline" disabled={busy} onPress={() => void signOut()} />
-          </>}
-        </View>
-      </ScrollView>
+    {covered && <SafeAreaView style={[StyleSheet.absoluteFill, { backgroundColor: color.bg, justifyContent: "center", alignItems: "center", padding: 24 }]}>
+      {state === "checking" && <Skeleton label="Loading session" />}
+      {state === "locked" && !!error && <View style={{ gap: 16, width: "100%", maxWidth: 440 }}>
+        <ErrorBox message={error} />
+        <Button title="Try again" disabled={busy} onPress={() => setError("")} />
+        <Button title="Sign out" variant="outline" disabled={busy} onPress={() => void signOut()} />
+      </View>}
     </SafeAreaView>}
   </DeviceLockContext.Provider>;
 }

@@ -1,14 +1,10 @@
-"use client";
-
 import { AuthForm } from "../../../web/app/_components/auth-form";
 import { AuthShell } from "../../../web/app/_components/auth-shell";
-import { signInWithPasskey, usePasskeySupport } from "../../lib/passkeys";
-
+// Native export has no server at runtime; registration remains a browser fetch.
 export default function LoginPage() {
-  const passkeys = usePasskeySupport();
   return (
     <AuthShell>
-      <AuthForm mode="login" passkeySignIn={passkeys ? signInWithPasskey : undefined} />
+      <AuthForm mode="login" />
     </AuthShell>
   );
 }

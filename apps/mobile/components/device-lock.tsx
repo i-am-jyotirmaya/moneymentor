@@ -4,7 +4,7 @@ import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { AndroidBiometryStrength, BiometricAuth, BiometryErrorType } from "@aparajita/capacitor-biometric-auth";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, logout, refreshSession } from "../../web/lib/api";
 import { configureSessionRefreshGuard, getAuthSessionSnapshot, subscribeToAuthSession } from "../../web/lib/auth-session";
 
@@ -14,6 +14,7 @@ const sessionMarker = "spndrr.native-session";
 export function DeviceLock({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("checking");
+  const [active, setActive] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const policy = useRef({ unlocked: false, saved: false, probing: false, background: false, revision: 0 });
@@ -45,12 +46,17 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
       if (state.background) return;
       state.revision++;
       state.background = true;
+      setActive(false);
+      if (!flight.current) setError("");
       if (state.saved) {
         state.unlocked = false;
         setMode("locked");
       }
     };
-    const onResume = () => { state.background = false; };
+    const onResume = () => {
+      state.background = false;
+      setActive(true);
+    };
     const listeners = [App.addListener("pause", onPause), App.addListener("resume", onResume)];
     // Capacitor forwards UIScene events to the document on iOS.
     document.addEventListener("pause", onPause);
@@ -85,12 +91,19 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  async function unlock() {
+  const unlock = useCallback(async () => {
     if (flight.current) return;
     const state = policy.current;
     flight.current = true; setBusy(true); setError("");
+    let restoring = false;
     try {
+      const startingRevision = state.revision;
+      if (!await waitForActiveApp()) {
+        if (!state.background) setError("Device unlock is unavailable. Try again or sign out.");
+        return;
+      }
       const security = await BiometricAuth.checkBiometry();
+      if (state.background || startingRevision !== state.revision) return;
       if (!security.deviceIsSecure) {
         setError("Set up a screen lock in device settings, or sign out to use your account credentials.");
         return;
@@ -104,27 +117,36 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
         });
       } catch (error) {
         const code = (error as { code?: BiometryErrorType })?.code;
-        if (code !== BiometryErrorType.userCancel && code !== BiometryErrorType.systemCancel && code !== BiometryErrorType.appCancel) {
-          setError("Unlock failed. Try again with biometrics or your screen lock.");
-        }
+        if (code === BiometryErrorType.userCancel) setError("Device unlock canceled.");
+        else if (!state.background) setError("Unlock failed. Try again with biometrics or your screen lock.");
         return;
       }
       const revision = state.revision;
       // A system PIN or biometric prompt can resolve before its app becomes active.
-      if (!await waitForDevicePromptToClose() || revision !== state.revision) return;
+      if (!await waitForActiveApp() || revision !== state.revision) return;
       state.unlocked = true;
       if (!getAuthSessionSnapshot()) {
+        restoring = true;
         state.probing = true;
         try { await refreshSession(); } finally { state.probing = false; }
       }
       if (revision === state.revision) setMode("open");
+      else state.unlocked = false;
     } catch (caught) {
       if (!(caught instanceof ApiError && caught.status === 401)) {
         state.unlocked = false;
-        setError("Could not restore your session. Check your connection and try again.");
+        setError(restoring ? "Could not restore your session. Check your connection and try again."
+          : "Device unlock is unavailable. Try again or sign out.");
       }
     } finally { flight.current = false; setBusy(false); }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "locked" || !active || busy || error) return;
+    let canceled = false;
+    queueMicrotask(() => { if (!canceled) void unlock(); });
+    return () => { canceled = true; };
+  }, [mode, active, busy, error, unlock]);
 
   async function signOut() {
     if (flight.current) return;
@@ -136,21 +158,18 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
 
   if (mode === "open") return children;
   return <main className="grid min-h-dvh place-items-center bg-[var(--background)] p-6 text-[var(--ink)]">
-    <section className="w-full max-w-md space-y-4 rounded-lg border border-[var(--border)] bg-white p-6">
-      <h1 className="text-2xl font-bold">{mode === "checking" ? "Loading Spndrr…" : "Spndrr is locked"}</h1>
-      {mode === "locked" && <>
-        <p>Unlock with your biometrics or device screen lock.</p>
-        {error && <p role="alert">{error}</p>}
-        <button type="button" disabled={busy} onClick={() => void unlock()}
-          className="min-h-12 w-full rounded-lg bg-[var(--ink)] px-4 font-bold text-white disabled:opacity-60">Unlock Spndrr</button>
-        <button type="button" disabled={busy} onClick={() => void signOut()}
-          className="min-h-12 w-full rounded-lg border border-[var(--border)] px-4 font-semibold disabled:opacity-60">Sign out</button>
-      </>}
-    </section>
+    {mode === "checking" && <p role="status" className="sr-only">Loading Spndrr…</p>}
+    {mode === "locked" && error && <section className="w-full max-w-md space-y-4">
+      <p role="alert">{error}</p>
+      <button type="button" disabled={busy} onClick={() => setError("")}
+        className="min-h-12 w-full rounded-lg bg-[var(--ink)] px-4 font-bold text-white disabled:opacity-60">Try again</button>
+      <button type="button" disabled={busy} onClick={() => void signOut()}
+        className="min-h-12 w-full rounded-lg border border-[var(--border)] px-4 font-semibold disabled:opacity-60">Sign out</button>
+    </section>}
   </main>;
 }
 
-async function waitForDevicePromptToClose() {
+async function waitForActiveApp() {
   for (let attempt = 0; attempt < 10; attempt++) {
     if ((await App.getState()).isActive) return true;
     await new Promise(resolve => setTimeout(resolve, 100));

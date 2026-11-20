@@ -1,31 +1,29 @@
 # Spndrr mobile passkeys
 
-Both the Expo app (`apps/native`) and Capacitor app (`apps/mobile`) use native
-credential providers. Existing users sign in with their password and confirm it
-in **Settings → Passkeys** to add or remove a passkey. After enrollment, they can
-choose **Sign in with a passkey** without entering an email or password. The
-password remains available for recovery and account management.
+The Expo app (`apps/native`) uses native passkey credential providers. Sign in
+with your password and confirm it in **Settings → Passkeys** to add or remove a
+passkey. After enrollment, choose **Sign in with a passkey** without entering an
+email or password. The password remains available for recovery and account
+management.
 
-A saved session opens behind the device unlock screen after relaunch and after
-backgrounding. Unlock accepts enrolled biometrics or the operating system's
-PIN, pattern, or passcode. The server session still has its existing expiry and
-revocation rules. App-switcher previews hide the workspace. Android versions
-below API 33 use the secure window flag, which also blocks screenshots.
+The Expo and Capacitor apps automatically open the operating system’s unlock
+prompt for a saved session after relaunch or return from the background. The
+prompt accepts enrolled biometrics or the device’s PIN, pattern, or passcode.
+App-switcher previews hide the workspace. Android versions below API 33 use the
+secure window flag, which also blocks screenshots.
 
 ## Configure the relying party
 
 1. Use a stable HTTPS hostname for the relying party. The default is
-   `mvp.spndrr.com`. If you change it, set `Passkeys__RelyingPartyId` on the API,
-   `EXPO_PUBLIC_PASSKEY_RP_ID` for Expo prebuild, and `NEXT_PUBLIC_PASSKEY_RP_ID`
-   for Capacitor sync. Use the same hostname in all three, without a scheme or a
-   path. Apply the auth migration through the existing Operations `migrate`
-   command before serving the updated API.
+   `mvp.spndrr.com`. If you change it, set `Passkeys__RelyingPartyId` on the API
+   and `EXPO_PUBLIC_PASSKEY_RP_ID` for Expo prebuild. Use the same hostname in
+   both settings, without a scheme or path. Apply the auth migration through
+   the existing Operations `migrate` command before serving the updated API.
 2. On the relying-party host, serve `/.well-known/assetlinks.json` over HTTPS
-   without a redirect. Give each signed Android app the
+   without a redirect. Give the signed Expo Android app the
    `delegate_permission/common.get_login_creds` relation. Include its package
-   name (`com.spndrr.app.dev` for Expo, `com.spndrr.app` for Capacitor) and the
-   SHA-256 fingerprint of the signing certificate. On Google Play use the
-   **app signing** certificate. Include only the builds that should be trusted
+   name (`com.spndrr.app.dev`) and the SHA-256 fingerprint of the signing
+   certificate. On Google Play use the **app signing** certificate. Include only the builds that should be trusted
    by that environment.
 3. For each Android signing certificate, add
    `android:apk-key-hash:<base64url SHA-256 of the DER certificate, without padding>`
@@ -34,24 +32,25 @@ below API 33 use the secure window flag, which also blocks screenshots.
    Compose exposes `PASSKEY_RP_ID` and `PASSKEY_ANDROID_ORIGINS`. The certificate
    association and the API allowlist must both match the certificate installed
    on the device. Use a separate relying party and test API for debug signing.
-4. Enable the Associated Domains capability for each signed iOS app and serve
+4. Enable the Associated Domains capability for the signed Expo iOS app and serve
    `/.well-known/apple-app-site-association` on the relying-party host without
-   a redirect. Include both signed application IDs as applicable, for example
-   `{"webcredentials":{"apps":["TEAMID.com.spndrr.app.dev","TEAMID.com.spndrr.app"]}}`.
+   a redirect. Include the signed application ID, for example
+   `{"webcredentials":{"apps":["TEAMID.com.spndrr.app.dev"]}}`.
    Merge `webcredentials` into any existing association document to preserve
-   app links. Expo prebuild and Capacitor sync add the `webcredentials` entitlement.
-5. Rebuild and sign both native projects after configuring the domain. Serve the
+   app links. Expo prebuild adds the `webcredentials` entitlement.
+5. Rebuild and sign the Expo apps after configuring the domain. Serve the
    association files with `Content-Type: application/json` and keep the API
    reachable at a device-trusted HTTPS URL.
 
 ## Verify on signed devices
 
-- On Android and iOS, sign in with a test account, add a passkey, sign out, and
-  sign back in using the passkey picker. Cancel the picker and check that the
+- In the Expo app on Android and iOS, sign in with a test account, add a passkey,
+  sign out, and sign back in using the passkey picker. Cancel the picker and check that the
   password form remains available. Remove the passkey and confirm it can no
   longer sign in.
 - With a session signed in, background the app, check the app-switcher preview,
-  then reopen it. Cancel the prompt and confirm the workspace stays hidden.
+  then reopen it and check that the system prompt opens automatically. Cancel
+  it and confirm the workspace stays hidden.
   Verify biometrics and the device credential fallback, including a device
   configured with only a PIN or passcode.
 - Force-close and reopen the app. Confirm unlock restores the same account.

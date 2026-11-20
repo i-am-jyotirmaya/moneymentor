@@ -1,6 +1,6 @@
 "use client";
 
-import { ApiError, createUser, login, requestMvpAccess, type AuthSession } from "@/lib/api";
+import { ApiError, createUser, login, requestMvpAccess } from "@/lib/api";
 import { saveAuthSession } from "@/lib/auth-session";
 import { FormEvent, useState } from "react";
 import { BrandLogo } from "./brand-logo";
@@ -16,7 +16,6 @@ type AuthMode = "login" | "signup" | "request";
 
 type AuthFormProps = {
   mode: AuthMode;
-  passkeySignIn?: () => Promise<AuthSession | null>;
   registrationLink?: React.ReactNode;
   invitation?: { token: string; name: string; email: string };
 };
@@ -25,7 +24,6 @@ export function AuthForm({
   mode,
   invitation,
   registrationLink,
-  passkeySignIn,
 }: AuthFormProps) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState(invitation?.name ?? "");
@@ -40,7 +38,7 @@ export function AuthForm({
   const isSignup = mode === "signup";
   const isRequest = mode === "request";
 
-  async function submitCredentials(withPasskey = false) {
+  async function submitCredentials() {
     if (isSubmitting) {
       return;
     }
@@ -58,7 +56,7 @@ export function AuthForm({
         setRequestSent(true);
         return;
       }
-      const session = withPasskey && passkeySignIn ? await passkeySignIn() : isSignup
+      const session = isSignup
         ? await createUser({
             invitationToken: invitation?.token,
             displayName: displayName.trim(),
@@ -72,7 +70,6 @@ export function AuthForm({
             password,
           });
 
-      if (!session) return;
       saveAuthSession(session);
       if (invitation) window.history.replaceState(null, "", "/signup");
       router.push("/");
@@ -80,8 +77,7 @@ export function AuthForm({
       if (caughtError instanceof ApiError) {
         setError(caughtError.errors.join(" "));
       } else {
-        setError(withPasskey && caughtError instanceof Error
-          ? caughtError.message : "Could not connect to Spndrr. Please try again in a moment.");
+        setError("Could not connect to Spndrr. Please try again in a moment.");
       }
     } finally {
       setIsSubmitting(false);
@@ -127,12 +123,6 @@ export function AuthForm({
               : "Continue to your Spndrr workspace."}
         </p>
       </div>
-
-      {mode === "login" && passkeySignIn ? (
-        <button type="button" disabled={isSubmitting}
-          className="mb-4 min-h-12 w-full rounded-lg border border-[var(--border)] px-4 font-semibold disabled:opacity-60"
-          onClick={() => void submitCredentials(true)}>Sign in with a passkey</button>
-      ) : null}
 
       {requestSent ? (
         <p

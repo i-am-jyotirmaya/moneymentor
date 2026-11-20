@@ -2,13 +2,10 @@
 
 Android and iOS apps with the same UI and API flows as `apps/web`. Capacitor packages a **local Next.js static export** into native projects; it does not load the deployed website, require a Next.js server on the phone, or replace the web deployment.
 
-## Passkeys and device unlock
+## Device unlock
 
-Sign in with your password and add a passkey in **Settings → Passkeys**. Use
-**Sign in with a passkey** on later sign-ins. The device screen lock or biometrics
-protect saved sessions on relaunch and when returning from the background.
-See [Mobile passkey setup](../../docs/mobile-passkeys.md) for the platform
-associations, API configuration, and device verification.
+Sign in with your email and password. On relaunch or return from the background,
+a saved session opens the system prompt for biometrics or your screen lock.
 
 ## Run from Windows (Android)
 

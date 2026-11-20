@@ -97,7 +97,7 @@ text support larger font scales without fixed text-container heights. Policy
 links and the consent checkbox are separate touch targets.
 
 `src/auth/session.tsx` provides one client and a `useSyncExternalStore` session
-subscription. Startup shows the device unlock prompt when a saved session exists and
+subscription. Startup presents the system unlock prompt automatically for a saved session and
 refreshes through the HttpOnly cookie after unlock. Signed-out startup shows the home
 gate with Login and registration actions. Sign-out and failed refresh route to login, matching
 the web workspace controller. Protected tabs leave
@@ -131,9 +131,9 @@ parsing. No dependencies were added. Manual device verification still needed:
 
 Sign in with your password, then open **Settings → Passkeys** to add a passkey.
 Once enrolled, **Sign in with a passkey** opens the system credential picker.
-Saved sessions require biometrics or the device's PIN, pattern, or passcode after
-relaunch and when returning from the background. Sign out from the lock screen
-if the device has no screen lock or you want to switch accounts.
+On relaunch and return from the background, a saved session automatically prompts
+for biometrics or the device’s PIN, pattern, or passcode. After a canceled or
+failed prompt, try again or sign out.
 
 See [Mobile passkey setup](../../docs/mobile-passkeys.md) for domain associations,
 API configuration, and physical-device verification.

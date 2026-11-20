@@ -51,7 +51,7 @@ test("bundled routes render at a narrow phone width without horizontal overflow"
   await page.screenshot({ path: "test-results/mobile-login.png", fullPage: true });
 });
 
-test("a saved native session stays locked until device verification succeeds", async ({ page }) => {
+test("saved sessions prompt automatically and stay covered after a canceled unlock", async ({ page }) => {
   let refreshes = 0;
   await page.addInitScript(() => {
     localStorage.setItem("spndrr.native-session", "saved");
@@ -68,8 +68,13 @@ test("a saved native session stays locked until device verification succeeds", a
         nativeCallback: async () => "listener",
         nativePromise: async (_plugin: string, method: string) => {
           if (method === "checkBiometry") return { deviceIsSecure: true };
-          if (method === "getState") return { isActive: ++foregroundChecks > 1 };
-          if (method === "internalAuthenticate" && ++attempts === 1) throw { code: "userCancel" };
+          if (method === "getState") return { isActive: ++foregroundChecks !== 3 };
+          if (method === "internalAuthenticate") {
+            document.documentElement.dataset.devicePrompts = String(++attempts);
+            if (attempts === 1) return new Promise((_, reject) => {
+              document.addEventListener("test-cancel-unlock", () => reject({ code: "userCancel" }), { once: true });
+            });
+          }
         },
       },
     });
@@ -82,24 +87,28 @@ test("a saved native session stays locked until device verification succeeds", a
     } });
   });
   await page.goto("/login/");
-  const locked = page.getByRole("heading", { name: "Spndrr is locked" });
-  const unlock = page.getByRole("button", { name: "Unlock Spndrr" });
-  await expect(locked).toBeVisible();
-  await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
-  await unlock.click();
-  await expect(unlock).toBeEnabled();
-  await expect(locked).toBeVisible();
+  const root = page.locator("html");
+  const password = page.getByLabel("Password", { exact: true });
+  const retry = page.getByRole("button", { name: "Try again" });
+  await expect(root).toHaveAttribute("data-device-prompts", "1");
+  await expect(password).toHaveCount(0);
+  await expect(retry).toHaveCount(0);
   expect(refreshes).toBe(0);
 
-  await unlock.click();
-  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+  await page.evaluate(() => document.dispatchEvent(new Event("test-cancel-unlock")));
+  await expect(retry).toBeVisible();
+  await expect(password).toHaveCount(0);
+  expect(refreshes).toBe(0);
+
+  await retry.click();
+  await expect(password).toBeVisible();
   expect(refreshes).toBe(1);
-  await page.evaluate(() => {
-    document.dispatchEvent(new Event("pause"));
-    document.dispatchEvent(new Event("resume"));
-  });
-  await expect(locked).toBeVisible();
-  await unlock.click();
-  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+
+  await page.evaluate(() => document.dispatchEvent(new Event("pause")));
+  await expect(password).toHaveCount(0);
+  await expect(root).toHaveAttribute("data-device-prompts", "2");
+  await page.evaluate(() => document.dispatchEvent(new Event("resume")));
+  await expect(root).toHaveAttribute("data-device-prompts", "3");
+  await expect(password).toBeVisible();
   expect(refreshes).toBe(1);
 });
