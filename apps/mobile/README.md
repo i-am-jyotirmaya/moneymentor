@@ -4,8 +4,10 @@ Android and iOS apps with the same UI and API flows as `apps/web`. Capacitor pac
 
 ## Device unlock
 
-Sign in with your email and password. On relaunch or return from the background,
-a saved session opens the system prompt for biometrics or your screen lock.
+Sign in with your email and password, then choose whether to enable your device’s
+screen lock for Spndrr. Face ID or fingerprint unlock requires a separate opt-in.
+App lock uses the system prompt after relaunch and return from the background.
+If you decline app lock, sign in again after restarting Spndrr.
 
 ## Run from Windows (Android)
 

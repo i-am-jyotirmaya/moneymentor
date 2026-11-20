@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B00100000000000000000003 /* DeviceCredentialAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000004 /* DeviceCredentialAuthenticator.swift */; };
 		B00100000000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000002 /* PrivacyInfo.xcprivacy */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
@@ -20,6 +21,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B00100000000000000000004 /* DeviceCredentialAuthenticator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeviceCredentialAuthenticator.swift; path = ../../../native/modules/spndrr-device-credential/ios/DeviceCredentialAuthenticator.swift; sourceTree = SOURCE_ROOT; };
 		B00100000000000000000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
@@ -78,6 +80,7 @@
 			isa = PBXGroup;
 			children = (
 				9582B6842FE996800072D4E8 /* SceneDelegate.swift */,
+				B00100000000000000000004 /* DeviceCredentialAuthenticator.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -218,6 +221,7 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6852FE996820072D4E8 /* SceneDelegate.swift in Sources */,
+				B00100000000000000000003 /* DeviceCredentialAuthenticator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

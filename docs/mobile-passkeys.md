@@ -6,11 +6,12 @@ passkey. After enrollment, choose **Sign in with a passkey** without entering an
 email or password. The password remains available for recovery and account
 management.
 
-The Expo and Capacitor apps automatically open the operating system’s unlock
-prompt for a saved session after relaunch or return from the background. The
-prompt accepts enrolled biometrics or the device’s PIN, pattern, or passcode.
-App-switcher previews hide the workspace. Android versions below API 33 use the
-secure window flag, which also blocks screenshots.
+After account sign-in, both apps ask whether to protect the saved session with
+the device’s PIN, pattern, or passcode. A second choice enables Face ID or
+fingerprint unlock. After opt-in, the system prompt opens automatically on
+relaunch or return from the background. Declining app lock requires account
+sign-in after relaunch. App-switcher previews hide the workspace. Android
+versions below API 33 use the secure window flag, which also blocks screenshots.
 
 ## Configure the relying party
 
@@ -48,11 +49,13 @@ secure window flag, which also blocks screenshots.
   sign out, and sign back in using the passkey picker. Cancel the picker and check that the
   password form remains available. Remove the passkey and confirm it can no
   longer sign in.
-- With a session signed in, background the app, check the app-switcher preview,
-  then reopen it and check that the system prompt opens automatically. Cancel
-  it and confirm the workspace stays hidden.
-  Verify biometrics and the device credential fallback, including a device
-  configured with only a PIN or passcode.
+- On a fresh install, sign in and enable screen lock. On a device with
+  biometrics enrolled, decline biometrics and confirm that reopening Spndrr
+  asks only for the device PIN, pattern, or passcode. Repeat on a fresh
+  install with biometric consent, and verify biometrics and the credential
+  fallback. Background the app, check the app-switcher preview, then reopen
+  it and confirm the system prompt opens automatically. Cancel it and confirm
+  the workspace stays hidden.
 - Force-close and reopen the app. Confirm unlock restores the same account.
   Repeat with the API temporarily unreachable, then reconnect and retry.
   Revoke the server session and confirm the next refresh returns to sign-in.

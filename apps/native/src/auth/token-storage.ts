@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { deviceUnlockPreferenceKey, readDeviceUnlockPreference, type DeviceUnlockPreference } from "../../../shared/device-unlock";
 
 const ACCESS_TOKEN_KEY = "spndrr.accessToken";
 const REFRESH_TOKEN_KEY = "spndrr.refreshToken";
@@ -15,3 +16,9 @@ export async function clearTokens(): Promise<void> {
     SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
   ]);
 }
+
+export async function getDeviceUnlockPreference() {
+  return readDeviceUnlockPreference(await SecureStore.getItemAsync(deviceUnlockPreferenceKey));
+}
+export const setDeviceUnlockPreference = (preference: DeviceUnlockPreference) =>
+  SecureStore.setItemAsync(deviceUnlockPreferenceKey, preference);

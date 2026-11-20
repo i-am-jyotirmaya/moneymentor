@@ -4,14 +4,22 @@ import { AppState, type AppStateStatus } from "react-native";
 import type { SessionState } from "../src/api/client";
 import { DeviceLockProvider, useDeviceLock } from "../src/auth/device-lock";
 import { useSession } from "../src/auth/session";
-import { getAccessToken } from "../src/auth/token-storage";
+import { clearTokens, getAccessToken, getDeviceUnlockPreference, setDeviceUnlockPreference } from "../src/auth/token-storage";
+import { authenticateWithScreenLock } from "../src/auth/device-credential";
+import { Button } from "../src/ui/AuthForm";
 
 jest.mock("expo-local-authentication", () => ({ authenticateAsync: jest.fn() }));
 jest.mock("expo-screen-capture", () => ({ enableAppSwitcherProtectionAsync: jest.fn(async () => {}) }));
 jest.mock("../src/auth/session", () => ({ useSession: jest.fn() }));
-jest.mock("../src/auth/token-storage", () => ({ getAccessToken: jest.fn() }));
-jest.mock("../src/ui", () => ({ useTheme: () => ({ color: { bg: "#fff" } }) }));
-jest.mock("../src/ui/AuthForm", () => ({ Button: () => null, ErrorBox: () => null }));
+jest.mock("../src/auth/token-storage", () => ({
+  clearTokens: jest.fn(async () => {}),
+  getAccessToken: jest.fn(),
+  getDeviceUnlockPreference: jest.fn(),
+  setDeviceUnlockPreference: jest.fn(async () => {}),
+}));
+jest.mock("../src/auth/device-credential", () => ({ authenticateWithScreenLock: jest.fn() }));
+jest.mock("../src/ui", () => ({ Text: () => null, useTheme: () => ({ color: { bg: "#fff" } }) }));
+jest.mock("../src/ui/AuthForm", () => ({ Button: jest.fn(() => null), ErrorBox: () => null }));
 jest.mock("../src/ui/Skeleton", () => ({ Skeleton: () => null }));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: ({ children }: { children: unknown }) => children }));
 
@@ -27,18 +35,30 @@ let root: ReturnType<typeof createRoot>;
 let snapshot: SessionState;
 const appStateListeners = new Set<(state: AppStateStatus) => void>();
 const observed = jest.fn();
+const sessionListeners = new Set<() => void>();
+function completeSignIn() {
+  snapshot = {
+    status: "authenticated",
+    session: { accessToken: "token", accessTokenExpiresAt: "2099-01-01T00:00:00Z", requiresPrivacyConsent: false,
+      user: { id: "user", displayName: "User", email: "user@example.com", roles: [] } },
+  };
+  for (const listener of sessionListeners) listener();
+}
 const client = {
   getSnapshot: () => snapshot,
-  subscribe: () => () => {},
+  subscribe: (listener: () => void) => {
+    sessionListeners.add(listener);
+    return () => sessionListeners.delete(listener);
+  },
   setDeviceLocked: jest.fn(),
-  restore: jest.fn(async () => {
-    snapshot = {
-      status: "authenticated",
-      session: { accessToken: "token", accessTokenExpiresAt: "2099-01-01T00:00:00Z", requiresPrivacyConsent: false,
-        user: { id: "user", displayName: "User", email: "user@example.com", roles: [] } },
-    };
-  }),
+  restore: jest.fn(async () => { completeSignIn(); }),
 };
+
+async function tap(title: string) {
+  const button = jest.mocked(Button).mock.calls.findLast(([props]) => props.title === title)?.[0];
+  if (!button) throw new Error(`Button not rendered: ${title}`);
+  await act(async () => { button.onPress(); });
+}
 
 function moveAppTo(state: AppStateStatus) {
   AppState.currentState = state;
@@ -66,6 +86,7 @@ beforeEach(() => {
   });
   jest.mocked(useSession).mockReturnValue({ client } as unknown as ReturnType<typeof useSession>);
   jest.mocked(getAccessToken).mockResolvedValue("saved-token");
+  jest.mocked(getDeviceUnlockPreference).mockResolvedValue("biometrics");
 });
 
 afterEach(async () => {
@@ -113,6 +134,55 @@ test("canceling automatic authentication keeps the session covered", async () =>
 test("signed-out launch skips device authentication", async () => {
   jest.mocked(getAccessToken).mockResolvedValueOnce(null);
   await mount();
+  expect(authenticateAsync).not.toHaveBeenCalled();
+  expect(observed).toHaveBeenLastCalledWith("open");
+});
+
+test.each([null, "off"] as const)("a saved session with app lock preference %s requires account sign-in", async (preference) => {
+  jest.mocked(getDeviceUnlockPreference).mockResolvedValueOnce(preference);
+  await mount();
+  expect(authenticateAsync).not.toHaveBeenCalled();
+  expect(authenticateWithScreenLock).not.toHaveBeenCalled();
+  expect(client.restore).not.toHaveBeenCalled();
+  expect(clearTokens).toHaveBeenCalledTimes(1);
+  expect(observed).toHaveBeenLastCalledWith("open");
+});
+
+test.each([
+  ["Use screen lock only", "screen-lock", authenticateWithScreenLock, authenticateAsync],
+  ["Use biometrics", "biometrics", authenticateAsync, authenticateWithScreenLock],
+] as const)("%s selects the system unlock method after separate consent", async (choice, preference, authenticate, unused) => {
+  jest.mocked(getAccessToken).mockResolvedValueOnce(null);
+  jest.mocked(getDeviceUnlockPreference).mockResolvedValueOnce(null);
+  jest.mocked(authenticate).mockResolvedValueOnce({ success: true });
+  await mount();
+  await act(async () => { completeSignIn(); });
+  expect(observed).toHaveBeenLastCalledWith("consent");
+
+  await tap("Use screen lock");
+  expect(setDeviceUnlockPreference).not.toHaveBeenCalled();
+  expect(authenticateWithScreenLock).not.toHaveBeenCalled();
+  expect(authenticateAsync).not.toHaveBeenCalled();
+
+  await tap(choice);
+  expect(setDeviceUnlockPreference).toHaveBeenCalledWith(preference);
+  await act(async () => { moveAppTo("background"); });
+  await act(async () => { moveAppTo("active"); });
+  expect(authenticate).toHaveBeenCalledTimes(1);
+  expect(unused).not.toHaveBeenCalled();
+  expect(observed).toHaveBeenLastCalledWith("open");
+});
+
+test("declining app lock keeps the current session open without either device prompt", async () => {
+  jest.mocked(getAccessToken).mockResolvedValueOnce(null);
+  jest.mocked(getDeviceUnlockPreference).mockResolvedValueOnce(null);
+  await mount();
+  await act(async () => { completeSignIn(); });
+  await tap("Continue without app lock");
+  expect(setDeviceUnlockPreference).toHaveBeenCalledWith("off");
+  await act(async () => { moveAppTo("background"); });
+  await act(async () => { moveAppTo("active"); });
+  expect(authenticateWithScreenLock).not.toHaveBeenCalled();
   expect(authenticateAsync).not.toHaveBeenCalled();
   expect(observed).toHaveBeenLastCalledWith("open");
 });

@@ -59,9 +59,13 @@ Start Metro separately with `pnpm --filter native start` for the development cli
   set `SPNDRR_AVD` to choose one. For USB/Wi-Fi devices, enable debugging and
   authorize or pair/connect with adb first.
 - iOS uses locally generated native projects and Xcode. Choose a simulator by
-  UDID with `xcrun simctl list devices available`, or a connected device with
-  `xcrun devicectl list devices`. Set `DEVELOPMENT_TEAM` for physical-device
-  signing; optionally set `PROVISIONING_PROFILE_SPECIFIER` and `CODE_SIGN_IDENTITY`.
+  UDID with `xcrun simctl list devices available`. `run:ios simulator` generates
+  the Debug simulator Keychain entitlements with the `LOCALDEV01` prefix during
+  prebuild and signs the build ad hoc. The simulator command needs no Apple
+  development team or manual Xcode project edits.
+- Choose a connected iOS device with `xcrun devicectl list devices`. Set
+  `DEVELOPMENT_TEAM` for physical-device signing. Optionally set
+  `PROVISIONING_PROFILE_SPECIFIER` and `CODE_SIGN_IDENTITY`.
   Automatic provisioning updates are opt-in with `SPNDRR_IOS_ALLOW_PROVISIONING_UPDATES=1`.
   Signing identities and profiles must already be available locally; never put
   credentials, signing secrets or real test accounts into this repository.
@@ -131,9 +135,13 @@ parsing. No dependencies were added. Manual device verification still needed:
 
 Sign in with your password, then open **Settings → Passkeys** to add a passkey.
 Once enrolled, **Sign in with a passkey** opens the system credential picker.
-On relaunch and return from the background, a saved session automatically prompts
-for biometrics or the device’s PIN, pattern, or passcode. After a canceled or
-failed prompt, try again or sign out.
+After sign-in, choose whether to protect the saved session with your device’s
+screen lock. If you enable app lock, Spndrr asks separately before enabling
+Face ID or fingerprint unlock. Both choices are saved on the device.
+Screen lock alone uses your device PIN, pattern, or passcode. Declining app lock
+keeps you signed in for the current run and requires account sign-in after a
+restart. Existing installations without a saved choice sign in once to set up
+app lock. After a canceled or failed unlock, try again or sign out.
 
 See [Mobile passkey setup](../../docs/mobile-passkeys.md) for domain associations,
 API configuration, and physical-device verification.

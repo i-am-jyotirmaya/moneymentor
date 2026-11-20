@@ -1,15 +1,21 @@
 "use client";
 
 import { App } from "@capacitor/app";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { AndroidBiometryStrength, BiometricAuth, BiometryErrorType } from "@aparajita/capacitor-biometric-auth";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, logout, refreshSession } from "../../web/lib/api";
 import { configureSessionRefreshGuard, getAuthSessionSnapshot, subscribeToAuthSession } from "../../web/lib/auth-session";
 
-type Mode = "checking" | "open" | "locked";
+import { deviceUnlockPreferenceKey, hasDeviceUnlock, readDeviceUnlockPreference,
+  type DeviceCredentialStatus, type DeviceUnlockPreference } from "../../shared/device-unlock";
+
+type Mode = "checking" | "open" | "locked" | "consent";
+const deviceCredential = registerPlugin<{ authenticate(): Promise<{ status: DeviceCredentialStatus }> }>("SpndrrDeviceCredential");
 const sessionMarker = "spndrr.native-session";
+const primaryButton = "min-h-12 w-full rounded-lg bg-[var(--ink)] px-4 font-bold text-white disabled:opacity-60";
+const secondaryButton = "min-h-12 w-full rounded-lg border border-[var(--border)] px-4 font-semibold disabled:opacity-60";
 
 export function DeviceLock({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -19,6 +25,8 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
   const policy = useRef({ unlocked: false, saved: false, probing: false, background: false, revision: 0 });
   const flight = useRef(false);
+  const preference = useRef<DeviceUnlockPreference | null>(null);
+  const [offerBiometrics, setOfferBiometrics] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -28,18 +36,22 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
     }
     const state = policy.current;
     const marker = window.localStorage.getItem(sessionMarker);
-    state.saved = marker === "saved";
+    preference.current = readDeviceUnlockPreference(window.localStorage.getItem(deviceUnlockPreferenceKey));
+    state.saved = marker === "saved" && hasDeviceUnlock(preference.current);
+    if (!state.saved) window.localStorage.setItem(sessionMarker, "signed-out");
     const restoreDefault = configureSessionRefreshGuard(() => (state.unlocked && state.saved) || state.probing);
     const unsubscribe = subscribeToAuthSession(() => {
       state.saved = !!getAuthSessionSnapshot();
-      if (state.background && state.saved) {
-        state.unlocked = false;
-        setMode("locked");
-      }
-      window.localStorage.setItem(sessionMarker, state.saved ? "saved" : "signed-out");
+      window.localStorage.setItem(sessionMarker, state.saved && hasDeviceUnlock(preference.current) ? "saved" : "signed-out");
       if (!state.saved) {
         state.unlocked = true;
         setMode("open");
+      } else if (preference.current === null) {
+        state.unlocked = false;
+        setMode("consent");
+      } else if (state.background && hasDeviceUnlock(preference.current)) {
+        state.unlocked = false;
+        setMode("locked");
       }
     });
     const onPause = () => {
@@ -48,7 +60,7 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
       state.background = true;
       setActive(false);
       if (!flight.current) setError("");
-      if (state.saved) {
+      if (state.saved && hasDeviceUnlock(preference.current)) {
         state.unlocked = false;
         setMode("locked");
       }
@@ -61,26 +73,11 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
     // Capacitor forwards UIScene events to the document on iOS.
     document.addEventListener("pause", onPause);
     document.addEventListener("resume", onResume);
-    async function initialize() {
-      if (marker === "signed-out") {
-        state.unlocked = true;
-        if (mounted) setMode("open");
-        return;
-      }
-      if (marker === "saved") {
-        if (mounted) setMode("locked");
-        return;
-      }
-      // Check older installs for a cookie before opening any workspace route.
-      state.probing = true;
-      try { await refreshSession(); }
-      catch (caught) {
-        if (caught instanceof ApiError && caught.status === 401) return;
-      }
-      finally { state.probing = false; }
-      if (mounted) setMode("locked");
-    }
-    void initialize();
+    queueMicrotask(() => {
+      if (!mounted) return;
+      state.unlocked = !state.saved;
+      setMode(state.saved ? "locked" : "open");
+    });
     return () => {
       mounted = false;
       restoreDefault();
@@ -92,7 +89,8 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
   }, []);
 
   const unlock = useCallback(async () => {
-    if (flight.current) return;
+    const method = preference.current;
+    if (flight.current || !hasDeviceUnlock(method)) return;
     const state = policy.current;
     flight.current = true; setBusy(true); setError("");
     let restoring = false;
@@ -102,23 +100,12 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
         if (!state.background) setError("Device unlock is unavailable. Try again or sign out.");
         return;
       }
-      const security = await BiometricAuth.checkBiometry();
       if (state.background || startingRevision !== state.revision) return;
-      if (!security.deviceIsSecure) {
-        setError("Set up a screen lock in device settings, or sign out to use your account credentials.");
-        return;
-      }
-      try {
-        await BiometricAuth.authenticate({
-          reason: "Unlock Spndrr",
-          androidTitle: "Unlock Spndrr",
-          allowDeviceCredential: true,
-          androidBiometryStrength: AndroidBiometryStrength.strong,
-        });
-      } catch (error) {
-        const code = (error as { code?: BiometryErrorType })?.code;
-        if (code === BiometryErrorType.userCancel) setError("Device unlock canceled.");
-        else if (!state.background) setError("Unlock failed. Try again with biometrics or your screen lock.");
+      const status = method === "screen-lock" ? (await deviceCredential.authenticate()).status : await authenticateWithBiometrics();
+      if (status !== "success") {
+        if (status === "unavailable") setError("Set up a screen lock in device settings, or sign out to use your account credentials.");
+        else if (status === "cancelled") setError("Device unlock canceled.");
+        else if (!state.background) setError("Device unlock failed. Try again.");
         return;
       }
       const revision = state.revision;
@@ -148,6 +135,19 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
     return () => { canceled = true; };
   }, [mode, active, busy, error, unlock]);
 
+  function savePreference(choice: DeviceUnlockPreference) {
+    try {
+      window.localStorage.setItem(deviceUnlockPreferenceKey, choice);
+      window.localStorage.setItem(sessionMarker, hasDeviceUnlock(choice) ? "saved" : "signed-out");
+      preference.current = choice;
+      const locked = hasDeviceUnlock(choice) && policy.current.background;
+      policy.current.unlocked = !locked;
+      setMode(locked ? "locked" : "open");
+    } catch {
+      setError("Could not save your app lock preference. Try again.");
+    }
+  }
+
   async function signOut() {
     if (flight.current) return;
     flight.current = true; setBusy(true);
@@ -159,14 +159,45 @@ export function DeviceLock({ children }: { children: React.ReactNode }) {
   if (mode === "open") return children;
   return <main className="grid min-h-dvh place-items-center bg-[var(--background)] p-6 text-[var(--ink)]">
     {mode === "checking" && <p role="status" className="sr-only">Loading Spndrr…</p>}
+    {mode === "consent" && <section className="w-full max-w-md space-y-4">
+      <h1 className="text-2xl font-bold">{offerBiometrics ? "Use Face ID or fingerprint?" : "Secure Spndrr with your screen lock?"}</h1>
+      <p>{offerBiometrics
+        ? "Allow biometrics to unlock Spndrr. You can still use your device PIN, pattern, or passcode."
+        : "Use your device PIN, pattern, or passcode to protect your saved session. Without app lock, you’ll sign in again after restarting Spndrr."}</p>
+      {error && <p role="alert">{error}</p>}
+      {offerBiometrics ? <>
+        <button type="button" className={primaryButton} onClick={() => savePreference("biometrics")}>Use biometrics</button>
+        <button type="button" className={secondaryButton} onClick={() => savePreference("screen-lock")}>Use screen lock only</button>
+      </> : <>
+        <button type="button" className={primaryButton} onClick={() => { setError(""); setOfferBiometrics(true); }}>Use screen lock</button>
+        <button type="button" className={secondaryButton} onClick={() => savePreference("off")}>Continue without app lock</button>
+      </>}
+    </section>}
     {mode === "locked" && error && <section className="w-full max-w-md space-y-4">
       <p role="alert">{error}</p>
       <button type="button" disabled={busy} onClick={() => setError("")}
-        className="min-h-12 w-full rounded-lg bg-[var(--ink)] px-4 font-bold text-white disabled:opacity-60">Try again</button>
+        className={primaryButton}>Try again</button>
       <button type="button" disabled={busy} onClick={() => void signOut()}
-        className="min-h-12 w-full rounded-lg border border-[var(--border)] px-4 font-semibold disabled:opacity-60">Sign out</button>
+        className={secondaryButton}>Sign out</button>
     </section>}
   </main>;
+}
+
+async function authenticateWithBiometrics(): Promise<DeviceCredentialStatus> {
+  try {
+    await BiometricAuth.authenticate({
+      reason: "Unlock Spndrr",
+      androidTitle: "Unlock Spndrr",
+      allowDeviceCredential: true,
+      androidBiometryStrength: AndroidBiometryStrength.strong,
+    });
+    return "success";
+  } catch (error) {
+    const code = (error as { code?: BiometryErrorType })?.code;
+    if (code === BiometryErrorType.userCancel) return "cancelled";
+    if (code === BiometryErrorType.passcodeNotSet) return "unavailable";
+    return "failed";
+  }
 }
 
 async function waitForActiveApp() {

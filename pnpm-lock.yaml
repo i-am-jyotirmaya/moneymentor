@@ -276,6 +276,9 @@ importers:
         specifier: 42.0.1
         version: 42.0.1(7f531117038d8117714835d9ed2004e6)
     devDependencies:
+      '@expo/plist':
+        specifier: 0.10.2
+        version: 0.10.2
       '@types/jest':
         specifier: ^30.0.0
         version: 30.0.0

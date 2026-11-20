@@ -9,7 +9,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
 
         window = UIWindow(windowScene: windowScene)
-        window?.rootViewController = CAPBridgeViewController()
+        window?.rootViewController = SpndrrBridgeViewController()
         window?.makeKeyAndVisible()
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
@@ -35,5 +35,23 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
         SceneDelegateProxy.shared.scene(scene, continue: userActivity)
+    }
+}
+
+final class SpndrrBridgeViewController: CAPBridgeViewController {
+    override func capacitorDidLoad() {
+        super.capacitorDidLoad()
+        bridge?.registerPluginInstance(DeviceCredentialPlugin())
+    }
+}
+
+@objc(DeviceCredentialPlugin)
+final class DeviceCredentialPlugin: CAPPlugin, CAPBridgedPlugin {
+    let identifier = "DeviceCredentialPlugin"
+    let jsName = "SpndrrDeviceCredential"
+    let pluginMethods = [CAPPluginMethod(name: "authenticate", returnType: CAPPluginReturnPromise)]
+
+    @objc func authenticate(_ call: CAPPluginCall) {
+        DeviceCredentialAuthenticator.authenticate { status in call.resolve(["status": status]) }
     }
 }
