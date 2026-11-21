@@ -1,7 +1,7 @@
 import { requireOptionalNativeModule } from 'expo';
 import { requestRecordingPermissionsAsync } from 'expo-audio';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
 type SpeechModule = {
@@ -22,7 +22,8 @@ export function useVoiceInput(onTranscript: (text: string) => void, onError: (me
     setState('idle');
     void speech?.cancel().catch(() => undefined);
   }, []);
-  useFocusEffect(useCallback(() => () => { cancel(); }, [cancel, scope]));
+  useFocusEffect(useCallback(() => cancel, [cancel]));
+  useEffect(() => cancel, [cancel, scope]);
 
   async function start() {
     if (active.current) return;

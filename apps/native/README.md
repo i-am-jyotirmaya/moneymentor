@@ -5,6 +5,15 @@ Android platform polish, and local development builds for Android and iOS.
 
 Assistant voice input uses the platform speech recognizer (Android SpeechRecognizer or iOS Speech). Tap the microphone with an empty composer, grant permission, speak, and stop or wait for recognition to finish. Review the transcript and tap Send; the existing assistant endpoint receives text with `inputMode: Voice`. Spndrr does not upload raw audio, but the OS speech provider may process speech remotely. Cancel discards the recording. A fresh native development build is required after installing this feature.
 
+If the microphone reports “Install the latest native build,” rebuild and reinstall
+Spndrr on the device. Reloading Metro only updates JavaScript. Use
+`pnpm --filter native run:ios simulator <simulator-UDID>` for the simulator or
+`DEVELOPMENT_TEAM=<team-id> bash apps/native/scripts/install-iphone.sh <iPhone-UDID>`
+for a standalone iPhone build. Both commands refresh Expo’s native configuration
+and link the speech module.
+On iOS, voice input starts with Indian English and retries with UK English if
+the Indian English recognizer is unavailable or fails to initialize.
+
 Copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_BASE_URL` to a device-reachable
 API origin without `/api`. The Android emulator example is `https://10.0.2.2:7085`;
 a physical device needs your development host's reachable address. HTTPS requires

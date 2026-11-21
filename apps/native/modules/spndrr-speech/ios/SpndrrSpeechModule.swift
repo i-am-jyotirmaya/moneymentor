@@ -48,6 +48,7 @@ public class SpndrrSpeechModule: Module {
 
   private func start(locale: String, id: UUID) {
     guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: locale)), recognizer.isAvailable else {
+      if retryWithEnglishFallback(from: locale) { return }
       finish(error: "Speech recognition is unavailable on this device.")
       return
     }
@@ -77,7 +78,13 @@ public class SpndrrSpeechModule: Module {
             self.lastText = result.bestTranscription.formattedString
             if result.isFinal { self.complete(); return }
           }
-          if error != nil { self.finish(error: "Speech recognition failed. Please try again or type your message.") }
+          if let error = error as NSError? {
+            // An installed Apple speech model can report available and still fail to initialize.
+            if error.domain == "kLSRErrorDomain", error.code == 300,
+               self.lastText.isEmpty, self.engine?.isRunning == true,
+               self.retryWithEnglishFallback(from: locale) { return }
+            self.finish(error: "Speech recognition failed. Please try again or type your message.")
+          }
         }
       }
       audioEngine.prepare()
@@ -90,6 +97,14 @@ public class SpndrrSpeechModule: Module {
     }
   }
 
+  private func retryWithEnglishFallback(from locale: String) -> Bool {
+    guard locale == "en-IN" else { return false }
+    generation = UUID()
+    resetCapture()
+    start(locale: "en-GB", id: generation)
+    return true
+  }
+
   private func complete() {
     if lastText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       finish(error: "No speech recognized. Please try again.")
@@ -99,6 +114,11 @@ public class SpndrrSpeechModule: Module {
   private func finish(text: String? = nil, error: String? = nil) {
     guard let promise = pending else { return }
     pending = nil
+    resetCapture()
+    if let error = error { promise.reject("ERR_SPEECH", error) } else { promise.resolve(text) }
+  }
+
+  private func resetCapture() {
     timeout?.cancel()
     timeout = nil
     if let engine = engine {
@@ -118,6 +138,5 @@ public class SpndrrSpeechModule: Module {
       previousAudio = nil
     }
     lastText = ""
-    if let error = error { promise.reject("ERR_SPEECH", error) } else { promise.resolve(text) }
   }
 }
