@@ -1,5 +1,5 @@
-android/
-ios/
+/android/
+/ios/
 .expo/
 dist/
 node_modules/

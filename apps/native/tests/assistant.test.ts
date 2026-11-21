@@ -54,6 +54,12 @@ test('optional fields and Voice are passed through without invented defaults', a
   await client.sendAssistant(input);
   expect(requests[1].body).toEqual(input);
 });
+test('recognized voice command uses the same assistant route with Voice provenance', async () => {
+  const { client, requests } = await setup(result);
+  const input = buildAssistantRequest('  petrol 250  ', 'INR', 'home', undefined, 'Voice');
+  await client.sendAssistant(input);
+  expect(requests[1]).toMatchObject({ path: '/api/assistant/messages', body: { text: 'petrol 250', inputMode: 'Voice', householdId: 'home', currencyCode: 'INR', locale: 'en-IN' } });
+});
 test.each([null, { ...result, status: 'Unknown' }, { ...result, transaction: {} }, { ...result, assistantMessage: 42 }, { ...result, errors: null }])('unverified response cannot become confirmation: %j', async data => {
   const { client } = await setup(data);
   await expect(client.sendAssistant(buildAssistantRequest('food 180', 'INR', 'home'))).rejects.toMatchObject({ outcome: 'unknown' });

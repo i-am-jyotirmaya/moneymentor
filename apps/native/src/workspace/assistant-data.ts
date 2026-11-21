@@ -8,8 +8,8 @@ export function initialAssistantMessages(): AssistantMessage[] {
 export function userMessage(text: string): AssistantMessage {
   return { role: 'user', text: text.trim() };
 }
-export function buildAssistantRequest(text: string, currencyCode: string, householdId: string | null, transactionDate?: string) {
-  return { text: text.trim(), inputMode: 'Text' as const, householdId: householdId ?? undefined,
+export function buildAssistantRequest(text: string, currencyCode: string, householdId: string | null, transactionDate?: string, inputMode: 'Text' | 'Voice' = 'Text') {
+  return { text: text.trim(), inputMode, householdId: householdId ?? undefined,
     currencyCode, locale: 'en-IN', ...(transactionDate === undefined ? {} : { transactionDate }) };
 }
 export function responseMessage(result: AssistantResponse): AssistantMessage {
