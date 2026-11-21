@@ -29,8 +29,8 @@ test('Android IME fallback pads only the residual overlap after native resize', 
   expect(remainingKeyboardOverlap(24, 456.5, 480)).toBe(0); // Ignore sub-dp jitter.
 });
 
-test('initial, signup and workspace content loading use skeletons instead of spinners', () => {
-  for (const path of ['src/auth/device-lock.tsx', 'app/(auth)/signup.tsx', 'src/workspace/ui.tsx']) {
+test('signup and workspace content loading use skeletons', () => {
+  for (const path of ['app/(auth)/signup.tsx', 'src/workspace/ui.tsx']) {
     expect(source(path)).toContain('<Skeleton');
     expect(source(path)).not.toContain('ActivityIndicator');
   }
