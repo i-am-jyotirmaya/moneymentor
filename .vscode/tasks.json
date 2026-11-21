@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Spndrr API",
+      "type": "process",
+      "command": "/opt/homebrew/bin/dotnet",
+      "args": ["build", "${workspaceFolder}/apps/api/MoneyMentor.Api/MoneyMentor.Api.csproj"],
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}
