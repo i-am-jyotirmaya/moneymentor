@@ -20,11 +20,9 @@ import { Action, ErrorNotice, Loading, Panel } from '../../src/workspace/ui';
 import { Choice } from '../../src/workspace/choice';
 import { useLegacy } from '../../src/workspace/legacy-styles';
 import { useDockSpace } from '../../src/workspace/dock';
-import { useNavigationSounds } from '../../src/workspace/navigation-sounds';
 
 export default function Settings() { const { styles, ws } = useLegacy(); const theme = useTheme(); const dock = useDockSpace();
   const { client, session } = useSession();
-  const navigationSounds = useNavigationSounds();
   const offline = useOffline();
   const { householdId, households, retry } = useWorkspace();
   const router = useRouter();
@@ -75,12 +73,6 @@ export default function Settings() { const { styles, ws } = useLegacy(); const t
       <View style={{ padding: 16 }}><Segmented<ThemePreference> label="Appearance" value={theme.preference} onChange={theme.setPreference}
         options={[{ key: 'system', label: 'System' }, { key: 'light', label: 'Light' }, { key: 'dark', label: 'Dark' }]} /></View>
     </Card>
-    {navigationSounds.enabled !== null ? <Card padding={0}>
-      <ListRow icon={{ android: 'volume_up', ios: 'speaker.wave.2' }} title="Navigation sounds"
-        subtitle="Play a sound when switching screens" trailing="switch" value={navigationSounds.enabled}
-        onPress={() => navigationSounds.setEnabled(!navigationSounds.enabled)} />
-    </Card> : null}
-    {navigationSounds.saveFailed ? <Text accessibilityRole="alert" style={styles.text}>Couldn’t save the sound preference. It applies until the app restarts.</Text> : null}
     <Text style={ws.small}>PRIVACY</Text>
     <Card padding={0}>
       <ListRow icon={{ android: 'download', ios: 'square.and.arrow.down' }} title="Export my data" trailing="chevron" onPress={() => void privacy('export')} />

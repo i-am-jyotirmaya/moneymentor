@@ -296,16 +296,16 @@ throwaway account and discard its credentials after the run.
 - Existing alert/retry UI remains; signup verification, report loading and editor account loading now offer retries. Auth and mutation forms retain their submit actions for retry; no connectivity polling dependency was added.
 - System font scaling stays enabled. Text containers use wrapping/minimum heights; actions can shrink within wrapping rows. The local CNG plugin preserves MainActivity config changes and adds `fontScale` to avoid activity recreation when font size changes.
 - Android uses window resize; auth/composer retain keyboard avoidance and scrollable forms use automatic iOS keyboard insets. Editor Save now scrolls with its fields. Existing form ScrollViews retain handled keyboard taps.
-- Slice icon uses a safe-inset adaptive foreground and a monochrome mask derived from the approved Slice mark. SDK 58 `expo-splash-screen` configures the launch screen, using the mark for Android 12+ and stacked artwork for iOS, on `#F3F5F9`. Router manages splash hiding when navigation is ready; no explicit hold is added.
+- The launch screen uses the Slice mark with light and dark artwork. Expo holds it while fonts load, then the app displays the mark during the initial session check.
 - Light mode is forced through Expo config, `expo-system-ui`, and Android MainActivity via `AppCompatDelegate.MODE_NIGHT_NO`; the brand accent is `#0B7A4E`.
 
 ## M5 — Mobile-first workspace
 
 The shell uses a 28dp decorative Slice mark, a left-aligned title, and the household
 switcher. Assistant, Transactions and Dashboard are direct tabs; More opens a sheet
-with Reports, Planning, Household, Settings and Sign out. The active tab is a filled
-pill. Visited tab screens retain their state and use a fade transition. The tab bar
-hides when the IME is visible, and form fields scroll without hiding behind the keyboard.
+with Reports, Planning, Household, Settings and Sign out. A blue pill covers the
+active tab’s icon and label. Visited tabs retain their state and use a fade transition.
+The tab bar hides when the IME is visible, and form fields scroll clear of the keyboard.
 
 Assistant confirms persisted transactions, Planning announces successful goal creation,
 and Dashboard shows the selected month's stored income and spending in an accessible

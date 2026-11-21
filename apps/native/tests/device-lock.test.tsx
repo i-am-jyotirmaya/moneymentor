@@ -20,12 +20,15 @@ jest.mock("../src/auth/token-storage", () => ({
 jest.mock("../src/auth/device-credential", () => ({ authenticateWithScreenLock: jest.fn() }));
 jest.mock("../src/ui", () => ({ Text: () => null, useTheme: () => ({ color: { bg: "#fff" } }) }));
 jest.mock("../src/ui/AuthForm", () => ({ Button: jest.fn(() => null), ErrorBox: () => null }));
-jest.mock("../src/ui/Skeleton", () => ({ Skeleton: () => null }));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: ({ children }: { children: unknown }) => children }));
 
 const rendererPath = require.resolve("test-renderer", { paths: [require.resolve("jest-expo/package.json")] });
 const { createRoot } = jest.requireActual<{
-  createRoot: () => { render: (element: ReactElement) => void; unmount: () => void };
+  createRoot: () => {
+    render: (element: ReactElement) => void;
+    unmount: () => void;
+    container: { queryAll: (predicate: (instance: { props: Record<string, unknown> }) => boolean) => unknown[] };
+  };
 }>(rendererPath);
 
 const environment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean };
@@ -131,9 +134,16 @@ test("canceling automatic authentication keeps the session covered", async () =>
   expect(observed).toHaveBeenLastCalledWith("locked");
 });
 
-test("signed-out launch skips device authentication", async () => {
-  jest.mocked(getAccessToken).mockResolvedValueOnce(null);
+test("signed-out launch shows the splash until the saved session is checked", async () => {
+  let finishCheck!: (token: null) => void;
+  jest.mocked(getAccessToken).mockReturnValueOnce(new Promise(resolve => { finishCheck = resolve; }));
   await mount();
+  const splash = () => root.container.queryAll(({ props }) => props.testID === "startup-splash");
+  expect(splash()).toHaveLength(1);
+  expect(observed).toHaveBeenLastCalledWith("checking");
+
+  await act(async () => { finishCheck(null); });
+  expect(splash()).toHaveLength(0);
   expect(authenticateAsync).not.toHaveBeenCalled();
   expect(observed).toHaveBeenLastCalledWith("open");
 });
