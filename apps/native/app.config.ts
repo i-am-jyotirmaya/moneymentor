@@ -21,11 +21,13 @@ const config: ExpoConfig = {
       { scheme: "https", host: origin.hostname, path: "/signup/" },
     ] }],
   },
-  ios: { bundleIdentifier: "com.spndrr.app.dev", associatedDomains: [`applinks:${origin.hostname}`] },
+  ios: { bundleIdentifier: "com.spndrr.app.dev", associatedDomains: [`applinks:${origin.hostname}`], infoPlist: {
+    NSSpeechRecognitionUsageDescription: "Spndrr converts spoken finance messages to text.",
+  } },
   // Run our native overrides after the standard plugins configure the activity.
   plugins: [
     "expo-router", "expo-secure-store", "expo-dev-client",
-    ["expo-audio", { microphonePermission: false, recordAudioAndroid: false, enableBackgroundPlayback: false }],
+    ["expo-audio", { microphonePermission: "Spndrr uses your microphone to capture spoken finance messages.", recordAudioAndroid: true, enableBackgroundPlayback: false }],
     ["expo-splash-screen", { backgroundColor: "#F4F6FB", image: "./assets/splash.png", imageWidth: 200, dark: { backgroundColor: "#0A0D18", image: "./assets/splash-dark.png" } }],
     "./plugins/with-platform",
   ],
