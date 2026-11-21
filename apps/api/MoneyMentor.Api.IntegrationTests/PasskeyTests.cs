@@ -16,7 +16,6 @@ namespace MoneyMentor.Api.IntegrationTests;
 public sealed class PasskeyTests(MoneyMentorApiFactory factory)
 {
     private const string Path = "/api/auth/passkeys";
-    private const string Password = "IntegrationPasskey123";
     private const string RpId = "mvp.spndrr.com";
     private const string Origin = "https://" + RpId;
 
@@ -25,19 +24,20 @@ public sealed class PasskeyTests(MoneyMentorApiFactory factory)
     {
         var cancellation = TestContext.Current.CancellationToken;
         var email = $"passkey-{Guid.NewGuid():N}@example.test";
-        var expectedUser = await factory.SeedIdentityUserAsync(email, Password, "Passkey user");
+        var password = $"{RandomNumberGenerator.GetHexString(32)}aA1!";
+        var expectedUser = await factory.SeedIdentityUserAsync(email, password, "Passkey user");
         using var account = factory.CreateClient();
         using var alternateSession = factory.CreateClient();
         using var anonymous = factory.CreateClient();
-        await SignInWithPasswordAsync(account, email, cancellation);
-        await SignInWithPasswordAsync(alternateSession, email, cancellation);
+        await SignInWithPasswordAsync(account, email, password, cancellation);
+        await SignInWithPasswordAsync(alternateSession, email, password, cancellation);
 
-        using var unauthorized = await anonymous.PostAsJsonAsync($"{Path}/registration/options", new { Password }, cancellation);
+        using var unauthorized = await anonymous.PostAsJsonAsync($"{Path}/registration/options", new { password }, cancellation);
         Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
-        using var wrongPassword = await account.PostAsJsonAsync($"{Path}/registration/options", new { Password = "wrong" }, cancellation);
+        using var wrongPassword = await account.PostAsJsonAsync($"{Path}/registration/options", new { Password = password + "!" }, cancellation);
         Assert.Equal(HttpStatusCode.BadRequest, wrongPassword.StatusCode);
 
-        var enrollment = await GetOptionsAsync(account, "registration", new { Password }, cancellation);
+        var enrollment = await GetOptionsAsync(account, "registration", new { password }, cancellation);
         var publicKey = enrollment.GetProperty("publicKey");
         Assert.Equal("required", publicKey.GetProperty("authenticatorSelection").GetProperty("userVerification").GetString());
         var userHandle = publicKey.GetProperty("user").GetProperty("id").GetString()!;
@@ -89,7 +89,7 @@ public sealed class PasskeyTests(MoneyMentorApiFactory factory)
         using var restored = await anonymous.SendAsync(refresh, cancellation);
         Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
 
-        using var removed = await account.PostAsJsonAsync($"{Path}/{authenticator.Id}/remove", new { Password }, cancellation);
+        using var removed = await account.PostAsJsonAsync($"{Path}/{authenticator.Id}/remove", new { password }, cancellation);
         Assert.Equal(HttpStatusCode.NoContent, removed.StatusCode);
         options = await GetOptionsAsync(anonymous, "login", null, cancellation);
         using var removedPasskey = await anonymous.PostAsJsonAsync($"{Path}/login/verify", new
@@ -100,9 +100,9 @@ public sealed class PasskeyTests(MoneyMentorApiFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, removedPasskey.StatusCode);
     }
 
-    private static async Task SignInWithPasswordAsync(HttpClient client, string email, CancellationToken cancellation)
+    private static async Task SignInWithPasswordAsync(HttpClient client, string email, string password, CancellationToken cancellation)
     {
-        using var response = await client.PostAsJsonAsync("/api/auth/login", new { email, Password }, cancellation);
+        using var response = await client.PostAsJsonAsync("/api/auth/login", new { email, password }, cancellation);
         response.EnsureSuccessStatusCode();
         var session = await response.Content.ReadFromJsonAsync<AuthSessionResponse>(cancellation);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session!.AccessToken);
