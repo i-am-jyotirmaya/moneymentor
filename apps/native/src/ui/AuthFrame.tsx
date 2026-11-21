@@ -43,7 +43,7 @@ export function AuthFrame({
                 <AuthSlice style={[styles.slice, expandedHero && styles.expandedSlice]} />
                 <View style={styles.shade} />
               </View>
-              <View style={styles.heroContent}>
+              <View style={[styles.heroContent, { paddingTop: top + 8 }]}>
                 <View style={styles.nav}>
                   <PressableScale accessibilityRole="button" accessibilityLabel="Go back" onPress={back}
                     layer="on-primary" contentStyle={styles.back}>

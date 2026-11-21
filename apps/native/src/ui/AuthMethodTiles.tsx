@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ActivityIndicator, Image, Platform, StyleSheet, View } from "react-native";
 import { authHero, authMethods } from "../auth/appearance";
 import { Icon, type IconName } from "./Icon";
@@ -22,21 +23,29 @@ export function AuthMethodTiles({
   passkeyAvailable: boolean;
   busy?: boolean;
 }) {
+  const [width, setWidth] = useState(0);
+  const ios = Platform.OS === "ios";
+  const count = ios ? 4 : 3;
+  const gap = ios ? 8 : 15;
+  const size = width ? Math.max(0, Math.min(74, (width - gap * (count - 1)) / count)) : 48;
+
   return (
-    <View style={[styles.row, Platform.OS !== "ios" && styles.threeMethods]}>
-      <MethodTile method="email" onPress={onEmail} disabled={busy} testID="login-choose-email" />
-      <MethodTile method="passkey" onPress={onPasskey} disabled={busy || !passkeyAvailable}
+    <View style={[styles.row, { maxWidth: ios ? 355 : 302, gap }]}
+      onLayout={event => setWidth(event.nativeEvent.layout.width)}>
+      <MethodTile size={size} method="email" onPress={onEmail} disabled={busy} testID="login-choose-email" />
+      <MethodTile size={size} method="passkey" onPress={onPasskey} disabled={busy || !passkeyAvailable}
         unavailable={!passkeyAvailable} loading={busy} testID="login-passkey" />
-      <MethodTile method="google" disabled testID="login-google" />
-      {Platform.OS === "ios" && <MethodTile method="apple" disabled testID="login-apple" />}
+      <MethodTile size={size} method="google" disabled testID="login-google" />
+      {ios && <MethodTile size={size} method="apple" disabled testID="login-apple" />}
     </View>
   );
 }
 
 function MethodTile({
-  method, onPress, disabled, testID, unavailable = false, loading = false,
+  method, size, onPress, disabled, testID, unavailable = false, loading = false,
 }: {
   method: Method;
+  size: number;
   onPress?: () => void;
   disabled: boolean;
   testID: string;
@@ -57,7 +66,7 @@ function MethodTile({
       accessibilityLabel={status ? `${action}, ${status.toLowerCase()}` : action}
       accessibilityState={{ disabled, busy: loading }} layer="none" scaleTo={0.92}
       style={styles.target} contentStyle={styles.content}>
-      <View style={styles.tile} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View style={[styles.tile, { width: size, height: size }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         {/* Use one tinted silhouette so Android and iOS share the same continuous corners. */}
         <Image source={require("../../assets/auth-method-squircle.png")} resizeMode="stretch"
           style={[styles.silhouette, { tintColor: fill }]} />
@@ -72,11 +81,10 @@ function MethodTile({
 }
 
 const styles = StyleSheet.create({
-  row: { width: "100%", maxWidth: 355, alignSelf: "center", flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  threeMethods: { maxWidth: 302, gap: 15 },
+  row: { width: "100%", alignSelf: "center", flexDirection: "row", alignItems: "flex-start" },
   target: { flex: 1 },
   content: { alignItems: "center" },
-  tile: { width: "100%", maxWidth: 74, aspectRatio: 1, justifyContent: "center", alignItems: "center" },
+  tile: { justifyContent: "center", alignItems: "center" },
   silhouette: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
   google: { width: 26, height: 26 },
   label: { marginTop: 7, textAlign: "center" },
