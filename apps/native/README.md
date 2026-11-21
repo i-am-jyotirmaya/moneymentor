@@ -3,6 +3,8 @@
 Expo SDK 58 parity rebuild of `apps/mobile`, with auth, the finance workspace,
 Android platform polish, and local development builds for Android and iOS.
 
+Assistant voice input uses the platform speech recognizer (Android SpeechRecognizer or iOS Speech). Tap the microphone with an empty composer, grant permission, speak, and stop or wait for recognition to finish. Review the transcript and tap Send; the existing assistant endpoint receives text with `inputMode: Voice`. Spndrr does not upload raw audio, but the OS speech provider may process speech remotely. Cancel discards the recording. A fresh native development build is required after installing this feature.
+
 Copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_BASE_URL` to a device-reachable
 API origin without `/api`. The Android emulator example is `https://10.0.2.2:7085`;
 a physical device needs your development host's reachable address. HTTPS requires
