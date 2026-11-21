@@ -7,7 +7,7 @@ appId: com.spndrr.app.dev
 # The first bundle may finish before the onboarding/menu becomes available.
 - extendedWaitUntil:
     visible:
-      text: "Continue|Close|Sign in to use the assistant input workspace\\."
+      text: "Continue|Close|(?s:Your money,.*)"
     timeout: 120000
 - tapOn:
     text: "Continue"
