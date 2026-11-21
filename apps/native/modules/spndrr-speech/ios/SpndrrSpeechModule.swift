@@ -30,7 +30,8 @@ public class SpndrrSpeechModule: Module {
             self.finish(error: "Speech recognition permission is required.")
             return
           }
-          self.start(locale: locale, id: id)
+          let locales = locale == "en-IN" ? [locale, "en-GB", "en-AU", "en-CA"] : [locale]
+          self.start(locales: locales[...], id: id)
         }
       }
     }.runOnQueue(.main)
@@ -46,10 +47,14 @@ public class SpndrrSpeechModule: Module {
     OnDestroy { DispatchQueue.main.async { self.finish() } }
   }
 
-  private func start(locale: String, id: UUID) {
-    guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: locale)), recognizer.isAvailable else {
-      if retryWithEnglishFallback(from: locale) { return }
+  private func start(locales: ArraySlice<String>, id: UUID) {
+    guard let locale = locales.first else {
       finish(error: "Speech recognition is unavailable on this device.")
+      return
+    }
+    let fallbackLocales = locales.dropFirst()
+    guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: locale)), recognizer.isAvailable else {
+      start(locales: fallbackLocales, id: id)
       return
     }
     do {
@@ -79,10 +84,14 @@ public class SpndrrSpeechModule: Module {
             if result.isFinal { self.complete(); return }
           }
           if let error = error as NSError? {
-            // An installed Apple speech model can report available and still fail to initialize.
-            if error.domain == "kLSRErrorDomain", error.code == 300,
-               self.lastText.isEmpty, self.engine?.isRunning == true,
-               self.retryWithEnglishFallback(from: locale) { return }
+            // Apple reports missing assets (102) and recognizer initialization failures (300).
+            if error.domain == "kLSRErrorDomain", error.code == 102 || error.code == 300,
+               self.lastText.isEmpty, self.engine?.isRunning == true, !fallbackLocales.isEmpty {
+              self.generation = UUID()
+              self.resetCapture()
+              self.start(locales: fallbackLocales, id: self.generation)
+              return
+            }
             self.finish(error: "Speech recognition failed. Please try again or type your message.")
           }
         }
@@ -95,14 +104,6 @@ public class SpndrrSpeechModule: Module {
     } catch {
       finish(error: "Could not start speech recognition.")
     }
-  }
-
-  private func retryWithEnglishFallback(from locale: String) -> Bool {
-    guard locale == "en-IN" else { return false }
-    generation = UUID()
-    resetCapture()
-    start(locale: "en-GB", id: generation)
-    return true
   }
 
   private func complete() {

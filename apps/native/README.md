@@ -11,8 +11,9 @@ Spndrr on the device. Reloading Metro only updates JavaScript. Use
 `DEVELOPMENT_TEAM=<team-id> bash apps/native/scripts/install-iphone.sh <iPhone-UDID>`
 for a standalone iPhone build. Both commands refresh Expo’s native configuration
 and link the speech module.
-On iOS, voice input starts with Indian English and retries with UK English if
-the Indian English recognizer is unavailable or fails to initialize.
+
+On iOS, voice input starts with Indian English. If the recognizer is unavailable
+or its model fails to load, Spndrr tries UK, Australian, and Canadian English in order.
 
 Copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_BASE_URL` to a device-reachable
 API origin without `/api`. The Android emulator example is `https://10.0.2.2:7085`;
