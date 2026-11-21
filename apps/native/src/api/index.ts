@@ -31,6 +31,10 @@ class NativeFinanceClient extends FinanceClient {
     try { return await super.login(email, password); }
     finally { await this.storage; }
   }
+  override async loginWithPasskey(...args: Parameters<FinanceClient["loginWithPasskey"]>) {
+    try { return await super.loginWithPasskey(...args); }
+    finally { await this.storage; }
+  }
   override async signup(input: SignupInput) {
     try { return await super.signup(input); }
     finally { await this.storage; }

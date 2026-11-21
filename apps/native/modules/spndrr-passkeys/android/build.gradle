@@ -1,0 +1,16 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.spndrr'
+version = '1.0.0'
+
+android {
+  namespace 'com.spndrr.passkeys'
+}
+
+dependencies {
+  implementation 'androidx.credentials:credentials:1.5.0'
+  implementation 'androidx.credentials:credentials-play-services-auth:1.5.0'
+}

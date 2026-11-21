@@ -24,6 +24,7 @@ public static class AuthServiceCollectionExtensions
         services.Configure<AuthCookieOptions>(configuration.GetSection(AuthCookieOptions.SectionName));
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IAuthManager, PostgresAuthManager>();
+        PasskeyOptions.Configure(services, configuration);
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

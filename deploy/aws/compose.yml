@@ -13,6 +13,8 @@ x-api-environment: &api-environment
   Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY}
   AuthCookie__Secure: "true"
   AuthCookie__SameSite: Strict
+  Passkeys__RelyingPartyId: ${PASSKEY_RP_ID:-mvp.spndrr.com}
+  Passkeys__AndroidOrigins: ${PASSKEY_ANDROID_ORIGINS:-}
   AllowedHosts: ${API_HOST:?Set API_HOST}
   Cors__AllowedOrigins__0: https://${WEB_HOST:?Set WEB_HOST}
   Product__PublicWebUrl: https://${WEB_HOST}

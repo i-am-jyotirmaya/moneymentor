@@ -27,6 +27,7 @@ public sealed class MoneyMentorAuthDbContext
 
         ConfigureIdentityTables(builder);
         ConfigureApplicationUser(builder);
+        ConfigurePasskeys(builder);
         ConfigureApplicationRole(builder);
         ConfigureRefreshToken(builder);
         ConfigureAuthSession(builder);
@@ -44,6 +45,28 @@ public sealed class MoneyMentorAuthDbContext
         builder.Entity<IdentityUserLogin<Guid>>().ToTable("user_logins", AuthSchema);
         builder.Entity<IdentityRoleClaim<Guid>>().ToTable("role_claims", AuthSchema);
         builder.Entity<IdentityUserToken<Guid>>().ToTable("user_tokens", AuthSchema);
+    }
+
+    private static void ConfigurePasskeys(ModelBuilder builder)
+    {
+        builder.Entity<IdentityUserPasskey<Guid>>(entity =>
+        {
+            entity.ToTable("user_passkeys", AuthSchema);
+            entity.HasKey(passkey => passkey.CredentialId);
+            entity.Property(passkey => passkey.CredentialId).HasMaxLength(1024);
+            entity.OwnsOne(passkey => passkey.Data).ToJson();
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(passkey => passkey.UserId);
+        });
+
+        builder.Entity<Auth.PasskeyChallenge>(entity =>
+        {
+            entity.ToTable("passkey_challenges", AuthSchema);
+            entity.HasKey(challenge => challenge.Id);
+            entity.Property(challenge => challenge.Id).ValueGeneratedNever();
+            entity.HasIndex(challenge => challenge.ExpiresAt);
+            entity.HasOne<AuthSession>().WithMany().HasForeignKey(challenge => challenge.SessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     private static void ConfigureApplicationUser(ModelBuilder builder)

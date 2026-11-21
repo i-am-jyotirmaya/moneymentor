@@ -2,14 +2,20 @@ import { createContext, useContext, useState, useSyncExternalStore, type ReactNo
 import { createFinanceClient } from "../api";
 import type { FinanceClient } from "../api/client";
 
-const SessionContext = createContext<FinanceClient | null>(null);
+const SessionContext = createContext<{
+  client: FinanceClient;
+  passkeyOfferAccountId: string | null;
+  setPasskeyOfferAccountId: (accountId: string | null) => void;
+} | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [client] = useState(() => createFinanceClient());
-  return <SessionContext.Provider value={client}>{children}</SessionContext.Provider>;
+  const [passkeyOfferAccountId, setPasskeyOfferAccountId] = useState<string | null>(null);
+  return <SessionContext.Provider value={{ client, passkeyOfferAccountId, setPasskeyOfferAccountId }}>{children}</SessionContext.Provider>;
 }
 export function useSession() {
-  const client = useContext(SessionContext);
-  if (!client) throw new Error("SessionProvider is required.");
+  const context = useContext(SessionContext);
+  if (!context) throw new Error("SessionProvider is required.");
+  const { client } = context;
   const state = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
-  return { client, ...state };
+  return { ...context, ...state };
 }

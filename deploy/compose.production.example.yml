@@ -26,6 +26,8 @@ services:
       Jwt__SigningKey: ${JWT_SIGNING_KEY}
       AuthCookie__Secure: "true"
       AuthCookie__SameSite: Strict
+      Passkeys__RelyingPartyId: ${PASSKEY_RP_ID:-mvp.spndrr.com}
+      Passkeys__AndroidOrigins: ${PASSKEY_ANDROID_ORIGINS:-}
       AllowedHosts: ${ALLOWED_HOSTS}
       Cors__AllowedOrigins__0: ${CORS_ORIGIN}
       Product__PublicWebUrl: ${PUBLIC_WEB_URL}
