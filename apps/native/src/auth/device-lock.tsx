@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { AppState, BackHandler, Platform, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, ErrorBox } from "../ui/AuthForm";
-import { Skeleton } from "../ui/Skeleton";
+import { StartupSplash } from "../ui/StartupSplash";
 import { Text, useTheme } from "../ui";
 import { useSession } from "./session";
 import { clearTokens, getAccessToken, getDeviceUnlockPreference, setDeviceUnlockPreference } from "./token-storage";
@@ -199,8 +199,7 @@ export function DeviceLockProvider({ children }: { children: ReactNode }) {
       accessibilityElementsHidden={covered} importantForAccessibility={covered ? "no-hide-descendants" : "auto"}>
       {children}
     </View>
-    {covered && <SafeAreaView style={[StyleSheet.absoluteFill, { backgroundColor: color.bg, justifyContent: "center", alignItems: "center", padding: 24 }]}>
-      {state === "checking" && <Skeleton label="Loading session" />}
+    {state === "checking" ? <StartupSplash /> : covered && <SafeAreaView style={[StyleSheet.absoluteFill, { backgroundColor: color.bg, justifyContent: "center", alignItems: "center", padding: 24 }]}>
       {state === "consent" && <View style={{ gap: 16, width: "100%", maxWidth: 440 }}>
         <Text variant="headline" accessibilityRole="header">{offerBiometrics ? "Use Face ID or fingerprint?" : "Secure Spndrr with your screen lock?"}</Text>
         <Text tone="text2">{offerBiometrics

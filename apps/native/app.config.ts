@@ -28,7 +28,6 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router", "expo-secure-store", "expo-dev-client",
     ["expo-local-authentication", { faceIDPermission: "Use Face ID to unlock Spndrr." }],
-    ["expo-audio", { microphonePermission: false, recordAudioAndroid: false, enableBackgroundPlayback: false }],
     ["expo-splash-screen", { backgroundColor: "#F4F6FB", image: "./assets/splash.png", imageWidth: 200, dark: { backgroundColor: "#0A0D18", image: "./assets/splash-dark.png" } }],
     "./plugins/with-simulator-entitlements",
     ["./plugins/with-platform", { passkeyHost }],

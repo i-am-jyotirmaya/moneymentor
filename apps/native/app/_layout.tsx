@@ -2,7 +2,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useContext, useEffect } from "react";
+import { useContext, useEffect, useRef } from "react";
 import { BackHandler } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { SafeAreaInsetsContext } from "react-native-safe-area-context";
@@ -14,13 +14,12 @@ import { appFonts } from "../src/ui/fonts";
 import { ThemeProvider } from "../src/ui/ThemeProvider";
 import { ToastProvider } from "../src/ui/Toast";
 import { DOCK_SPACE } from "../src/workspace/dock";
-import { NavigationSoundsProvider } from "../src/workspace/navigation-sounds";
 import { colors } from "../src/ui/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function Navigation() {
-  const { status, session } = useSession();
+  const { status } = useSession();
   const deviceLock = useDeviceLock();
   const segments = useSegments();
   const router = useRouter();
@@ -50,26 +49,24 @@ function Navigation() {
   }, [deviceLock, status, inWorkspace, router]);
   // Expo Router owns both the linking/navigation container and the root safe-area provider.
   // Keep one persistent Stack and let +native-intent normalize external URLs.
-  const workspaceScreen = deviceLock === "open" && inWorkspace && status === "authenticated" && !session?.requiresPrivacyConsent ? pathname : null;
-  return <NavigationSoundsProvider screen={workspaceScreen}>
-    <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }}>
-      <Stack.Screen name="(auth)" options={{ animation: reduced ? "none" : "fade", contentStyle: { backgroundColor: authHero.background } }} />
-    </Stack>
-  </NavigationSoundsProvider>;
+  return <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }}>
+    <Stack.Screen name="(auth)" options={{ animation: reduced ? "none" : "fade", contentStyle: { backgroundColor: authHero.background } }} />
+  </Stack>;
 }
 export default function RootLayout() {
   const bottomInset = useContext(SafeAreaInsetsContext)?.bottom ?? 0;
   const [loaded, error] = useFonts(appFonts);
-  useEffect(() => {
-    if (loaded || error) {
-      SplashScreen.hideAsync().catch(() => {});
-    }
-  }, [loaded, error]);
+  const splashHidden = useRef(false);
+  function hideSplash() {
+    if (splashHidden.current) return;
+    splashHidden.current = true;
+    SplashScreen.hideAsync().catch(() => {});
+  }
 
   if (!loaded && !error) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1 }} onLayout={hideSplash}>
       <ThemeProvider>
         <ToastProvider bottomOffset={bottomInset + DOCK_SPACE}>
           <SessionProvider><DeviceLockProvider><Navigation /></DeviceLockProvider></SessionProvider>
