@@ -13,7 +13,10 @@ for a standalone iPhone build. Both commands refresh Expo’s native configurati
 and link the speech module.
 
 On iOS, voice input starts with Indian English. If the recognizer is unavailable
-or its model fails to load, Spndrr tries UK, Australian, and Canadian English in order.
+or its model fails to load, Spndrr tries other English locales. The iOS simulator
+uses different fallback locales because some iOS runtimes cannot load the same
+Apple speech models as a physical iPhone. Keep network access available for simulator
+voice tests and grant microphone access in both macOS and the simulated device.
 
 Copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_BASE_URL` to a device-reachable
 API origin without `/api`. The Android emulator example is `https://10.0.2.2:7085`;

@@ -30,7 +30,7 @@ public class SpndrrSpeechModule: Module {
             self.finish(error: "Speech recognition permission is required.")
             return
           }
-          let locales = locale == "en-IN" ? [locale, "en-GB", "en-AU", "en-CA"] : [locale]
+          let locales = self.recognitionLocales(for: locale)
           self.start(locales: locales[...], id: id)
         }
       }
@@ -45,6 +45,16 @@ public class SpndrrSpeechModule: Module {
     AsyncFunction("cancel") { self.finish() }.runOnQueue(.main)
     OnAppEntersBackground { DispatchQueue.main.async { self.finish() } }
     OnDestroy { DispatchQueue.main.async { self.finish() } }
+  }
+
+  private func recognitionLocales(for locale: String) -> [String] {
+    guard locale == "en-IN" else { return [locale] }
+    #if targetEnvironment(simulator)
+    // Some simulator runtimes fail to load local models that work on iPhone.
+    return [locale, "en-AE", "en-ID", "en-PH", "en-SA"]
+    #else
+    return [locale, "en-GB", "en-AU", "en-CA"]
+    #endif
   }
 
   private func start(locales: ArraySlice<String>, id: UUID) {
@@ -71,6 +81,7 @@ public class SpndrrSpeechModule: Module {
       }
       let audioRequest = SFSpeechAudioBufferRecognitionRequest()
       speechRecognizer = recognizer
+      audioRequest.taskHint = .dictation
       audioRequest.shouldReportPartialResults = true
       request = audioRequest
       input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in audioRequest.append(buffer) }
