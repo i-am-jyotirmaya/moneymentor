@@ -1,0 +1,30 @@
+// The welcome and form headers use the same ink/cobalt palette in both system themes.
+export const authHero = {
+  background: "#090F29",
+  headerBackground: "#101B43",
+  headerFill: "#0E1636",
+  white: "#F8FAFF",
+  ice: "#B9C9FF",
+  muted: "#CBD6F5",
+  link: "#E5EDFF",
+  badgeText: "#E0E7FF",
+  badgeOutline: "#A7BBFF55",
+  badgeDot: "#A0B5FF",
+  backFill: "#19254F",
+  backOutline: "#9DB1F357",
+  demoFill: "#111B3A",
+  demoOutline: "#7088F5AA",
+  demoInput: "#26366B",
+  actionText: "#101941",
+  actionFill: "#E3EAFF",
+  actionGradient: "linear-gradient(105deg, #F3F6FF, #CBD8FF)",
+  welcomeGradient: "radial-gradient(ellipse at 100% 0%, #233984 0%, #23398400 49%), radial-gradient(ellipse at 100% 91%, #162C6D 0%, #162C6D00 48%), linear-gradient(151deg, #101B43 0%, #090F29 56%)",
+  formGradient: "radial-gradient(ellipse at 100% 50%, #243D98 0%, #243D9800 72%), linear-gradient(140deg, #101B43, #121F53)",
+  formImageShade: "linear-gradient(90deg, #0E1636 3%, #0E1636E8 32%, #0E163673 55%, #0E163600 83%)",
+} as const;
+
+// Solid fills from the approved sign-in chooser, matching its light and dark options.
+export const authMethods = {
+  light: { email: "#2944D4", passkey: "#334775", provider: "#DCE3F0", apple: "#151927" },
+  dark: { email: "#465FE4", passkey: "#425789", provider: "#333E56", apple: "#F7F9FF" },
+} as const;

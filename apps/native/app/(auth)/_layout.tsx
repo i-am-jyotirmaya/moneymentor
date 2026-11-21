@@ -1,5 +1,8 @@
 import { Stack } from "expo-router";
-import { colors } from "../../src/ui/theme";
+import { useReducedMotion } from "react-native-reanimated";
+import { authHero } from "../../src/auth/appearance";
+
 export default function AuthLayout() {
-  return <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }} />;
+  const reduced = useReducedMotion();
+  return <Stack screenOptions={{ headerShown: false, animation: reduced ? "none" : "fade", contentStyle: { backgroundColor: authHero.background } }} />;
 }

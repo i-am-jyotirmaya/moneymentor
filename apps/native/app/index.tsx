@@ -1,27 +1,20 @@
 import { Redirect, useRouter } from "expo-router";
-import { ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { BrandTile, Button, RegistrationLink } from "../src/ui/AuthForm";
-
 import { useDeviceLock } from "../src/auth/device-lock";
 import { useSession } from "../src/auth/session";
-import { useLegacy } from '../src/workspace/legacy-styles';
+import { AuthWelcome } from "../src/ui/AuthWelcome";
+import { useRegistrationDestination } from "../src/ui/AuthForm";
 
-export default function Index() { const { styles, colors } = useLegacy();
+export default function Index() {
   const { status } = useSession();
   const deviceLock = useDeviceLock();
-  const router = useRouter();
   if (deviceLock !== "open") return null;
   if (status === "authenticated") return <Redirect href="/(tabs)/assistant" />;
-  return <SafeAreaView testID="home-screen" style={{ flex: 1, backgroundColor: colors.background }}>
-    <ScrollView contentContainerStyle={styles.page}>
-      <View style={styles.card}>
-        <View style={{ alignItems: "center" }}><BrandTile /></View>
-        <Text accessibilityRole="header" style={[styles.title, { textAlign: "center" }]}>Spndrr</Text>
-        <Text style={[styles.text, { fontSize: 16, textAlign: "center" }]}>Sign in to use the assistant input workspace.</Text>
-        <Button testID="home-login-button" title="Login" onPress={() => router.push("/(auth)/login")} />
-        <RegistrationLink outlined />
-      </View>
-    </ScrollView>
-  </SafeAreaView>;
+  return <Welcome />;
+}
+
+function Welcome() {
+  const router = useRouter();
+  const { open, href } = useRegistrationDestination();
+  return <AuthWelcome testID="home-screen" signInTestID="home-login-button" open={open}
+    onRegister={() => router.push(href)} onSignIn={() => router.push("/(auth)/login")} />;
 }

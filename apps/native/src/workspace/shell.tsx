@@ -34,7 +34,7 @@ const dockRoutes: readonly NavDockRoute[] = [
 ];
 
 // expo-dev-client only exists in dev builds; require it lazily so release bundles never touch it.
-function devClient(): { openMenu(): void; setToolsButtonVisible(visible: boolean): void } | null {
+function devClient(): { openMenu(): void } | null {
   if (!__DEV__) return null;
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- dev-only native module
   try { return require('expo-dev-client'); } catch { return null; }
@@ -46,8 +46,6 @@ function Shell() {
   const { households, householdId, setHouseholdId, section, month, setMonth, settings } = useWorkspace();
   const [keyboardOpen, setKeyboardOpen] = useState(Keyboard.isVisible());
   const shell = useTheme();
-  // The revamp replaces the dev-client floating gear with a long press on the mark (and Settings → Developer).
-  useEffect(() => { try { devClient()?.setToolsButtonVisible(false); } catch { /* older dev client */ } }, []);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true));
     const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardOpen(false));
