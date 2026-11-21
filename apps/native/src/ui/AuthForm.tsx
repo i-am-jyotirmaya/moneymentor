@@ -163,7 +163,7 @@ function InvitationLinkForm() {
 }
 
 export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "request"; invitation?: Invitation }) {
-  const { client } = useSession();
+  const { client, setPasskeyOfferAccountId } = useSession();
   const router = useRouter();
   const [displayName, setDisplayName] = useState(invitation?.name ?? "");
   const [email, setEmail] = useState(invitation?.email ?? "");
@@ -190,8 +190,11 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
         await client.requestAccess({ name: displayName.trim(), email: email.trim(), reason: reason.trim() || undefined });
         setSent(true);
       } else {
-        if (signup) await client.signup({ invitationToken: invitation?.token, displayName: displayName.trim(), email: email.trim(), password, privacyPolicyVersion: "2026-07-26-ai-planning.1", acceptPrivacyPolicy: accepted });
-        else await client.login(email.trim(), password);
+        const session = signup
+          ? await client.signup({ invitationToken: invitation?.token, displayName: displayName.trim(), email: email.trim(), password, privacyPolicyVersion: "2026-07-26-ai-planning.1", acceptPrivacyPolicy: accepted })
+          : await client.login(email.trim(), password);
+        setPasskeyOfferAccountId(session.user.id);
+        setPassword("");
         router.replace("/(tabs)/assistant");
       }
     } catch (caught) {

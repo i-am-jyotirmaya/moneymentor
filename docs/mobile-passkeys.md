@@ -1,10 +1,10 @@
 # Spndrr mobile passkeys
 
-The Expo app (`apps/native`) uses native passkey credential providers. Sign in
-with your password and confirm it in **Settings → Passkeys** to add or remove a
-passkey. After enrollment, choose **Sign in with a passkey** without entering an
-email or password. The password remains available for recovery and account
-management.
+The Expo app (`apps/native`) offers passkey setup after the first password
+sign-in for an account without a passkey on a supported device. Confirm your
+password to enroll, or choose **Later** and enroll from **Settings → Passkeys**.
+After enrollment, choose **Sign in with a passkey** on the login screen. The
+password remains available for recovery and account management.
 
 After account sign-in, both apps ask whether to protect the saved session with
 the device’s PIN, pattern, or passcode. A second choice enables Face ID or
@@ -45,10 +45,11 @@ versions below API 33 use the secure window flag, which also blocks screenshots.
 
 ## Verify on signed devices
 
-- In the Expo app on Android and iOS, sign in with a test account, add a passkey,
-  sign out, and sign back in using the passkey picker. Cancel the picker and check that the
-  password form remains available. Remove the passkey and confirm it can no
-  longer sign in.
+- In the Expo app on Android and iOS, sign in with a new test account and set
+  up a passkey from the first-login offer. Sign out, then use the login screen’s
+  passkey button. Cancel the picker and check that the password form is still
+  available. With another account, choose **Later**, sign in again and check
+  that the offer stays dismissed. Add and remove a passkey from Settings.
 - On a fresh install, sign in and enable screen lock. On a device with
   biometrics enrolled, decline biometrics and confirm that reopening Spndrr
   asks only for the device PIN, pattern, or passcode. Repeat on a fresh

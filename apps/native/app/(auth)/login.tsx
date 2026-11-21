@@ -12,7 +12,7 @@ import { Text } from "../../src/ui/Text";
 export default function Login() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { client } = useSession();
+  const { client, setPasskeyOfferAccountId } = useSession();
   const pending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -32,7 +32,10 @@ export default function Login() {
     setError("");
     try {
       const session = await client.loginWithPasskey(options => getPasskeyCredential("get", options));
-      if (session && navigation.isFocused()) router.replace("/(tabs)/assistant");
+      if (session) {
+        setPasskeyOfferAccountId(null);
+        if (navigation.isFocused()) router.replace("/(tabs)/assistant");
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not sign in with a passkey.");
     } finally {

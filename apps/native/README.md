@@ -133,8 +133,10 @@ parsing. No dependencies were added. Manual device verification still needed:
 
 ## Passkeys and device unlock
 
-Sign in with your password, then open **Settings → Passkeys** to add a passkey.
-Once enrolled, **Sign in with a passkey** opens the system credential picker.
+On the first password sign-in on a supported device, Spndrr offers to set up a
+passkey if the account has none. Confirm your password to create one, or choose
+**Later** and set it up in **Settings → Passkeys**. After enrollment, choose
+**Sign in with a passkey** on the login screen to open the system credential picker.
 After sign-in, choose whether to protect the saved session with your device’s
 screen lock. If you enable app lock, Spndrr asks separately before enabling
 Face ID or fingerprint unlock. Both choices are saved on the device.

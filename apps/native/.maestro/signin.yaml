@@ -43,6 +43,13 @@ appId: com.spndrr.app.dev
 - tapOn:
     id: "login-submit"
 - extendedWaitUntil:
+    visible: "Continue without app lock"
+    timeout: 120000
+- tapOn: "Continue without app lock"
+- tapOn:
+    id: "passkey-enrollment-later"
+    optional: true
+- extendedWaitUntil:
     visible:
       id: "assistant-screen"
     timeout: 120000
