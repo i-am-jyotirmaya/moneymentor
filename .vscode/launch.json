@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Spndrr API (local HTTP)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "Build Spndrr API",
+      "program": "${workspaceFolder}/apps/api/MoneyMentor.Api/bin/Debug/net10.0/MoneyMentor.Api.dll",
+      "cwd": "${workspaceFolder}/apps/api/MoneyMentor.Api",
+      "launchSettingsFilePath": "${workspaceFolder}/apps/api/MoneyMentor.Api/Properties/launchSettings.json",
+      "launchSettingsProfile": "http",
+      "env": {
+        "DOTNET_ROOT": "/opt/homebrew/opt/dotnet@10/libexec"
+      }
+    }
+  ]
+}

@@ -17,7 +17,9 @@ test("native source does not use the unsupported status accessibility role", () 
 const source = (file: string) => readFileSync(join(__dirname, "..", file), "utf8");
 
 test.each([
-  ["src/ui/AuthForm.tsx", "login-screen"],
+  ["app/(auth)/login.tsx", "login-screen"],
+  ["src/ui/AuthMethodTiles.tsx", "login-choose-email"],
+  ["src/ui/AuthMethodTiles.tsx", "login-passkey"],
   ["src/ui/AuthForm.tsx", "login-email"],
   ["src/ui/AuthForm.tsx", "login-password"],
   ["src/ui/AuthForm.tsx", "login-submit"],

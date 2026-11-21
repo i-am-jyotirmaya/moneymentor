@@ -19,6 +19,21 @@ function getAuthState(): AuthState | null {
   return (window.__spndrrAuthState ??= { session: null, refreshPromise: null });
 }
 
+let sessionRefreshGuard: (() => boolean) | undefined;
+
+export function configureSessionRefreshGuard(guard: () => boolean) {
+  sessionRefreshGuard = guard;
+  return () => { if (sessionRefreshGuard === guard) sessionRefreshGuard = undefined; };
+}
+
+export function canRefreshSession() {
+  return sessionRefreshGuard?.() ?? true;
+}
+
+export async function waitForSessionRefresh() {
+  await getAuthState()?.refreshPromise?.catch(() => undefined);
+}
+
 export function coordinateSessionRefresh(refresh: () => Promise<AuthSession>) {
   const state = getAuthState();
   if (state?.refreshPromise) return state.refreshPromise;

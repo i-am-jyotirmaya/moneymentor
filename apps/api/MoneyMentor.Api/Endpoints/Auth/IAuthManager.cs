@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using MoneyMentor.Infrastructure.Identity;
 
 namespace MoneyMentor.Api.Endpoints.Auth;
 
@@ -11,6 +12,11 @@ public interface IAuthManager
 
     Task<AuthManagerResult<AuthSessionResponse>> LoginAsync(
         LoginRequest request,
+        string? ipAddress,
+        CancellationToken cancellationToken);
+
+    Task<AuthManagerResult<AuthSessionResponse>> LoginWithPasskeyAsync(
+        ApplicationUser user,
         string? ipAddress,
         CancellationToken cancellationToken);
 

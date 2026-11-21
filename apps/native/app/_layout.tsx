@@ -7,6 +7,7 @@ import { BackHandler } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { SafeAreaInsetsContext } from "react-native-safe-area-context";
 import { backAction } from "../src/lib/back-policy";
+import { DeviceLockProvider, useDeviceLock } from "../src/auth/device-lock";
 import { SessionProvider, useSession } from "../src/auth/session";
 import { authHero } from "../src/auth/appearance";
 import { appFonts } from "../src/ui/fonts";
@@ -20,6 +21,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function Navigation() {
   const { status, session } = useSession();
+  const deviceLock = useDeviceLock();
   const segments = useSegments();
   const router = useRouter();
   const pathname = usePathname();
@@ -42,13 +44,13 @@ function Navigation() {
     return () => subscription.remove();
   }, [router, inWorkspace, pathname]);
   useEffect(() => {
-    if (inWorkspace && (status === "signedOut" || status === "unavailable")) {
+    if (deviceLock === "open" && inWorkspace && (status === "signedOut" || status === "unavailable")) {
       router.replace("/(auth)/login");
     }
-  }, [status, inWorkspace, router]);
+  }, [deviceLock, status, inWorkspace, router]);
   // Expo Router owns both the linking/navigation container and the root safe-area provider.
   // Keep one persistent Stack and let +native-intent normalize external URLs.
-  const workspaceScreen = inWorkspace && status === "authenticated" && !session?.requiresPrivacyConsent ? pathname : null;
+  const workspaceScreen = deviceLock === "open" && inWorkspace && status === "authenticated" && !session?.requiresPrivacyConsent ? pathname : null;
   return <NavigationSoundsProvider screen={workspaceScreen}>
     <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="(auth)" options={{ animation: reduced ? "none" : "fade", contentStyle: { backgroundColor: authHero.background } }} />
@@ -70,7 +72,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <ToastProvider bottomOffset={bottomInset + DOCK_SPACE}>
-          <SessionProvider><Navigation /></SessionProvider>
+          <SessionProvider><DeviceLockProvider><Navigation /></DeviceLockProvider></SessionProvider>
         </ToastProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

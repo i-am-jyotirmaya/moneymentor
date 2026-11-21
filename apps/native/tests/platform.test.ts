@@ -52,5 +52,6 @@ test('the splash config supplies both approved artwork variants and runs platfor
     imageWidth: 200,
     dark: { backgroundColor: '#0A0D18', image: './assets/splash-dark.png' },
   }]);
-  expect(config.plugins?.at(-1)).toBe('./plugins/with-platform');
+  expect(config.plugins?.at(-1)).toEqual(['./plugins/with-platform', { passkeyHost: expect.any(String) }]);
+  expect(config.ios?.associatedDomains).toContainEqual(expect.stringMatching(/^webcredentials:/));
 });

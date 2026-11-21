@@ -16,6 +16,9 @@ export class ApiError extends Error {
 export class SessionChangedError extends Error {
   constructor() { super("The signed-in session changed. Please try again."); this.name = "SessionChangedError"; }
 }
+export type PasskeySummary = { id: string; createdAt: string };
+type PasskeyOptions = { challengeId: string; publicKey: unknown };
+type CredentialPicker = (options: unknown) => Promise<Record<string, unknown> | null>;
 export type SessionState = { status: "signedOut" | "loading" | "authenticated" | "unavailable"; session: AuthSession | null };
 
 // Preserve every server error for web AuthForm parity; retain the lifted constructor API.
@@ -64,6 +67,13 @@ function validSettings(value: UserSettings | null): value is UserSettings {
 
 export class FinanceClient {
   private offline = false;
+  private deviceLocked = false;
+
+  setDeviceLocked(locked: boolean) { this.deviceLocked = locked; }
+
+  private requireDeviceUnlock() {
+    if (this.deviceLocked) throw new ApiError("Unlock Spndrr to continue.");
+  }
   private connectionRevision = 0;
   private connectionListeners = new Set<() => void>();
   getOffline = () => this.offline;
@@ -114,6 +124,36 @@ export class FinanceClient {
   signup(input: SignupInput): Promise<AuthSession> {
     return this.authenticate('/api/auth/users', { ...input, email: input.email.trim() });
   }
+  async loginWithPasskey(pickCredential: CredentialPicker): Promise<AuthSession | null> {
+    this.requireDeviceUnlock();
+    const epoch = this.epoch;
+    const options = await this.raw({ path: "/api/auth/passkeys/login/options", method: "POST" }) as PasskeyOptions;
+    const credential = await pickCredential(options.publicKey);
+    if (!credential) return null;
+    if (epoch !== this.epoch) throw new SessionChangedError();
+    return this.authenticate("/api/auth/passkeys/login/verify", { challengeId: options.challengeId, credential });
+  }
+  async registerPasskey(password: string, pickCredential: CredentialPicker): Promise<boolean> {
+    this.requireDeviceUnlock();
+    const epoch = this.epoch;
+    const expiresAt = this.state.session?.accessTokenExpiresAt;
+    if (expiresAt && Date.parse(expiresAt) <= Date.now() + 5 * 60_000) await this.refresh();
+    if (epoch !== this.epoch) throw new SessionChangedError();
+    const options = await this.request<PasskeyOptions>("/api/auth/passkeys/registration/options", "POST", { password });
+    const session = this.state.session;
+    if (!session || epoch !== this.epoch) throw new SessionChangedError();
+    const credential = await pickCredential(options.publicKey);
+    if (!credential) return false;
+    if (epoch !== this.epoch) throw new SessionChangedError();
+    // The OS picker can background the app. Finish the already-started ceremony with its original session.
+    await this.raw({ path: "/api/auth/passkeys/registration/verify", method: "POST",
+      body: { challengeId: options.challengeId, credential }, headers: { Authorization: `Bearer ${session.accessToken}` } });
+    return true;
+  }
+  listPasskeys() { return this.request<PasskeySummary[]>("/api/auth/passkeys"); }
+  removePasskey(id: string, password: string) {
+    return this.request<void>(`/api/auth/passkeys/${encodeURIComponent(id)}/remove`, "POST", { password });
+  }
   async registration(): Promise<RegistrationPolicy> {
     const value = await this.raw({ path: '/api/auth/registration', method: 'GET' }) as RegistrationPolicy | null;
     if (!value || !['Open', 'RequestOnly'].includes(value.mode)) throw new ApiError('Registration availability could not be verified. Try again.');
@@ -132,6 +172,7 @@ export class FinanceClient {
     return value;
   }
   private async authenticate(path: string, body: unknown): Promise<AuthSession> {
+    this.requireDeviceUnlock();
     const epoch = ++this.epoch;
     this.publish({ status: "loading", session: null });
     return this.serializeAuth(async () => {
@@ -150,6 +191,7 @@ export class FinanceClient {
     });
   }
   async restore(): Promise<void> {
+    this.requireDeviceUnlock();
     this.publish({ status: "loading", session: null });
     try { await this.refresh(); }
     catch (error) {
@@ -158,11 +200,13 @@ export class FinanceClient {
       throw error;
     }
   }
-  refresh(): Promise<AuthSession> {
+  async refresh(): Promise<AuthSession> {
+    this.requireDeviceUnlock();
     if (this.refreshFlight) return this.refreshFlight;
     const epoch = this.epoch;
     const flight = this.serializeAuth(async () => {
       try {
+        this.requireDeviceUnlock();
         const session = await this.raw({ path: "/api/auth/refresh", method: "POST" });
         if (epoch !== this.epoch) throw new SessionChangedError();
         if (!isSession(session)) throw new ApiError("The server returned an invalid session response.");
@@ -190,6 +234,7 @@ export class FinanceClient {
     });
   }
   async request<T>(path: string, method: HttpRequest["method"] = "GET", body?: unknown, headers?: Record<string, string>): Promise<T> {
+    this.requireDeviceUnlock();
     if (!path.startsWith("/api/") || path.includes("://") || path.includes("..")) throw new ApiError("Invalid API path.");
     if (this.offline && method !== 'GET') throw new ApiError("You're offline. Reconnect before making changes.", 0);
     const epoch = this.epoch;
@@ -197,7 +242,10 @@ export class FinanceClient {
     if (!session) throw new ApiError("Please sign in again.", 401);
     if (Date.parse(session.accessTokenExpiresAt) <= Date.now() + 30000) session = await this.refresh();
     if (epoch !== this.epoch) throw new SessionChangedError();
-    const send = (token: string) => this.raw({ path, method, body, headers: { ...headers, Authorization: `Bearer ${token}` } });
+    const send = (token: string) => {
+      this.requireDeviceUnlock();
+      return this.raw({ path, method, body, headers: { ...headers, Authorization: `Bearer ${token}` } });
+    };
     let result: unknown;
     try { result = await send(session.accessToken); }
     catch (error) {

@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   AndroidConfig, XML, withAndroidColors, withAndroidColorsNight, withAndroidManifest,
-  withAndroidStyles, withFinalizedMod, type ConfigPlugin,
+  withAndroidStyles, withFinalizedMod, withMainActivity, type ConfigPlugin,
 } from 'expo/config-plugins';
 
 export function withoutFontScale(value = '') {
@@ -21,7 +21,7 @@ function setStyle(xml: AndroidConfig.Resources.ResourceXML, parent: { name: stri
   AndroidConfig.Styles.assignStylesValue(xml, { add: true, parent, name, value });
 }
 
-const withPlatform: ConfigPlugin = config => {
+const withPlatform: ConfigPlugin<{ passkeyHost: string }> = (config, { passkeyHost }) => {
   config = withAndroidColors(config, mod => {
     for (const [name, value] of Object.entries(lightColors)) {
       AndroidConfig.Colors.assignColorValue(mod.modResults, { name, value });
@@ -68,6 +68,9 @@ const withPlatform: ConfigPlugin = config => {
     const drawable = join(res, 'drawable');
     const vectors = join(projectRoot, '..', '..', 'assets', 'branding', 'revamp', 'android');
     await mkdir(drawable, { recursive: true });
+    const statements = JSON.stringify([{ include: `https://${passkeyHost}/.well-known/assetlinks.json` }]);
+    await writeFile(join(res, "values", "passkey_statements.xml"),
+      `<resources><string name="spndrr_asset_statements" translatable="false">${statements.replaceAll('"', '\\"')}</string></resources>\n`);
     await Promise.all(['ic_launcher_foreground.xml', 'ic_launcher_monochrome.xml', 'spndrr_mark_splash.xml']
       .map(name => copyFile(join(vectors, name), join(drawable, name))));
 
@@ -83,10 +86,25 @@ const withPlatform: ConfigPlugin = config => {
     return mod;
   }]);
   config = withAndroidManifest(config, mod => {
+    const application = AndroidConfig.Manifest.getMainApplicationOrThrow(mod.modResults);
+    AndroidConfig.Manifest.addMetaDataItemToMainApplication(application, "asset_statements", "@string/spndrr_asset_statements", "resource");
     const activity = AndroidConfig.Manifest.getMainActivityOrThrow(mod.modResults);
     activity.$['android:configChanges'] = withoutFontScale(activity.$['android:configChanges']);
     // Preserve state flags but require IME resize for edge-to-edge screens.
     activity.$['android:windowSoftInputMode'] = withKeyboardResize(activity.$['android:windowSoftInputMode']);
+    return mod;
+  });
+  config = withMainActivity(config, mod => {
+    const marker = "    super.onCreate(null)";
+    if (!mod.modResults.contents.includes("setRecentsScreenshotEnabled(false)")) {
+      if (!mod.modResults.contents.includes(marker)) throw new Error("Could not configure Android app switcher privacy.");
+      mod.modResults.contents = mod.modResults.contents.replace(marker, `${marker}
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      setRecentsScreenshotEnabled(false)
+    } else {
+      window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+    }`);
+    }
     return mod;
   });
   // Night mode follows the system (userInterfaceStyle "automatic"); MainActivity no longer forces light.

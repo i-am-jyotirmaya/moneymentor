@@ -50,3 +50,115 @@ test("bundled routes render at a narrow phone width without horizontal overflow"
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await page.screenshot({ path: "test-results/mobile-login.png", fullPage: true });
 });
+
+test("saved sessions prompt automatically and stay covered after a canceled unlock", async ({ page }) => {
+  let refreshes = 0;
+  await page.addInitScript(() => {
+    localStorage.setItem("spndrr.native-session", "saved");
+    localStorage.setItem("spndrr.device-unlock", "biometrics");
+    let attempts = 0;
+    let foregroundChecks = 0;
+    const methods = (names: string[], rtype = "promise") => names.map(name => ({ name, rtype }));
+    Object.assign(window, {
+      CapacitorCustomPlatform: { name: "ios" },
+      Capacitor: {
+        PluginHeaders: [
+          { name: "App", methods: [...methods(["getLaunchUrl", "getState"]), ...methods(["addListener", "removeListener"], "callback")] },
+          { name: "BiometricAuthNative", methods: methods(["checkBiometry", "internalAuthenticate"]) },
+        ],
+        nativeCallback: async () => "listener",
+        nativePromise: async (_plugin: string, method: string) => {
+          if (method === "checkBiometry") return { deviceIsSecure: true };
+          if (method === "getState") return { isActive: ++foregroundChecks !== 3 };
+          if (method === "internalAuthenticate") {
+            document.documentElement.dataset.devicePrompts = String(++attempts);
+            if (attempts === 1) return new Promise((_, reject) => {
+              document.addEventListener("test-cancel-unlock", () => reject({ code: "userCancel" }), { once: true });
+            });
+          }
+        },
+      },
+    });
+  });
+  await page.route("**/api/auth/refresh", route => {
+    refreshes++;
+    return route.fulfill({ json: {
+      accessToken: "test-access-token", accessTokenExpiresAt: "2099-01-01T00:00:00Z", requiresPrivacyConsent: false,
+      user: { id: "test-user", displayName: "Tester", email: "tester@example.com", roles: [] },
+    } });
+  });
+  await page.goto("/login/");
+  const root = page.locator("html");
+  const password = page.getByLabel("Password", { exact: true });
+  const retry = page.getByRole("button", { name: "Try again" });
+  await expect(root).toHaveAttribute("data-device-prompts", "1");
+  await expect(password).toHaveCount(0);
+  await expect(retry).toHaveCount(0);
+  expect(refreshes).toBe(0);
+
+  await page.evaluate(() => document.dispatchEvent(new Event("test-cancel-unlock")));
+  await expect(retry).toBeVisible();
+  await expect(password).toHaveCount(0);
+  expect(refreshes).toBe(0);
+
+  await retry.click();
+  await expect(password).toBeVisible();
+  expect(refreshes).toBe(1);
+
+  await page.evaluate(() => document.dispatchEvent(new Event("pause")));
+  await expect(password).toHaveCount(0);
+  await expect(root).toHaveAttribute("data-device-prompts", "2");
+  await page.evaluate(() => document.dispatchEvent(new Event("resume")));
+  await expect(root).toHaveAttribute("data-device-prompts", "3");
+  await expect(password).toBeVisible();
+  expect(refreshes).toBe(1);
+});
+
+
+test("screen lock setup asks separately before enabling biometrics", async ({ page }) => {
+  await page.addInitScript(() => {
+    const methods = (names: string[], rtype = "promise") => names.map(name => ({ name, rtype }));
+    const mark = (method: string) => document.documentElement.setAttribute(`data-${method}`, "called");
+    Object.assign(window, {
+      CapacitorCustomPlatform: { name: "ios" },
+      Capacitor: {
+        PluginHeaders: [
+          { name: "App", methods: [...methods(["getLaunchUrl", "getState"]), ...methods(["addListener", "removeListener"], "callback")] },
+          { name: "SpndrrDeviceCredential", methods: methods(["authenticate"]) },
+          { name: "BiometricAuthNative", methods: methods(["internalAuthenticate"]) },
+        ],
+        nativeCallback: async () => "listener",
+        nativePromise: async (_plugin: string, method: string) => {
+          if (method === "getState") return { isActive: true };
+          if (method === "internalAuthenticate") mark("biometrics");
+          if (method === "authenticate") {
+            mark("screen-lock");
+            return { status: "success" };
+          }
+        },
+      },
+    });
+  });
+  await page.route("**/api/auth/login", route => route.fulfill({ json: {
+    accessToken: "test-access-token", accessTokenExpiresAt: "2099-01-01T00:00:00Z", requiresPrivacyConsent: false,
+    user: { id: "test-user", displayName: "Tester", email: "tester@example.com", roles: [] },
+  } }));
+  await page.goto("/login/");
+  await page.getByLabel("Email", { exact: true }).fill("tester@example.com");
+  await page.getByLabel("Password", { exact: true }).fill("test-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  const root = page.locator("html");
+  await expect(page.getByRole("heading", { name: "Secure Spndrr with your screen lock?" })).toBeVisible();
+  await page.getByRole("button", { name: "Use screen lock", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Use Face ID or fingerprint?" })).toBeVisible();
+  await expect(root).not.toHaveAttribute("data-biometrics", "called");
+  await expect(root).not.toHaveAttribute("data-screen-lock", "called");
+  await page.getByRole("button", { name: "Use screen lock only" }).click();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("spndrr.device-unlock"))).toBe("screen-lock");
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event("pause"));
+    document.dispatchEvent(new Event("resume"));
+  });
+  await expect(root).toHaveAttribute("data-screen-lock", "called");
+  await expect(root).not.toHaveAttribute("data-biometrics", "called");
+});

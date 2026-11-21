@@ -51,7 +51,7 @@ build() {
   local workspace scheme app
   local -a signing_options=()
   if [[ "$TARGET" == simulator ]]; then
-    signing_options=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO)
+    signing_options=(CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES)
   else
     [[ -n "${DEVELOPMENT_TEAM:-}" ]] || fail "Set DEVELOPMENT_TEAM to your Apple development team ID. Install your signing certificate/profile in Xcode first."
     signing_options=("DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM")

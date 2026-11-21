@@ -22,3 +22,9 @@ export const authHero = {
   formGradient: "radial-gradient(ellipse at 100% 50%, #243D98 0%, #243D9800 72%), linear-gradient(140deg, #101B43, #121F53)",
   formImageShade: "linear-gradient(90deg, #0E1636 3%, #0E1636E8 32%, #0E163673 55%, #0E163600 83%)",
 } as const;
+
+// Solid fills from the approved sign-in chooser, matching its light and dark options.
+export const authMethods = {
+  light: { email: "#2944D4", passkey: "#334775", provider: "#DCE3F0", apple: "#151927" },
+  dark: { email: "#465FE4", passkey: "#425789", provider: "#333E56", apple: "#F7F9FF" },
+} as const;

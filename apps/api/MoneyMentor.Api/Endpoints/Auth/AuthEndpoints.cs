@@ -78,6 +78,7 @@ public static class AuthEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces<AuthErrorResponse>(StatusCodes.Status404NotFound);
 
+        group.MapPasskeyEndpoints();
         return group;
     }
 
@@ -240,7 +241,7 @@ public static class AuthEndpoints
     private static string? GetIpAddress(HttpContext httpContext) =>
         httpContext.Connection.RemoteIpAddress?.ToString();
 
-    private static IResult ToSessionResult(
+    internal static IResult ToSessionResult(
         AuthManagerResult<AuthSessionResponse> result,
         HttpContext httpContext,
         AuthCookieOptions cookieOptions)

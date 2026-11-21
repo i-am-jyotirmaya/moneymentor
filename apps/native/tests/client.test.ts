@@ -220,3 +220,33 @@ test('a read already in flight cannot clear a newer offline failure', async () =
   await client.request('/api/retry');
   expect(client.getOffline()).toBe(false);
 });
+
+test("passkey sign-in sends the verified credential to the session endpoint and persists the session", async () => {
+  const options = { challenge: "authenticator-challenge" };
+  const credential = { id: "credential-id", type: "public-key" };
+  const picker = jest.fn(async () => credential);
+  fetchMock.mockResolvedValueOnce(response(200, { challengeId: "server-challenge", publicKey: options }))
+    .mockResolvedValueOnce(response(200, session));
+  const client = createFinanceClient("https://api.example.test");
+
+  expect(await client.loginWithPasskey(picker)).toEqual(session);
+  expect(picker).toHaveBeenCalledWith(options);
+  expect(fetchMock.mock.calls.map(([url]) => new URL(url).pathname)).toEqual([
+    "/api/auth/passkeys/login/options", "/api/auth/passkeys/login/verify",
+  ]);
+  expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ challengeId: "server-challenge", credential });
+  expect(await getAccessToken()).toBe(session.accessToken);
+});
+
+test("a locked client waits for device unlock before restoring or requesting private data", async () => {
+  const client = createFinanceClient("https://api.example.test");
+  client.setDeviceLocked(true);
+  await expect(client.restore()).rejects.toThrow("Unlock Spndrr");
+  await expect(client.request("/api/transactions")).rejects.toThrow("Unlock Spndrr");
+  expect(fetchMock).not.toHaveBeenCalled();
+
+  client.setDeviceLocked(false);
+  fetchMock.mockResolvedValueOnce(response(200, session));
+  await client.restore();
+  expect(client.getSnapshot().session).toEqual(session);
+});

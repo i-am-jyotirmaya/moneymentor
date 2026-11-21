@@ -59,9 +59,13 @@ Start Metro separately with `pnpm --filter native start` for the development cli
   set `SPNDRR_AVD` to choose one. For USB/Wi-Fi devices, enable debugging and
   authorize or pair/connect with adb first.
 - iOS uses locally generated native projects and Xcode. Choose a simulator by
-  UDID with `xcrun simctl list devices available`, or a connected device with
-  `xcrun devicectl list devices`. Set `DEVELOPMENT_TEAM` for physical-device
-  signing; optionally set `PROVISIONING_PROFILE_SPECIFIER` and `CODE_SIGN_IDENTITY`.
+  UDID with `xcrun simctl list devices available`. `run:ios simulator` generates
+  the Debug simulator Keychain entitlements with the `LOCALDEV01` prefix during
+  prebuild and signs the build ad hoc. The simulator command needs no Apple
+  development team or manual Xcode project edits.
+- Choose a connected iOS device with `xcrun devicectl list devices`. Set
+  `DEVELOPMENT_TEAM` for physical-device signing. Optionally set
+  `PROVISIONING_PROFILE_SPECIFIER` and `CODE_SIGN_IDENTITY`.
   Automatic provisioning updates are opt-in with `SPNDRR_IOS_ALLOW_PROVISIONING_UPDATES=1`.
   Signing identities and profiles must already be available locally; never put
   credentials, signing secrets or real test accounts into this repository.
@@ -80,6 +84,83 @@ requests retain `credentials: "include"`. End-to-end platform cookie behavior is
 not asserted by mocked unit tests.
 
 
+### Troubleshoot iOS simulator sign-in
+
+On the iPhone 16 simulator, Spndrr Dev showed “Could not connect to Spndrr” even
+after the local API returned `Healthy`. The simulator log showed Keychain error
+`-34018`: the installed build had neither an `application-identifier` nor a
+`keychain-access-groups` entitlement. Spndrr clears its stored tokens before
+sending a login request, so the failure happened before the API received the
+request. [Apple's Keychain troubleshooting guide](https://developer.apple.com/forums/thread/114456)
+
+To check for this failure, reproduce it once and inspect the simulator log.
+Use the UDID from `xcrun simctl list devices booted`.
+
+```sh
+xcrun simctl spawn <simulator-UDID> log show --last 5m --style compact \
+  --predicate 'process == "securityd" AND eventMessage CONTAINS[c] "SpndrrDev"'
+```
+
+#### Rebuild with simulator signing
+
+The repository's `run:ios simulator` build disables signing. Manually signing
+the finished bundle caused a launch failure. Building with Xcode's simulator
+signing pipeline generated the entitlements the simulator needed.
+
+1. In the generated `apps/native/ios/SpndrrDev` directory, copy
+   `SpndrrDev.entitlements` to `SpndrrDevSimulator.entitlements`. Preserve the
+   existing keys and add an `application-identifier` string and a
+   `keychain-access-groups` array with the same app-specific value. This build
+   used `LOCALDEV01.com.spndrr.app.dev` for both.
+2. In the generated `SpndrrDev.xcodeproj/project.pbxproj`, add the following
+   build setting next to the existing `CODE_SIGN_ENTITLEMENTS` setting for the
+   app target's Debug configuration. The SDK qualifier scopes it to simulator
+   builds.
+
+   ```text
+   "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = SpndrrDev/SpndrrDevSimulator.entitlements;
+   ```
+
+3. With the generated iOS workspace and Pods in place, build from the repository
+   root. Then install the signed artifact using the existing install command.
+
+   ```sh
+   xcodebuild -workspace apps/native/ios/SpndrrDev.xcworkspace -scheme SpndrrDev \
+     -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+     -derivedDataPath "$PWD/apps/native/dist/local/ios/simulator/derived-data" \
+     CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES build
+
+   pnpm --filter native install:ios simulator <simulator-UDID>
+   ```
+
+#### Set up and verify the API
+
+- **Local API.** Start Homebrew PostgreSQL with `brew services start postgresql@15`
+  and provision the development database and role in the [backend setup](../api/README.md).
+  The migration failed until `pgvector` was installed for PostgreSQL 15. Build
+  the extension from source with Homebrew's PostgreSQL 15 `pg_config`, then run
+  `CREATE EXTENSION IF NOT EXISTS vector;` in the local `moneymentor` database as
+  a PostgreSQL administrator. Run the Operations `migrate` command afterward.
+  DBeaver connected to `moneymentor` on `localhost:5432`.
+  [pgvector build instructions](https://github.com/pgvector/pgvector#linux-and-mac)
+- **VS Code.** Install the .NET 10 SDK and Microsoft's C# Dev Kit. In this setup,
+  macOS rejected the Homebrew .NET host inside the Dev Kit process because of a
+  code-signing mismatch. Pointing the VS Code user setting
+  `dotnetAcquisitionExtension.sharedExistingDotnetPath` at Microsoft's signed
+  `dotnet` executable fixed solution discovery. The local
+  **Spndrr API (local HTTP)** launch configuration builds `MoneyMentor.Api`
+  and uses its `http` profile. If the debugger reports a missing runtime with
+  Homebrew .NET, set `DOTNET_ROOT` in the launch environment to the SDK's
+  `libexec` directory. Confirm readiness at `http://localhost:5267/health/ready`.
+- **Simulator verification.** Set `EXPO_PUBLIC_API_BASE_URL=http://localhost:5267`
+  in `apps/native/.env`. Start Metro with
+  `pnpm --filter native start --localhost` and relaunch Spndrr Dev after changing
+  the origin. A disposable sign-in reached the local API and received the
+  expected credentials rejection because the fresh database had no users.
+  After switching the origin to `https://api.spndrr.com` and relaunching, a
+  single simulator sign-in returned HTTP 200 and the authenticated workspace
+  requests succeeded.
+
 ## M1 — Auth parity
 
 Login, request access, invitation entry, and gated signup preserve the Capacitor
@@ -97,9 +178,9 @@ text support larger font scales without fixed text-container heights. Policy
 links and the consent checkbox are separate touch targets.
 
 `src/auth/session.tsx` provides one client and a `useSyncExternalStore` session
-subscription. Startup calls `restore()` using the refresh cookie; authenticated
-sessions enter Assistant, and signed-out startup shows the home gate with Login
-and registration actions. Sign-out and failed refresh route to login, matching
+subscription. Startup presents the system unlock prompt automatically for a saved session and
+refreshes through the HttpOnly cookie after unlock. Signed-out startup shows the home
+gate with Login and registration actions. Sign-out and failed refresh route to login, matching
 the web workspace controller. Protected tabs leave
 on signed-out/unavailable state. A 401 refreshes once and retries once; concurrent
 401s share refresh. Settings shows the session name/email and signs out through
@@ -126,6 +207,23 @@ parsing. No dependencies were added. Manual device verification still needed:
   Back and the close button, verifying retained values and unchanged consent.
 - At Android fontScale 1.3, scroll the entire policy and check the app bar/close
   target; test keyboard scrolling and invitation entry on both platforms.
+
+## Passkeys and device unlock
+
+On the first password sign-in on a supported device, Spndrr offers to set up a
+passkey if the account has none. Confirm your password to create one, or choose
+**Later** and set it up in **Settings → Passkeys**. After enrollment, choose
+**Sign in with a passkey** on the login screen to open the system credential picker.
+After sign-in, choose whether to protect the saved session with your device’s
+screen lock. If you enable app lock, Spndrr asks separately before enabling
+Face ID or fingerprint unlock. Both choices are saved on the device.
+Screen lock alone uses your device PIN, pattern, or passcode. Declining app lock
+keeps you signed in for the current run and requires account sign-in after a
+restart. Existing installations without a saved choice sign in once to set up
+app lock. After a canceled or failed unlock, try again or sign out.
+
+See [Mobile passkey setup](../../docs/mobile-passkeys.md) for domain associations,
+API configuration, and physical-device verification.
 
 ## Native E2E smoke (Maestro, local only)
 

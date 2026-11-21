@@ -2,6 +2,8 @@ import type { ExpoConfig } from "expo/config";
 
 const origin = new URL(process.env.EXPO_PUBLIC_WEB_APP_URL ?? "https://mvp.spndrr.com");
 
+const passkeyHost = process.env.EXPO_PUBLIC_PASSKEY_RP_ID ?? origin.hostname;
+
 const config: ExpoConfig = {
   name: "Spndrr Dev",
   slug: "spndrr",
@@ -21,13 +23,15 @@ const config: ExpoConfig = {
       { scheme: "https", host: origin.hostname, path: "/signup/" },
     ] }],
   },
-  ios: { bundleIdentifier: "com.spndrr.app.dev", associatedDomains: [`applinks:${origin.hostname}`] },
+  ios: { bundleIdentifier: "com.spndrr.app.dev", associatedDomains: [`applinks:${origin.hostname}`, `webcredentials:${passkeyHost}`] },
   // Run our native overrides after the standard plugins configure the activity.
   plugins: [
     "expo-router", "expo-secure-store", "expo-dev-client",
+    ["expo-local-authentication", { faceIDPermission: "Use Face ID to unlock Spndrr." }],
     ["expo-audio", { microphonePermission: false, recordAudioAndroid: false, enableBackgroundPlayback: false }],
     ["expo-splash-screen", { backgroundColor: "#F4F6FB", image: "./assets/splash.png", imageWidth: 200, dark: { backgroundColor: "#0A0D18", image: "./assets/splash-dark.png" } }],
-    "./plugins/with-platform",
+    "./plugins/with-simulator-entitlements",
+    ["./plugins/with-platform", { passkeyHost }],
   ],
   extra: { apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL },
 };
