@@ -4,10 +4,12 @@ import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useContext, useEffect } from "react";
 import { BackHandler } from "react-native";
+import { useReducedMotion } from "react-native-reanimated";
 import { SafeAreaInsetsContext } from "react-native-safe-area-context";
 import { backAction } from "../src/lib/back-policy";
 import { DeviceLockProvider, useDeviceLock } from "../src/auth/device-lock";
 import { SessionProvider, useSession } from "../src/auth/session";
+import { authHero } from "../src/auth/appearance";
 import { appFonts } from "../src/ui/fonts";
 import { ThemeProvider } from "../src/ui/ThemeProvider";
 import { ToastProvider } from "../src/ui/Toast";
@@ -23,7 +25,14 @@ function Navigation() {
   const segments = useSegments();
   const router = useRouter();
   const pathname = usePathname();
+  const reduced = useReducedMotion();
   const inWorkspace = segments[0] === "(tabs)";
+  useEffect(() => {
+    // The floating developer button should never cover the welcome or form headers.
+    if (!__DEV__) return;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- dev-client can be absent from native builds
+    try { require("expo-dev-client").setToolsButtonVisible(false); } catch { /* older dev client */ }
+  }, []);
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
       const action = backAction(router.canGoBack(), inWorkspace, pathname);
@@ -43,7 +52,9 @@ function Navigation() {
   // Keep one persistent Stack and let +native-intent normalize external URLs.
   const workspaceScreen = deviceLock === "open" && inWorkspace && status === "authenticated" && !session?.requiresPrivacyConsent ? pathname : null;
   return <NavigationSoundsProvider screen={workspaceScreen}>
-    <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }} />
+    <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colors.background } }}>
+      <Stack.Screen name="(auth)" options={{ animation: reduced ? "none" : "fade", contentStyle: { backgroundColor: authHero.background } }} />
+    </Stack>
   </NavigationSoundsProvider>;
 }
 export default function RootLayout() {
