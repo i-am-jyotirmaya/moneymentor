@@ -3,7 +3,6 @@ import { useContext, useEffect, useState } from "react";
 import { AccessibilityInfo, Keyboard, Platform, Pressable, StyleSheet, Text as NativeText, TextInput, View, type StyleProp, type TextInputProps, type TextStyle, type ViewStyle } from "react-native";
 import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { ApiError } from "../api/client";
-import { getPasskeyCredential, supportsPasskeys } from "../auth/passkeys";
 import { registrationIsOpen } from "../auth/registration";
 import { useSession } from "../auth/session";
 import { authFieldLocks, validateAuthForm } from "../auth/validation";
@@ -117,6 +116,13 @@ function RegistrationLink() {
   </View>;
 }
 
+export function LoginFooter({ onPrivacy }: { onPrivacy: () => void }) {
+  return <View style={local.footer}>
+    <RegistrationLink />
+    <AuthLink title="Privacy policy" onPress={onPrivacy} />
+  </View>;
+}
+
 export function AuthLink({ title, onPress }: { title: string; onPress: () => void }) {
   return <Pressable accessibilityRole="link" onPress={onPress} style={({ pressed }) => [local.link, pressed && local.pressed]}>
     <Text variant="label" tone="primaryText">{title}</Text>
@@ -168,7 +174,7 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const signup = mode === "signup", request = mode === "request";
+  const login = mode === "login", signup = mode === "signup", request = mode === "request";
   const locks = authFieldLocks(invitation);
   useEffect(() => {
     if (sent && Platform.OS === "ios") AccessibilityInfo.announceForAccessibility("Request received. If you’re approved, we’ll email you a signup link.");
@@ -192,26 +198,16 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
       setError(caught instanceof ApiError ? caught.errors.join(" ") : "Could not connect to Spndrr. Please try again in a moment.");
     } finally { setBusy(false); }
   }
-  async function signInWithPasskey() {
-    if (busy) return;
-    Keyboard.dismiss(); setError(""); setBusy(true);
-    try {
-      const session = await client.loginWithPasskey(options => getPasskeyCredential("get", options));
-      if (session) router.replace("/(tabs)/assistant");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not sign in with a passkey.");
-    } finally { setBusy(false); }
-  }
-  const title = sent ? "Request\nreceived." : request ? "Request\nMVP access." : signup ? "Create your\naccount." : "Welcome\nback.";
+  const title = sent ? "Request\nreceived." : request ? "Request\nMVP access." : signup ? "Create your\naccount." : "Welcome";
   const intro = request ? "Tell us a little about yourself. If you’re approved, we’ll email you a signup link."
     : signup ? (invitation ? "Your invitation is ready. Set up your account to start tracking." : "Set up your account to start tracking.")
-    : "Sign in to pick up where you left off.";
+    : "";
   const existingAccount = <View style={local.switchRow}>
     <Text variant="caption" tone="text2">Have an account?</Text>
     <AuthLink title="Sign in" onPress={() => router.navigate("/(auth)/login")} />
   </View>;
 
-  return <AuthFrame testID={mode === "login" ? "login-screen" : undefined} title={title} expandedHero={mode === "login"}>
+  return <AuthFrame testID={login ? "login-email-screen" : undefined} title={title} titleAccent={login ? "back." : undefined}>
     {sent ? (
       <Animated.View entering={reveal} accessibilityLiveRegion="polite" style={local.confirmation}>
         <Icon name={{ ios: "checkmark.circle.fill", android: "check_circle" }} size={44} color="primaryText" />
@@ -221,23 +217,22 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
       </Animated.View>
     ) : (
       <>
-        <Text tone="text2" style={local.intro}>{intro}</Text>
-        {mode === "login" && supportsPasskeys() && <Button disabled={busy} variant="tonal"
-          testID="login-passkey" title="Sign in with a passkey" onPress={() => void signInWithPasskey()} />}
+        {login ? <Text variant="headline" accessibilityRole="header">Sign in with email</Text>
+          : <Text tone="text2" style={local.intro}>{intro}</Text>}
 
-        {mode !== "login" && <Field auth label="Full name" placeholder="e.g. Aarav Shah" maxLength={128}
+        {!login && <Field auth label="Full name" placeholder="e.g. Aarav Shah" maxLength={128}
           value={displayName} onChangeText={setDisplayName} autoComplete="name" textContentType="name" />}
-        <Field auth label={locks.email ? "Invited email" : "Email address"} testID={mode === "login" ? "login-email" : undefined}
+        <Field auth label={locks.email ? "Invited email" : "Email address"} testID={login ? "login-email" : undefined}
           placeholder="you@example.com" maxLength={256} value={email} onChangeText={setEmail} keyboardType="email-address"
-          autoCapitalize="none" autoCorrect={false} spellCheck={false} autoComplete={mode === "login" ? "username" : "email"}
-          textContentType={mode === "login" ? "username" : "emailAddress"} editable={!locks.email} />
+          autoCapitalize="none" autoCorrect={false} spellCheck={false} autoComplete={login ? "username" : "email"}
+          textContentType={login ? "username" : "emailAddress"} editable={!locks.email} />
         {locks.email && <Text variant="caption" tone="text2" style={local.associatedHint}>This email is linked to your invitation.</Text>}
 
         {request ? <>
           <Field auth optional label="What would you like to track?" placeholder="e.g. Everyday spending"
             value={reason} onChangeText={setReason} maxLength={1000} multiline style={local.reason} />
           <Text variant="caption" tone="text2">We’ll use these details to review your request and contact you about access.</Text>
-        </> : <Field auth label="Password" testID={mode === "login" ? "login-password" : undefined}
+        </> : <Field auth label="Password" testID={login ? "login-password" : undefined}
           placeholder={signup ? "At least 8 characters" : "Enter your password"} value={password} onChangeText={setPassword}
           secureTextEntry autoCapitalize="none" autoCorrect={false} spellCheck={false}
           autoComplete={signup ? "new-password" : "current-password"} textContentType={signup ? "newPassword" : "password"}
@@ -253,15 +248,22 @@ export function AuthForm({ mode, invitation }: { mode: "login" | "signup" | "req
         </View>}
 
         <ErrorBox message={error} />
-        <AuthPrimary loading={busy} testID={mode === "login" ? "login-submit" : undefined}
+        <AuthPrimary loading={busy} testID={login ? "login-submit" : undefined}
           label={request ? "Send access request" : signup ? "Create account" : "Sign in"} onPress={() => { void submit(); }} />
 
         {request && <InvitationLinkForm />}
-        {mode === "login" && <RegistrationLink />}
-        <View style={[local.footer, request && local.requestFooter]}>
-          {mode !== "login" && existingAccount}
+        {login ? <>
+          <View style={local.methodLink}>
+            <AuthLink title="Other sign-in methods" onPress={() => {
+              Keyboard.dismiss();
+              router.dismissTo("/(auth)/login");
+            }} />
+          </View>
+          <LoginFooter onPrivacy={openPolicy} />
+        </> : <View style={[local.footer, request && local.requestFooter]}>
+          {existingAccount}
           {!signup && <AuthLink title="Privacy policy" onPress={openPolicy} />}
-        </View>
+        </View>}
       </>
     )}
     <PrivacyPolicySheet visible={policy} onClose={() => setPolicy(false)} />
@@ -293,6 +295,7 @@ const local = StyleSheet.create({
   switchRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 6 },
   policyRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", columnGap: 8 },
   check: { minHeight: 48, flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 7 },
+  methodLink: { alignItems: "center" },
   footer: { marginTop: "auto", alignItems: "center" },
   requestFooter: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", columnGap: 6 },
   invitation: { borderBottomWidth: StyleSheet.hairlineWidth },

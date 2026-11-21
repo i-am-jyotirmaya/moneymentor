@@ -26,6 +26,8 @@ appId: com.spndrr.app.dev
       id: "login-screen"
     timeout: 120000
 - tapOn:
+    id: "login-choose-email"
+- tapOn:
     id: "login-email"
 - inputText:
     text: "${MAESTRO_TEST_EMAIL}"
@@ -107,5 +109,5 @@ appId: com.spndrr.app.dev
       id: "login-screen"
     timeout: 120000
 - assertVisible:
-    id: "login-email"
+    id: "login-choose-email"
 - takeScreenshot: signed-out-login

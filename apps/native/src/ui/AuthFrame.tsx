@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
-import { I18nManager, Keyboard, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { I18nManager, Keyboard, Platform, ScrollView, StyleSheet, Text as NativeText, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AndroidKeyboardFrame } from "./AndroidKeyboardFrame";
@@ -16,9 +16,9 @@ const titleEntrance = authEntrance();
 const formEntrance = authEntrance(dur.instant);
 
 export function AuthFrame({
-  title, children, expandedHero = false, testID,
+  title, titleAccent, children, expandedHero = false, testID,
 }: {
-  title: string; children: ReactNode; expandedHero?: boolean; testID?: string;
+  title: string; titleAccent?: string; children: ReactNode; expandedHero?: boolean; testID?: string;
 }) {
   const router = useRouter();
   const { color, radius } = useTheme();
@@ -54,7 +54,9 @@ export function AuthFrame({
                   <AuthBrand compact />
                 </View>
                 <Animated.View entering={titleEntrance} style={expandedHero && styles.expandedTitle}>
-                  <Text accessibilityRole="header" variant="displayXl" style={[styles.title, expandedHero && styles.largeTitle]}>{title}</Text>
+                  <Text accessibilityRole="header" variant="displayXl" style={[styles.title, expandedHero && styles.largeTitle]}>
+                    {title}{titleAccent && <NativeText style={styles.titleAccent}>{"\n"}{titleAccent}</NativeText>}
+                  </Text>
                 </Animated.View>
               </View>
             </View>
@@ -95,8 +97,9 @@ const styles = StyleSheet.create({
     backgroundColor: authHero.backFill, borderWidth: 1, borderColor: authHero.backOutline,
   },
   title: { color: authHero.white, fontSize: 42, lineHeight: 43, letterSpacing: -1.9 },
+  titleAccent: { color: authHero.ice },
   expandedTitle: { marginTop: 13 },
-  largeTitle: { fontSize: 50, lineHeight: 51, letterSpacing: -2.2 },
+  largeTitle: { fontSize: 56, lineHeight: 57, letterSpacing: -2.4 },
   sheet: { flexGrow: 1, marginTop: -12 },
   form: { flexGrow: 1, width: "100%", maxWidth: 520, alignSelf: "center", paddingHorizontal: 24, paddingTop: 19, paddingBottom: 9, gap: 12 },
   expandedForm: { paddingTop: 25, gap: 16 },
