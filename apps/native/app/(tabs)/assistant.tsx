@@ -13,6 +13,7 @@ import { Chip, Icon, PressableScale, TxRow, useThemedStyles, type IconName } fro
 import { useTheme, type ThemeValue } from '../../src/ui/ThemeProvider';
 import { useDockSpace } from '../../src/workspace/dock';
 import { useWorkspace } from '../../src/workspace/context';
+import { useVoiceInput } from '../../src/workspace/voice-input';
 import { askExamples, assistantError, buildAssistantRequest, hasConversation, initialAssistantMessages, logExamples, looksLikeFinanceQuestion, responseMessage, userMessage } from '../../src/workspace/assistant-data';
 
 export default function Assistant() {
@@ -29,6 +30,7 @@ function AssistantChat() {
   const setHistory = history.setData;
   const [messages, setMessages] = useState(() => history.data ?? initialAssistantMessages());
   const [text, setText] = useState('');
+  const [inputMode, setInputMode] = useState<'Text' | 'Voice'>('Text');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lock = useRef(false);
@@ -45,18 +47,20 @@ function AssistantChat() {
   const [fillNonce, setFillNonce] = useState(0);
   const focusKey = `${compose ?? ''}:${at ?? ''}:${fillNonce}`;
   const autoFocus = !!at || fillNonce > 0;
-  function fill(example: string) { setText(example); setFillNonce(n => n + 1); }
+  const voice = useVoiceInput(transcript => { setText(transcript); setInputMode('Voice'); }, setError, workspace.householdId);
+  const voiceBusy = voice.state !== 'idle';
+  function fill(example: string) { if (voiceBusy) return; setText(example); setInputMode('Text'); setFillNonce(n => n + 1); }
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => { setHistory(messages); }, [messages, setHistory]);
   async function submit() {
-    if (offline || !text.trim() || lock.current) return;
+    if (offline || voiceBusy || !text.trim() || lock.current) return;
     const selected = workspace.households?.households.find(h => h.id === workspace.householdId);
     if (selected?.canWrite === false && !looksLikeFinanceQuestion(text.trim())) {
       setError('This household is read-only for Viewers. You can still ask finance questions.'); return;
     }
     lock.current = true; setBusy(true); setError(null);
-    const request = buildAssistantRequest(text, workspace.settings?.currencyCode ?? workspace.dashboard?.currencyCode ?? 'INR', workspace.householdId);
-    setMessages(current => [...current, userMessage(text)]); setText('');
+    const request = buildAssistantRequest(text, workspace.settings?.currencyCode ?? workspace.dashboard?.currencyCode ?? 'INR', workspace.householdId, undefined, inputMode);
+    setMessages(current => [...current, userMessage(text)]); setText(''); setInputMode('Text');
     try {
       const result = await client.sendAssistant(request);
       if (result.transaction) workspace.retry();
@@ -103,7 +107,7 @@ function AssistantChat() {
       <ScrollView ref={list} style={{ flex: 1 }} contentContainerStyle={s.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => conversation && list.current?.scrollToEnd({ animated: true })} onLayout={() => conversation && list.current?.scrollToEnd({ animated: false })}>
         {!conversation ? <View testID="assistant-empty" style={s.empty}>
           <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={s.display}>Log it, or ask about it.</Text>
-          <Text style={s.body}>Type what you spent or received the way you’d text a friend, or ask anything about your money.</Text>
+          <Text style={s.body}>Type or speak what you spent or received, or ask anything about your money.</Text>
           <View style={s.examples}>{logExamples.map(example => <Example key={example} text={example} icon={{ android: 'north_west', ios: 'arrow.up.left' }} onPress={() => fill(example)} />)}</View>
           <Text style={s.overline}>Or ask</Text>
           <View style={s.examples}>{askExamples.map(example => <Chip key={example} label={example} icon={{ android: 'forum', ios: 'bubble.left.and.bubble.right' }} onPress={() => fill(example)} />)}</View>
@@ -124,13 +128,18 @@ function AssistantChat() {
           </Animated.View>)}
         {busy ? <View style={[s.bubble, s.assistant, s.pending]} accessible accessibilityRole="progressbar" accessibilityLabel="Sending message" accessibilityState={{ busy: true }} accessibilityLiveRegion="polite"><TypingDots /></View> : null}
       </ScrollView>
-      <View style={s.composer}>{error && !offline && !banner ? <Text accessibilityRole="alert" style={s.error}>{error}</Text> : null}<View style={s.inputRow}>
+      <View style={s.composer}>{error && !offline && !banner ? <Text accessibilityRole="alert" style={s.error}>{error}</Text> : null}
+        {voiceBusy ? <View style={s.voiceStatus}><Text accessibilityLiveRegion="polite" style={s.body}>{voice.state === 'permission' ? 'Waiting for microphone…' : voice.state === 'finishing' ? 'Transcribing…' : 'Listening… Tap stop when finished.'}</Text><SmallButton icon={{ android: 'close', ios: 'xmark' }} label="Cancel" onPress={voice.cancel} /></View> : null}
+        <View style={s.inputRow}>
         <PlaceholderInput key={focusKey} autoFocus={autoFocus} testID="assistant-input" accessibilityLabel="Message Spndrr"
           wrapperStyle={s.inputWrapper} style={[s.inputText, s.input, Platform.OS === 'ios' && !text && s.emptyInput]}
           placeholderStyle={s.inputText}
-          placeholderOverlayStyle={s.inputPlaceholderOverlay} multiline maxLength={4000} editable={!offline}
-          placeholder={placeholder} placeholderTextColor={theme.color.text3} value={text} onChangeText={setText} />
-        <Pressable testID="assistant-send" accessibilityRole="button" accessibilityLabel={busy ? 'Sending message' : 'Send message'} accessibilityState={{ disabled: busy || offline, busy }} disabled={busy || offline} accessibilityHint={offline ? "You're offline" : undefined} onPress={() => void submit()} style={[s.send, (busy || !text.trim()) && { opacity: 0.6 }]}>
+          placeholderOverlayStyle={s.inputPlaceholderOverlay} multiline maxLength={4000} editable={!offline && !voiceBusy}
+          placeholder={placeholder} placeholderTextColor={theme.color.text3} value={text} onChangeText={value => { setText(value); if (!value.trim()) setInputMode('Text'); }} />
+        <Pressable testID="assistant-voice" accessibilityRole="button" accessibilityLabel={voice.state === 'listening' ? 'Stop voice input' : 'Start voice input'} disabled={busy || offline || (voiceBusy && voice.state !== 'listening') || (!voiceBusy && !!text.trim())} accessibilityState={{ disabled: busy || offline || (voiceBusy && voice.state !== 'listening') || (!voiceBusy && !!text.trim()) }} onPress={() => { if (voice.state === 'listening') void voice.stop(); else { setError(null); void voice.start(); } }} style={[s.mic, voice.state === 'listening' && { backgroundColor: theme.color.negativeContainer }, (busy || offline || (!voiceBusy && !!text.trim())) && { opacity: 0.5 }]}>
+          <Icon name={voice.state === 'listening' ? { android: 'stop', ios: 'stop.fill' } : { android: 'mic', ios: 'mic.fill' }} color={voice.state === 'listening' ? theme.color.negative : theme.color.text} />
+        </Pressable>
+        <Pressable testID="assistant-send" accessibilityRole="button" accessibilityLabel={busy ? 'Sending message' : 'Send message'} accessibilityState={{ disabled: busy || offline || voiceBusy, busy }} disabled={busy || offline || voiceBusy} accessibilityHint={offline ? "You're offline" : undefined} onPress={() => void submit()} style={[s.send, (busy || voiceBusy || !text.trim()) && { opacity: 0.6 }]}>
           <Icon name={{ android: 'arrow_upward', ios: 'arrow.up' }} color={theme.color.onPrimary} />
         </Pressable>
       </View></View>
@@ -203,4 +212,6 @@ const makeStyles = (t: ThemeValue) => ({
   inputPlaceholderOverlay: { top: inputInsets.vertical + inputInsets.border,
     left: inputInsets.horizontal + inputInsets.border, right: inputInsets.horizontal + inputInsets.border },
   send: { height: 56, width: 56, borderRadius: 28, backgroundColor: t.color.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  mic: { height: 56, width: 48, borderRadius: 28, backgroundColor: t.color.surfaceRaised, alignItems: 'center' as const, justifyContent: 'center' as const },
+  voiceStatus: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, gap: 8 },
 });

@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["SpndrrSpeechModule"] },
+  "android": { "modules": ["com.spndrr.speech.SpndrrSpeechModule"] }
+}

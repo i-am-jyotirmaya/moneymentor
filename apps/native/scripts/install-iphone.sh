@@ -27,17 +27,13 @@ device_id=${1:-${SPNDRR_IOS_DEVICE:-}}
 [[ -n "${DEVELOPMENT_TEAM:-}" ]] || fail "Set DEVELOPMENT_TEAM to your Xcode Personal Team ID."
 require xcodebuild
 require xcrun
+require pnpm
+require pod
 
 workspace=ios/SpndrrDev.xcworkspace
-if [[ ! -d "$workspace" || ! -f ios/Podfile ]]; then
-  require pnpm
-  require pod
-  pnpm exec expo prebuild --platform ios --no-install
-fi
-if ! cmp -s ios/Podfile.lock ios/Pods/Manifest.lock; then
-  require pod
-  (cd ios && pod install)
-fi
+# Matching CocoaPods lockfiles do not detect new local Expo modules or config changes.
+pnpm exec expo prebuild --platform ios --no-install
+(cd ios && pod install)
 
 artifact_dir="$PWD/dist/local/ios/device-release"
 derived_data="$artifact_dir/derived-data"
